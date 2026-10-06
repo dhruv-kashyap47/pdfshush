@@ -1,0 +1,11 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Supply-chain hardening (pnpm 11 reads these from the workspace file).
+minimumReleaseAgeExclude:
+  - vite@8.3.3
+onlyBuiltDependencies:
+  - esbuild
+  - unrs-resolver
+  - '@tailwindcss/oxide'

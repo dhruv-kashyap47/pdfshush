@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+Thumbs.db
+logs/
+*.log
+__pycache__/
+tests/fixtures/torture/
+tests/e2e/artifacts/
+tests/e2e/fixtures/
