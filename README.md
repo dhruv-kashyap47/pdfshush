@@ -10,6 +10,9 @@ quotas, through the exact same job contract.
 
 ## Status: Phase 0 (foundation)
 
+> **Plan, decisions & progress tracker: [`PLAN.md`](./PLAN.md)** — read this first when
+> resuming work; it is updated at the end of every session.
+
 | Layer | State |
 | --- | --- |
 | `packages/pdf-core` | ✅ Engine: job contract, limits, merge/compose/render/zip, 21 tests |
