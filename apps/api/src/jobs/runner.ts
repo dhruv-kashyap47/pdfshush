@@ -129,7 +129,7 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
     throw translateError(error);
   }
 
-  const outputs = await writeOutputs(payload.jobId, result, store);
+  const outputs = await writeOutputs(payload.jobId, result, store, payload.slug);
   return outputs;
 }
 
@@ -158,21 +158,34 @@ async function readInputs(payload: JobPayload, store: WorkDirStore): Promise<Job
 }
 
 /**
- * Turns whatever a job returned into files on disk. Jobs that produce binary
- * output do so as `ArrayBuffer`/`Uint8Array`, either bare or behind
- * `{ data, name, pageCount }` (single) or an array of those (multi).
+ * Turns whatever a job returned into files on disk.
+ *
+ * Binary output (`ArrayBuffer`/`Uint8Array`, bare or behind
+ * `{ data, name, pageCount }`, or arrays/parts/images of those) is written as
+ * files. Jobs whose result is *metadata* -- `inspect` returns page counts and
+ * dimensions, nothing to download -- are serialised to a JSON result rather than
+ * rejected: a server that refuses to answer "how many pages is this?" would be
+ * useless to exactly the callers who need it.
  */
 async function writeOutputs(
   jobId: string,
   result: unknown,
   store: WorkDirStore,
+  slug: string,
 ): Promise<RunResult> {
   const candidates = collectBinaryOutputs(result);
+
   if (candidates.length === 0) {
-    throw new JobExecutionError(
-      JOB_ERROR_CODES.output,
-      'This job produced no file output that the API can deliver',
-    );
+    const serialised = trySerialise(result);
+    if (!serialised) {
+      throw new JobExecutionError(JOB_ERROR_CODES.output, 'This job produced no deliverable output');
+    }
+    const stored = await store.writeResult(jobId, `${slug}-result.json`, serialised);
+    const pageCount = readPageCount(result);
+    return {
+      files: [{ name: stored.name, bytes: stored.bytes }],
+      ...(pageCount !== undefined ? { pageCount } : {}),
+    };
   }
 
   const written: { name: string; bytes: number }[] = [];
@@ -186,6 +199,24 @@ async function writeOutputs(
     files: written,
     ...(pageCount !== undefined ? { pageCount } : {}),
   };
+}
+
+/** JSON bytes for plain-object results; undefined for anything unserialisable. */
+function trySerialise(result: unknown): Uint8Array | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  try {
+    const json = JSON.stringify(result, (_key, value: unknown) => {
+      // Byte arrays would serialise as object maps of indices; say what they are.
+      if (value instanceof Uint8Array || value instanceof ArrayBuffer) {
+        return `<${value.byteLength} bytes>`;
+      }
+      return value;
+    });
+    if (typeof json !== 'string') return undefined;
+    return new TextEncoder().encode(json);
+  } catch {
+    return undefined;
+  }
 }
 
 interface BinaryOutput {
@@ -227,10 +258,17 @@ function collectBinaryOutputs(result: unknown): BinaryOutput[] {
   return found;
 }
 
+/**
+ * Page count for the job result. Some jobs report it directly; `inspect`
+ * reports it per document, so a single-document run borrows that number.
+ */
 function readPageCount(result: unknown): number | undefined {
-  if (result && typeof result === 'object') {
-    const value = (result as { pageCount?: unknown }).pageCount;
-    if (typeof value === 'number') return value;
+  if (!result || typeof result !== 'object') return undefined;
+  const record = result as { pageCount?: unknown; documents?: unknown };
+  if (typeof record.pageCount === 'number') return record.pageCount;
+  if (Array.isArray(record.documents) && record.documents.length === 1) {
+    const first = record.documents[0] as { pageCount?: unknown } | undefined;
+    if (typeof first?.pageCount === 'number') return first.pageCount;
   }
   return undefined;
 }

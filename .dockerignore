@@ -5,9 +5,17 @@ node_modules
 .github
 tests/e2e/artifacts
 tests/e2e/fixtures
-apps/web
 **/*.md
-!PLAN.md
 .env*
 **/.env*
 *.log
+
+# The web app's *source* is not needed to build or run the API, but its
+# package.json must stay: pnpm validates the workspace lockfile against every
+# project it lists.
+apps/web/src
+apps/web/public
+apps/web/index.html
+apps/web/vite.config.ts
+apps/web/node_modules
+apps/web/dist

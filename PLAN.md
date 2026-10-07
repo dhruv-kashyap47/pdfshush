@@ -19,19 +19,17 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P0 — Foundation** | Monorepo, `pdf-core` engine + job contract, guardrails, web shell, 3 pilot tools | ✅ **Done (2026-10-07)** — see §5 |
 | **P1 — Top-10 tools** | 10 client-side tools off the existing engine (delete/extract/rotate/split/mix/stamp/crop/n-up) | ✅ **Done (2026-10-07)** — see §6 |
 | **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ✅ **Done (2026-10-07)** — see §10 |
-| **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | 🔄 **In progress** (2026-10-08) — API, queue, sandboxed workers, quotas, janitor built and tested; Docker verification pending |
+| **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ✅ **Done (2026-10-08)** — see §11 |
 | **P4 — Accounts & workflows** | Anonymous-first JWT/OAuth, saved history, workflow builder | ⬜ |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** P2 shipped **and audited** — **14 of 53 tools live**, 60/60 E2E checks,
-86/86 unit tests, main bundle 684 kB with 0 pdf-lib/pdf.js refs (§10).
-**P3 in flight:** `apps/api` (Express + BullMQ + sandboxed workers + quotas + janitor)
-with 134 tests green (86 engine + 48 API). Remaining: the Docker stack verification and the
-kill -9 hardening gate — **blocked on Docker Desktop being installed.**
-Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
-before every push** (see §8 tooling).
+**Current gate:** P3 shipped — **hardening gate passed** (kill -9 mid-job → no orphans,
+queue recovers, limits hold). 15 tools-capable server-side · 135/135 unit tests ·
+60/60 browser E2E · 21/21 API integration · 15/15 hardening. **Next: P4** (accounts &
+workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push
+secret/PII grep before every push** (see §8 tooling).
 
 ---
 
@@ -444,8 +442,27 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   `require()` and run a real job end to end. *Bugs its own tests caught:*
   multipart completion order scrambled merge input order, validation errors
   escaping untranslated, and a payload `inputDir` field that was redundant *and* a
-  path hole. **Remaining: Docker stack verification + kill -9 gate** (Docker Desktop
-  not installed yet).
+  path hole.
+- **2026-10-08 — P3 complete; hardening gate passed.** Stack: `redis` + `api` + `worker`
+  from one unprivileged image (`docker compose up -d --build`). API surface: `POST
+  /api/jobs` (streaming multipart), `GET /api/jobs/:id`, `GET /api/jobs/:id/files/:name`,
+  `DELETE /api/jobs/:id`, `/api/health`, `/api/tools`, `/api/quota`. **8 job slugs run
+  server-side** (inspect, merge, organize, stamp, split-by-pages, split-half, n-up, edit)
+  — rendering jobs and `text-runs` stay client-only until the server has a canvas or a
+  pdf.js worker. *Hardening gate (`node tests/api/hardening.mjs`, 15/15):* a 220-page
+  merge observed **active**, then `SIGKILL` on the worker container — the API never
+  blinked, the job **settled as completed** (BullMQ retry + stalled detection), the
+  janitor **removed the orphaned directory** (`jobDirs: 0`), Redis quota counters
+  survived, and the restarted worker processed the next job. Ops knobs `FILE_TTL_MS` /
+  `JANITOR_INTERVAL_MS` make retention tunable without a rebuild. Gates: **135/135 unit
+  (86 engine + 49 API) · 60/60 browser E2E · 21/21 API integration · 15/15 hardening**,
+  typecheck green in 3 packages, web bundle unchanged (684 kB, 0 pdf-refs).
+  *Bugs the integration suites caught:* the janitor silently ignored its env config (the
+  zod schema keys never landed, so every deployment would have used the 1-hour default —
+  unit tests passed because they construct options directly); `inspect` was advertised as
+  a server slug but its metadata-only result was rejected as "no deliverable output"
+  (now serialised to `inspect-result.json`); and the runtime stage shipped `dist/` without
+  the workspace `node_modules`, so every server-side import was unresolvable.
 
 ---
 
@@ -460,13 +477,16 @@ pnpm test:e2e         # Playwright vs. running dev server (system Edge)
 pnpm build            # production build
 ```
 
-**Next move:** P3 (server pipeline → hardening gate) — requires Docker Desktop (WSL2):
-Express API + BullMQ/Redis, worker isolation (`mkdtemp`, kill -9 mid-job → no orphans),
-quotas, TTL janitor. Then append a changelog entry and tick the status board. Before every
-push run the **pre-push grep** over tracked/changed files: (1) secret-key patterns (API
-keys, PEM blocks, cloud access keys), (2) local username or machine-path markers, (3)
-dangerous sink APIs — HTML-injection helpers, dynamic code evaluation, shell exec. All
-three must come back empty.
+**Next move:** P4 (accounts & workflows). The server foundation it needs is in place: the
+job contract composes, ownership tokens exist, quotas and monitoring are live. First task
+is anonymous-first auth (JWT + optional OAuth) plus server-side history in MongoDB. Then
+append a changelog entry and tick the status board. Before every push run the **pre-push
+grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM blocks, cloud
+access keys), (2) local username or machine-path markers, (3) dangerous sink APIs —
+HTML-injection helpers, dynamic code evaluation, shell exec (`redis.eval` is ioredis Lua
+with constant scripts — documented inline; `tests/api/hardening.mjs` uses
+`execFileSync` with fixed argv to SIGKILL a container — documented inline). All three
+must come back empty.
 
 ---
 
@@ -518,3 +538,44 @@ metrics with the UI through a dependency-free module. The editor resets its docu
 "start over", fetches rasters through a bounded queue, memoizes pages, and freezes edits
 during a save. Gates after the audit: **86/86 unit · 60/60 E2E · main chunk 684 kB with
 0 pdf-lib/pdf.js refs**.
+
+---
+
+## 11. P3 sign-off (2026-10-08)
+
+**Delivered** — `apps/api` + a Docker topology, reusing the browser's job contract.
+
+| Concern | How it is met |
+| --- | --- |
+| Same contract, two runtimes | `JobDefinition` from `@pdfshush/pdf-core/node` runs in Node unchanged; the browser barrel stays browser-only (it needs `OffscreenCanvas`) |
+| No bytes in the queue | Payloads carry filenames; the worker derives `WORK_DIR` + jobId, so a payload cannot point it anywhere else |
+| CPU isolation | BullMQ **sandboxed processor** (CommonJS child process) — pdf-lib cannot stall the worker's event loop or its stalled-detection |
+| Quotas | 150/day · 6/min · 2 GB/day on a peppered SHA-256 of the IP; `INCR`+`EXPIRE` in one Lua script; rejected calls still consume budget |
+| Ownership | Tokens derived from the pepper, not stored — nothing to keep or leak |
+| Files | Streamed to disk with a byte cap; names sanitised; every path through `resolveWithin` |
+| Cleanup | TTL janitor in **both** api and worker — whichever process survives the crash sweeps |
+| Ops | `FILE_TTL_MS` / `JANITOR_INTERVAL_MS` tune retention without a rebuild; structured logs; `/api/health` exposes queue depth + work-dir usage |
+
+**Hardening gate — `node tests/api/hardening.mjs` (15/15, this is the P3 exit criterion)**
+1. A 220-page merge is observed **active**, then the worker container takes `SIGKILL`.
+2. The API never stops answering; the killed job **settles as completed** (retry + stalled
+   detection) instead of hanging in `active`.
+3. The crash leaves files behind, and the **janitor removes them** (`jobDirs: 0`) — the
+   mechanism is deletion by the survivor, not by the victim.
+4. Quota counters survive in Redis; the restarted worker processes the next job.
+5. All containers are running again afterwards.
+
+**Gates:** typecheck ✓ 3 packages · **135/135 unit** (86 engine + 49 API) · **60/60**
+browser E2E · **21/21** API integration (`node tests/api/smoke.mjs`, real PDFs → Redis →
+sandboxed worker → bytes on disk → verified download) · **15/15** hardening · web bundle
+unchanged (684 kB, 0 pdf-lib/pdf.js refs) · pre-push grep clean.
+
+**Known limits, deliberately not hidden**
+- Server-side slugs are the 8 pdf-lib-only jobs; rendering (`thumbnails`,
+  `pdf-to-images`) and `text-runs` need a canvas or a pdf.js worker the server lacks.
+- One image runs both roles via entry point; a production deployment should scale
+  `worker` replicas and give Redis a real volume rather than the default.
+- Rate limits are per-IP-hash with no distributed session; a shared NAT can exhaust a
+  budget. P4's accounts replace the hash with a real subject.
+- Heavy binaries (Ghostscript, qpdf, LibreOffice, OCRmyPDF) are *not* wired yet — that is
+  the next slice, and it is what unlocks compress/OCR/Word conversion.

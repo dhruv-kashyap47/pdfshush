@@ -72,7 +72,7 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
   const janitor = createJanitor({
     store,
     maxAgeMs: config.retentionMs,
-    intervalMs: Math.min(config.retentionMs, 5 * 60_000),
+    intervalMs: config.janitorIntervalMs,
     onSweep: (removed) => logger.info({ removed }, 'janitor swept stale job directories'),
     onError: (error) => logger.error({ error: String(error) }, 'janitor sweep failed'),
   });

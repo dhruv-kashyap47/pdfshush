@@ -30,6 +30,15 @@ const schema = z.object({
   /** Jobs processed at once by one worker process (CPU-bound: keep it small). */
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
 
+  /**
+   * How long a job's files may sit in the work directory before the janitor
+   * removes them, and how often it looks. Both are ops knobs: the hardening
+   * gate shortens them so a sweep is observable, and a deployment can tune
+   * retention without a rebuild.
+   */
+  FILE_TTL_MS: z.coerce.number().int().min(1_000).optional(),
+  JANITOR_INTERVAL_MS: z.coerce.number().int().min(250).optional(),
+
   /** Anonymous quota overrides. Unset means "use LIMITS.server". */
   QUOTA_TASKS_PER_DAY: z.coerce.number().int().positive().optional(),
   QUOTA_TASKS_PER_MINUTE: z.coerce.number().int().positive().optional(),
@@ -71,7 +80,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       maxUploadBytes: raw.MAX_UPLOAD_BYTES ?? LIMITS.server.maxUploadBytes,
       bytesPerDay: LIMITS.server.anonymousBytesPerDay,
     },
-    retentionMs: LIMITS.server.fileTtlMs,
+    retentionMs: raw.FILE_TTL_MS ?? LIMITS.server.fileTtlMs,
+    janitorIntervalMs: raw.JANITOR_INTERVAL_MS ?? 5 * 60_000,
     corsOrigins: (raw.CORS_ORIGINS ?? '')
       .split(',')
       .map((origin) => origin.trim())

@@ -5,7 +5,7 @@
  * runs executes in Node, driven by a payload that references files on disk.
  */
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -139,6 +139,27 @@ describe('runJob', () => {
       timeoutMs: 60_000,
     });
     expect(result.files[0]!.bytes).toBeGreaterThan(0);
+  });
+});
+
+describe('metadata-only results', () => {
+  it('serialises a job that returns no file (inspect) to JSON', async () => {
+    const source = await fixture();
+    const { store, jobId } = await seededStore([{ name: 'one.pdf', bytes: source }]);
+
+    const result = await runJob({
+      payload: payload({ jobId, slug: 'inspect', files: ['one.pdf'] }),
+      store,
+    });
+
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0]!.name).toBe('inspect-result.json');
+    expect(result.files[0]!.bytes).toBeGreaterThan(20);
+    expect(result.pageCount).toBe(2);
+
+    const written = await readFile(path.join(store.outputDir(jobId), 'inspect-result.json'), 'utf8');
+    const parsed = JSON.parse(written) as { documents: { pageCount: number }[] };
+    expect(parsed.documents[0]!.pageCount).toBe(2);
   });
 });
 

@@ -151,10 +151,30 @@ export function createApp(context: ApiContext): Express {
       response.status(404).json({ error: 'Result not found', code: 'result_not_found' });
       return;
     }
+    // The janitor may delete a job's files the moment its TTL passes -- including
+    // while this very download is starting. Without this check the read stream
+    // errors with no listener attached and the socket is reset instead of the
+    // caller getting a clean 404.
+    const onDisk = await context.store.statResult(auth.jobId, file.name);
+    if (!onDisk) {
+      response.status(404).json({ error: 'Result expired or removed', code: 'result_not_found' });
+      return;
+    }
     response.setHeader('Content-Type', 'application/pdf');
-    response.setHeader('Content-Length', String(file.bytes));
+    response.setHeader('Content-Length', String(onDisk.bytes));
     response.setHeader('Content-Disposition', `attachment; filename="${file.name}"`);
-    context.store.openResult(auth.jobId, file.name).pipe(response);
+    const stream = context.store.openResult(auth.jobId, file.name);
+    stream.on('error', (error: unknown) => {
+      if (!response.headersSent) {
+        response
+          .status(500)
+          .json({ error: 'Result could not be read', code: JOB_ERROR_CODES.internal });
+        return;
+      }
+      context.logger.error({ jobId: auth.jobId, error: String(error) }, 'result stream failed');
+      response.destroy();
+    });
+    stream.pipe(response);
   });
 
   app.delete('/api/jobs/:id', async (request: Request, response: Response) => {

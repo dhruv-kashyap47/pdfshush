@@ -39,6 +39,10 @@ services:
       WORK_DIR: /data/work
       EMBEDDED_WORKER: "false"
       WORKER_CONCURRENCY: "2"
+      # How long job files may sit before the janitor removes them, and how
+      # often it looks. Overridable so the hardening gate can watch a sweep.
+      FILE_TTL_MS: ${FILE_TTL_MS:-3600000}
+      JANITOR_INTERVAL_MS: ${JANITOR_INTERVAL_MS:-300000}
       LOG_LEVEL: info
     ports:
       - "8080:8080"
@@ -59,6 +63,8 @@ services:
       REDIS_URL: redis://redis:6379
       WORK_DIR: /data/work
       WORKER_CONCURRENCY: "2"
+      FILE_TTL_MS: ${FILE_TTL_MS:-3600000}
+      JANITOR_INTERVAL_MS: ${JANITOR_INTERVAL_MS:-300000}
       LOG_LEVEL: info
     volumes:
       - work:/data/work

@@ -35,7 +35,9 @@ async function main(): Promise<void> {
   const janitor = createJanitor({
     store,
     maxAgeMs: config.retentionMs,
-    intervalMs: Math.min(config.retentionMs, 5 * 60_000),
+    intervalMs: config.janitorIntervalMs,
+    onStart: ({ intervalMs, maxAgeMs }) =>
+      context.logger.info({ intervalMs, maxAgeMs }, 'janitor started'),
     onSweep: (removed) => context.logger.info({ removed }, 'janitor swept stale jobs'),
     onError: (error) => context.logger.error({ error: String(error) }, 'janitor sweep failed'),
   });
