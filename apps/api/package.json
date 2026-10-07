@@ -1,0 +1,37 @@
+{
+  "name": "@pdfshush/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PDFShush server pipeline: Express API + BullMQ workers for the heavy PDF tools.",
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "worker": "pnpm build && tsx src/worker/host.ts",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node24 --format=esm --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --outfile=dist/server.js && esbuild src/worker/host.ts --bundle --platform=node --target=node24 --format=esm --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --outfile=dist/worker-host.js && esbuild src/worker/processor.ts --bundle --platform=node --target=node24 --format=cjs --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --footer:js=\"module.exports = processJob;\" --outfile=dist/processor.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cantoo/pdf-lib": "^2.11.1",
+    "@pdfshush/pdf-core": "workspace:*",
+    "bullmq": "^6.3.11",
+    "busboy": "^1.6.0",
+    "express": "^5.2.1",
+    "fflate": "^0.8.3",
+    "helmet": "^8.3.0",
+    "ioredis": "^5.11.1",
+    "pino": "^10.4.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/busboy": "^1.5.4",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.1",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

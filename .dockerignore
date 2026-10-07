@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.github
+tests/e2e/artifacts
+tests/e2e/fixtures
+apps/web
+**/*.md
+!PLAN.md
+.env*
+**/.env*
+*.log

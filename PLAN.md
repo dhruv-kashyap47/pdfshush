@@ -19,7 +19,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P0 — Foundation** | Monorepo, `pdf-core` engine + job contract, guardrails, web shell, 3 pilot tools | ✅ **Done (2026-10-07)** — see §5 |
 | **P1 — Top-10 tools** | 10 client-side tools off the existing engine (delete/extract/rotate/split/mix/stamp/crop/n-up) | ✅ **Done (2026-10-07)** — see §6 |
 | **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ✅ **Done (2026-10-07)** — see §10 |
-| **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ⬜ Next |
+| **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | 🔄 **In progress** (2026-10-08) — API, queue, sandboxed workers, quotas, janitor built and tested; Docker verification pending |
 | **P4 — Accounts & workflows** | Anonymous-first JWT/OAuth, saved history, workflow builder | ⬜ |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
@@ -27,7 +27,9 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 
 **Current gate:** P2 shipped **and audited** — **14 of 53 tools live**, 60/60 E2E checks,
 86/86 unit tests, main bundle 684 kB with 0 pdf-lib/pdf.js refs (§10).
-Ready for P3 (Express + BullMQ — requires Docker Desktop/WSL2).
+**P3 in flight:** `apps/api` (Express + BullMQ + sandboxed workers + quotas + janitor)
+with 129 tests green (86 engine + 43 API). Remaining: the Docker stack verification and the
+kill -9 hardening gate — **blocked on Docker Desktop being installed.**
 Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
 before every push** (see §8 tooling).
 
@@ -81,6 +83,12 @@ Do not relitigate these without a strong reason; each was researched and chosen.
 
 ```
 pdfshush/
+├── apps/api                        Express + BullMQ (P3) — same job contract as the browser
+│   ├── src/http/                     app · routes · streaming multipart uploads
+│   ├── src/jobs/                     payload schema · queue/producer · node runner · cancel
+│   ├── src/files/                    work dir (streamed uploads) · path safety · TTL janitor
+│   ├── src/quota/                    policy · Redis counters (Lua) · in-memory double
+│   └── src/worker/                   host (BullMQ Worker) · sandboxed processor
 ├── apps/web                      Vite + React 19 + Tailwind v4 + shadcn/ui
 │   ├── src/workers/job-worker.ts   module worker: configures pdf.js, runs pdf-core jobs
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
@@ -99,6 +107,8 @@ pdfshush/
 │   └── src/jobs/                    11: inspect · merge · organize · pdf-to-images · thumbnails ·
 │                                     stamp · split-by-pages · split-half · n-up · edit · text-runs
 ├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools
+├── docker-compose.yml              redis + api + worker (P3)
+├── infra/docker/api.Dockerfile     one image, two entry points (api / worker)
 └── PLAN.md                         this file
 
 \* `ranges.ts` and `textMetrics.ts` must stay dependency-free — values imported from them
@@ -415,6 +425,27 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   after save, unsaved-changes guard, Ctrl+S / Ctrl+D, arrow-key nudge, z-order controls,
   text boxes that grow to fit, editing frozen during save.
   Gates: 86/86 unit · 60/60 E2E · main bundle 684 kB with 0 pdf-refs.
+- **2026-10-08 — P3 started (server pipeline, first slice).** New `apps/api`:
+  Express 5 + BullMQ 6 + Redis, reusing the *same* `JobDefinition` the browser
+  runs. Decisions worth keeping: **PDF bytes never enter Redis** (payloads carry
+  filenames; the worker derives directories from `WORK_DIR` + jobId, so a crafted
+  payload cannot point it anywhere else); jobs run in **BullMQ sandboxed child
+  processes** (CPU-bound pdf-lib would stall queue bookkeeping otherwise, and an
+  OOM kills one job, not the worker); uploads **stream to disk** and stop at the
+  byte cap; filenames sanitised and every path goes through `resolveWithin`;
+  quotas key on a **peppered hash of the IP** (150/day, 6/min, 2 GB/day) with
+  increment+expiry in one Lua script; ownership tokens are **derived** from the
+  pepper rather than stored; a TTL **janitor** in both api and worker sweeps stale
+  job directories, which is what makes the kill -9 gate achievable. New
+  `pdf-core` entry `@pdfshush/pdf-core/node` exposes only the isomorphic surface —
+  importing the browser barrel into Node would drag `OffscreenCanvas` types in and
+  ship renderer code the server can never run. Gates: **129/129 tests (86 engine +
+  43 API)**, typecheck green in 3 packages, processor verified to load under
+  `require()` and run a real job end to end. *Bugs its own tests caught:*
+  multipart completion order scrambled merge input order, validation errors
+  escaping untranslated, and a payload `inputDir` field that was redundant *and* a
+  path hole. **Remaining: Docker stack verification + kill -9 gate** (Docker Desktop
+  not installed yet).
 
 ---
 

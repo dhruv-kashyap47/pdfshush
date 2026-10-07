@@ -2,7 +2,16 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
-# Supply-chain hardening (pnpm 11 reads these from the workspace file).
+# Explicit build-script decisions (pnpm 11 records them here; the supply-chain
+# stance is "deny by default, opt in per package, with a reason").
+allowBuilds:
+  # Needed: esbuild's install script fetches its platform binary. It is a build
+  # tool only -- it never runs in the app or the API at runtime.
+  esbuild: true
+  # Not needed: msgpackr-extract is an optional native accelerator inside
+  # bullmq. The pure-JS path is used instead; one less native build to trust.
+  msgpackr-extract: false
+
 minimumReleaseAgeExclude:
   - vite@8.3.3
 onlyBuiltDependencies:

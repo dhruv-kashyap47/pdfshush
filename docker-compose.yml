@@ -1,0 +1,73 @@
+# PDFShush server stack (Phase 3).
+#
+# Three services, one network:
+#   redis    -- the queue broker (state only: no PDF bytes ever enter it)
+#   api      -- Express + BullMQ producer + the TTL janitor
+#   worker   -- BullMQ consumers; jobs run in sandboxed child processes
+#
+# PDF bytes live in the shared `work` volume, mounted at the same path in both
+# processes, so the worker can find what the API uploaded. The janitor in both
+# containers is what makes "kill -9 leaves nothing behind" true.
+#
+# Bring it up with:  docker compose up -d --build
+
+services:
+  redis:
+    image: redis:7-alpine
+    # Bounded memory: the queue holds paths and counters, never documents.
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      REDIS_URL: redis://redis:6379
+      WORK_DIR: /data/work
+      EMBEDDED_WORKER: "false"
+      WORKER_CONCURRENCY: "2"
+      LOG_LEVEL: info
+    ports:
+      - "8080:8080"
+    volumes:
+      - work:/data/work
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    command: ["node", "dist/worker-host.js"]
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      WORK_DIR: /data/work
+      WORKER_CONCURRENCY: "2"
+      LOG_LEVEL: info
+    volumes:
+      - work:/data/work
+    depends_on:
+      redis:
+        condition: service_healthy
+    # The hardening gate kills this container mid-job on purpose; the volume and
+    # the queue must survive it.
+    restart: unless-stopped
+
+volumes:
+  work:

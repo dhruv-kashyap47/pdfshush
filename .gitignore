@@ -17,3 +17,7 @@ screeshots/
 tests/fixtures/torture/
 tests/e2e/artifacts/
 tests/e2e/fixtures/
+
+# Server work directory (uploads + results): runtime state, never committed.
+.work/
+apps/api/.work/
