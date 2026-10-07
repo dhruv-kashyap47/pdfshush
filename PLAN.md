@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-07
+**Last updated:** 2026-10-08
 
 ---
 
@@ -25,7 +25,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** P2 shipped **and audited** (60/60 E2E checks, 86/86 unit tests, §10).
+**Current gate:** P2 shipped **and audited** — **14 of 53 tools live**, 60/60 E2E checks,
+86/86 unit tests, main bundle 684 kB with 0 pdf-lib/pdf.js refs (§10).
 Ready for P3 (Express + BullMQ — requires Docker Desktop/WSL2).
 Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
 before every push** (see §8 tooling).
@@ -39,13 +40,21 @@ Do not relitigate these without a strong reason; each was researched and chosen.
 - **Reverse-engineering target:** Sejda ≈ ~40 tools across Merge / Split / Edit&Sign /
   Compress / Security / Convert / Other / Scans / Workflows. Free tier: 3 tasks/hr,
   200 pages, 50 MB. We mirror the catalog, URLs, and IA — but **no task quotas** for
-  in-browser work (limits instead, §4).
+  in-browser work (limits instead, §4). Our own catalog is **53 slugs**: Sejda's set plus
+  the disruption extras (AI, e-sign, API/MCP, workflows); every slug has a permanent page
+  from day one, so unshipped tools render an honest "In development" state.
 - **UI foundation:** `shadcnstore/shadcn-dashboard-landing-template` (**MIT**, `vite-version/`
   branch) — keep landing sections + shadcn/ui + theme system + auth/dashboard/error pages;
   strip mail/tasks/chat/calendar demos. Attribution preserved in `licenses/`.
 - **Not a foundation:** `genspark-ai/genoffice` (Electron, wrong shape) — but an
-  Apache-2.0 **code donor** for later phases: `apps/pdf` (P2 editor), `pdf2docx` (P3),
-  `ai-provider` (P5), MCP server (P6). **Avoid its `ee/` dir** (enterprise license).
+  Apache-2.0 **code donor**: `apps/pdf` (already used for the P2 editor and its audit),
+  `pdf2docx` (P3), `ai-provider` (P5), MCP server (P6). **Avoid its `ee/` dir**
+  (enterprise license).
+- **E-sign draw pad (decided 2026-10-08, for P6):** `szimek/signature_pad` (**MIT**,
+  zero deps, ~6 kB gzip). Variable-width Bézier smoothing is the hard part of a signature
+  pad; its `toSVG()` also unlocks **vector** signatures through pdf-lib's `drawSvgPath`.
+  Raster output feeds the existing `EditImageObject` pipeline unchanged. Requires a
+  NOTICE attribution. Full design notes: session plan file `p6-sign-signature-pad.md`.
 - **Engine:** maintained pdf-lib fork **`@cantoo/pdf-lib`** (upstream stale since 2021) +
   **`pdfjs-dist` v6** (rendering) + `fflate` (zip). Server tools later: Ghostscript, qpdf,
   LibreOffice, OCRmyPDF, Tesseract.js.
@@ -68,7 +77,7 @@ Do not relitigate these without a strong reason; each was researched and chosen.
 
 ---
 
-## 3. Architecture (as built in P0)
+## 3. Architecture (as built through P2)
 
 ```
 pdfshush/
@@ -76,16 +85,25 @@ pdfshush/
 │   ├── src/workers/job-worker.ts   module worker: configures pdf.js, runs pdf-core jobs
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
-│   ├── src/tools/registry.ts       full catalog: 45 tools, permanent /tools/:slug pages
-│   └── src/components/tools/*      dropzone, progress, result panel, 3 tool bodies
+│   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
+│   ├── src/tools/registry.ts       catalog: 53 tools (**14 live**), permanent /tools/:slug pages
+│   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
+│   └── src/components/tools/*      13 tool-body files (14 tools — stamp.tsx serves two)
+│                                    + shared dropzone · job-progress · result-panel · tool-frame
 ├── packages/pdf-core               engine — same code path in worker and Node
 │   ├── src/job.ts                   JobDefinition {validate, estimate, run} + withJobLimits
 │   ├── src/limits.ts                every capacity number in one file
-│   ├── src/ops/                     pages · compose · merge · zip · ranges (dep-free)
-│   ├── src/render/                  pdfjsRuntime · canvas · renderPage
-│   └── src/jobs/                    inspect · merge · organize · pdf-to-images · thumbnails
+│   ├── src/ops/                     pages · compose · merge · zip · split · stamp · nup ·
+│   │                                geometry · edit · forms (P2) · ranges · textMetrics (dep-free*)
+│   ├── src/render/                  pdfjsRuntime · canvas · renderPage · textRuns (P2)
+│   └── src/jobs/                    11: inspect · merge · organize · pdf-to-images · thumbnails ·
+│                                     stamp · split-by-pages · split-half · n-up · edit · text-runs
 ├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools
 └── PLAN.md                         this file
+
+\* `ranges.ts` and `textMetrics.ts` must stay dependency-free — values imported from them
+reach the web app, and a value imported from a pdf-lib-reaching module drags pdf-lib into
+the main bundle (§7).
 ```
 
 **Invariants (do not break):**
@@ -137,9 +155,10 @@ chat-with-PDF. **Blocking gate:** redaction-leakage tests (extracted text must n
 contain redacted spans).
 
 ### P6 — E-sign / API / MCP
-Signature flows (draw/type/upload, ordered recipients, audit trail) · public REST API
+Signature flows (draw/type/upload via `signature_pad`, ordered recipients, audit trail;
+vector output via `toSVG()` → `drawSvgPath`, gated on tests) · public REST API
 (rate-limited, API keys) · **PDFShush MCP server** exposing every tool to AI agents
-(design donor: GenOffice MCP, Apache-2.0).
+(design donor: GenOffice MCP, Apache-2.0). Reuses the P2 editor for placement/fill.
 
 ### P7 — Hardening / torture suite
 Adversarial fixture corpus: malformed PDFs, 10k-page files, encrypted docs, broken fonts,
@@ -207,7 +226,7 @@ interrupted jobs, cleanup verification. Plus SEO prerendering, Lighthouse/perf, 
 
 **Web additions:** `usePageThumbnails` hook (capacity/inspect/thumbs pipeline, extracted
 from Organize so every grid tool shares the guard rails) · `StampTool` is one component
-serving both page-numbers and header-footer modes · registry `LIVE` now has 13 slugs.
+serving both page-numbers and header-footer modes · registry `LIVE` reached **13 slugs** at the end of P1 (14 after P2's editor).
 
 **Gates (all green)**
 | Gate | Result |
