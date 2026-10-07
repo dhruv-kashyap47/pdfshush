@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Zap } from 'lucide-react';
 import { TOOL_CATEGORIES, type ToolDef } from '@/tools/registry';
+import { ToolSlugContext } from '@/tools/tool-context';
 
 interface ToolFrameProps {
   tool: ToolDef;
@@ -36,7 +37,7 @@ export function ToolFrame({ tool, children }: ToolFrameProps) {
         </div>
       </div>
 
-      {children}
+      <ToolSlugContext.Provider value={tool.slug}>{children}</ToolSlugContext.Provider>
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">

@@ -1,4 +1,6 @@
 import { PDFDocument } from '@cantoo/pdf-lib';
+import { pageGeom, displaySize } from './geometry.js';
+import { extractFormWidgets, type FormWidgetInfo } from './forms.js';
 
 export interface PageInfo {
   /** Zero-based index within its source document. */
@@ -7,6 +9,9 @@ export interface PageInfo {
   heightPt: number;
   rotation: number;
   cropBox: { x: number; y: number; width: number; height: number };
+  /** Page size as displayed (crop box, /Rotate applied) -- the editor's frame. */
+  displayWidthPt: number;
+  displayHeightPt: number;
 }
 
 export interface PdfInfo {
@@ -14,6 +19,8 @@ export interface PdfInfo {
   pages: PageInfo[];
   encrypted: boolean;
   version: string;
+  /** AcroForm widgets (display-space rects) when the document has a form. */
+  fields: FormWidgetInfo[];
   metadata: {
     title?: string;
     author?: string;
@@ -64,6 +71,7 @@ export async function inspectPdf(data: Uint8Array, options: LoadOptions = {}): P
   const info: PageInfo[] = pages.map((page, index) => {
     const size = page.getSize();
     const box = page.getCropBox();
+    const display = displaySize(pageGeom(page));
     return {
       index,
       widthPt: round2(size.width),
@@ -75,6 +83,8 @@ export async function inspectPdf(data: Uint8Array, options: LoadOptions = {}): P
         width: round2(box.width),
         height: round2(box.height),
       },
+      displayWidthPt: round2(display.width),
+      displayHeightPt: round2(display.height),
     };
   });
 
@@ -83,6 +93,7 @@ export async function inspectPdf(data: Uint8Array, options: LoadOptions = {}): P
     pages: info,
     encrypted: isEncrypted(doc),
     version: readVersion(doc),
+    fields: safe(() => extractFormWidgets(doc)) ?? [],
     metadata: readMetadata(doc),
   };
 }

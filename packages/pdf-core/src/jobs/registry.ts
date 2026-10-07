@@ -6,6 +6,7 @@
  */
 
 import type { JobContext, JobDefinition, JobInputBase } from '../job.js';
+import { editJob } from './edit.job.js';
 import { inspectJob } from './inspect.job.js';
 import { mergeJob } from './merge.job.js';
 import { nUpJob } from './nUp.job.js';
@@ -14,11 +15,13 @@ import { pdfToImagesJob } from './pdfToImages.job.js';
 import { splitByPagesJob } from './splitByPages.job.js';
 import { splitHalfJob } from './splitHalf.job.js';
 import { stampJob } from './stamp.job.js';
+import { textRunsJob } from './textRuns.job.js';
 import { thumbnailsJob } from './thumbnails.job.js';
 
 type AnyJob = JobDefinition<JobInputBase, unknown>;
 
 export const JOBS = {
+  [editJob.slug]: editJob as AnyJob,
   [inspectJob.slug]: inspectJob as AnyJob,
   [mergeJob.slug]: mergeJob as AnyJob,
   [organizeJob.slug]: organizeJob as AnyJob,
@@ -28,6 +31,7 @@ export const JOBS = {
   [splitHalfJob.slug]: splitHalfJob as AnyJob,
   [stampJob.slug]: stampJob as AnyJob,
   [nUpJob.slug]: nUpJob as AnyJob,
+  [textRunsJob.slug]: textRunsJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;

@@ -88,7 +88,7 @@ const t = (
 ): ToolDef => ({ slug, name, description, category, status, icon, accent });
 
 /**
- * Live tools. Phase 0 pilots plus the ten Phase 1 tools.
+ * Live tools. Phase 0 pilots, the ten Phase 1 tools, and the Phase 2 editor.
  */
 const LIVE = new Set([
   // Phase 0
@@ -106,7 +106,31 @@ const LIVE = new Set([
   'crop-pdf',
   'header-footer',
   'n-up',
+  // Phase 2
+  'edit-pdf',
 ]);
+
+/**
+ * Cross-pollination: which live tools each live tool should suggest on its
+ * success screen. Only targets that are themselves LIVE are ever rendered as
+ * links, so this map can point ahead without dangling chips.
+ */
+const TOOL_NEXT: Record<string, string[]> = {
+  'edit-pdf': ['organize-pdf', 'page-numbers', 'delete-pages'],
+  'merge-pdf': ['split-by-pages', 'alternate-mix'],
+  'organize-pdf': ['delete-pages', 'extract-pages'],
+  'pdf-to-jpg': ['merge-pdf', 'edit-pdf'],
+  'delete-pages': ['organize-pdf', 'extract-pages'],
+  'extract-pages': ['merge-pdf', 'organize-pdf'],
+  'rotate-pdf': ['organize-pdf', 'edit-pdf'],
+  'split-by-pages': ['merge-pdf', 'alternate-mix'],
+  'alternate-mix': ['merge-pdf', 'split-in-half'],
+  'split-in-half': ['split-by-pages', 'merge-pdf'],
+  'page-numbers': ['header-footer', 'edit-pdf'],
+  'crop-pdf': ['pdf-to-jpg', 'edit-pdf'],
+  'header-footer': ['page-numbers', 'edit-pdf'],
+  'n-up': ['pdf-to-jpg', 'organize-pdf'],
+};
 
 const tool = (
   slug: string,
@@ -268,4 +292,11 @@ export function getTool(slug: string | undefined): ToolDef | undefined {
 
 export function liveTools(): ToolDef[] {
   return ALL_TOOLS.filter((def) => def.status === 'live');
+}
+
+/** Live tools worth suggesting after `slug` succeeds (live targets only). */
+export function nextFor(slug: string): ToolDef[] {
+  return (TOOL_NEXT[slug] ?? [])
+    .map((next) => TOOLS_BY_SLUG[next])
+    .filter((def): def is ToolDef => def?.status === 'live');
 }

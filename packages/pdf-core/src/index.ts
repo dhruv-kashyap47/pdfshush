@@ -54,6 +54,34 @@ export type {
 } from './ops/compose.js';
 export { parsePageRanges } from './ops/ranges.js';
 export { createZip, dedupeNames, pageFileName, stripExtension } from './ops/zip.js';
+export {
+  pageGeom,
+  geomFromBoxes,
+  displaySize,
+  viewToPdf,
+  pdfToView,
+  viewRectToPdf,
+  pdfRectToView,
+} from './ops/geometry.js';
+export type { PageGeom, DisplayRect } from './ops/geometry.js';
+export {
+  applyEdits,
+  validateEditObjects,
+  validateExport,
+  wrapTextToWidth,
+  parseHexColor,
+} from './ops/edit.js';
+export type {
+  EditorObject,
+  EditObjectBase,
+  EditTextObject,
+  EditImageObject,
+  EditRectObject,
+  EditLineObject,
+  EditMarkObject,
+} from './ops/edit.js';
+export { extractFormWidgets, applyFormValues } from './ops/forms.js';
+export type { FormWidgetInfo, FormFieldType } from './ops/forms.js';
 export { stampDocument, renderStampTemplate } from './ops/stamp.js';
 export type {
   StampContent,
@@ -73,6 +101,8 @@ export { defaultCanvasFactory, scaleForWidth } from './render/canvas.js';
 export type { CanvasFactory, RenderCanvas } from './render/canvas.js';
 export { renderPageToImage, renderPages, renderThumbnails } from './render/renderPage.js';
 export type { ImageFormat, RenderedImage, RenderPageOptions } from './render/renderPage.js';
+export { extractTextRuns, clusterTextRuns } from './render/textRuns.js';
+export type { TextRun, RunItem } from './render/textRuns.js';
 
 // Jobs
 export { JOBS, getJob, runJob } from './jobs/registry.js';
@@ -107,3 +137,7 @@ export { stampJob } from './jobs/stamp.job.js';
 export type { StampJobInput, StampJobOutput, StampJobOptions } from './jobs/stamp.job.js';
 export { nUpJob } from './jobs/nUp.job.js';
 export type { NUpJobInput, NUpJobOutput, NUpJobOptions } from './jobs/nUp.job.js';
+export { editJob } from './jobs/edit.job.js';
+export type { EditJobInput, EditJobOutput, EditJobOptions } from './jobs/edit.job.js';
+export { textRunsJob } from './jobs/textRuns.job.js';
+export type { TextRunsInput, TextRunsOutput, TextRunsOptions } from './jobs/textRuns.job.js';

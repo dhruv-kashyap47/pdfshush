@@ -1,5 +1,6 @@
 import type { JobDefinition } from '../job.js';
 import { inspectPdf, type PageInfo } from '../ops/pages.js';
+import type { FormWidgetInfo } from '../ops/forms.js';
 import { totalInputBytes } from './helpers.js';
 
 export interface InspectInput {
@@ -13,6 +14,8 @@ export interface InspectOutput {
     encrypted: boolean;
     version: string;
     pages: PageInfo[];
+    /** AcroForm widgets with display-space rects (editor form filling). */
+    fields: FormWidgetInfo[];
     metadata: { title?: string; author?: string; creator?: string };
   }[];
 }
@@ -48,6 +51,7 @@ export const inspectJob: JobDefinition<InspectInput, InspectOutput> = {
         encrypted: info.encrypted,
         version: info.version,
         pages: info.pages,
+        fields: info.fields,
         metadata: {
           ...(info.metadata.title !== undefined ? { title: info.metadata.title } : {}),
           ...(info.metadata.author !== undefined ? { author: info.metadata.author } : {}),

@@ -18,14 +18,15 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | --- | --- | --- |
 | **P0 — Foundation** | Monorepo, `pdf-core` engine + job contract, guardrails, web shell, 3 pilot tools | ✅ **Done (2026-10-07)** — see §5 |
 | **P1 — Top-10 tools** | 10 client-side tools off the existing engine (delete/extract/rotate/split/mix/stamp/crop/n-up) | ✅ **Done (2026-10-07)** — see §6 |
-| **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ⬜ Next |
-| **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ⬜ |
+| **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ✅ **Done (2026-10-07)** — see §10 |
+| **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ⬜ Next |
 | **P4 — Accounts & workflows** | Anonymous-first JWT/OAuth, saved history, workflow builder | ⬜ |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** P1 signed off + audited (41/41 E2E checks, 46/46 unit tests, §6). Ready for P2.
+**Current gate:** P2 signed off (50/50 E2E checks, 72/72 unit tests, §10). Ready for P3
+(Express + BullMQ — requires Docker Desktop/WSL2).
 Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
 before every push** (see §8 tooling).
 
@@ -113,7 +114,7 @@ Engine ops for these already exist (`refsForSpan`, `parsePageRanges`, `composePa
 Rotate · Crop · Page Numbers · Header & Footer · N-up.**
 Also: per-tool SEO metadata + prerendered sitemap stubs (finalize in P7).
 
-### P2 — Editor
+### P2 — Editor *(done 2026-10-07 — sign-off in §10)*
 Sejda-class editor: text/image/annotation editing, three edit modes (read the GenOffice
 `apps/pdf` patterns, Apache-2.0, skip `ee/`), undo/redo stack, export validation
 (re-parse output before offering the download).
@@ -295,6 +296,27 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
 - `timeoutForPageCount(pageCount, baseMs)` needs an explicit `: number` on `baseMs`
   (literal inference from `as const` infects callers).
 
+**P2 editor (display space, cantoo draw, pdf.js in vitest)**
+- `page.rgb(r,g,b)` in @cantoo/pdf-lib returns `{ type, red, green, blue }` — **not** `r/g/b`
+  (and `embedJpg`, not `embedJpeg`).
+- pdf-lib grows widget rects by **half the border on all sides** (200×24 → 201×25) — verify
+  form rects against the drawn UI, not the source values.
+- `drawText` hex-encodes its output → test text presence via the `pdfContainsText` helper
+  (`ops` bytes contain the hex string), not raw ASCII.
+- Node/vitest pdf.js: alias to `pdfjs-dist/legacy/build/pdf.mjs` (regex alias in
+  `packages/pdf-core/vitest.config.ts`) and set workerSrc inside tests via
+  `new URL('../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url)` —
+  no `node:` imports (pdf-core tsconfig has `"types": []`).
+- `job-pool` transfers **only `files[].data` buffers**; `options` are structured-cloned —
+  embedded image bytes in `options.objects[].data` survive dispatch. Files, however, are
+  detached → re-read `File` bytes for every job run.
+- A React handler that calls `stopPropagation()` on `pointerup` blocks bubbling at the
+  React root → **window-level** native gesture listeners never fire (drag never ends).
+  Gesture handles must only stop `pointerdown`.
+- TS aliased-condition narrowing does **not** survive property re-access
+  (`runner.state.progress` after `runner.state.status === 'running'`) → narrow a local
+  `const state = runner.state` instead.
+
 **Tooling**
 - pnpm 11 ignores the `pnpm` field in `package.json` → `onlyBuiltDependencies` lives in
   `pnpm-workspace.yaml`. Root installs need `pnpm add -Dw`.
@@ -324,6 +346,18 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   clobbering the source name, merge rows stuck on "reading…" after an abort, unsanitised
   stamp style values, and four leak/dead-code holes (IDB close, pool dispose, blob revoke
   timing, unwarned low-memory path). 8 regression tests added → 46/46 unit, 41/41 E2E.
+- **2026-10-07 — P2 complete (editor).** Engine: display-space geometry verified against
+  pdf.js for all 4 rotations ± cropbox, 11-object `edit` op (whiteout-and-overlay text,
+  rotation-correct draws, `wrapTextToWidth`, save→strict-reparse→page-count export
+  validation), AcroForm widget extraction/apply, text-run clustering, `edit` + `text-runs`
+  jobs, `fields` on inspect output. Web: snapshot undo/redo (`lib/editor-state.ts`),
+  editor toolbar/page/inspector (drag-create · move · resize · seed-replace · lazy
+  per-page rasters + runs), form-value overlays, cross-pollination (`nextFor` chips +
+  one-time local-processing toast), `edit-pdf` **LIVE as the 14th tool**. Gates: 72/72
+  unit (26 new) · 50/50 E2E (11 new) · main bundle 676 kB with 0 pdf-refs. *Fixed en
+  route:* inspect job dropping `fields`, stale `info` closure before raster pre-fetch,
+  handle `stopPropagation` stranding window gesture listeners, arrow `reverse` never set,
+  blob-URL churn while dragging inserted images, ambiguous file-input locator in E2E.
 
 ---
 
@@ -338,9 +372,52 @@ pnpm test:e2e         # Playwright vs. running dev server (system Edge)
 pnpm build            # production build
 ```
 
-**Next move:** P2 (editor) — read GenOffice `apps/pdf` patterns first (Apache-2.0, skip
-`ee/`), then append a changelog entry and tick the status board. Before every push run the
-**pre-push grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM
-blocks, cloud access keys), (2) local username or machine-path markers, (3) dangerous sink
-APIs — HTML-injection helpers, dynamic code evaluation, shell exec. All three must come
-back empty.
+**Next move:** P3 (server pipeline → hardening gate) — requires Docker Desktop (WSL2):
+Express API + BullMQ/Redis, worker isolation (`mkdtemp`, kill -9 mid-job → no orphans),
+quotas, TTL janitor. Then append a changelog entry and tick the status board. Before every
+push run the **pre-push grep** over tracked/changed files: (1) secret-key patterns (API
+keys, PEM blocks, cloud access keys), (2) local username or machine-path markers, (3)
+dangerous sink APIs — HTML-injection helpers, dynamic code evaluation, shell exec. All
+three must come back empty.
+
+---
+
+## 10. P2 sign-off (2026-10-07)
+
+**Engine (`packages/pdf-core`)**
+- `ops/geometry.ts` — display space (top-left origin, y down, `/Rotate` applied, CropBox
+  respected); verified against pdf.js `getViewport` for rotations 0/90/180/270 ± cropbox.
+- `ops/edit.ts` — 11 object kinds (text, image, rect, ellipse, line, arrow, highlight,
+  strikeout, underline, whiteout); every draw maps display→PDF so rotated pages match the
+  UI; `wrapTextToWidth` against the embedded font; `validateEditObjects` (unknown-kind +
+  id checks); **export validation** = save → strict `PDFDocument.load(throwOnInvalidObject)`
+  → page-count match (`expected N pages, found M`, else `Export validation failed`).
+- `ops/forms.ts` — widgets carry display-space `rect`s, radio `option`/boolean `value`,
+  option lists; `applyFormValues` throws `Form field "X" does not exist` for unknowns.
+- `render/textRuns.ts` — runs with `horizontal` + baseline `line` key (fixes interleaved
+  line grouping); fragment join gap ≤0.15em; same-line = cross overlap ≥60% + gap ≤0.8em.
+- Jobs: `edit` (slug `edit`, `LIMITS.tool.maxEditObjects` = 2000, output
+  `<stem>-edited.pdf` or `outputName`) + `text-runs`, both registered; `inspect` output
+  now includes `fields`.
+- Tests: `test/editor.test.ts` — **26 new → 72/72 total** (geometry vs pdf.js, rotation
+  drawing, form round-trip, job contract, export validation failures).
+
+**Web (`apps/web` — no test runner; interaction covered by E2E)**
+- `lib/editor-state.ts` — snapshot undo/redo: `past`/`future` stacks, `live` for in-flight
+  gestures, `beginTx`/`endTx` wrap a drag or a text-editing session into one undo step.
+- `components/editor/` — toolbar (Edit / Insert / Annotate groups, zoom 50–200%, undo/
+  redo/delete/save, `tool-*` testids), page (raster + DOM overlay: drag-create with ghost,
+  move, corner resize, textarea editing, whiteout-seed on run click, window-level gesture
+  listeners with blur safety, IntersectionObserver lazy rasters), inspector (font size,
+  bold, align, colors, stroke/fill/width — discrete edits = one undo step each).
+- `edit-pdf-tool.tsx` — dropzone → capacity check → inspect → eager rasters (first 20
+  pages, `thumbnails` job at `displayWidth × zoom × dpr`) + lazy per-page + lazy
+  text-runs → edit → `edit` job save → ResultPanel (validated-download note).
+- Cross-pollination: `edit-pdf` **LIVE (14th tool)**, `nextFor()` map in registry,
+  chips rendered in `ResultPanel` via `ToolSlugContext`, one-time-per-session
+  `announceLocalProcessing()` toast (`lib/privacy.ts`).
+
+**Gates:** typecheck ✓ · 72/72 unit ✓ · build ✓ (main chunk 676 kB, **0** pdf-lib/pdf.js
+refs) · 50/50 E2E vs system Edge ✓ (11 new editor checks: raster, text create+type,
+highlight drag, undo/redo, delete+undo, validated export bytes, chips — zero console
+errors) · pre-push grep ✓.

@@ -49,6 +49,8 @@ export const LIMITS = {
     thumbnailWidthPx: 160,
     /** Default export width for image conversion. */
     defaultImageWidthPx: 1600,
+    /** Cap on overlay objects in a single edit export (payload sanity). */
+    maxEditObjects: 2000,
   },
 } as const;
 

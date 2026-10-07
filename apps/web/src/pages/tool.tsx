@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
 import { CropTool } from '@/components/tools/crop-tool';
 import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
+import { EditPdfTool } from '@/components/tools/edit-pdf-tool';
 import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
 import { NUpTool } from '@/components/tools/n-up-tool';
@@ -36,6 +37,7 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'crop-pdf': CropTool,
   'header-footer': HeaderFooterTool,
   'n-up': NUpTool,
+  'edit-pdf': EditPdfTool,
 };
 
 export function ToolPage() {

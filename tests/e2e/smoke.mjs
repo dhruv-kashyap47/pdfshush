@@ -1,5 +1,5 @@
 /**
- * End-to-end smoke test (P0 + P1: all 13 live tools).
+ * End-to-end smoke test (P0-P2: all 14 live tools, incl. the editor).
  *
  * Drives the real app in a real browser (system Edge via Playwright) and runs
  * every live tool against generated PDF fixtures, asserting on actual
@@ -368,15 +368,103 @@ async function main() {
   const nupDl = await downloadAndAssert(page, 'Download', 'pdf');
   check('N-up output is a valid PDF', nupDl.ok, `${nupDl.name} ${nupDl.bytes.length}B`);
 
-  /* 15. Planned tool page + 404 */
-  console.log('\n15. Routing');
+  /* 15. Edit PDF (P2 editor) */
+  console.log('\n15. Edit PDF tool');
+  await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'networkidle' });
+  // The editor mounts a second (image picker) file input, so pick the PDF dropzone.
+  await page.locator('input[accept*="application/pdf"]').setInputFiles([fileA]);
+  await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'editor mounted');
+  check('editor mounts with toolbar', await page.getByTestId('editor-toolbar').isVisible());
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-page-raster"]').count()) === 3,
+    60_000,
+    '3 page rasters',
+  );
+  check('page rasters rendered (3 pages)', true);
+  await page.screenshot({ path: path.join(ARTIFACTS, 'edit-editor.png') });
+
+  const editorPage = page.locator('[data-testid="editor-page"][data-page-index="0"]');
+
+  // Add text: pick the tool, drag a box, type into it, commit with blur.
+  await page.getByTestId('editor-tool-text').click();
+  await editorPage.scrollIntoViewIfNeeded();
+  let box = await editorPage.boundingBox();
+  await page.mouse.move(box.x + 80, box.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 260, box.y + 330, { steps: 6 });
+  await page.mouse.up();
+  await page.getByTestId('editor-text-input').waitFor({ timeout: 15_000 });
+  await page.getByTestId('editor-text-input').fill('Edited in the browser');
+  check('text box created and typed into', true);
+  await page.getByTestId('editor-tool-select').click(); // blur commits the edit
+
+  // Highlight by drag.
+  await page.getByTestId('editor-tool-highlight').click();
+  await editorPage.scrollIntoViewIfNeeded();
+  box = await editorPage.boundingBox();
+  await page.mouse.move(box.x + 70, box.y + 380);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 240, box.y + 405, { steps: 6 });
+  await page.mouse.up();
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-highlight"]').count()) === 1,
+    10_000,
+    'highlight object',
+  );
+  check('highlight created by dragging', true);
+
+  // Undo / redo round trip.
+  await page.getByTestId('editor-undo').click();
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-highlight"]').count()) === 0,
+    5_000,
+    'undo drops highlight',
+  );
+  check('undo removes the highlight', true);
+  await page.getByTestId('editor-redo').click();
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-highlight"]').count()) === 1,
+    5_000,
+    'redo restores highlight',
+  );
+  check('redo restores the highlight', true);
+
+  // Select + keyboard delete + undo.
+  await page.getByTestId('editor-tool-select').click();
+  await page.locator('[data-testid="editor-object-text"]').click();
+  await page.keyboard.press('Delete');
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 0,
+    5_000,
+    'delete removes text',
+  );
+  check('delete removes the selected object', true);
+  await page.keyboard.press('Control+z');
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 1,
+    5_000,
+    'undo restores text',
+  );
+  check('undo restores the deleted object', true);
+
+  // Save -> validated export -> download -> cross-pollination chips.
+  await page.getByTestId('editor-save').click();
+  await page.getByText('-edited.pdf').waitFor({ timeout: 90_000 });
+  check('result panel shows alpha-edited.pdf', true);
+  const editDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('edited output is a valid PDF', editDl.ok, `${editDl.name} ${editDl.bytes.length}B`);
+  check('cross-pollination chips shown', await page.getByTestId('next-chip-organize-pdf').isVisible());
+  await page.screenshot({ path: path.join(ARTIFACTS, 'edit-result.png') });
+
+  /* 16. Planned tool page + 404 */
+  console.log('\n16. Routing');
   await page.goto(`${BASE}/tools/compress-pdf`, { waitUntil: 'networkidle' });
   check('planned tool page renders', await page.getByText('In development').isVisible());
   await page.goto(`${BASE}/tools/does-not-exist`, { waitUntil: 'networkidle' });
   check('404 page renders', await page.getByText('This page went missing').isVisible());
 
   /* console health */
-  console.log('\n16. Console health');
+  console.log('\n17. Console health');
   const fatal = consoleErrors.filter(
     (text) => !text.includes('favicon') && !text.includes('Download the React DevTools'),
   );
