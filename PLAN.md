@@ -26,10 +26,10 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
 **Current gate:** P3 shipped — **hardening gate passed** (kill -9 mid-job → no orphans,
-queue recovers, limits hold). 15 tools-capable server-side · 135/135 unit tests ·
-60/60 browser E2E · 21/21 API integration · 15/15 hardening. **Next: P4** (accounts &
-workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push
-secret/PII grep before every push** (see §8 tooling).
+queue recovers, limits hold). 14 of 53 tools live · 8 of them also runnable server-side ·
+135/135 unit tests · 60/60 browser E2E · 21/21 API integration · 15/15 hardening.
+**Next: P4** (accounts & workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` —
+**run the pre-push secret/PII grep before every push** (see §9 tooling).
 
 ---
 
@@ -67,17 +67,19 @@ Do not relitigate these without a strong reason; each was researched and chosen.
 - **Verified dep versions:** `@cantoo/pdf-lib@2.11.1`, `pdfjs-dist@6.4.299`, `fflate@0.8.3`,
   `@dnd-kit/*@latest`, `tailwindcss@4.3.3`, `vite@8.3.3`, `react@19.3`, `react-router-dom@7.18`,
   `typescript@~5.9.3` (**never TS 7**), `vitest@5.0.3`.
-- **Environment:** Windows 11, Node v24.21.0, pnpm 11.15.0, Docker Desktop (WSL2) required
-  from P3. LLM API key only needed for managed-AI mode (P5) — BYOK ships first, keyless.
+- **Environment:** Windows 11, Node v24.21.0, pnpm 11.15.0, Docker Desktop (WSL2) —
+  installed and verified in P3, but its CLI is per-user and **not on the session PATH**
+  (see §9 for the `$env:DOCKER_BIN` workaround). LLM API key only needed for managed-AI mode
+  (P5) — BYOK ships first, keyless.
 - **User-adopted safeguards** (all in): `limits.ts`, memory guards, timeouts, common
   `JobInterface` (P0) · 3 edit modes + undo + export validation (P2) · quotas, bounded
-  concurrency, `mkdtemp` job isolation, janitor, light monitoring (P3) · BYOK never touches
+  concurrency, per-job isolation, janitor, light monitoring (P3) · BYOK never touches
   server + budget middleware (P5) · adversarial fixture corpus (P7), with
   **redaction-leakage tests blocking at P5**.
 
 ---
 
-## 3. Architecture (as built through P2)
+## 3. Architecture (as built through P3)
 
 ```
 pdfshush/
@@ -97,6 +99,7 @@ pdfshush/
 │   └── src/components/tools/*      13 tool-body files (14 tools — stamp.tsx serves two)
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
 ├── packages/pdf-core               engine — same code path in worker and Node
+│   ├── src/node.ts                  Node-safe barrel: only the isomorphic surface (P3)
 │   ├── src/job.ts                   JobDefinition {validate, estimate, run} + withJobLimits
 │   ├── src/limits.ts                every capacity number in one file
 │   ├── src/ops/                     pages · compose · merge · zip · split · stamp · nup ·
@@ -104,7 +107,9 @@ pdfshush/
 │   ├── src/render/                  pdfjsRuntime · canvas · renderPage · textRuns (P2)
 │   └── src/jobs/                    11: inspect · merge · organize · pdf-to-images · thumbnails ·
 │                                     stamp · split-by-pages · split-half · n-up · edit · text-runs
-├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools
+├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools (60 checks)
+├── tests/api/smoke.mjs             real stack: upload → Redis → worker → download (21 checks)
+├── tests/api/hardening.mjs         the P3 gate: SIGKILL mid-job, prove the pipeline holds
 ├── docker-compose.yml              redis + api + worker (P3)
 ├── infra/docker/api.Dockerfile     one image, two entry points (api / worker)
 └── PLAN.md                         this file
@@ -145,12 +150,15 @@ Sejda-class editor: text/image/annotation editing, three edit modes (read the Ge
 `apps/pdf` patterns, Apache-2.0, skip `ee/`), undo/redo stack, export validation
 (re-parse output before offering the download).
 
-### P3 — Server pipeline → **hardening gate**
-Express API + BullMQ + Redis; Ghostscript/qpdf/LibreOffice/OCRmyPDF workers; anonymous
-quotas (150 tasks/day, 6/min, 500 MB upload), bounded concurrency, `mkdtemp` per-job
-isolation, TTL janitor, light monitoring (queue depth, duration, error rate).
-**Gate to exit:** kill -9 an in-flight job → no orphan files, queue recovers, limits hold.
-Requires Docker Desktop (WSL2).
+### P3 — Server pipeline → **hardening gate** *(done 2026-10-08 — sign-off in §11)*
+Express API + BullMQ + Redis; anonymous quotas (150 tasks/day, 6/min, 2 GB/day), bounded
+concurrency, per-job isolation (work dir derived from `WORK_DIR` + jobId, nothing in the
+payload), TTL janitor, monitoring (queue depth, work-dir usage, structured logs).
+**Gate to exit:** kill -9 an in-flight job → no orphan files, queue recovers, limits hold —
+**passed** as a repeatable suite (`pnpm test:hardening`, 15/15).
+**Deferred out of P3:** Ghostscript/qpdf/LibreOffice/OCRmyPDF workers — no image ships them,
+so compress/OCR/Word conversion stayed client-side. That is the next server slice and the
+first thing to unblock 8 more of the 53 tools.
 
 ### P4 — Accounts & workflows
 Optional JWT + OAuth, saved history (beyond local IndexedDB), workflow builder
@@ -362,6 +370,38 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   with `line-height: 1.2` over an Arial-metric stack that is `0.9465em`, which is what
   `TEXT_ASCENT` reproduces so exports do not shift.
 
+**P3 server (Node, Express, BullMQ, Docker)** — the whole slice was built green on unit
+tests and still shipped three production bugs, all of the same species: *config that was
+never actually wired, and a stream with no error listener.*
+- **esbuild does not typecheck.** A zod schema key that never landed produced a bundle that
+  built cleanly, passed 49 unit tests (they construct options directly, not from `process.env`)
+  and ran the janitor on its **defaults forever**. `pnpm typecheck` is a separate command —
+  never treat a successful build as a successful compile.
+- **Read-stream `'error'` with no listener resets the socket.** `createReadStream(...).pipe(res)`
+  on a file the janitor deleted one millisecond earlier hangs up on the client instead of
+  returning 404. Always `stat` first *and* attach the handler; the race is real, not theoretical.
+- A JSON-schema knob that exists in `loadConfig` but not in the schema is silently
+  `undefined` at runtime. When adding an env var: schema **and** mapping, in the same edit.
+- Enumerate on-disk state through a *content* assertion (`200 → 404` on a known file), not a
+  directory count: another job can land, or be swept, inside the same polling window and a
+  count flakes where a file's fate does not.
+- A rate limiter keyed on the client IP makes any re-runnable test suite flaky by design —
+  have the suite wait out the window up front, and assert the limit in its own section.
+- **Metadata-only results are not "no output".** A slug that returns `{documents:[…]}`
+  produced zero binary candidates and got rejected as undeliverable. Serialise plain-object
+  results to `<slug>-result.json`; only throw when nothing is serialisable.
+- Docker: a runtime stage that copies `dist/` alone breaks every import — pnpm symlinks live
+  in the workspace `node_modules`. Keep `WORKDIR /repo/apps/api` and install with `--prod`.
+- The prod install needs `CI=true` **and** `--config.confirmModulesPurge=false`, else
+  `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`.
+- `docker compose kill` writes to **stderr** and prints nothing to stdout; assert on
+  `compose ps --format json` state, never on command output length.
+- With `FILE_TTL_MS` shorter than the queue wait, the janitor can delete a **queued** job's
+  inputs → it settles as `failed`. Legitimate; a gate should assert "settles" not "completes".
+- `busboy` fires `'close'` after every part completes, so appending to an array on *write*
+  completion **scrambles multipart order** (merge got its inputs backwards). Capture index at
+  `'file'` event time.
+
 **Tooling**
 - pnpm 11 ignores the `pnpm` field in `package.json` → `onlyBuiltDependencies` lives in
   `pnpm-workspace.yaml`. Root installs need `pnpm add -Dw`.
@@ -470,12 +510,26 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
 
 ```bash
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
-pnpm dev              # http://localhost:5173
-pnpm typecheck        # strict tsc, both packages
-pnpm test             # vitest (pdf-core)
+pnpm dev              # http://localhost:5173 (browser app only)
+pnpm typecheck        # strict tsc, all three packages
+pnpm test             # vitest: pdf-core + api (135 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge)
-pnpm build            # production build
+pnpm build            # production build (web + api bundles)
+pnpm stack:up         # docker compose up -d --build (redis + api + worker)
+pnpm stack:down       # docker compose down
+pnpm test:api         # 21 checks against a running stack on :8080
+pnpm test:hardening   # 15 checks: SIGKILL a worker mid-job, prove the pipeline holds
 ```
+
+Docker Desktop's CLI is **not on the session PATH** by default — a per-user install lands in
+`%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin\docker.exe` (no shell expands `$env`).
+Either prepend that directory or set `$env:DOCKER_BIN` (the gate script honours `DOCKER_BIN`).
+Run the gate with short
+TTLs so the janitor sweep is observable inside the run:
+`$env:FILE_TTL_MS=20000; $env:JANITOR_INTERVAL_MS=5000; docker compose up -d` then
+`node tests/api/hardening.mjs`. With a TTL that short the janitor can also delete a *queued*
+job's inputs — which is why the killed job may legitimately settle as `failed`; the gate
+accepts either outcome, because the claim being tested is "the queue recovers".
 
 **Next move:** P4 (accounts & workflows). The server foundation it needs is in place: the
 job contract composes, ownership tokens exist, quotas and monitoring are live. First task
