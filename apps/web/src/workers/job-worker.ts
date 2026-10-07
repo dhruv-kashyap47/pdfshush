@@ -120,7 +120,9 @@ function serializeError(error: unknown): SerializedError {
 function collectTransferables(value: unknown, depth = 0, out: ArrayBuffer[] = []): Transferable[] {
   if (depth > 8) return out;
   if (value instanceof ArrayBuffer) {
-    out.push(value);
+    // De-dupe: a result referencing the same buffer twice would make
+    // postMessage throw DataCloneError on a duplicate transfer entry.
+    if (!out.includes(value)) out.push(value);
     return out;
   }
   if (ArrayBuffer.isView(value)) {
