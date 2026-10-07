@@ -44,10 +44,27 @@ export {
 export type { PdfInfo, PageInfo, LoadOptions } from './ops/pages.js';
 export { mergePdfs, mergeIfNeeded } from './ops/merge.js';
 export type { MergeResult } from './ops/merge.js';
-export { composePageRefs, refsForSpan } from './ops/compose.js';
-export type { PageRef, SourceDocument, ComposeOptions, ComposeResult } from './ops/compose.js';
+export { composePageRefs, composeDocument, refsForSpan, identityRefs } from './ops/compose.js';
+export type {
+  PageRef,
+  SourceDocument,
+  ComposeOptions,
+  ComposeResult,
+  CropRect,
+} from './ops/compose.js';
 export { parsePageRanges } from './ops/ranges.js';
 export { createZip, dedupeNames, pageFileName, stripExtension } from './ops/zip.js';
+export { stampDocument, renderStampTemplate } from './ops/stamp.js';
+export type {
+  StampContent,
+  StampPosition,
+  StampRegion,
+  StampStyle,
+} from './ops/stamp.js';
+export { splitPagesInHalf } from './ops/split.js';
+export type { SplitHalfResult, SplitOrientation } from './ops/split.js';
+export { imposePages } from './ops/nup.js';
+export type { NupCount, NupOptions, NupResult, NupSheet } from './ops/nup.js';
 
 // Rendering
 export { configurePdfjsRuntime, loadPdfForRender } from './render/pdfjsRuntime.js';
@@ -74,3 +91,19 @@ export type {
 } from './jobs/pdfToImages.job.js';
 export { thumbnailsJob } from './jobs/thumbnails.job.js';
 export type { ThumbnailsInput, ThumbnailsOutput } from './jobs/thumbnails.job.js';
+export { splitByPagesJob } from './jobs/splitByPages.job.js';
+export type {
+  SplitByPagesInput,
+  SplitByPagesOutput,
+  SplitByPagesOptions,
+} from './jobs/splitByPages.job.js';
+export { splitHalfJob } from './jobs/splitHalf.job.js';
+export type {
+  SplitHalfInput,
+  SplitHalfOutput,
+  SplitHalfOptions,
+} from './jobs/splitHalf.job.js';
+export { stampJob } from './jobs/stamp.job.js';
+export type { StampJobInput, StampJobOutput, StampJobOptions } from './jobs/stamp.job.js';
+export { nUpJob } from './jobs/nUp.job.js';
+export type { NUpJobInput, NUpJobOutput, NUpJobOptions } from './jobs/nUp.job.js';

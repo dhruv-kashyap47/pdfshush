@@ -5,13 +5,53 @@ import { inspectPdf, probePageCount } from '../src/ops/pages.js';
 import { mergePdfs } from '../src/ops/merge.js';
 import { composePageRefs, refsForSpan } from '../src/ops/compose.js';
 import { parsePageRanges } from '../src/ops/ranges.js';
+import { renderStampTemplate } from '../src/ops/stamp.js';
+import { splitPagesInHalf } from '../src/ops/split.js';
+import { imposePages, type NupCount } from '../src/ops/nup.js';
 import { mergeJob } from '../src/jobs/merge.job.js';
 import { organizeJob } from '../src/jobs/organize.job.js';
 import { inspectJob } from '../src/jobs/inspect.job.js';
+import { splitByPagesJob } from '../src/jobs/splitByPages.job.js';
+import { splitHalfJob } from '../src/jobs/splitHalf.job.js';
+import { stampJob } from '../src/jobs/stamp.job.js';
+import { nUpJob } from '../src/jobs/nUp.job.js';
 import { createZip, dedupeNames, pageFileName, stripExtension } from '../src/ops/zip.js';
 import { formatBytes, timeoutForPageCount, LIMITS } from '../src/limits.js';
 import { withJobLimits, JobAbortedError } from '../src/job.js';
 import { makeFixturePdf, testContext } from './fixtures.js';
+import { unzlibSync } from 'fflate';
+
+/**
+ * pdf-lib both hex-encodes drawText strings (`<506167...>`) AND deflates every
+ * content stream, so a byte scan must first inflate the streams.
+ */
+function pdfContainsText(bytes: Uint8Array, needle: string): boolean {
+  const decoder = new TextDecoder('latin1');
+  const latin1 = decoder.decode(bytes);
+  let haystack = '';
+  const streams = /stream\r?\n/g;
+  let match: RegExpExecArray | null;
+  while ((match = streams.exec(latin1)) !== null) {
+    const start = match.index + match[0].length;
+    const end = latin1.indexOf('endstream', start);
+    if (end < 0) break;
+    const slice = bytes.subarray(start, end);
+    try {
+      haystack += decoder.decode(unzlibSync(slice));
+    } catch {
+      haystack += decoder.decode(slice);
+    }
+    // Skip past 'endstream' itself -- otherwise the next match lands on the
+    // "stream\n" tail inside "endstream\n" and re-slices from the wrong offset.
+    streams.lastIndex = end + 'endstream'.length;
+  }
+
+  const hex = Array.from(new TextEncoder().encode(needle))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  haystack = haystack.toLowerCase();
+  return haystack.includes(needle.toLowerCase()) || haystack.includes(hex);
+}
 
 describe('inspectPdf', () => {
   it('reports page count, sizes and rotations', async () => {
@@ -278,5 +318,248 @@ describe('limits & job guardrails', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(1536)).toBe('1.5 KB');
     expect(formatBytes(1024 * 1024)).toBe('1.0 MB');
+  });
+});
+
+describe('Phase 1 -- page transforms', () => {
+  it('per-page rotation overrides the global rotate option', async () => {
+    const a = await makeFixturePdf({ pages: 2 });
+    const ctx = testContext();
+    const result = await composePageRefs(
+      [{ name: 'a.pdf', data: a }],
+      [
+        { docIndex: 0, pageIndex: 0, rotateDegrees: 270 },
+        { docIndex: 0, pageIndex: 1 },
+      ],
+      ctx,
+      { transform: 'rotate', rotateDegrees: 90 },
+    );
+
+    const info = await inspectPdf(result.data);
+    expect(info.pages[0]?.rotation).toBe(270);
+    expect(info.pages[1]?.rotation).toBe(90);
+  });
+
+  it('applies a crop rectangle and clamps it to the page', async () => {
+    const a = await makeFixturePdf({ pages: 2 });
+    const ctx = testContext();
+
+    const cropped = await composePageRefs(
+      [{ name: 'a.pdf', data: a }],
+      refsForSpan(0, 0, 0),
+      ctx,
+      { crop: { x: 50, y: 100, width: 400, height: 600 } },
+    );
+    const info = await inspectPdf(cropped.data);
+    expect(info.pages[0]?.cropBox).toEqual({ x: 50, y: 100, width: 400, height: 600 });
+
+    // Rectangles poking outside the page are clamped, never rejected.
+    const clamped = await composePageRefs(
+      [{ name: 'a.pdf', data: a }],
+      refsForSpan(0, 0, 0),
+      ctx,
+      { crop: { x: -50, y: -50, width: 99999, height: 99999 } },
+    );
+    const clampedInfo = await inspectPdf(clamped.data);
+    expect(clampedInfo.pages[0]?.cropBox).toEqual({ x: 0, y: 0, width: 595, height: 842 });
+  });
+
+  it('organize job honours crop and outputName', async () => {
+    const a = await makeFixturePdf({ pages: 1 });
+    const output = await organizeJob.run(
+      {
+        files: [{ name: 'scan.pdf', data: a }],
+        options: {
+          pageOrder: [{ docIndex: 0, pageIndex: 0 }],
+          crop: { x: 10, y: 20, width: 300, height: 400 },
+          outputName: 'tidied',
+        },
+      },
+      testContext(),
+    );
+
+    expect(output.fileName).toBe('tidied.pdf');
+    const info = await inspectPdf(new Uint8Array(output.data));
+    expect(info.pages[0]?.cropBox).toEqual({ x: 10, y: 20, width: 300, height: 400 });
+  });
+});
+
+describe('Phase 1 -- stamp (page numbers, header & footer)', () => {
+  it('substitutes {n} and {N} tokens case-sensitively', () => {
+    expect(renderStampTemplate('Page {n} of {N}', 3, 12)).toBe('Page 3 of 12');
+    expect(renderStampTemplate('{n}{n}-{N}', 1, 2)).toBe('11-2');
+    expect(renderStampTemplate('no tokens', 1, 1)).toBe('no tokens');
+  });
+
+  it('stamp job writes the resolved footer text into the page stream', async () => {
+    const a = await makeFixturePdf({ pages: 3 });
+    const output = await stampJob.run(
+      {
+        files: [{ name: 'report.pdf', data: a }],
+        options: { footer: { text: 'Page {n} of {N}', position: 'bottom-center' } },
+      },
+      testContext(),
+    );
+
+    expect(output.pageCount).toBe(3);
+    expect(output.fileName).toBe('report-stamped.pdf');
+    expect(pdfContainsText(new Uint8Array(output.data), 'Page 1 of 3')).toBe(true);
+    expect(pdfContainsText(new Uint8Array(output.data), 'Page 3 of 3')).toBe(true);
+  });
+
+  it('stamp job stamps only the selected pages', async () => {
+    const a = await makeFixturePdf({ pages: 4 });
+    const output = await stampJob.run(
+      {
+        files: [{ name: 'doc.pdf', data: a }],
+        options: {
+          pageOrder: [{ docIndex: 0, pageIndex: 1 }, { docIndex: 0, pageIndex: 2 }],
+          header: { text: 'CONFIDENTIAL {n}/{N}', position: 'top-left' },
+        },
+      },
+      testContext(),
+    );
+
+    expect(output.pageCount).toBe(2);
+    // {N} counts the selected pages (2), not the original document's 4.
+    const bytes = new Uint8Array(output.data);
+    expect(pdfContainsText(bytes, 'CONFIDENTIAL 1/2')).toBe(true);
+    expect(pdfContainsText(bytes, 'CONFIDENTIAL 2/2')).toBe(true);
+    expect(pdfContainsText(bytes, 'CONFIDENTIAL 4/4')).toBe(false);
+  });
+
+  it('validates that some text was provided', () => {
+    expect(stampJob.validate({ files: [{ name: 'a.pdf', data: new Uint8Array() }] }).ok).toBe(false);
+    expect(
+      stampJob.validate({
+        files: [{ name: 'a.pdf', data: new Uint8Array() }],
+        options: { footer: { text: 'x' } },
+      }).ok,
+    ).toBe(true);
+  });
+});
+
+describe('Phase 1 -- split in half', () => {
+  it('cuts pages into equal left/right halves', async () => {
+    const a = await makeFixturePdf({ pages: 2 });
+    const result = await splitPagesInHalf({ name: 'a.pdf', data: a }, 'vertical', testContext());
+
+    expect(result.pageCount).toBe(2);
+    expect(result.firstLabel).toBe('left');
+    expect(result.secondLabel).toBe('right');
+
+    const left = await inspectPdf(result.first);
+    const right = await inspectPdf(result.second);
+    expect(left.pages[0]?.widthPt).toBe(297.5);
+    expect(right.pages[0]?.widthPt).toBe(297.5);
+    expect(left.pages[0]?.heightPt).toBe(842);
+    // Right half is offset from the origin so its content lands on the same page.
+    expect(right.pages[0]?.cropBox.x).toBeCloseTo(297.5, 1);
+  });
+
+  it('cuts horizontally into top/bottom halves', async () => {
+    const a = await makeFixturePdf({ pages: 1 });
+    const result = await splitPagesInHalf({ name: 'a.pdf', data: a }, 'horizontal', testContext());
+
+    const top = await inspectPdf(result.first);
+    expect(result.firstLabel).toBe('top');
+    expect(top.pages[0]?.heightPt).toBe(421);
+    expect(top.pages[0]?.cropBox.y).toBeCloseTo(421, 1);
+  });
+
+  it('split job returns a zip with both named halves', async () => {
+    const a = await makeFixturePdf({ pages: 3 });
+    const output = await splitHalfJob.run(
+      { files: [{ name: 'report.pdf', data: a }], options: { orientation: 'vertical' } },
+      testContext(),
+    );
+
+    expect(output.zipName).toBe('report-halves.zip');
+    expect(output.parts.map((p) => p.name)).toEqual(['report-left.pdf', 'report-right.pdf']);
+    expect(output.pageCount).toBe(3);
+    expect(Array.from(new Uint8Array(output.zip).subarray(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
+
+    expect(splitHalfJob.validate({ files: [] }).ok).toBe(false);
+  });
+});
+
+describe('Phase 1 -- split by pages', () => {
+  it('chunks a document into padded zip entries', async () => {
+    const a = await makeFixturePdf({ pages: 5 });
+    const output = await splitByPagesJob.run(
+      { files: [{ name: 'report.pdf', data: a }], options: { chunkSize: 2 } },
+      testContext(),
+    );
+
+    expect(output.parts).toEqual([
+      { name: 'report-part-1.pdf', pageCount: 2 },
+      { name: 'report-part-2.pdf', pageCount: 2 },
+      { name: 'report-part-3.pdf', pageCount: 1 },
+    ]);
+    expect(output.zipName).toBe('report-split.zip');
+    expect(output.pageCount).toBe(5);
+  });
+
+  it('chunk size of 1 makes every page its own file', async () => {
+    const a = await makeFixturePdf({ pages: 3 });
+    const output = await splitByPagesJob.run(
+      { files: [{ name: 'a.pdf', data: a }], options: { chunkSize: 1 } },
+      testContext(),
+    );
+    expect(output.parts).toHaveLength(3);
+  });
+
+  it('refuses runaway part counts and bad options', async () => {
+    // 201 pages with chunk 1 would exceed the 200-part cap; the job must fail
+    // fast after the page-count probe, before composing anything.
+    const many = await makeFixturePdf({ pages: 201 });
+    await expect(
+      splitByPagesJob.run({ files: [{ name: 'a.pdf', data: many }], options: { chunkSize: 1 } }, testContext()),
+    ).rejects.toThrow(/limit 200/);
+
+    expect(splitByPagesJob.validate({ files: [], options: { chunkSize: 0 } }).ok).toBe(false);
+    expect(splitByPagesJob.validate({ files: [], options: { chunkSize: 1.5 } }).ok).toBe(false);
+    expect(splitByPagesJob.validate({ files: [], options: { chunkSize: 1 } }).ok).toBe(false);
+  });
+});
+
+describe('Phase 1 -- N-up imposition', () => {
+  it('2-up puts two pages side by side on one sheet', async () => {
+    const a = await makeFixturePdf({ pages: 2, width: 100, height: 200 });
+    const result = await imposePages({ name: 'a.pdf', data: a }, { n: 2 }, testContext());
+
+    expect(result.pageCount).toBe(1);
+    const info = await inspectPdf(result.data);
+    expect(info.pages[0]?.widthPt).toBe(200); // 100pt cells x 2 columns
+    expect(info.pages[0]?.heightPt).toBe(200);
+  });
+
+  it('odd page counts leave the trailing cell blank', async () => {
+    const a = await makeFixturePdf({ pages: 3, width: 100, height: 200 });
+    const result = await imposePages({ name: 'a.pdf', data: a }, { n: 4 }, testContext());
+
+    expect(result.pageCount).toBe(1); // 3 pages fit on one 2x2 sheet
+    const info = await inspectPdf(result.data);
+    expect(info.pages[0]?.widthPt).toBe(200);
+    expect(info.pages[0]?.heightPt).toBe(400);
+  });
+
+  it('8-up needs two sheets for nine pages', async () => {
+    const a = await makeFixturePdf({ pages: 9, width: 100, height: 200 });
+    const result = await imposePages({ name: 'a.pdf', data: a }, { n: 8 }, testContext());
+    expect(result.pageCount).toBe(2);
+  });
+
+  it('n-up job names and validates output', async () => {
+    const a = await makeFixturePdf({ pages: 4, width: 100, height: 200 });
+    const output = await nUpJob.run(
+      { files: [{ name: 'deck.pdf', data: a }], options: { n: 4, sheet: 'source' } },
+      testContext(),
+    );
+    expect(output.fileName).toBe('deck-4up.pdf');
+    expect(output.pageCount).toBe(1);
+
+    expect(nUpJob.validate({ files: [], options: { n: 3 as unknown as NupCount } }).ok).toBe(false);
+    expect(nUpJob.validate({ files: [{ name: 'a', data: new Uint8Array() }] }).ok).toBe(true);
   });
 });

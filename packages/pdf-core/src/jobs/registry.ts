@@ -8,8 +8,12 @@
 import type { JobContext, JobDefinition, JobInputBase } from '../job.js';
 import { inspectJob } from './inspect.job.js';
 import { mergeJob } from './merge.job.js';
+import { nUpJob } from './nUp.job.js';
 import { organizeJob } from './organize.job.js';
 import { pdfToImagesJob } from './pdfToImages.job.js';
+import { splitByPagesJob } from './splitByPages.job.js';
+import { splitHalfJob } from './splitHalf.job.js';
+import { stampJob } from './stamp.job.js';
 import { thumbnailsJob } from './thumbnails.job.js';
 
 type AnyJob = JobDefinition<JobInputBase, unknown>;
@@ -20,6 +24,10 @@ export const JOBS = {
   [organizeJob.slug]: organizeJob as AnyJob,
   [pdfToImagesJob.slug]: pdfToImagesJob as AnyJob,
   [thumbnailsJob.slug]: thumbnailsJob as AnyJob,
+  [splitByPagesJob.slug]: splitByPagesJob as AnyJob,
+  [splitHalfJob.slug]: splitHalfJob as AnyJob,
+  [stampJob.slug]: stampJob as AnyJob,
+  [nUpJob.slug]: nUpJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;

@@ -1,5 +1,5 @@
 import type { JobDefinition } from '../job.js';
-import { composePageRefs, type PageRef } from '../ops/compose.js';
+import { composePageRefs, type CropRect, type PageRef } from '../ops/compose.js';
 import { baseName, toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
 
 export interface OrganizeJobInput {
@@ -12,6 +12,10 @@ export interface OrganizeJobInput {
     pageOrder?: PageRef[];
     /** Applied to every page, used by the Rotate tool. */
     rotateDegrees?: 0 | 90 | 180 | 270;
+    /** Crop every page to this rectangle (page coordinates, clamped). */
+    crop?: CropRect;
+    /** Override the output file name (extension optional). */
+    outputName?: string;
   };
 }
 
@@ -46,19 +50,20 @@ export const organizeJob: JobDefinition<OrganizeJobInput, OrganizeJobOutput> = {
     const sources = toSources(input.files);
     const refs = input.options?.pageOrder ?? defaultOrder();
     const rotate = input.options?.rotateDegrees;
+    const crop = input.options?.crop;
 
-    const result = await composePageRefs(
-      sources,
-      refs,
-      ctx,
-      rotate ? { transform: 'rotate', rotateDegrees: rotate } : {},
-    );
+    const result = await composePageRefs(sources, refs, ctx, {
+      ...(rotate ? { transform: 'rotate' as const, rotateDegrees: rotate } : {}),
+      ...(crop ? { crop } : {}),
+    });
 
     const firstName = input.files[0] ? baseName(input.files[0].name) : 'document';
+    const explicit = input.options?.outputName?.trim();
+    const stem = explicit ? (explicit.endsWith('.pdf') ? explicit : `${explicit}.pdf`) : `${firstName}-organized.pdf`;
     return {
       data: toArrayBuffer(result.data),
       pageCount: result.pageCount,
-      fileName: `${firstName}-organized.pdf`,
+      fileName: stem,
     };
   },
 };
