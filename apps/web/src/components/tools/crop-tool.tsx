@@ -74,6 +74,9 @@ export function CropTool() {
       },
     });
     if (!ok) {
+      // Clear the hook's tiles too, or a stale grid would render against a
+      // null page size (preview silently disappears with no explanation).
+      reset();
       setPageSize(null);
       setPageCount(0);
     }

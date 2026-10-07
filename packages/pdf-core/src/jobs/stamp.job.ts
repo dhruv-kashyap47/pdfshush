@@ -54,8 +54,10 @@ export const stampJob: JobDefinition<StampJobInput, StampJobOutput> = {
     const sources = toSources(input.files);
     const options = input.options ?? {};
 
+    // `undefined` means "every page"; an explicitly empty order means "no pages"
+    // and must fail loudly rather than silently stamping the whole document.
     let refs = options.pageOrder;
-    if (!refs?.length) {
+    if (!refs) {
       const counts = await Promise.all(
         input.files.map((file) =>
           probePageCount(file.data, { ...(file.password ? { password: file.password } : {}) }),

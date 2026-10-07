@@ -6,7 +6,7 @@ import {
   type ThumbnailsOutput,
 } from '@pdfshush/pdf-core';
 import { useJobRunner } from '@/hooks/use-job-runner';
-import { checkClientCapacity } from '@/lib/client-capacity';
+import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { largestBytes, readAsInputFiles, totalBytes } from '@/lib/files';
 
 export interface PageTile {
@@ -65,9 +65,12 @@ export function usePageThumbnails() {
         toast.error(byteVerdict.message);
         return false;
       }
+      announceCapacityWarning(byteVerdict);
 
       setPreparing(true);
-      revokeUrls();
+      // Old object URLs are revoked only after the new ones exist (below):
+      // revoking up-front meant a failed re-upload left the previous grid
+      // pointing at dead blob URLs -- broken thumbnails with no explanation.
 
       // Inspect first: page count decides whether rendering previews is safe.
       const inspected = await inspectRunner.run(await readAsInputFiles(incoming));
@@ -94,16 +97,14 @@ export function usePageThumbnails() {
         toast.error(pageVerdict.message);
         return false;
       }
+      announceCapacityWarning(pageVerdict);
       options.onInspected?.(inspected.result);
 
-      const renderedCount = options.pageIndexes?.length ?? pageCount;
-      const targetWidthPx = renderedCount > 250 ? 110 : undefined;
+      // Thumbnail width degradation for huge documents lives in the engine
+      // (LIMITS.client.thumbnailDegradeAtPages) -- one source of truth.
       const outcome = await thumbsRunner.run(
         await readAsInputFiles(incoming),
-        {
-          ...(targetWidthPx ? { targetWidthPx } : {}),
-          ...(options.pageIndexes ? { pageIndexes: options.pageIndexes } : {}),
-        },
+        options.pageIndexes ? { pageIndexes: options.pageIndexes } : {},
         { timeoutMs: timeoutForPageCount(Math.max(pageCount, 60)) },
       );
       setPreparing(false);
@@ -130,6 +131,9 @@ export function usePageThumbnails() {
           });
         });
       });
+      // Swap only now: the fresh URLs exist, so the previous grid is replaced
+      // rather than broken.
+      revokeUrls();
       urlsRef.current = created;
       setFiles(incoming);
       setTiles(next);

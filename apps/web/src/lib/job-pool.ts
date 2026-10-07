@@ -192,11 +192,16 @@ export class JobPool {
     }
   }
 
-  /** For tests / teardown. */
+  /** For tests / teardown. Pending jobs must be rejected, not left hanging. */
   dispose(): void {
-    for (const slot of this.slots) slot.worker.terminate();
+    for (const slot of this.slots) {
+      slot.worker.terminate();
+      const job = slot.job;
+      if (job) this.finish(job, 'reject', new JobAbortedError('Worker pool disposed'));
+    }
     this.slots.length = 0;
-    this.queue.length = 0;
+    const queued = this.queue.splice(0, this.queue.length);
+    for (const job of queued) this.finish(job, 'reject', new JobAbortedError('Worker pool disposed'));
   }
 }
 

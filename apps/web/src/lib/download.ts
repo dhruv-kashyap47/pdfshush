@@ -9,8 +9,9 @@ export function downloadBytes(data: ArrayBuffer | Uint8Array, fileName: string, 
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  // Give the browser a tick to start the download before revoking.
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  // Revoke generously late: revoking while a large blob download is still
+  // streaming can cancel it mid-flight (a 200 MB ZIP easily outlives 10s).
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function downloadBlob(blob: Blob, fileName: string): void {
@@ -21,7 +22,7 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function blobFromBuffer(data: ArrayBuffer, mime: string): Blob {

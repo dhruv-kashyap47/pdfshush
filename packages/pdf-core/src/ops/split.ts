@@ -58,16 +58,20 @@ export async function splitPagesInHalf(
   for (let i = 0; i < pageCount; i += 1) {
     ctx.throwIfAborted();
     const page = src.getPage(i);
-    const { width, height } = page.getSize();
+    // Split the *visible* box, not the MediaBox: scans and exported PDFs often
+    // carry a CropBox that differs from the MediaBox, and viewers show the
+    // CropBox -- cutting the MediaBox would slice empty margin instead of
+    // content. pdf-lib falls back to the MediaBox when no CropBox is present.
+    const base = page.getCropBox();
     const halves: { first: HalfBox; second: HalfBox } =
       orientation === 'vertical'
         ? {
-            first: { x: 0, y: 0, width: width / 2, height },
-            second: { x: width / 2, y: 0, width: width / 2, height },
+            first: { x: base.x, y: base.y, width: base.width / 2, height: base.height },
+            second: { x: base.x + base.width / 2, y: base.y, width: base.width / 2, height: base.height },
           }
         : {
-            first: { x: 0, y: height / 2, width, height: height / 2 },
-            second: { x: 0, y: 0, width, height: height / 2 },
+            first: { x: base.x, y: base.y + base.height / 2, width: base.width, height: base.height / 2 },
+            second: { x: base.x, y: base.y, width: base.width, height: base.height / 2 },
           };
 
     const [firstCopy] = await firstDoc.copyPages(src, [i]);

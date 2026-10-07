@@ -1,6 +1,6 @@
 import type { JobDefinition } from '../job.js';
 import { mergeIfNeeded } from '../ops/merge.js';
-import { toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
+import { baseName, toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
 
 export interface MergeJobInput {
   files: { name: string; type?: string; data: Uint8Array; password?: string }[];
@@ -42,10 +42,10 @@ export const mergeJob: JobDefinition<MergeJobInput, MergeJobOutput> = {
 };
 
 function buildMergedFileName(sourceNames: string[]): string {
-  if (sourceNames.length === 1) return ensurePdf(sourceNames[0] ?? 'merged.pdf');
+  // Never reuse the source name: "merging" a single file would hand back a
+  // different document under the user's own filename.
+  if (sourceNames.length === 1) {
+    return `${baseName(sourceNames[0] ?? 'document') || 'document'}-merged.pdf`;
+  }
   return 'merged.pdf';
-}
-
-function ensurePdf(name: string): string {
-  return name.toLowerCase().endsWith('.pdf') ? name : `${name}.pdf`;
 }

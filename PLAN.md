@@ -25,7 +25,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** P1 signed off (41/41 E2E checks, 38/38 unit tests, §6). Ready for P2.
+**Current gate:** P1 signed off + audited (41/41 E2E checks, 46/46 unit tests, §6). Ready for P2.
 Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
 before every push** (see §8 tooling).
 
@@ -212,7 +212,7 @@ serving both page-numbers and header-footer modes · registry `LIVE` now has 13 
 | Gate | Result |
 | --- | --- |
 | `pnpm typecheck` | ✅ both packages, strict |
-| `pnpm test` | ✅ **38/38** vitest (21 P0 + 17 P1) |
+| `pnpm test` | ✅ **46/46** vitest (21 P0 + 17 P1 + 8 audit) |
 | `pnpm build` | ✅ main **632 kB / 193 kB gzip**, 0 pdf-lib/pdf.js refs in main chunk (all 94 in `job-worker`) |
 | `pnpm test:e2e` | ✅ **41/41** checks over 16 sections in real Edge — every tool uploads → acts → downloads → magic-byte asserts; zero console errors |
 
@@ -225,6 +225,31 @@ serving both page-numbers and header-footer modes · registry `LIVE` now has 13 
 4. `collectTransferables` could push the same `ArrayBuffer` twice → DataCloneError on
    `postMessage` (fixed pre-publish).
 
+### P0 + P1 code audit (2026-10-07)
+
+Line-by-line review of the Phase 0 pool/worker/render/IndexedDB layer and the Phase 1
+engine + tools. **Eight real defects found and fixed:**
+
+| # | Where | Defect | Fix |
+| --- | --- | --- | --- |
+| 1 | `ops/split.ts` | **Correctness.** Halves were cut from `page.getSize()` (the MediaBox), but viewers display the **CropBox** — a scan with a smaller CropBox got sliced through blank margin | Split from `page.getCropBox()` (pdf-lib falls back to the MediaBox) |
+| 2 | `ops/compose.ts` | **Perf.** Every page of every source was copied even when only two were referenced (Extract from a 500-page file cloned 500 page trees) | Validate refs first, copy only referenced pages, keep a pageIndex → page map (duplicates still free) |
+| 3 | `hooks/use-page-thumbnails.ts` | **Broken previews.** Old blob URLs were revoked *before* the new thumbnails rendered, so a failed re-upload left the grid pointing at dead URLs | Revoke after the swap; a failure now leaves the previous valid grid intact |
+| 4 | `jobs/stamp.job.ts` | `pageOrder: []` (explicitly *no* pages) silently stamped **every** page | Only `undefined` means "all pages"; an empty order fails loudly |
+| 5 | `jobs/merge.job.ts` | Merging a **single** file returned the source's own filename — a different document would land on the user's original name | `${stem}-merged.pdf` |
+| 6 | `components/tools/merge-tool.tsx` | An aborted inspect left rows on `status:'loading'` forever, permanently blocking the merge behind a misleading "remove files" toast | Aborted rows are marked errored with a re-add hint |
+| 7 | `ops/stamp.ts` | Options arrive over postMessage (and later over the public API) unsanitised: `fontSize: 9999`, `margin: -50`, colour components outside 0..1 → malformed PDF operators | Clamp size, margin and colour |
+| 8 | `tools/recent.ts` · `lib/job-pool.ts` · `lib/download.ts` · `lib/client-capacity.ts` | **Leaks / dead code.** IndexedDB connections never closed on error paths; `pool.dispose()` left every caller hanging forever; blob URLs were revoked after 10s, which can cancel a large download mid-flight; the low-memory capacity warning was computed and then dropped by every caller | `db.close()` in `finally`; dispose rejects queued *and* running jobs; 60s revoke; `announceCapacityWarning()` surfaces the warning once per session |
+
+Also de-duplicated a constant: `LIMITS.client.thumbnailDegradeAtPages` is now the single
+threshold (the render layer hard-coded 120 while the UI hook used 250).
+
+One Phase 0 test asserted the *buggy* merge filename — it was updated to the correct
+behaviour, because a test that pins a bug is worse than no test.
+
+Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build ✅ (632 kB main,
+0 pdf-lib/pdf.js refs).
+
 ---
 
 ## 7. Gotchas (hard-won; keep here so nobody re-learns them)
@@ -234,6 +259,10 @@ serving both page-numbers and header-footer modes · registry `LIVE` now has 13 
 - No `doc.getVersion()` → `context.header.getVersionString()` (wrapped in try/catch).
 - `page.setRotation(degrees(n))` — the `degrees()` wrapper is required.
 - `getSize()` ignores `/Rotate` (MediaBox unchanged; rotation is display-only).
+- `getSize()` returns the **MediaBox**; viewers display the **CropBox**. Any box maths
+  (split-in-half, crop overlays) must use `getCropBox()`, which falls back to the MediaBox.
+- `drawText` with a standard font does **not** throw on un-encodable characters — emoji are
+  silently mangled. Reject them explicitly if you ever need to.
 
 **pdfjs-dist v6**
 - Entry `build/pdf.mjs`; types `types/src/pdf.d.ts`.
@@ -260,7 +289,7 @@ serving both page-numbers and header-footer modes · registry `LIVE` now has 13 
 - `JobInputBase['options']` is `Record<string, unknown>` → custom options types must be
   **type aliases** (object literals get implicit index signatures; interfaces do not).
 
-**Tests (anti-regression — all covered by the 38 tests)**
+**Tests (anti-regression — all covered by the 46 tests)**
 - `parsePageRanges`: bare `"5"` = single page (≠ `"5-"` open range); `"99-200"` on 10
   pages clamps to page 10 (not empty); `pageFileName` pad width = `String(total).length`.
 - `timeoutForPageCount(pageCount, baseMs)` needs an explicit `: number` on `baseMs`
@@ -289,6 +318,12 @@ serving both page-numbers and header-footer modes · registry `LIVE` now has 13 
   Page Numbers, Crop, Header & Footer, N-up). Gates: 38/38 unit · 41/41 E2E · main
   bundle 632 kB with 0 pdf-refs. *Fixed en route:* crop-clamp math, deflate/hex text
   assertions, `endstream` regex slip.
+- **2026-10-07 — P0+P1 code audit.** Line-by-line review found and fixed 8 defects: CropBox
+  vs MediaBox in split-in-half, over-copying in `composeDocument`, revoked-too-early blob
+  URLs in the thumbnails hook, empty-`pageOrder` stamping everything, single-file merge
+  clobbering the source name, merge rows stuck on "reading…" after an abort, unsanitised
+  stamp style values, and four leak/dead-code holes (IDB close, pool dispose, blob revoke
+  timing, unwarned low-memory path). 8 regression tests added → 46/46 unit, 41/41 E2E.
 
 ---
 

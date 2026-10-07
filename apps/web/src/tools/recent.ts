@@ -35,15 +35,16 @@ function openDb(): Promise<IDBDatabase> {
 }
 
 export async function recordRecent(entry: Omit<RecentEntry, 'id' | 'createdAt'>): Promise<void> {
+  let db: IDBDatabase | undefined;
   try {
-    const db = await openDb();
+    db = await openDb();
     const record: RecentEntry = {
       ...entry,
       id: crypto.randomUUID(),
       createdAt: Date.now(),
     };
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
+      const tx = db!.transaction(STORE, 'readwrite');
       const store = tx.objectStore(STORE);
       store.put(record);
       // Trim to the newest few entries.
@@ -59,40 +60,47 @@ export async function recordRecent(entry: Omit<RecentEntry, 'id' | 'createdAt'>)
       };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error('Recent-history write aborted'));
     });
-    db.close();
   } catch {
     // Storage is a convenience; never let it break the tool.
+  } finally {
+    // Always close: an unclosed connection keeps the database pinned open.
+    db?.close();
   }
 }
 
 export async function getRecent(): Promise<RecentEntry[]> {
+  let db: IDBDatabase | undefined;
   try {
-    const db = await openDb();
+    db = await openDb();
     const entries = await new Promise<RecentEntry[]>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readonly');
+      const tx = db!.transaction(STORE, 'readonly');
       const request = tx.objectStore(STORE).getAll();
       request.onsuccess = () => resolve((request.result as RecentEntry[]) ?? []);
       request.onerror = () => reject(request.error);
     });
-    db.close();
     return entries.sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_ENTRIES);
   } catch {
     return [];
+  } finally {
+    db?.close();
   }
 }
 
 export async function clearRecent(): Promise<void> {
+  let db: IDBDatabase | undefined;
   try {
-    const db = await openDb();
+    db = await openDb();
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
+      const tx = db!.transaction(STORE, 'readwrite');
       tx.objectStore(STORE).clear();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-    db.close();
   } catch {
     // ignore
+  } finally {
+    db?.close();
   }
 }

@@ -223,7 +223,7 @@ describe('jobs (registry layer)', () => {
     const a = await makeFixturePdf({ pages: 2, label: 'A' });
     const output = await mergeJob.run({ files: [{ name: 'a.pdf', data: a }] }, testContext());
 
-    expect(output.fileName).toBe('a.pdf');
+    expect(output.fileName).toBe('a-merged.pdf');
     expect(output.pageCount).toBe(2);
     expect(output.data).toBeInstanceOf(ArrayBuffer);
 
@@ -291,6 +291,20 @@ describe('jobs (registry layer)', () => {
     const info = await inspectPdf(new Uint8Array(output.data));
     expect(info.pages[0]?.rotation).toBe(180);
   });
+
+  it('never names a merged file after its only source', async () => {
+    // Merging one file must not hand back a *different* document under the
+    // user's original filename.
+    const a = await makeFixturePdf({ pages: 2, label: 'A' });
+    const single = await mergeJob.run({ files: [{ name: 'report.pdf', data: a }] }, testContext());
+    expect(single.fileName).toBe('report-merged.pdf');
+
+    const pair = await mergeJob.run(
+      { files: [{ name: 'report.pdf', data: a }, { name: 'notes.pdf', data: a }] },
+      testContext(),
+    );
+    expect(pair.fileName).toBe('merged.pdf');
+  });
 });
 
 describe('limits & job guardrails', () => {
@@ -322,6 +336,51 @@ describe('limits & job guardrails', () => {
 });
 
 describe('Phase 1 -- page transforms', () => {
+  it('copies only referenced pages and keeps index mapping exact', async () => {
+    // Selective copying must not shift indexes: page 3 of 10 is 102pt wide in
+    // the fixture (width + index), so a mis-mapped copy would read as 100 or 101.
+    const a = await makeFixturePdf({ pages: 10, label: 'A', width: 100, height: 200 });
+    const result = await composePageRefs(
+      [{ name: 'a.pdf', data: a }],
+      [{ docIndex: 0, pageIndex: 2 }],
+      testContext(),
+    );
+
+    const info = await inspectPdf(result.data);
+    expect(result.pageCount).toBe(1);
+    expect(info.pages[0]?.widthPt).toBe(102);
+  });
+
+  it('still duplicates pages that appear twice in the order', async () => {
+    const a = await makeFixturePdf({ pages: 3, label: 'A', width: 100, height: 200 });
+    const result = await composePageRefs(
+      [{ name: 'a.pdf', data: a }],
+      [
+        { docIndex: 0, pageIndex: 2, rotateDegrees: 90 },
+        { docIndex: 0, pageIndex: 2, rotateDegrees: 90 },
+        { docIndex: 0, pageIndex: 0 },
+      ],
+      testContext(),
+    );
+
+    const info = await inspectPdf(result.data);
+    expect(info.pages.map((p) => p.widthPt)).toEqual([102, 102, 100]);
+    // Rotation is absolute, so a duplicated page is not compounded to 180.
+    expect(info.pages[0]?.rotation).toBe(90);
+    expect(info.pages[1]?.rotation).toBe(90);
+  });
+
+  it('rejects negative and unknown-document refs before copying', async () => {
+    const a = await makeFixturePdf({ pages: 2 });
+    const ctx = testContext();
+    await expect(
+      composePageRefs([{ name: 'a.pdf', data: a }], [{ docIndex: 0, pageIndex: -1 }], ctx),
+    ).rejects.toThrow(/does not exist/);
+    await expect(
+      composePageRefs([{ name: 'a.pdf', data: a }], [{ docIndex: 5, pageIndex: 0 }], ctx),
+    ).rejects.toThrow(/does not exist/);
+  });
+
   it('per-page rotation overrides the global rotate option', async () => {
     const a = await makeFixturePdf({ pages: 2 });
     const ctx = testContext();
@@ -437,9 +496,68 @@ describe('Phase 1 -- stamp (page numbers, header & footer)', () => {
       }).ok,
     ).toBe(true);
   });
+
+  it('clamps hostile style values instead of emitting broken operators', async () => {
+    const a = await makeFixturePdf({ pages: 1 });
+    const output = await stampJob.run(
+      {
+        files: [{ name: 'doc.pdf', data: a }],
+        options: {
+          footer: { text: 'Page {n}' },
+          style: { fontSize: 9999, margin: -50, color: { r: 12, g: -4, b: Number.NaN } },
+        },
+      },
+      testContext(),
+    );
+
+    expect(output.pageCount).toBe(1);
+    expect(pdfContainsText(new Uint8Array(output.data), 'Page 1')).toBe(true);
+  });
+
+  it('treats an explicitly empty page order as an error, not "all pages"', async () => {
+    const a = await makeFixturePdf({ pages: 3 });
+    await expect(
+      stampJob.run(
+        {
+          files: [{ name: 'doc.pdf', data: a }],
+          options: { pageOrder: [], footer: { text: 'x' } },
+        },
+        testContext(),
+      ),
+    ).rejects.toThrow(/No pages selected/);
+  });
 });
 
 describe('Phase 1 -- split in half', () => {
+  it('splits the visible CropBox, not the MediaBox', async () => {
+    // Real scans often carry a CropBox smaller than the MediaBox; cutting the
+    // MediaBox would slice blank margin instead of content.
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([600, 800]);
+    page.setCropBox(100, 100, 300, 400);
+    const bytes = await doc.save();
+
+    const result = await splitPagesInHalf({ name: 'scan.pdf', data: bytes }, 'vertical', testContext());
+    const left = await inspectPdf(result.first);
+    const right = await inspectPdf(result.second);
+
+    expect(left.pages[0]?.widthPt).toBe(150);
+    expect(left.pages[0]?.cropBox).toEqual({ x: 100, y: 100, width: 150, height: 400 });
+    expect(right.pages[0]?.cropBox).toEqual({ x: 250, y: 100, width: 150, height: 400 });
+  });
+
+  it('cuts a CropBox horizontally into top and bottom halves', async () => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([600, 800]);
+    page.setCropBox(100, 100, 300, 400);
+    const bytes = await doc.save();
+
+    const result = await splitPagesInHalf({ name: 'scan.pdf', data: bytes }, 'horizontal', testContext());
+    const top = await inspectPdf(result.first);
+    expect(top.pages[0]?.cropBox).toEqual({ x: 100, y: 300, width: 300, height: 200 });
+    expect(result.secondLabel).toBe('bottom');
+  });
+
   it('cuts pages into equal left/right halves', async () => {
     const a = await makeFixturePdf({ pages: 2 });
     const result = await splitPagesInHalf({ name: 'a.pdf', data: a }, 'vertical', testContext());

@@ -69,20 +69,40 @@ export async function composeDocument(
 
   const out = await PDFDocument.create();
 
-  // Copy each source document's pages once, then reference them repeatedly; this
-  // keeps large reorganised documents cheap.
-  const copied: PDFPage[][] = [];
+  // Validate every reference against the real page counts BEFORE copying, so a
+  // bad page index fails fast instead of after a full copy.
+  const pageCounts = docs.map((doc) => doc.getPageCount());
+  for (const ref of refs) {
+    const count = pageCounts[ref.docIndex];
+    if (count === undefined || ref.pageIndex < 0 || ref.pageIndex >= count) {
+      throw new Error(`Page ${ref.pageIndex + 1} of document ${ref.docIndex + 1} does not exist`);
+    }
+  }
+
+  // Copy only the referenced pages (each exactly once) and reference them
+  // repeatedly. Extracting 2 pages from a 500-page file must not clone 500 page
+  // trees, while duplicate entries in the order stay free.
+  const needed = pageCounts.map(() => new Set<number>());
+  for (const ref of refs) needed[ref.docIndex]!.add(ref.pageIndex);
+
+  const copied: Map<number, PDFPage>[] = [];
   for (let i = 0; i < docs.length; i += 1) {
     ctx.throwIfAborted();
     progress.report('Copying pages', (i + 1) / (docs.length + 1));
-    copied.push(await out.copyPages(docs[i] as PDFDocument, docs[i]!.getPageIndices()));
+    const indexes = [...needed[i]!].sort((a, b) => a - b);
+    const pages = indexes.length > 0 ? await out.copyPages(docs[i] as PDFDocument, indexes) : [];
+    const byIndex = new Map<number, PDFPage>();
+    indexes.forEach((pageIndex, slot) => {
+      const page = pages[slot];
+      if (page) byIndex.set(pageIndex, page);
+    });
+    copied.push(byIndex);
   }
 
   for (let i = 0; i < refs.length; i += 1) {
     const ref = refs[i]!;
     ctx.throwIfAborted();
-    const sourceDoc = copied[ref.docIndex];
-    const page = sourceDoc?.[ref.pageIndex];
+    const page = copied[ref.docIndex]?.get(ref.pageIndex);
     if (!page) {
       throw new Error(`Page ${ref.pageIndex + 1} of document ${ref.docIndex + 1} does not exist`);
     }

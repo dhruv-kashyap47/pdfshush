@@ -60,7 +60,13 @@ export async function stampDocument(
 ): Promise<void> {
   const fontSize = clamp(style.fontSize ?? DEFAULT_STAMP_STYLE.fontSize, 4, 72);
   const margin = Math.max(0, style.margin ?? DEFAULT_STAMP_STYLE.margin);
-  const color = style.color ?? { r: 0.13, g: 0.13, b: 0.13 };
+  // Colour arrives over postMessage (and later over the public API), so clamp
+  // it -- an out-of-range component emits a malformed colour operator.
+  const color = {
+    r: clamp01(style.color?.r ?? 0.13),
+    g: clamp01(style.color?.g ?? 0.13),
+    b: clamp01(style.color?.b ?? 0.13),
+  };
   const headerText = content.header?.text?.trim() ?? '';
   const footerText = content.footer?.text?.trim() ?? '';
   if (headerText.length === 0 && footerText.length === 0) return;
@@ -132,4 +138,8 @@ function stampPage(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function clamp01(value: number): number {
+  return Number.isFinite(value) ? clamp(value, 0, 1) : 0;
 }

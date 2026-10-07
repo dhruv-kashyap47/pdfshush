@@ -7,6 +7,7 @@
  * never have.
  */
 
+import { toast } from 'sonner';
 import { LIMITS, MB, formatBytes } from '@pdfshush/pdf-core';
 
 export type CapacityVerdict =
@@ -18,6 +19,19 @@ export interface CapacityInput {
   totalBytes: number;
   largestFileBytes?: number;
   pageCount?: number;
+}
+
+let warnedLowMemory = false;
+
+/**
+ * Surfaces the advisory (non-blocking) half of a verdict, at most once per
+ * session. `checkClientCapacity` is pure; without this helper the low-memory
+ * warning was computed and silently dropped by every caller.
+ */
+export function announceCapacityWarning(verdict: CapacityVerdict): void {
+  if (!verdict.ok || !verdict.warning || warnedLowMemory) return;
+  warnedLowMemory = true;
+  toast.warning(verdict.warning);
 }
 
 export function checkClientCapacity(input: CapacityInput): CapacityVerdict {

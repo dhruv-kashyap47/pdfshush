@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
-import { checkClientCapacity } from '@/lib/client-capacity';
+import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
 import { largestBytes, readAsInputFiles, shortName, totalBytes } from '@/lib/files';
@@ -60,6 +60,7 @@ export function MergeTool() {
       toast.error(verdict.message);
       return;
     }
+    announceCapacityWarning(verdict);
 
     busyRef.current = true;
     setEntries(incoming.map((file) => ({ id: crypto.randomUUID(), file, status: 'loading' as const })));
@@ -68,6 +69,15 @@ export function MergeTool() {
     busyRef.current = false;
 
     if (!outcome.ok) {
+      // Aborted runs must not leave rows stuck on "reading…" -- that state
+      // permanently blocks merging with a confusing "remove files" toast.
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.status === 'loading'
+            ? { ...entry, status: 'error' as const, error: 'Reading was interrupted — re-add the file' }
+            : entry,
+        ),
+      );
       if (!outcome.aborted) {
         toast.error(outcome.message);
         setEntries([]);

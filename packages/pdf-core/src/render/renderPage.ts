@@ -1,5 +1,6 @@
 import type { PDFPageProxy } from 'pdfjs-dist';
 import { createProgressReporter, type JobContext } from '../job.js';
+import { LIMITS } from '../limits.js';
 import { defaultCanvasFactory, scaleForWidth, type CanvasFactory } from './canvas.js';
 import { loadPdfForRender } from './pdfjsRuntime.js';
 
@@ -133,7 +134,12 @@ export async function renderThumbnails(
   try {
     const pageCount = doc.numPages;
     const indexes = options.pageIndexes ?? Array.from({ length: pageCount }, (_, i) => i);
-    const width = indexes.length > 120 ? Math.min(options.targetWidthPx, 96) : options.targetWidthPx;
+    // Single source of truth for the degradation threshold (the UI used to keep
+    // its own copy, which silently drifted from this one).
+    const width =
+      indexes.length > LIMITS.client.thumbnailDegradeAtPages
+        ? Math.min(options.targetWidthPx, 96)
+        : options.targetWidthPx;
     const thumbnails: RenderedImage[] = [];
 
     for (let i = 0; i < indexes.length; i += 1) {

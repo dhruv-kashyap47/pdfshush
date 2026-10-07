@@ -15,7 +15,7 @@ quotas, through the exact same job contract.
 
 | Layer | State |
 | --- | --- |
-| `packages/pdf-core` | ✅ Engine: job contract, limits, merge/compose/render/zip/stamp/split/n-up, 38 tests |
+| `packages/pdf-core` | ✅ Engine: job contract, limits, merge/compose/render/zip/stamp/split/n-up, 46 tests |
 | `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu |
 | Live tools (13) | ✅ Merge, Organize, PDF → JPG · Delete, Extract, Rotate, Split by pages, Alternate & Mix, Split in half, Page Numbers, Crop, Header & Footer, N-up |
 | Server (P3), accounts (P4), AI (P5), e-sign/API/MCP (P6) | ⏳ Planned |
