@@ -398,6 +398,24 @@ async function main() {
   check('text box created and typed into', true);
   await page.getByTestId('editor-tool-select').click(); // blur commits the edit
 
+  // The text box grew to fit its content (measured like the exporter wraps).
+  const textBoxHeight = await page
+    .locator('[data-testid="editor-object-text"]')
+    .first()
+    .evaluate((element) => parseFloat(element.style.height));
+  check('text box height matches its content', textBoxHeight > 15, `${textBoxHeight}px`);
+
+  // Fit-width opening zoom, and relative zoom stepping from there.
+  const fitZoom = await page.getByTestId('editor-zoom-level').textContent();
+  await page.getByTestId('editor-zoom-out').click();
+  await waitFor(
+    async () => (await page.getByTestId('editor-zoom-level').textContent()) !== fitZoom,
+    5_000,
+    'zoom out changes level',
+  );
+  check('zoom steps down from the fit-width default', true, `opened at ${fitZoom}`);
+  await page.getByTestId('editor-zoom-in').click();
+
   // Highlight by drag.
   await page.getByTestId('editor-tool-highlight').click();
   await editorPage.scrollIntoViewIfNeeded();
@@ -447,6 +465,50 @@ async function main() {
   );
   check('undo restores the deleted object', true);
 
+  // Nudge and duplicate -- the two shortcuts every editor ships with.
+  await page.locator('[data-testid="editor-object-text"]').click();
+  const leftBefore = await page
+    .locator('[data-testid="editor-object-text"]')
+    .first()
+    .evaluate((element) => parseFloat(element.style.left));
+  await page.keyboard.press('ArrowRight');
+  await waitFor(
+    async () =>
+      (await page
+        .locator('[data-testid="editor-object-text"]')
+        .first()
+        .evaluate((element) => parseFloat(element.style.left))) > leftBefore,
+    5_000,
+    'arrow key nudges the object',
+  );
+  check('arrow keys nudge the selection', true);
+  await page.keyboard.press('Control+d');
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 2,
+    5_000,
+    'duplicate inserts a second copy',
+  );
+  check('Ctrl+D duplicates the object', true);
+  await page.keyboard.press('Control+z');
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 1,
+    5_000,
+    'undo removes the duplicate',
+  );
+  check('undo removes the duplicate', true);
+
+  // Z-order controls: select the lower object, then bring it forward.
+  await page.locator('[data-testid="editor-object-text"]').click();
+  const orderBefore = await page
+    .locator('[data-testid^="editor-object-"]')
+    .evaluateAll((nodes) => nodes.map((node) => node.dataset.objectId));
+  check('bring-forward is available on selection', await page.getByTestId('editor-bring-forward').isEnabled());
+  await page.getByTestId('editor-bring-forward').click();
+  const orderAfter = await page
+    .locator('[data-testid^="editor-object-"]')
+    .evaluateAll((nodes) => nodes.map((node) => node.dataset.objectId));
+  check('bring forward reorders the stack', orderBefore.join() !== orderAfter.join());
+
   // Save -> validated export -> download -> cross-pollination chips.
   await page.getByTestId('editor-save').click();
   await page.getByText('-edited.pdf').waitFor({ timeout: 90_000 });
@@ -455,6 +517,34 @@ async function main() {
   check('edited output is a valid PDF', editDl.ok, `${editDl.name} ${editDl.bytes.length}B`);
   check('cross-pollination chips shown', await page.getByTestId('next-chip-organize-pdf').isVisible());
   await page.screenshot({ path: path.join(ARTIFACTS, 'edit-result.png') });
+
+  // Saving does not end the session: the document stays open and intact.
+  await page.getByTestId('result-continue').click();
+  await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 15_000, 'editor reopened');
+  check(
+    'continue editing keeps the objects',
+    (await page.locator('[data-testid="editor-object-text"]').count()) === 1 &&
+      (await page.locator('[data-testid="editor-object-highlight"]').count()) === 1,
+  );
+
+  // Starting over must not carry the previous document's objects into the next.
+  await page.getByTestId('editor-save').click();
+  await page.getByText('-edited.pdf').waitFor({ timeout: 90_000 });
+  await page.getByRole('button', { name: 'Start over' }).click();
+  await waitFor(
+    async () => (await page.locator('input[accept*="application/pdf"]').count()) === 1,
+    15_000,
+    'dropzone back',
+  );
+  await page.locator('input[accept*="application/pdf"]').setInputFiles([fileA]);
+  await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'editor reopened');
+  await waitFor(
+    async () => (await page.locator('[data-testid^="editor-object-"]').count()) === 0,
+    5_000,
+    'no leftover objects',
+  );
+  check('start over opens a clean document', true);
+  await page.screenshot({ path: path.join(ARTIFACTS, 'edit-restarted.png') });
 
   /* 16. Planned tool page + 404 */
   console.log('\n16. Routing');

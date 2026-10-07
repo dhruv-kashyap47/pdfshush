@@ -9,8 +9,8 @@
  * (`onBeginTx` at gesture start, `onEndTx` at release).
  */
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import type { EditorObject, FormWidgetInfo, TextRun } from '@pdfshush/pdf-core';
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { TEXT_LINE_HEIGHT, type EditorObject, type FormWidgetInfo, type TextRun } from '@pdfshush/pdf-core';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { EditorTool } from '@/components/editor/editor-toolbar';
 import { cn } from '@/lib/utils';
@@ -36,11 +36,15 @@ export interface EditorPageProps {
   runs: TextRun[] | null;
   widgets: FormWidgetInfo[];
   formValues: Record<string, string | boolean>;
+  /** True while a save is in flight: the document is frozen, not lost. */
+  readOnly?: boolean;
 
   onSelect: (id: string | null) => void;
   onStartEdit: (id: string) => void;
   onEndEdit: () => void;
   onEditText: (id: string, text: string) => void;
+  /** Grows a text box to fit its wrapped content (measured like the exporter). */
+  onAutoHeight?: (id: string, height: number) => void;
   onCreate: (object: EditorObject) => void;
   onSeedReplace: (run: TextRun) => void;
   onImageRequested: (point: { x: number; y: number }) => void;
@@ -60,6 +64,14 @@ type Gesture =
 
 const MIN_SIZE = 8;
 const MIN_DRAG = 6;
+/**
+ * Click slop for hit tests. Lines and underlines are a few points tall; without
+ * this you would have to land within a single pixel row to grab them.
+ */
+const HIT_TOLERANCE = 4;
+
+/** Preview font stack -- also what the measurement canvas must use. */
+const TEXT_FONT_STACK = 'Arial, Helvetica, sans-serif';
 
 const DEFAULT_COLORS = {
   text: '#121212',
@@ -146,7 +158,75 @@ function defaultRectFor(tool: EditorTool, x: number, y: number): Rect {
 }
 
 function hitRect(rect: Rect, x: number, y: number): boolean {
-  return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+  return (
+    x >= rect.x - HIT_TOLERANCE &&
+    x <= rect.x + rect.width + HIT_TOLERANCE &&
+    y >= rect.y - HIT_TOLERANCE &&
+    y <= rect.y + rect.height + HIT_TOLERANCE
+  );
+}
+
+/* ----------------------------------------------------------- text metrics */
+
+let measureContext: CanvasRenderingContext2D | null | undefined;
+
+/**
+ * Height a text object needs for its content, measured in the same font stack
+ * the textarea renders in and wrapped with the exporter's greedy algorithm --
+ * so a box that has grown on screen is the box the saved page draws into.
+ */
+function measureTextHeight(
+  object: Extract<EditorObject, { kind: 'text' }>,
+  text: string,
+): number {
+  const boxWidth = Math.max(1, object.width);
+  const lineCount = countWrappedLines(text, object.fontSize, Boolean(object.bold), boxWidth);
+  return Math.max(Math.round(object.fontSize * TEXT_LINE_HEIGHT), lineCount * object.fontSize * TEXT_LINE_HEIGHT);
+}
+
+function countWrappedLines(text: string, fontSize: number, bold: boolean, boxWidth: number): number {
+  const context = textMeasureContext();
+  if (!context) return Math.max(1, text.split('\n').length);
+  context.font = `${bold ? '700 ' : ''}${fontSize}px ${TEXT_FONT_STACK}`;
+  const fits = (value: string): boolean => context.measureText(value).width <= boxWidth;
+
+  let lines = 0;
+  for (const paragraph of text.split('\n')) {
+    const words = paragraph.split(/\s+/).filter((word) => word.length > 0);
+    if (words.length === 0) {
+      lines += 1;
+      continue;
+    }
+    let line = '';
+    for (const original of words) {
+      let word = original;
+      if (line !== '' && !fits(`${line} ${word}`)) {
+        lines += 1;
+        line = '';
+      }
+      // A word wider than the box hard-breaks, exactly as the exporter does.
+      while (word.length > 1 && !fits(word)) {
+        let cut = word.length - 1;
+        while (cut > 1 && !fits(word.slice(0, cut))) cut -= 1;
+        if (line !== '') {
+          lines += 1;
+          line = '';
+        }
+        line = word.slice(0, cut);
+        word = word.slice(cut);
+      }
+      line = line === '' ? word : `${line} ${word}`;
+    }
+    lines += 1;
+  }
+  return Math.max(1, lines);
+}
+
+function textMeasureContext(): CanvasRenderingContext2D | null {
+  if (measureContext === undefined) {
+    measureContext = document.createElement('canvas').getContext('2d');
+  }
+  return measureContext ?? null;
 }
 
 /** Converts `#rrggbb` to an 8-digit hex with the given alpha (highlight preview). */
@@ -164,7 +244,12 @@ function hexWithAlpha(hex: string | undefined, alpha: number, fallback: string):
   return /^#[0-9a-f]{6}$/i.test(short) ? `${short}${alphaHex}` : fallback;
 }
 
-export function EditorPage(props: EditorPageProps) {
+/**
+ * Memoized: the tool passes per-page slices (objects, widgets, form values) that
+ * keep their identity while other pages change, so dragging on page 7 of 200
+ * re-renders page 7 alone.
+ */
+export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
   const {
     pageIndex,
     width,
@@ -178,6 +263,7 @@ export function EditorPage(props: EditorPageProps) {
     runs,
     widgets,
     formValues,
+    readOnly = false,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -198,12 +284,16 @@ export function EditorPage(props: EditorPageProps) {
 
   const startGesture = (gesture: Gesture) => {
     const p = propsRef.current;
+    // One gesture at a time: a second finger landing mid-drag would otherwise
+    // take over the same gesture slot and strand the first drag's history.
+    if (gestureRef.current) return;
     gestureRef.current = gesture;
     if (gesture.kind !== 'create') p.onBeginTx();
     window.addEventListener('pointermove', onWindowMove);
     window.addEventListener('pointerup', onWindowUp);
     window.addEventListener('pointercancel', onWindowUp);
     window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('keydown', onGestureKey);
   };
 
   const stopGesture = () => {
@@ -212,7 +302,18 @@ export function EditorPage(props: EditorPageProps) {
     window.removeEventListener('pointerup', onWindowUp);
     window.removeEventListener('pointercancel', onWindowUp);
     window.removeEventListener('blur', onWindowBlur);
+    window.removeEventListener('keydown', onGestureKey);
   };
+
+  /** Escape abandons an in-flight draw: no object, no undo entry. */
+  function onGestureKey(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return;
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+    stopGesture();
+    setGhost(null);
+    if (gesture.kind !== 'create') propsRef.current.onEndTx();
+  }
 
   /** Pointer released outside the window: commit what moved, cancel ghosts. */
   function onWindowBlur() {
@@ -319,6 +420,7 @@ export function EditorPage(props: EditorPageProps) {
   const onPagePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     const p = propsRef.current;
+    if (p.readOnly) return;
     const point = toLocal(event.clientX, event.clientY);
 
     if (p.tool === 'select') {
@@ -379,13 +481,15 @@ export function EditorPage(props: EditorPageProps) {
           <Skeleton className="absolute inset-0 h-full w-full rounded-none" data-testid="editor-page-loading" />
         )}
 
-        {/* Live AcroForm inputs, laid over their widget rectangles. */}
+        {/* Live AcroForm inputs, laid over their widget rectangles. With a
+            drawing tool active they step aside so markup can go over a field. */}
         {pageWidgets.map((widget, index) => (
           <FormWidget
             key={`${widget.name}-${widget.type}-${index}`}
             widget={widget}
             zoom={zoom}
             value={formValues[widget.name] ?? widget.value}
+            interactive={tool === 'select' && !readOnly}
             onChange={props.onFormValue}
           />
         ))}
@@ -409,10 +513,11 @@ export function EditorPage(props: EditorPageProps) {
             zoom={zoom}
             selected={object.id === selectedId}
             editing={object.id === editingId}
-            interactive={tool === 'select'}
+            interactive={tool === 'select' && !readOnly}
             onSelect={props.onSelect}
             onStartEdit={props.onStartEdit}
             onEditText={props.onEditText}
+            onAutoHeight={props.onAutoHeight}
             onEndEdit={props.onEndEdit}
             startGesture={startGesture}
           />
@@ -429,7 +534,7 @@ export function EditorPage(props: EditorPageProps) {
       <div className="mt-1 text-center text-xs text-muted-foreground">Page {pageIndex + 1}</div>
     </div>
   );
-}
+});
 
 function findRunAt(runs: TextRun[] | null, x: number, y: number): TextRun | null {
   if (!runs) return null;
@@ -451,6 +556,7 @@ interface ObjectViewProps {
   onSelect: (id: string | null) => void;
   onStartEdit: (id: string) => void;
   onEditText: (id: string, text: string) => void;
+  onAutoHeight?: (id: string, height: number) => void;
   onEndEdit: () => void;
   startGesture: (gesture: Gesture) => void;
 }
@@ -464,6 +570,7 @@ function ObjectView({
   onSelect,
   onStartEdit,
   onEditText,
+  onAutoHeight,
   onEndEdit,
   startGesture,
 }: ObjectViewProps) {
@@ -482,6 +589,21 @@ function ObjectView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [object.kind === 'image' ? object.data : null, object.kind === 'image' ? object.mimeType : '']);
   useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
+
+  // Text boxes fit their content: re-measure whenever the text, width or size
+  // changes (font size in the inspector, a corner drag, a seeded replacement).
+  // While editing, the textarea drives this instead so typing grows live.
+  const textKey = object.kind === 'text' ? object.text : '';
+  const textFontSize = object.kind === 'text' ? object.fontSize : 0;
+  const textBold = object.kind === 'text' ? Boolean(object.bold) : false;
+  useEffect(() => {
+    if (object.kind !== 'text' || editing || !onAutoHeight) return;
+    const height = measureTextHeight(object, object.text);
+    if (Math.abs(height - object.height) > 0.5) onAutoHeight(object.id, height);
+    // object.height is deliberately not a dependency: it is the value we set,
+    // and including it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textKey, textFontSize, textBold, object.width, object.kind, object.id, editing, onAutoHeight]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!interactive || editing) return;
@@ -542,15 +664,21 @@ function ObjectView({
               className="absolute inset-0 resize-none border-2 border-blue-500 bg-white p-0.5 text-left outline-none"
               style={{
                 fontSize: object.fontSize * zoom,
-                fontFamily: 'Arial, Helvetica, sans-serif',
-                lineHeight: 1.2,
+                fontFamily: TEXT_FONT_STACK,
+                lineHeight: TEXT_LINE_HEIGHT,
                 fontWeight: object.bold ? 700 : 400,
                 color: object.color ?? DEFAULT_COLORS.text,
                 textAlign: object.align ?? 'left',
               }}
               onPointerDown={(event) => event.stopPropagation()}
-              onChange={(event) => onEditText(object.id, event.target.value)}
-              onBlur={onEndEdit}
+              onChange={(event) => {
+                onEditText(object.id, event.target.value);
+                onAutoHeight?.(object.id, measureTextHeight(object, event.target.value));
+              }}
+              onBlur={() => {
+                onAutoHeight?.(object.id, measureTextHeight(object, object.text));
+                onEndEdit();
+              }}
             />
           );
         }
@@ -559,8 +687,8 @@ function ObjectView({
             className="absolute inset-0 overflow-hidden whitespace-pre-wrap break-words"
             style={{
               fontSize: object.fontSize * zoom,
-              fontFamily: 'Arial, Helvetica, sans-serif',
-              lineHeight: 1.2,
+              fontFamily: TEXT_FONT_STACK,
+              lineHeight: TEXT_LINE_HEIGHT,
               fontWeight: object.bold ? 700 : 400,
               color: object.color ?? DEFAULT_COLORS.text,
               textAlign: object.align ?? 'left',
@@ -694,11 +822,13 @@ function FormWidget({
   widget,
   zoom,
   value,
+  interactive,
   onChange,
 }: {
   widget: FormWidgetInfo;
   zoom: number;
   value: string | boolean | undefined;
+  interactive: boolean;
   onChange: (name: string, value: string | boolean) => void;
 }) {
   const box: CSSProperties = {
@@ -707,6 +837,7 @@ function FormWidget({
     top: widget.rect.y * zoom,
     width: widget.rect.width * zoom,
     height: widget.rect.height * zoom,
+    ...(interactive ? {} : { pointerEvents: 'none' as const }),
   };
   const stop = (event: ReactPointerEvent<HTMLElement>) => event.stopPropagation();
   const fontSize = Math.max(9, Math.min(widget.rect.height * zoom * 0.68, 18));
@@ -722,6 +853,7 @@ function FormWidget({
         <input
           type={widget.type}
           name={widget.type === 'radio' ? widget.name : undefined}
+          disabled={!interactive}
           checked={widget.type === 'radio' ? value === widget.option : Boolean(value)}
           onChange={(event) =>
             widget.type === 'radio'
@@ -739,6 +871,7 @@ function FormWidget({
       <select
         className="absolute border bg-white px-1 text-neutral-900 outline-none"
         style={{ ...box, fontSize }}
+        disabled={!interactive}
         value={typeof value === 'string' ? value : ''}
         onPointerDown={stop}
         onChange={(event) => onChange(widget.name, event.target.value)}
@@ -760,6 +893,7 @@ function FormWidget({
         type="text"
         className="absolute border bg-white px-1 text-neutral-900 outline-none focus:border-blue-500"
         style={{ ...box, fontSize }}
+        disabled={!interactive}
         value={typeof value === 'string' ? value : ''}
         onPointerDown={stop}
         onChange={(event) => onChange(widget.name, event.target.value)}

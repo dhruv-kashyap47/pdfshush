@@ -51,6 +51,14 @@ export const LIMITS = {
     defaultImageWidthPx: 1600,
     /** Cap on overlay objects in a single edit export (payload sanity). */
     maxEditObjects: 2000,
+    /** Cap on characters in one text object (wrapping cost is superlinear). */
+    maxTextObjectChars: 20_000,
+    /** Largest embedded image accepted, in bytes (decompression-bomb guard). */
+    maxImageBytes: 12 * MB,
+    /** Largest embedded image edge in pixels; also caps decoded RGBA at ~256 MB. */
+    maxImagePixels: 8192,
+    /** Undo depth. Snapshots share image buffers, so this is cheap. */
+    maxHistorySteps: 250,
   },
 } as const;
 

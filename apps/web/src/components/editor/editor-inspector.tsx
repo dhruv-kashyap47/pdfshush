@@ -4,6 +4,7 @@
  * gestures which checkpoint once at release.
  */
 
+import { useState } from 'react';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Trash2 } from 'lucide-react';
 import type { EditorObject } from '@pdfshush/pdf-core';
 import { Button } from '@/components/ui/button';
@@ -93,19 +94,7 @@ export function EditorInspector({ object, onPatch, onDelete }: EditorInspectorPr
                 <Label htmlFor="inspector-font-size" className="text-[11px]">
                   Size
                 </Label>
-                <Input
-                  id="inspector-font-size"
-                  type="number"
-                  min={4}
-                  max={72}
-                  className="h-7"
-                  data-testid="inspector-font-size"
-                  value={Math.round(object.fontSize)}
-                  onChange={(event) => {
-                    const size = Number(event.target.value);
-                    if (Number.isFinite(size)) onPatch({ fontSize: Math.min(72, Math.max(4, size)) });
-                  }}
-                />
+                <FontSizeInput value={object.fontSize} onCommit={(fontSize) => onPatch({ fontSize })} />
               </div>
               <div className="flex flex-col gap-1">
                 <Label className="text-[11px]">Style</Label>
@@ -218,6 +207,46 @@ export function EditorInspector({ object, onPatch, onDelete }: EditorInspectorPr
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Font size edits are typed, not stepped -- but each keystroke must not become
+ * its own undo entry, so the value is committed on blur or Enter.
+ */
+function FontSizeInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (fontSize: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (raw: string) => {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) onCommit(Math.min(72, Math.max(4, parsed)));
+    setDraft(null);
+  };
+
+  return (
+    <Input
+      id="inspector-font-size"
+      type="number"
+      min={4}
+      max={72}
+      className="h-7"
+      data-testid="inspector-font-size"
+      value={draft ?? String(Math.round(value))}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => commit(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commit((event.target as HTMLInputElement).value);
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
+    />
   );
 }
 

@@ -48,23 +48,33 @@ export interface RunItem {
 /**
  * Merges items that sit on the same visual line into runs.
  *
- * Items are ordered by their baseline coordinate first, so fragments of one
- * line are always adjacent for the merge pass (sorting by box corner would
- * interleave stacked lines). Same-line items then overlap heavily on the cross
- * axis (>= 60% of the shorter box) and stay within 0.8em of each other along
- * the baseline -- stacked lines and adjacent columns fail the cross-axis test,
- * so they never merge.
+ * Items are grouped by orientation first, then ordered by their baseline
+ * coordinate so fragments of one line are adjacent for the merge pass (sorting
+ * by box corner would interleave stacked lines). Merging is single-pass against
+ * the previous run, which is only sound if nothing else can come between two
+ * fragments of the same line -- hence the per-orientation split: a vertical
+ * watermark sorted between two words of a sentence used to break them apart.
+ *
+ * Same-line items then overlap heavily on the cross axis (>= 60% of the shorter
+ * box) and stay within 0.8em of each other along the baseline -- stacked lines
+ * and adjacent columns fail the cross-axis test, so they never merge.
  */
 export function clusterTextRuns(items: RunItem[]): TextRun[] {
-  const sorted = [...items].sort(
-    (a, b) => a.line - b.line || (a.horizontal ? a.x - b.x : a.y - b.y),
-  );
+  return [
+    ...mergeLineGroup(items.filter((item) => item.horizontal)),
+    ...mergeLineGroup(items.filter((item) => !item.horizontal)),
+  ];
+}
+
+function mergeLineGroup(group: RunItem[]): TextRun[] {
+  const sorted = group
+    .filter((item) => item.text.length > 0)
+    .sort((a, b) => a.line - b.line || (a.horizontal ? a.x - b.x : a.y - b.y));
   const runs: RunItem[] = [];
 
   for (const item of sorted) {
-    if (item.text.length === 0) continue;
     const previous = runs[runs.length - 1];
-    if (previous && previous.horizontal === item.horizontal && sameLine(previous, item)) {
+    if (previous && sameLine(previous, item)) {
       const gap = item.horizontal
         ? item.x - (previous.x + previous.width)
         : item.y - (previous.y + previous.height);
@@ -134,19 +144,25 @@ export async function extractTextRuns(
     for (let i = 0; i < targets.length; i += 1) {
       ctx?.throwIfAborted();
       const page = await loaded.doc.getPage(targets[i]! + 1);
-      const viewport = page.getViewport({ scale: 1 });
-      const content = await page.getTextContent();
-      const items: RunItem[] = [];
+      try {
+        const viewport = page.getViewport({ scale: 1 });
+        const content = await page.getTextContent();
+        const items: RunItem[] = [];
 
-      for (const raw of content.items) {
-        const item = raw as { str?: string; transform?: number[]; width?: number };
-        if (typeof item.str !== 'string' || item.str.length === 0) continue;
-        if (!Array.isArray(item.transform)) continue;
-        const converted = toRunItem(item.str, item.transform, item.width ?? 0, viewport);
-        if (converted) items.push(converted);
+        for (const raw of content.items) {
+          const item = raw as { str?: string; transform?: number[]; width?: number };
+          if (typeof item.str !== 'string' || item.str.length === 0) continue;
+          if (!Array.isArray(item.transform)) continue;
+          const converted = toRunItem(item.str, item.transform, item.width ?? 0, viewport);
+          if (converted) items.push(converted);
+        }
+
+        results.push(clusterTextRuns(items));
+      } finally {
+        // Text content buffers are the biggest per-page allocation here; on a
+        // 500-page run, holding them all is how you kill a tab.
+        page.cleanup();
       }
-
-      results.push(clusterTextRuns(items));
       ctx?.onProgress({
         phase: 'Reading text',
         ratio: (i + 1) / targets.length,
@@ -182,7 +198,10 @@ function toRunItem(
   const upX = c / upLen;
   const upY = d / upLen;
   const fontSize = upLen;
-  if (fontSize <= 0 || width <= 0) return null;
+  // Zero-width items are kept: some fonts emit them (isolated accents, spaces)
+  // and dropping them silently deletes characters from the line. The cross-axis
+  // merge test does not care about their width.
+  if (fontSize <= 0) return null;
 
   // Anchor points in PDF space: baseline span, ascender line, descender line.
   const points: [number, number][] = [

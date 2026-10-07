@@ -66,11 +66,15 @@ export {
 export type { PageGeom, DisplayRect } from './ops/geometry.js';
 export {
   applyEdits,
+  imagePixelSize,
   validateEditObjects,
   validateExport,
   wrapTextToWidth,
   parseHexColor,
 } from './ops/edit.js';
+// Dependency-free so the editor can style its textarea without pulling pdf-lib
+// into the main browser bundle.
+export { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './ops/textMetrics.js';
 export type {
   EditorObject,
   EditObjectBase,

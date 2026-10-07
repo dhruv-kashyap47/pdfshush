@@ -22,7 +22,11 @@ import {
   type RGB,
 } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
-import { pageGeom, viewRectToPdf, viewToPdf, type PageGeom } from './geometry.js';
+import { LIMITS, formatBytes } from '../limits.js';
+import { pageGeom, viewRectToPdf, viewToPdf, displaySize, type PageGeom } from './geometry.js';
+import { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './textMetrics.js';
+
+export { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './textMetrics.js';
 
 export interface EditObjectBase {
   id: string;
@@ -81,11 +85,18 @@ export type EditorObject =
   | EditLineObject
   | EditMarkObject;
 
-const TEXT_LINE_HEIGHT = 1.2;
-/** Helvetica sits on the baseline ~0.8em below the box top; whiteouts cover the rest. */
-const TEXT_ASCENT = 1.0;
+/**
+ * Text metrics shared with the UI live in a dependency-free module (see
+ * `textMetrics.ts`) -- both because the preview must agree with the exporter
+ * and because the web app imports these numbers without wanting pdf-lib.
+ */
 const MAX_FONT_SIZE = 72;
 const MIN_FONT_SIZE = 4;
+/** Anything further than this from the page is a bug, not an edit. */
+const MAX_EXTENT_PT = 200_000;
+/** Objects may hang off an edge, but not a whole page away in any direction. */
+const OFF_PAGE_MARGIN_PAGES = 2;
+const ALLOWED_MIME = new Set(['image/png', 'image/jpeg']);
 
 /** Parses `#rgb` / `#rrggbb` (clamped); anything unparseable falls back. */
 export function parseHexColor(value: string | undefined, fallback: RGB): RGB {
@@ -166,8 +177,19 @@ function displayAngle(g: PageGeom): number {
   }
 }
 
-/** Throws for any object whose page does not exist (fail before drawing). */
-export function validateEditObjects(objects: EditorObject[], pageCount: number): void {
+/**
+ * Validates every object before a single operator is emitted.
+ *
+ * The editor is the only caller today, but this path becomes the public API in
+ * P6 -- so it treats its input as untrusted: NaN coordinates would otherwise
+ * become NaN PDF operators (a corrupt download), and an oversized image would
+ * take the worker's heap with it. Failures name the offending object.
+ */
+export function validateEditObjects(
+  objects: EditorObject[],
+  pageCount: number,
+  pageSizeAt?: (pageIndex: number) => { width: number; height: number } | undefined,
+): void {
   const kinds = new Set([
     'text',
     'image',
@@ -180,13 +202,185 @@ export function validateEditObjects(objects: EditorObject[], pageCount: number):
     'underline',
     'whiteout',
   ]);
-  for (const object of objects) {
-    if (!Number.isInteger(object.pageIndex) || object.pageIndex < 0 || object.pageIndex >= pageCount) {
-      throw new Error(`Page ${object.pageIndex + 1} does not exist (document has ${pageCount} pages)`);
+  const seenIds = new Set<string>();
+
+  objects.forEach((object, index) => {
+    const at = `Object ${index + 1}`;
+    if (!object || typeof object !== 'object') {
+      throw new Error(`${at}: not an object`);
     }
-    if (!object.id) throw new Error('Every edit object needs an id');
-    if (!kinds.has(object.kind)) throw new Error(`Unknown object kind "${object.kind}"`);
+    const kind = (object as { kind?: unknown }).kind;
+    if (typeof kind !== 'string' || !kinds.has(kind)) {
+      throw new Error(`Unknown object kind "${String(kind)}"`);
+    }
+    if (typeof object.id !== 'string' || object.id.length === 0) {
+      throw new Error(`${at} (${kind}): every edit object needs an id`);
+    }
+    if (seenIds.has(object.id)) {
+      throw new Error(`${at} (${kind}): duplicate object id "${object.id}"`);
+    }
+    seenIds.add(object.id);
+    if (
+      !Number.isInteger(object.pageIndex) ||
+      object.pageIndex < 0 ||
+      object.pageIndex >= pageCount
+    ) {
+      throw new Error(`Page ${(object.pageIndex as number) + 1} does not exist (document has ${pageCount} pages)`);
+    }
+
+    // Geometry: finite, non-negative, and not absurdly far from the page.
+    const { x, y, width, height } = object;
+    if (![x, y, width, height].every((value) => Number.isFinite(value))) {
+      throw new Error(`${at} (${kind}): coordinates must be finite numbers`);
+    }
+    if (width < 0 || height < 0) {
+      throw new Error(`${at} (${kind}): width and height cannot be negative`);
+    }
+    if (width > MAX_EXTENT_PT || height > MAX_EXTENT_PT) {
+      throw new Error(`${at} (${kind}): object is larger than ${MAX_EXTENT_PT} pt`);
+    }
+    const page = pageSizeAt?.(object.pageIndex);
+    if (page) {
+      const marginX = page.width * OFF_PAGE_MARGIN_PAGES;
+      const marginY = page.height * OFF_PAGE_MARGIN_PAGES;
+      if (
+        x + width < -marginX ||
+        x > page.width + marginX ||
+        y + height < -marginY ||
+        y > page.height + marginY
+      ) {
+        throw new Error(`${at} (${kind}): object sits entirely off page ${object.pageIndex + 1}`);
+      }
+    }
+
+    switch (kind) {
+      case 'text': {
+        const text = object as EditTextObject;
+        if (typeof text.text !== 'string') {
+          throw new Error(`${at} (text): "text" must be a string`);
+        }
+        if (text.text.length > LIMITS.tool.maxTextObjectChars) {
+          throw new Error(
+            `${at} (text): text is too long (${text.text.length} characters, max ${LIMITS.tool.maxTextObjectChars})`,
+          );
+        }
+        if (
+          !Number.isFinite(text.fontSize) ||
+          text.fontSize <= 0 ||
+          text.fontSize > 4 * MAX_FONT_SIZE
+        ) {
+          throw new Error(`${at} (text): font size must be between 0 and ${4 * MAX_FONT_SIZE}`);
+        }
+        if (text.align !== undefined && !['left', 'center', 'right'].includes(text.align)) {
+          throw new Error(`${at} (text): align must be left, center or right`);
+        }
+        assertHexColor(at, kind, 'color', text.color);
+        break;
+      }
+      case 'image': {
+        const image = object as EditImageObject;
+        if (!ALLOWED_MIME.has(image.mimeType)) {
+          throw new Error(`${at} (image): unsupported type "${String(image.mimeType)}" (PNG or JPEG only)`);
+        }
+        const bytes =
+          image.data instanceof Uint8Array ? image.data : new Uint8Array(image.data ?? new ArrayBuffer(0));
+        if (bytes.byteLength === 0) {
+          throw new Error(`${at} (image): image data is empty`);
+        }
+        if (bytes.byteLength > LIMITS.tool.maxImageBytes) {
+          throw new Error(
+            `${at} (image): image is ${formatBytes(bytes.byteLength)}, over the ${formatBytes(LIMITS.tool.maxImageBytes)} limit`,
+          );
+        }
+        const pixels = imagePixelSize(bytes, image.mimeType);
+        if (pixels && Math.max(pixels.width, pixels.height) > LIMITS.tool.maxImagePixels) {
+          throw new Error(
+            `${at} (image): ${pixels.width}x${pixels.height} px exceeds the ${LIMITS.tool.maxImagePixels} px limit`,
+          );
+        }
+        break;
+      }
+      case 'rect':
+      case 'ellipse': {
+        const shape = object as EditRectObject;
+        assertHexColor(at, kind, 'fill', shape.fill);
+        assertHexColor(at, kind, 'stroke', shape.stroke);
+        assertStrokeWidth(at, kind, shape.strokeWidth);
+        break;
+      }
+      case 'line':
+      case 'arrow': {
+        const line = object as EditLineObject;
+        assertHexColor(at, kind, 'stroke', line.stroke);
+        assertStrokeWidth(at, kind, line.strokeWidth);
+        break;
+      }
+      default: {
+        const mark = object as EditMarkObject;
+        assertHexColor(at, kind, 'color', mark.color);
+        assertStrokeWidth(at, kind, mark.strokeWidth);
+        break;
+      }
+    }
+  });
+}
+
+function assertHexColor(at: string, kind: string, field: string, value: string | undefined): void {
+  if (value === undefined) return;
+  if (!/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())) {
+    throw new Error(`${at} (${kind}): ${field} must be a hex colour like #1a57e6`);
   }
+}
+
+function assertStrokeWidth(at: string, kind: string, value: number | undefined): void {
+  if (value === undefined) return;
+  if (!Number.isFinite(value) || value < 0 || value > 200) {
+    throw new Error(`${at} (${kind}): stroke width must be between 0 and 200 pt`);
+  }
+}
+
+/** Pixel dimensions from the file header, without decoding the image. */
+export function imagePixelSize(
+  bytes: Uint8Array,
+  mimeType: string,
+): { width: number; height: number } | null {
+  try {
+    if (mimeType === 'image/png' && bytes.length >= 24) {
+      const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+      if (!signature.every((byte, index) => bytes[index] === byte)) return null;
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      return { width: view.getUint32(16), height: view.getUint32(20) };
+    }
+    if (mimeType === 'image/jpeg' && bytes.length >= 4) {
+      if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+      let offset = 2;
+      while (offset + 9 < bytes.length) {
+        if (bytes[offset] !== 0xff) {
+          offset += 1;
+          continue;
+        }
+        const marker = bytes[offset + 1]!;
+        // Standalone markers carry no length payload.
+        if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+          offset += 2;
+          continue;
+        }
+        const length = (bytes[offset + 2]! << 8) | bytes[offset + 3]!;
+        const isStartOfFrame =
+          marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+        if (isStartOfFrame) {
+          return {
+            height: (bytes[offset + 5]! << 8) | bytes[offset + 6]!,
+            width: (bytes[offset + 7]! << 8) | bytes[offset + 8]!,
+          };
+        }
+        offset += 2 + Math.max(2, length);
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 /** Draws every object onto its page, in array order (later = on top). */
@@ -198,11 +392,6 @@ export async function applyEdits(
   if (objects.length === 0) return;
   const progress = createProgressReporter(ctx);
   const pages = doc.getPages();
-  validateEditObjects(objects, pages.length);
-
-  const needsText = objects.some((o) => o.kind === 'text');
-  const regular = needsText ? await doc.embedFont(StandardFonts.Helvetica) : undefined;
-  const bold = needsText ? await doc.embedFont(StandardFonts.HelveticaBold) : undefined;
 
   const geomCache = new Map<number, PageGeom>();
   const geomFor = (pageIndex: number): PageGeom => {
@@ -214,12 +403,22 @@ export async function applyEdits(
     return geom;
   };
 
+  validateEditObjects(objects, pages.length, (pageIndex) => displaySize(geomFor(pageIndex)));
+
+  const needsText = objects.some((o) => o.kind === 'text');
+  const regular = needsText ? await doc.embedFont(StandardFonts.Helvetica) : undefined;
+  const bold = needsText ? await doc.embedFont(StandardFonts.HelveticaBold) : undefined;
+
+  // The same logo pasted 200 times must be stored once: pdf-lib has no image
+  // cache, so key our own on the bytes.
+  const imageCache = new Map<string, PDFImage>();
+
   for (let i = 0; i < objects.length; i += 1) {
     ctx.throwIfAborted();
     const object = objects[i]!;
     const page = pages[object.pageIndex]!;
     const geom = geomFor(object.pageIndex);
-    await drawObject(page, geom, object, { regular, bold });
+    await drawObject(page, geom, object, { regular, bold, imageCache });
     progress.step(i, objects.length, 'Applying edits');
   }
 }
@@ -227,6 +426,8 @@ export async function applyEdits(
 interface FontSet {
   regular?: PDFFont;
   bold?: PDFFont;
+  /** mime + content hash → embedded image, so repeats cost nothing. */
+  imageCache: Map<string, PDFImage>;
 }
 
 async function drawObject(
@@ -240,7 +441,7 @@ async function drawObject(
       drawText(page, geom, object, fonts);
       return;
     case 'image':
-      await drawImage(page, geom, object);
+      await drawImage(page, geom, object, fonts);
       return;
     case 'rect':
       drawRect(page, geom, object);
@@ -333,11 +534,18 @@ function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, fonts: 
   }
 }
 
-async function drawImage(page: PDFPage, geom: PageGeom, object: EditImageObject): Promise<void> {
+async function drawImage(page: PDFPage, geom: PageGeom, object: EditImageObject, fonts: FontSet): Promise<void> {
   const raw = object.data instanceof Uint8Array ? object.data : new Uint8Array(object.data);
   if (raw.byteLength === 0) return;
-  const isPng = object.mimeType === 'image/png';
-  const image: PDFImage = isPng ? await page.doc.embedPng(raw) : await page.doc.embedJpg(raw);
+  const cacheKey = `${object.mimeType}:${raw.byteLength}:${hashBytes(raw)}`;
+  let image = fonts.imageCache.get(cacheKey);
+  if (!image) {
+    image =
+      object.mimeType === 'image/png'
+        ? await page.doc.embedPng(raw)
+        : await page.doc.embedJpg(raw);
+    fonts.imageCache.set(cacheKey, image);
+  }
   // Anchor = the image's bottom-left *in display space*, rotated into PDF space
   // so the bitmap reads upright after the viewer applies /Rotate.
   const [ax, ay] = viewToPdf(geom, object.x, object.y + object.height);
@@ -348,6 +556,16 @@ async function drawImage(page: PDFPage, geom: PageGeom, object: EditImageObject)
     height: Math.max(1, object.height),
     rotate: degrees(displayAngle(geom)),
   });
+}
+
+/** FNV-1a over the bytes: cheap identity for "same image, second paste". */
+function hashBytes(bytes: Uint8Array): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i += 1) {
+    hash ^= bytes[i]!;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16);
 }
 
 function drawRect(page: PDFPage, geom: PageGeom, object: EditRectObject): void {

@@ -4,7 +4,7 @@
  * wrapping, validation), AcroForm extract/apply, and both new jobs.
  */
 
-import { PDFDocument, StandardFonts, degrees, rgb } from '@cantoo/pdf-lib';
+import { PDFDocument, PDFName, StandardFonts, degrees, rgb } from '@cantoo/pdf-lib';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -18,7 +18,9 @@ import {
 } from '../src/ops/geometry.js';
 import {
   applyEdits,
+  imagePixelSize,
   parseHexColor,
+  TEXT_ASCENT,
   validateEditObjects,
   validateExport,
   wrapTextToWidth,
@@ -357,7 +359,11 @@ describe('edit op', () => {
     expect(run).toBeDefined();
     expect(run!.horizontal).toBe(true); // reads left-to-right in the viewer
     expect(run!.x).toBeCloseTo(40, 0);
-    expect(run!.y).toBeCloseTo(40, 0);
+    // pdf.js reports the item box as one em tall above the baseline, so the
+    // baseline we drew -- box top + TEXT_ASCENT -- must show up as
+    // `run.y + run.fontSize`. This is the WYSIWYG contract: the CSS preview puts
+    // its first baseline at the same offset.
+    expect(run!.y + run!.fontSize).toBeCloseTo(40 + 18 * TEXT_ASCENT, 1);
     expect(run!.fontSize).toBeCloseTo(18, 1);
     // and stays inside the displayed page
     expect(run!.x + run!.width).toBeLessThanOrEqual(display.width + 1);
@@ -520,3 +526,238 @@ describe('text-runs job', () => {
     expect(output.runs[1]![0]!.text).toContain('page 1');
   });
 });
+
+/* ------------------------------------------------------------- P2 audit */
+
+describe('edit object validation (hostile input)', () => {
+  it('rejects non-finite geometry before any operator is emitted', () => {
+    expect(() => validateEditObjects([textObject({ x: Number.NaN })], 1)).toThrow(/finite numbers/);
+    expect(() => validateEditObjects([textObject({ height: Number.POSITIVE_INFINITY })], 1)).toThrow(
+      /finite numbers/,
+    );
+  });
+
+  it('rejects duplicate ids (they key selection and React lists)', () => {
+    expect(() =>
+      validateEditObjects([textObject({ id: 'dup' }), textObject({ id: 'dup' })], 1),
+    ).toThrow(/duplicate object id "dup"/);
+  });
+
+  it('rejects objects dragged entirely off the page', () => {
+    const pageSize = (): { width: number; height: number } => ({ width: 595, height: 842 });
+    const off = textObject({ x: 5000, y: 5000 });
+    expect(() => validateEditObjects([off], 1, pageSize)).toThrow(/off page 1/);
+    // but a little overhang is fine (whiteouts at the edge are normal)
+    expect(() => validateEditObjects([textObject({ x: -40, y: -20 })], 1, pageSize)).not.toThrow();
+  });
+
+  it('caps runaway text and absurd font sizes', () => {
+    expect(() =>
+      validateEditObjects([textObject({ text: 'x'.repeat(20_001) })], 1),
+    ).toThrow(/too long/);
+    expect(() => validateEditObjects([textObject({ fontSize: Number.NaN })], 1)).toThrow(/font size/);
+    expect(() => validateEditObjects([textObject({ fontSize: 5000 })], 1)).toThrow(/font size/);
+  });
+
+  it('rejects unusable images by type, size and pixel count', () => {
+    const bytes = new Uint8Array(pngHeader(9000, 20));
+    const base = { kind: 'image', pageIndex: 0, x: 10, y: 10, width: 20, height: 20 } as const;
+    expect(() =>
+      validateEditObjects([{ ...base, id: 'i1', mimeType: 'image/gif', data: bytes } as EditorObject], 1),
+    ).toThrow(/PNG or JPEG only/);
+    expect(() =>
+      validateEditObjects([{ ...base, id: 'i1', mimeType: 'image/png', data: new Uint8Array(0) } as EditorObject], 1),
+    ).toThrow(/image data is empty/);
+    expect(() =>
+      validateEditObjects([{ ...base, id: 'i1', mimeType: 'image/png', data: bytes } as EditorObject], 1),
+    ).toThrow(/exceeds the 8192 px limit/);
+  });
+
+  it('rejects malformed colours and stroke widths instead of drawing garbage', () => {
+    const shape = { kind: 'rect', pageIndex: 0, x: 10, y: 10, width: 50, height: 40 } as const;
+    expect(() =>
+      validateEditObjects([{ ...shape, id: 'r1', stroke: 'url(#x)' } as EditorObject], 1),
+    ).toThrow(/hex colour/);
+    expect(() =>
+      validateEditObjects([{ ...shape, id: 'r1', strokeWidth: Number.NaN } as EditorObject], 1),
+    ).toThrow(/stroke width/);
+  });
+});
+
+describe('image pixel probing', () => {
+  it('reads PNG and JPEG dimensions straight from the header', () => {
+    expect(imagePixelSize(new Uint8Array(pngHeader(120, 45)), 'image/png')).toEqual({
+      width: 120,
+      height: 45,
+    });
+    expect(imagePixelSize(new Uint8Array(jpegHeader(300, 200)), 'image/jpeg')).toEqual({
+      width: 300,
+      height: 200,
+    });
+  });
+
+  it('returns null for anything that is not really that format', () => {
+    expect(imagePixelSize(new Uint8Array([1, 2, 3, 4]), 'image/png')).toBeNull();
+    expect(imagePixelSize(new Uint8Array([0xff, 0xd8, 0x00, 0x00]), 'image/jpeg')).toBeNull();
+  });
+});
+
+describe('editing efficiency', () => {
+  it('embeds a repeated image once, not once per object', async () => {
+    const embedCount = async (ids: string[]): Promise<number> => {
+      const doc = await PDFDocument.create();
+      doc.addPage([300, 300]);
+      await applyEdits(
+        doc,
+        ids.map((id, index) => ({
+          id,
+          kind: 'image',
+          pageIndex: 0,
+          x: 10 + index * 50,
+          y: 10,
+          width: 40,
+          height: 40,
+          data: ONE_PIXEL_PNG,
+          mimeType: 'image/png',
+        })),
+        testContext(),
+      );
+      // A PNG with alpha becomes two XObjects (image + soft mask), so compare
+      // counts rather than pinning pdf-lib's internals.
+      return countMatches(
+        new TextDecoder('latin1').decode(await doc.save({ useObjectStreams: false })),
+        '/Subtype /Image',
+      );
+    };
+
+    const single = await embedCount(['a']);
+    const triple = await embedCount(['a', 'b', 'c']);
+    expect(triple).toBe(single);
+  });
+});
+
+describe('form fixes', () => {
+  it('really clears a dropdown when the user empties it', async () => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([300, 300]);
+    const dropdown = doc.getForm().createDropdown('country');
+    dropdown.setOptions(['US', 'FR', 'JP']);
+    dropdown.addToPage(page, { x: 20, y: 200, width: 120, height: 20 });
+    dropdown.select('FR');
+
+    applyFormValues(doc, { country: '' });
+
+    const reloaded = await PDFDocument.load(await doc.save({ useObjectStreams: false }));
+    expect(reloaded.getForm().getDropdown('country').getSelected()).toEqual([]);
+  });
+
+  it('places widgets on the page their /P entry names, even at identical rects', async () => {
+    const doc = await PDFDocument.create();
+    const first = doc.addPage([300, 300]);
+    const second = doc.addPage([300, 300]);
+    const form = doc.getForm();
+    const rect = { x: 40, y: 100, width: 120, height: 20 };
+
+    const one = form.createTextField('first');
+    one.addToPage(first, rect);
+    const two = form.createTextField('second');
+    two.addToPage(second, rect);
+    // Real writers (Word, Acrobat, LibreOffice) record the owning page in /P;
+    // pdf-lib does not, so set it the way a viewer would find it.
+    stampPageRef(one.acroField.getWidgets()[0], first.ref);
+    stampPageRef(two.acroField.getWidgets()[0], second.ref);
+
+    const widgets = extractFormWidgets(doc);
+    expect(widgets.find((w) => w.name === 'first')?.pageIndex).toBe(0);
+    expect(widgets.find((w) => w.name === 'second')?.pageIndex).toBe(1);
+  });
+});
+
+describe('text-run clustering edge cases', () => {
+  it('still merges a line when a vertical item sorts between its fragments', () => {
+    const runs = clusterTextRuns([
+      { text: 'Hello', fontSize: 12, x: 10, y: 100, width: 40, height: 14, horizontal: true, line: 110 },
+      { text: '|', fontSize: 12, x: 200, y: 20, width: 12, height: 200, horizontal: false, line: 105 },
+      { text: 'world', fontSize: 12, x: 56, y: 100, width: 42, height: 14, horizontal: true, line: 110.4 },
+    ]);
+    const joined = runs.filter((run) => run.horizontal).map((run) => run.text);
+    expect(joined).toEqual(['Hello world']);
+    expect(runs.filter((run) => !run.horizontal).map((run) => run.text)).toEqual(['|']);
+  });
+
+  it('keeps zero-width items in the line they belong to', () => {
+    const runs = clusterTextRuns([
+      { text: 'ab', fontSize: 12, x: 10, y: 100, width: 0, height: 14, horizontal: true, line: 110 },
+      { text: 'cd', fontSize: 12, x: 10, y: 100, width: 24, height: 14, horizontal: true, line: 110.2 },
+    ]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.text).toBe('abcd');
+    expect(runs[0]!.width).toBe(24);
+  });
+});
+
+describe('edit job output naming', () => {
+  it('refuses to take a path from an untrusted name', async () => {
+    const source = await makeFixturePdf({ pages: 1 });
+    const run = (outputName: string) =>
+      editJob.run(
+        { files: [{ name: 'alpha.pdf', data: source }], options: { outputName } },
+        testContext(),
+      );
+    expect((await run('../../etc/passwd')).name).toBe('passwd.pdf');
+    expect((await run('C:\\windows\\system32\\evil')).name).toBe('evil.pdf');
+    expect((await run('..')).name).toBe('alpha-edited.pdf');
+    expect((await run('   ')).name).toBe('alpha-edited.pdf');
+    expect((await run('report')).name).toBe('report.pdf');
+  });
+});
+
+/* ---------------------------------------------------------------- helpers */
+
+const ONE_PIXEL_PNG = Uint8Array.from(
+  atob(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  ),
+  (char) => char.charCodeAt(0),
+);
+
+function countMatches(haystack: string, needle: string): number {
+  let count = 0;
+  let index = haystack.indexOf(needle);
+  while (index !== -1) {
+    count += 1;
+    index = haystack.indexOf(needle, index + needle.length);
+  }
+  return count;
+}
+
+/** Minimal PNG header (signature + IHDR) with the given pixel dimensions. */
+function pngHeader(width: number, height: number): number[] {
+  const bytes = [
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 0,
+    0, 0, 0, 0,
+  ];
+  const view = new DataView(Uint8Array.from(bytes).buffer);
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  return Array.from(new Uint8Array(view.buffer));
+}
+
+/** JPEG start-of-frame marker carrying the given dimensions. */
+function jpegHeader(width: number, height: number): number[] {
+  return [
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00,
+    0x01, 0x00, 0x00, 0xff, 0xc0, 0x00, 0x11, 0x08, (height >> 8) & 0xff, height & 0xff, (width >> 8) & 0xff,
+    width & 0xff, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
+  ];
+}
+
+/** Writes an owning page reference onto a widget annotation, like real PDFs. */
+function stampPageRef(
+  widget: unknown,
+  ref: unknown,
+): void {
+  const dict = (widget as { getDictionary?: () => { set: (key: unknown, value: unknown) => void } })
+    .getDictionary?.();
+  dict?.set(PDFName.of('P'), ref);
+}

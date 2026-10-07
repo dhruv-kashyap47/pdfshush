@@ -44,8 +44,12 @@ type AnyField = ReturnType<PDFDocument['getForm']>['getFields'] extends () => (i
 
 /** Every fillable widget in the document, in field order. */
 export function extractFormWidgets(doc: PDFDocument): FormWidgetInfo[] {
-  const pageByRect = buildRectPageMap(doc);
   const pages = doc.getPages();
+  const pageByRef = new Map<string, number>();
+  pages.forEach((page, index) => {
+    pageByRef.set(`${page.ref.objectNumber} ${page.ref.generationNumber}`, index);
+  });
+  const pageByRect = buildRectPageMap(doc);
   let fields: AnyField[];
   try {
     fields = doc.getForm().getFields();
@@ -72,7 +76,7 @@ export function extractFormWidgets(doc: PDFDocument): FormWidgetInfo[] {
 
     widgets.forEach((widget, widgetIndex) => {
       const box = widget.getRectangle();
-      const pageIndex = pageByRect.get(rectKey(box));
+      const pageIndex = pageIndexForWidget(widget, pageByRef, pageByRect, box);
       // A widget we cannot place on a page is still fillable via the field's
       // value, but we never invent a position for it.
       if (pageIndex === undefined) return;
@@ -93,18 +97,59 @@ export function extractFormWidgets(doc: PDFDocument): FormWidgetInfo[] {
   return out;
 }
 
+/**
+ * Which page a widget belongs to.
+ *
+ * The widget's own `/P` entry is authoritative. The rectangle index is only a
+ * fallback, because cloned form pages repeat identical rectangles -- matching on
+ * those alone drops every widget but the first onto one page.
+ */
+function pageIndexForWidget(
+  widget: unknown,
+  pageByRef: Map<string, number>,
+  pageByRect: Map<string, number>,
+  box: { x: number; y: number; width: number; height: number },
+): number | undefined {
+  try {
+    const ref = (widget as { P?: () => { objectNumber: number; generationNumber: number } | undefined }).P?.();
+    if (ref) {
+      const direct = pageByRef.get(`${ref.objectNumber} ${ref.generationNumber}`);
+      if (direct !== undefined) return direct;
+    }
+  } catch {
+    /* fall through to geometry */
+  }
+  return pageByRect.get(rectKey(box));
+}
+
+/** Longest single value we will write into a field (hostile-input guard). */
+const MAX_FORM_VALUE_CHARS = 32_000;
+
 /** Applies UI form values (`name → value`) to the open document. */
 export function applyFormValues(doc: PDFDocument, values: Record<string, string | boolean>): void {
   const entries = Object.entries(values ?? {});
   if (entries.length === 0) return;
   const form = doc.getForm();
-  const known = new Set(form.getFields().map((field) => field.getName()).filter(Boolean));
+  // One pass over the field list, resolved by exact name. `form.getField()`
+  // throws its own `NoSuchFieldError` from outside our error handling, so a
+  // single bad key used to surface as a cryptic message instead of ours.
+  const byName = new Map<string, AnyField>();
+  for (const field of form.getFields()) {
+    const name = field.getName();
+    if (name && !byName.has(name)) byName.set(name, field);
+  }
 
   for (const [name, value] of entries) {
-    if (!known.has(name)) {
+    const field = byName.get(name);
+    if (!field) {
       throw new Error(`Form field "${name}" does not exist in this document`);
     }
-    const field = form.getField(name);
+    if (typeof value !== 'string' && typeof value !== 'boolean') {
+      throw new Error(`Form field "${name}": value must be text or a checkbox state`);
+    }
+    if (typeof value === 'string' && value.length > MAX_FORM_VALUE_CHARS) {
+      throw new Error(`Form field "${name}": value is too long (max ${MAX_FORM_VALUE_CHARS} characters)`);
+    }
     try {
       if (field instanceof PDFTextField) {
         field.setText(typeof value === 'string' ? value : value ? 'Yes' : '');
@@ -112,8 +157,10 @@ export function applyFormValues(doc: PDFDocument, values: Record<string, string 
         if (value) field.check();
         else field.uncheck();
       } else if (field instanceof PDFDropdown || field instanceof PDFOptionList) {
+        // An emptied control must really clear: skipping it would export the
+        // previous value while the UI showed a blank.
         if (typeof value === 'string' && value.length > 0) field.select(value);
-        else if (field instanceof PDFOptionList) field.select([]);
+        else field.clear();
       } else if (field instanceof PDFRadioGroup) {
         if (typeof value === 'string' && value.length > 0) field.select(value);
       }
@@ -165,7 +212,7 @@ function currentValueOf(field: AnyField, type: FormFieldType): string | boolean 
   return undefined;
 }
 
-/** `rect → pageIndex` for every widget annotation, keyed by rounded corners. */
+/** `rect → pageIndex` for every widget annotation, keyed by normalized corners. */
 function buildRectPageMap(doc: PDFDocument): Map<string, number> {
   const map = new Map<string, number>();
   const pages = doc.getPages();
@@ -173,7 +220,12 @@ function buildRectPageMap(doc: PDFDocument): Map<string, number> {
     for (const dict of widgetDicts(page, doc)) {
       const numbers = readRect(dict.get(PDFName.of('Rect')) as PDFArray | undefined);
       if (!numbers) continue;
-      const key = rectKey({ x: numbers[0], y: numbers[1], width: numbers[2] - numbers[0], height: numbers[3] - numbers[1] });
+      const key = rectKey({
+        x: numbers[0],
+        y: numbers[1],
+        width: numbers[2] - numbers[0],
+        height: numbers[3] - numbers[1],
+      });
       // Duplicated pages share annotations: keep the first occurrence, which is
       // where the overlay should appear (values still apply to the whole field).
       if (!map.has(key)) map.set(key, index);
@@ -215,9 +267,17 @@ function readRect(rect: PDFArray | undefined): [number, number, number, number] 
   }
 }
 
+/**
+ * Stable key for a rectangle. Corners are ordered, so a reversed `/Rect`
+ * (`y1 < y0`, which writers do emit) still matches its own widget.
+ */
 function rectKey(box: { x: number; y: number; width: number; height: number }): string {
   const r = (n: number) => Math.round(n * 100) / 100;
-  return `${r(box.x)},${r(box.y)},${r(box.width)},${r(box.height)}`;
+  const x0 = r(Math.min(box.x, box.x + box.width));
+  const y0 = r(Math.min(box.y, box.y + box.height));
+  const x1 = r(Math.max(box.x, box.x + box.width));
+  const y1 = r(Math.max(box.y, box.y + box.height));
+  return `${x0},${y0},${x1},${y1}`;
 }
 
 function readLabel(widget: unknown): { label?: string } {

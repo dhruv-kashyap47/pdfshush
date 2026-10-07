@@ -25,8 +25,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** P2 signed off (50/50 E2E checks, 72/72 unit tests, §10). Ready for P3
-(Express + BullMQ — requires Docker Desktop/WSL2).
+**Current gate:** P2 shipped **and audited** (60/60 E2E checks, 86/86 unit tests, §10).
+Ready for P3 (Express + BullMQ — requires Docker Desktop/WSL2).
 Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
 before every push** (see §8 tooling).
 
@@ -316,6 +316,24 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
 - TS aliased-condition narrowing does **not** survive property re-access
   (`runner.state.progress` after `runner.state.status === 'running'`) → narrow a local
   `const state = runner.state` instead.
+- Importing a **value** from a module that reaches for `@cantoo/pdf-lib` drags pdf-lib
+  into the main browser chunk even with `sideEffects: false` (pdf-lib is not
+  tree-shakeable). Shared constants live in `ops/textMetrics.ts`, dependency-free, for
+  the same reason `ops/ranges.ts` does — the editor styles its textarea from them.
+- `PDFField.addToPage` does **not** write `/P` on the widget annotation; real documents
+  (Word/Acrobat/LibreOffice) do. So `extractFormWidgets` trusts `/P` and falls back to a
+  rectangle index, which is what pdf-lib-made fixtures need.
+- `form.getField()` in this fork compares `getName()` exactly — it does **not** split on
+  dots, so `applicant.name` resolves fine.
+- A PNG with alpha becomes **two** image XObjects (image + SMask): count XObjects
+  comparatively in tests, never by absolute number.
+- A deferred/queued fetch must clear its own "pending" marker before re-entering the
+  scheduler, or the dequeued item looks busy and is skipped forever (cost us an E2E).
+- `setState` inside a state updater is impure (StrictMode double-invokes it) — build the
+  next id outside and select it after the update.
+- CSS puts a text baseline at `(line-height + ascent - descent) / 2` from the box top —
+  with `line-height: 1.2` over an Arial-metric stack that is `0.9465em`, which is what
+  `TEXT_ASCENT` reproduces so exports do not shift.
 
 **Tooling**
 - pnpm 11 ignores the `pnpm` field in `package.json` → `onlyBuiltDependencies` lives in
@@ -358,6 +376,26 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   route:* inspect job dropping `fields`, stale `info` closure before raster pre-fetch,
   handle `stopPropagation` stranding window gesture listeners, arrow `reverse` never set,
   blob-URL churn while dragging inserted images, ambiguous file-input locator in E2E.
+- **2026-10-07 — P2 surgical audit (post-ship).** Line-by-line pass over all 28 P2 files,
+  informed by the GenOffice donor (`edit-state.ts` snapshot history, and its note that
+  edits made *during* a save must not be dropped). **21 defects fixed**, 14 engine
+  regression tests (72 → 86) and 10 E2E checks (50 → 60) added. Highlights: *state
+  leak* — "start over" kept the previous document's objects and page indexes, so the
+  next file would be annotated with the last one's overlay; *raster storm* — 20
+  concurrent fetches, each holding a full copy of the source file; *no input
+  validation* — NaN coordinates became NaN PDF operators and any image could exhaust the
+  worker (this path becomes the public API in P6); *text jumped on save* — export
+  baseline 1.0em vs the preview's 0.9465em; *main chunk +575 kB* — importing a metrics
+  constant from a pdf-lib module pulled the whole library in (fixed with dependency-free
+  `ops/textMetrics.ts`); *queue self-deadlock* caught by the new E2E. Also: repeated
+  images re-embedded per object, widgets on cloned form pages landing on page 1, emptied
+  dropdowns exporting stale values, `outputName` accepting `../../etc/passwd`,
+  zero-width text items dropped, vertical watermarks breaking line clustering,
+  per-page re-render storms, one undo step per font-size keystroke, stale selection after
+  undo, thin objects nearly ungrabbable. Added: fit-width opening zoom, continue-editing
+  after save, unsaved-changes guard, Ctrl+S / Ctrl+D, arrow-key nudge, z-order controls,
+  text boxes that grow to fit, editing frozen during save.
+  Gates: 86/86 unit · 60/60 E2E · main bundle 684 kB with 0 pdf-refs.
 
 ---
 
@@ -421,3 +459,12 @@ three must come back empty.
 refs) · 50/50 E2E vs system Edge ✓ (11 new editor checks: raster, text create+type,
 highlight drag, undo/redo, delete+undo, validated export bytes, chips — zero console
 errors) · pre-push grep ✓.
+
+### Post-ship audit (same day)
+Re-reviewed every P2 file against the GenOffice donor. 21 defects fixed (see the §8
+changelog entry for the list). Engine now validates untrusted object input before drawing
+anything, dedupes repeated images, attributes widgets via `/P`, and shares its text
+metrics with the UI through a dependency-free module. The editor resets its document on
+"start over", fetches rasters through a bounded queue, memoizes pages, and freezes edits
+during a save. Gates after the audit: **86/86 unit · 60/60 E2E · main chunk 684 kB with
+0 pdf-lib/pdf.js refs**.

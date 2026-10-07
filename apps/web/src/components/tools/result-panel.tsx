@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Download, RotateCcw, Sparkles } from 'lucide-react';
+import { CheckCircle2, Download, Pencil, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/format';
 import { announceLocalProcessing } from '@/lib/privacy';
@@ -14,6 +14,9 @@ interface ResultPanelProps {
   onDownload: () => void;
   onReset: () => void;
   downloadLabel?: string;
+  /** Optional third action: the editor keeps the document open after a save. */
+  onContinue?: () => void;
+  continueLabel?: string;
   children?: ReactNode;
   footerNote?: ReactNode;
 }
@@ -30,6 +33,8 @@ export function ResultPanel({
   onDownload,
   onReset,
   downloadLabel = 'Download',
+  onContinue,
+  continueLabel = 'Continue',
   children,
   footerNote,
 }: ResultPanelProps) {
@@ -54,6 +59,12 @@ export function ResultPanel({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {onContinue && (
+            <Button variant="ghost" onClick={onContinue} data-testid="result-continue">
+              <Pencil className="mr-1.5 h-4 w-4" />
+              {continueLabel}
+            </Button>
+          )}
           <Button variant="outline" onClick={onReset}>
             <RotateCcw className="mr-1.5 h-4 w-4" />
             Start over

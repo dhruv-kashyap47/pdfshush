@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import type { EditorObject } from '@pdfshush/pdf-core';
+import { LIMITS, type EditorObject } from '@pdfshush/pdf-core';
 
 export interface EditorDoc {
   objects: EditorObject[];
@@ -29,6 +29,13 @@ interface HistoryState {
   future: EditorDoc[];
 }
 
+/** Keeps the deepest `limit` snapshots (oldest dropped first). */
+function capDepth(stack: EditorDoc[]): EditorDoc[] {
+  return stack.length > LIMITS.tool.maxHistorySteps
+    ? stack.slice(stack.length - LIMITS.tool.maxHistorySteps)
+    : stack;
+}
+
 export function useEditorDoc() {
   const [history, setHistory] = useState<HistoryState>({
     doc: EMPTY_EDITOR_DOC,
@@ -42,7 +49,7 @@ export function useEditorDoc() {
     setHistory((h) => {
       const doc = typeof next === 'function' ? next(h.doc) : next;
       if (doc === h.doc) return h;
-      return { doc, past: [...h.past, h.doc], future: [] };
+      return { doc, past: capDepth([...h.past, h.doc]), future: [] };
     });
   }, []);
 
@@ -68,7 +75,7 @@ export function useEditorDoc() {
     txSnapshot.current = null;
     if (!snapshot) return;
     setHistory((h) =>
-      h.doc === snapshot ? h : { ...h, past: [...h.past, snapshot], future: [] },
+      h.doc === snapshot ? h : { ...h, past: capDepth([...h.past, snapshot]), future: [] },
     );
   }, []);
 
@@ -86,8 +93,18 @@ export function useEditorDoc() {
     setHistory((h) => {
       if (h.future.length === 0) return h;
       const next = h.future[0]!;
-      return { doc: next, past: [...h.past, h.doc], future: h.future.slice(1) };
+      return { doc: next, past: capDepth([...h.past, h.doc]), future: h.future.slice(1) };
     });
+  }, []);
+
+  /**
+   * Wipes the document and its history. Required when the source PDF changes:
+   * otherwise objects (and their page indexes) from the previous file would be
+   * drawn onto the new one.
+   */
+  const reset = useCallback(() => {
+    txSnapshot.current = null;
+    setHistory({ doc: EMPTY_EDITOR_DOC, past: [], future: [] });
   }, []);
 
   return {
@@ -100,5 +117,6 @@ export function useEditorDoc() {
     endTx,
     undo,
     redo,
+    reset,
   } as const;
 }

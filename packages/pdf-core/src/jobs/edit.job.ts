@@ -60,8 +60,16 @@ export const editJob: JobDefinition<EditJobInput, EditJobOutput> = {
   },
 
   estimate(input) {
-    // Source plus edited copy stay open simultaneously.
-    return { memoryBytes: totalInputBytes(input) * 2 };
+    // Source plus edited copy stay open simultaneously, and every embedded image
+    // is decoded as well as held -- so count the image bytes too.
+    const imageBytes = (input.options?.objects ?? []).reduce(
+      (total, object) =>
+        object.kind === 'image'
+          ? total + (object.data instanceof Uint8Array ? object.data.byteLength : (object.data?.byteLength ?? 0))
+          : total,
+      0,
+    );
+    return { memoryBytes: totalInputBytes(input) * 2 + imageBytes };
   },
 
   async run(input, ctx) {
@@ -83,9 +91,29 @@ export const editJob: JobDefinition<EditJobInput, EditJobOutput> = {
     await validateExport(saved, expectedPages);
 
     const stem = baseName(file.name).replace(/\.pdf$/i, '');
-    const name =
-      input.options?.outputName?.trim() || `${stem}-edited.pdf`;
+    const name = safeOutputName(input.options?.outputName, stem);
 
     return { data: toArrayBuffer(saved), name, pageCount: expectedPages, validated: true };
   },
 };
+
+/**
+ * Output filename from an untrusted request: no directories, no traversal, no
+ * control characters, always `.pdf`. The browser download attribute already
+ * sanitizes, but P6 writes this name to disk -- it must be safe there first.
+ */
+function safeOutputName(requested: string | undefined, stem: string): string {
+  const fallback = `${stem}-edited.pdf`;
+  if (typeof requested !== 'string') return fallback;
+  const trimmed = requested.trim();
+  if (!trimmed) return fallback;
+  const base = trimmed.split(/[\\/]/).pop() ?? '';
+  const cleaned = base
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/^\.+/, '')
+    .trim()
+    .slice(0, 120);
+  if (!cleaned) return fallback;
+  return /\.pdf$/i.test(cleaned) ? cleaned : `${cleaned}.pdf`;
+}

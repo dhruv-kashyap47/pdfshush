@@ -1,18 +1,28 @@
 /**
  * Edit PDF -- the Phase 2 editor.
  *
- * Hybrid by design: page rasters and text runs come from read-only jobs (one
- * per page, cached), edits live entirely in React state (see
- * `lib/editor-state.ts`), and the `edit` job applies them atomically and
- * re-parses its own output before a download is offered.
+ * Hybrid by design: page rasters and text runs come from read-only jobs (cached
+ * per page), edits live entirely in React state (see `lib/editor-state.ts`), and
+ * the `edit` job applies them atomically and re-parses its own output before a
+ * download is offered.
+ *
+ * Performance rules that matter at 200+ pages:
+ * - rasters are fetched through a bounded queue (never 20 copies of the file at
+ *   once), and text runs are requested in chunks;
+ * - pages receive their own object/widget slices and are memoized, so a drag on
+ *   one page re-renders that page only;
+ * - a save freezes editing (`readOnly`) so the snapshot sent to the worker is
+ *   provably the document the user sees, and nothing is silently dropped.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  LIMITS,
   timeoutForPageCount,
   type EditorObject,
   type EditJobOutput,
+  type FormWidgetInfo,
   type InspectOutput,
   type TextRun,
   type TextRunsOutput,
@@ -42,6 +52,14 @@ const MAX_IMAGE_WIDTH_PT = 300;
 const WARM_RUN_PAGES = 10;
 /** Pages whose rasters are fetched immediately; the rest lazy-load on scroll. */
 const WARM_RASTER_PAGES = 20;
+/** How many page bitmaps may be in flight at once (each holds a file copy). */
+const MAX_PARALLEL_RASTERS = 2;
+/** Text-run requests are chunked so a 500-page document is not one giant job. */
+const RUN_PAGE_CHUNK = 40;
+/** Shared empty props so untouched pages never re-render. */
+const NO_OBJECTS: EditorObject[] = [];
+const NO_WIDGETS: FormWidgetInfo[] = [];
+const NO_FORM_VALUES: Record<string, string | boolean> = {};
 
 const KEY_TOOLS: Record<string, EditorTool> = { s: 'select', t: 'text', i: 'image', h: 'highlight' };
 
@@ -51,6 +69,17 @@ function newObjectId(): string {
   return `u${Date.now().toString(36)}${objectCounter.toString(36)}`;
 }
 
+function clampZoom(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(2, Math.max(0.25, Math.round(value * 20) / 20));
+}
+
+interface PageBinding {
+  onSeedReplace: (run: TextRun) => void;
+  onImageRequested: (point: { x: number; y: number }) => void;
+  onVisible: () => void;
+}
+
 function probeImageSize(url: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -58,6 +87,30 @@ function probeImageSize(url: string): Promise<{ width: number; height: number }>
     image.onerror = () => reject(new Error('unreadable image'));
     image.src = url;
   });
+}
+
+/**
+ * Groups items by page while keeping untouched groups referentially identical,
+ * which is what lets the memoized `EditorPage` skip pages it does not own.
+ */
+function usePageBuckets<T extends { pageIndex: number }>(items: readonly T[]): Map<number, T[]> {
+  const previous = useRef(new Map<number, T[]>());
+  return useMemo(() => {
+    const next = new Map<number, T[]>();
+    for (const item of items) {
+      const bucket = next.get(item.pageIndex);
+      if (bucket) bucket.push(item);
+      else next.set(item.pageIndex, [item]);
+    }
+    for (const [pageIndex, bucket] of next) {
+      const before = previous.current.get(pageIndex);
+      if (before && before.length === bucket.length && before.every((item, i) => item === bucket[i])) {
+        next.set(pageIndex, before);
+      }
+    }
+    previous.current = next;
+    return next;
+  }, [items]);
 }
 
 export function EditPdfTool() {
@@ -75,24 +128,34 @@ export function EditPdfTool() {
   const inspectRunner = useJobRunner<InspectOutput>('inspect');
   const editRunner = useJobRunner<EditJobOutput>('edit');
 
+  const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<File | null>(null);
   const infoRef = useRef<DocInfo | null>(null);
   const zoomRef = useRef(zoom);
   const toolRef = useRef(tool);
   const rastersRef = useRef(rasters);
+  const zoomTouchedRef = useRef(false);
+  /** Doc snapshot handed to the last save: the "unsaved changes" baseline. */
+  const savedDocRef = useRef<typeof editor.doc | null>(null);
   zoomRef.current = zoom;
   toolRef.current = tool;
   rastersRef.current = rasters;
 
-  const rasterInflight = useRef(new Set<number>());
+  const rasterPending = useRef(new Set<number>());
+  const rasterQueue = useRef<number[]>([]);
+  const rasterActive = useRef(0);
   const runsFetched = useRef(new Set<number>());
   const runsInflight = useRef(new Set<number>());
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pendingImageRef = useRef<{ pageIndex: number; x: number; y: number } | null>(null);
 
+  const inspectState = inspectRunner.state;
+  const editState = editRunner.state;
+  const saving = editState.status === 'running';
+
   /* ------------------------------------------------------------ rasters */
 
-  const ensureRaster = async (pageIndex: number): Promise<void> => {
+  const ensureRaster = useCallback(async (pageIndex: number): Promise<void> => {
     const file = fileRef.current;
     const page = infoRef.current?.pages[pageIndex];
     if (!file || !page) return;
@@ -101,8 +164,18 @@ export function EditPdfTool() {
     );
     const cached = rastersRef.current[pageIndex];
     if (cached && Math.abs(cached.widthPx - desired) <= desired * 0.25) return;
-    if (rasterInflight.current.has(pageIndex)) return;
-    rasterInflight.current.add(pageIndex);
+    // `pending` covers both queued and running pages, so a page asked for twice
+    // (IntersectionObserver + eager warm-up) is only fetched once.
+    if (rasterPending.current.has(pageIndex)) return;
+    rasterPending.current.add(pageIndex);
+
+    if (rasterActive.current >= MAX_PARALLEL_RASTERS) {
+      // Bounded concurrency: every in-flight raster holds its own copy of the
+      // source file, and 20 of those is how a 50 MB PDF eats a gigabyte.
+      rasterQueue.current.push(pageIndex);
+      return;
+    }
+    rasterActive.current += 1;
     try {
       const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
       const result = await jobPool.run<ThumbnailsOutput>('thumbnails', input, {
@@ -117,18 +190,25 @@ export function EditPdfTool() {
           if (old) URL.revokeObjectURL(old.url);
           return { ...prev, [pageIndex]: { url, widthPx: desired } };
         });
-        if (toolRef.current === 'text') void ensureRuns([pageIndex]);
+        if (toolRef.current === 'text') void ensureRunsRef.current([pageIndex]);
       }
     } catch {
       toast.error(`Could not render page ${pageIndex + 1}`);
     } finally {
-      rasterInflight.current.delete(pageIndex);
+      rasterPending.current.delete(pageIndex);
+      rasterActive.current -= 1;
+      const next = rasterQueue.current.shift();
+      if (next !== undefined) {
+        // Clear the marker before re-entering, or the dequeued page looks busy.
+        rasterPending.current.delete(next);
+        void ensureRaster(next);
+      }
     }
-  };
+  }, []);
 
   /* --------------------------------------------------------- text runs */
 
-  const ensureRuns = async (indexes: number[]): Promise<void> => {
+  const ensureRuns = useCallback(async (indexes: number[]): Promise<void> => {
     const file = fileRef.current;
     const wanted = indexes.filter(
       (index) => !runsFetched.current.has(index) && !runsInflight.current.has(index),
@@ -136,30 +216,43 @@ export function EditPdfTool() {
     if (!file || wanted.length === 0) return;
     for (const index of wanted) runsInflight.current.add(index);
     try {
-      const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
-      const result = await jobPool.run<TextRunsOutput>('text-runs', input, { pageIndexes: wanted });
-      setRunsByPage((prev) => ({
-        ...prev,
-        ...Object.fromEntries(wanted.map((page, i) => [page, result.runs[i] ?? []])),
-      }));
-      for (const index of wanted) runsFetched.current.add(index);
+      for (let offset = 0; offset < wanted.length; offset += RUN_PAGE_CHUNK) {
+        const chunk = wanted.slice(offset, offset + RUN_PAGE_CHUNK);
+        const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
+        const result = await jobPool.run<TextRunsOutput>('text-runs', input, {
+          pageIndexes: chunk,
+        });
+        setRunsByPage((prev) => ({
+          ...prev,
+          ...Object.fromEntries(chunk.map((page, i) => [page, result.runs[i] ?? []])),
+        }));
+        for (const index of chunk) runsFetched.current.add(index);
+      }
     } catch {
       // Runs only power the "click text to replace it" affordance; the text
       // tool still adds new boxes without them.
+      for (const index of wanted) runsFetched.current.add(index);
     } finally {
       for (const index of wanted) runsInflight.current.delete(index);
     }
-  };
+  }, []);
+
+  // Indirection so `ensureRaster` can stay referentially stable while still
+  // calling the latest `ensureRuns`.
+  const ensureRunsRef = useRef(ensureRuns);
+  ensureRunsRef.current = ensureRuns;
 
   /* ------------------------------------------------------------- setup */
 
-  const resetAll = () => {
-    Object.values(rastersRef.current).forEach((raster) => URL.revokeObjectURL(raster.url));
+  const resetAll = useCallback(() => {
+    for (const raster of Object.values(rastersRef.current)) URL.revokeObjectURL(raster.url);
     setRasters({});
     setRunsByPage({});
     runsFetched.current.clear();
     runsInflight.current.clear();
-    rasterInflight.current.clear();
+    rasterPending.current.clear();
+    rasterQueue.current = [];
+    rasterActive.current = 0;
     setFiles([]);
     setInfo(null);
     fileRef.current = null;
@@ -169,9 +262,22 @@ export function EditPdfTool() {
     setEditingId(null);
     setTool('select');
     setZoom(1);
+    zoomTouchedRef.current = false;
+    savedDocRef.current = null;
+    // Without this, the next document would inherit the previous one's objects
+    // (and their page indexes).
+    editor.reset();
     editRunner.reset();
     inspectRunner.reset();
-  };
+  }, [editor.reset, editRunner.reset, inspectRunner.reset]);
+
+  // Blob URLs die with the component even if nobody pressed "start over".
+  useEffect(
+    () => () => {
+      for (const raster of Object.values(rastersRef.current)) URL.revokeObjectURL(raster.url);
+    },
+    [],
+  );
 
   const handleFiles = async (incoming: File[]) => {
     if (incoming.length === 0) {
@@ -197,6 +303,9 @@ export function EditPdfTool() {
       setStage('idle');
       return;
     }
+    // A new file means a new document: never keep the previous overlay.
+    editor.reset();
+    savedDocRef.current = null;
     setFiles(incoming);
     fileRef.current = file;
     infoRef.current = doc;
@@ -211,117 +320,240 @@ export function EditPdfTool() {
   };
 
   // Re-render cached pages when the zoom level changes.
+  const onZoomChange = useCallback((next: number) => {
+    zoomTouchedRef.current = true;
+    setZoom(clampZoom(next));
+  }, []);
+
   useEffect(() => {
     if (stage !== 'editing') return;
     for (const key of Object.keys(rastersRef.current)) void ensureRaster(Number(key));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom]);
+  }, [zoom, stage, ensureRaster]);
+
+  // Open at fit-width (the default in every desktop PDF editor) unless the user
+  // has already chosen a zoom level. Layout effect: the container must be laid
+  // out before it can be measured.
+  useLayoutEffect(() => {
+    if (stage !== 'editing' || !info || zoomTouchedRef.current) return;
+    const container = scrollRef.current;
+    if (!container || container.clientWidth === 0) return;
+    const widest = Math.max(
+      1,
+      ...info.pages.map((page) => page.displayWidthPt ?? page.widthPt),
+    );
+    setZoom(clampZoom((container.clientWidth - 40) / widest));
+  }, [stage, info]);
 
   // Warm run boxes for every page the first time the text tool is picked.
   useEffect(() => {
     if (stage !== 'editing' || tool !== 'text' || !info) return;
     void ensureRuns(Array.from({ length: info.pageCount }, (_, index) => index));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, stage, info]);
+  }, [tool, stage, info, ensureRuns]);
 
   /* ----------------------------------------------------------- editing */
 
-  const createObject = (object: EditorObject) => {
-    editor.apply((doc) => ({ ...doc, objects: [...doc.objects, object] }));
-    setSelectedId(object.id);
-  };
+  const objectCount = editor.doc.objects.length;
+  const atObjectLimit = objectCount >= LIMITS.tool.maxEditObjects;
 
-  const patchObject = (patch: Record<string, unknown>) => {
-    if (!selectedId) return;
-    editor.apply((doc) => ({
-      ...doc,
-      objects: doc.objects.map((object) =>
-        object.id === selectedId ? ({ ...object, ...patch } as EditorObject) : object,
-      ),
-    }));
-  };
+  const createObject = useCallback(
+    (object: EditorObject) => {
+      if (atObjectLimit) {
+        toast.error(`This document already has ${LIMITS.tool.maxEditObjects.toLocaleString()} objects`);
+        return;
+      }
+      editor.apply((doc) => ({ ...doc, objects: [...doc.objects, object] }));
+      setSelectedId(object.id);
+    },
+    [atObjectLimit, editor.apply],
+  );
 
-  const deleteSelected = () => {
+  const patchObject = useCallback(
+    (patch: Record<string, unknown>) => {
+      if (!selectedId) return;
+      editor.apply((doc) => ({
+        ...doc,
+        objects: doc.objects.map((object) =>
+          object.id === selectedId ? ({ ...object, ...patch } as EditorObject) : object,
+        ),
+      }));
+    },
+    [selectedId, editor.apply],
+  );
+
+  const deleteSelected = useCallback(() => {
     if (!selectedId) return;
     editor.apply((doc) => ({ ...doc, objects: doc.objects.filter((o) => o.id !== selectedId) }));
     setSelectedId(null);
     setEditingId(null);
     editor.endTx();
-  };
+  }, [selectedId, editor.apply, editor.endTx]);
 
-  const moveLive = (id: string, x: number, y: number) => {
-    editor.live((doc) => ({
-      ...doc,
-      objects: doc.objects.map((object) => (object.id === id ? { ...object, x, y } : object)),
-    }));
-  };
+  const moveLive = useCallback(
+    (id: string, x: number, y: number) => {
+      editor.live((doc) => ({
+        ...doc,
+        objects: doc.objects.map((object) => (object.id === id ? { ...object, x, y } : object)),
+      }));
+    },
+    [editor.live],
+  );
 
-  const resizeLive = (id: string, rect: { x: number; y: number; width: number; height: number }) => {
-    editor.live((doc) => ({
-      ...doc,
-      objects: doc.objects.map((object) => (object.id === id ? { ...object, ...rect } : object)),
-    }));
-  };
+  const resizeLive = useCallback(
+    (id: string, rect: { x: number; y: number; width: number; height: number }) => {
+      editor.live((doc) => ({
+        ...doc,
+        objects: doc.objects.map((object) => (object.id === id ? { ...object, ...rect } : object)),
+      }));
+    },
+    [editor.live],
+  );
 
-  const startEdit = (id: string) => {
-    setSelectedId(id);
-    setEditingId(id);
-    editor.beginTx();
-  };
+  const autoHeight = useCallback(
+    (id: string, height: number) => {
+      editor.live((doc) => ({
+        ...doc,
+        objects: doc.objects.map((object) =>
+          object.id === id && object.kind === 'text' ? { ...object, height } : object,
+        ),
+      }));
+    },
+    [editor.live],
+  );
 
-  const endEdit = () => {
+  const startEdit = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      setEditingId(id);
+      editor.beginTx();
+    },
+    [editor.beginTx],
+  );
+
+  const endEdit = useCallback(() => {
     setEditingId(null);
     editor.endTx();
-  };
+  }, [editor.endTx]);
 
-  const editText = (id: string, text: string) => {
-    editor.live((doc) => ({
-      ...doc,
-      objects: doc.objects.map((object) =>
-        object.id === id && object.kind === 'text' ? { ...object, text } : object,
-      ),
-    }));
-  };
+  const editText = useCallback(
+    (id: string, text: string) => {
+      editor.live((doc) => ({
+        ...doc,
+        objects: doc.objects.map((object) =>
+          object.id === id && object.kind === 'text' ? { ...object, text } : object,
+        ),
+      }));
+    },
+    [editor.live],
+  );
+
+  const select = useCallback((id: string | null) => setSelectedId(id), []);
+
+  // Undo and redo move objects in and out of the document; a selection pointing
+  // at an object that no longer exists would leave the inspector and z-order
+  // buttons describing something invisible.
+  useEffect(() => {
+    if (!selectedId) return;
+    if (!editor.doc.objects.some((object) => object.id === selectedId)) setSelectedId(null);
+  }, [editor.doc.objects, selectedId]);
 
   /** Replace an existing line: whiteout + prefilled text, one undo step. */
-  const seedReplace = (pageIndex: number, run: TextRun) => {
-    const whiteout: EditorObject = {
-      id: newObjectId(),
-      kind: 'whiteout',
-      pageIndex,
-      x: run.x - 1,
-      y: run.y - 1,
-      width: run.width + 2,
-      height: run.height + 2,
-    };
-    const text: EditorObject = {
-      id: newObjectId(),
-      kind: 'text',
-      pageIndex,
-      x: run.x,
-      y: run.y,
-      width: Math.max(run.width, 40) + 4,
-      height: run.height,
-      text: run.text,
-      fontSize: Math.min(72, Math.max(4, Math.round(run.fontSize * 2) / 2)),
-      color: '#111827',
-    };
-    editor.apply((doc) => ({ ...doc, objects: [...doc.objects, whiteout, text] }));
-    setSelectedId(text.id);
-    setEditingId(text.id);
-    editor.beginTx();
-  };
+  const seedReplace = useCallback(
+    (pageIndex: number, run: TextRun) => {
+      if (atObjectLimit) {
+        toast.error(`This document already has ${LIMITS.tool.maxEditObjects.toLocaleString()} objects`);
+        return;
+      }
+      const whiteout: EditorObject = {
+        id: newObjectId(),
+        kind: 'whiteout',
+        pageIndex,
+        x: run.x - 1,
+        y: run.y - 1,
+        width: run.width + 2,
+        height: run.height + 2,
+      };
+      const text: EditorObject = {
+        id: newObjectId(),
+        kind: 'text',
+        pageIndex,
+        x: run.x,
+        y: run.y,
+        width: Math.max(run.width, 40) + 4,
+        height: run.height,
+        text: run.text,
+        fontSize: Math.min(72, Math.max(4, Math.round(run.fontSize * 2) / 2)),
+        color: '#111827',
+      };
+      editor.apply((doc) => ({ ...doc, objects: [...doc.objects, whiteout, text] }));
+      setSelectedId(text.id);
+      setEditingId(text.id);
+      editor.beginTx();
+    },
+    [atObjectLimit, editor.apply, editor.beginTx],
+  );
 
-  const setFormValue = (name: string, value: string | boolean) => {
-    editor.live((doc) => ({ ...doc, formValues: { ...doc.formValues, [name]: value } }));
-  };
+  const setFormValue = useCallback(
+    (name: string, value: string | boolean) => {
+      editor.live((doc) => ({ ...doc, formValues: { ...doc.formValues, [name]: value } }));
+    },
+    [editor.live],
+  );
+
+  /** Nudge / duplicate / z-order -- the keyboard affordances editors expect. */
+  const transformSelected = useCallback(
+    (kind: 'forward' | 'backward' | 'duplicate' | 'nudge', dx = 0, dy = 0) => {
+      if (!selectedId || saving) return;
+      if (kind === 'duplicate') {
+        if (atObjectLimit) return;
+        // Build the copy outside the state updater: updaters must stay pure, and
+        // the new id has to exist before we can select it.
+        const source = editor.doc.objects.find((object) => object.id === selectedId);
+        if (!source) return;
+        const copy = {
+          ...source,
+          id: newObjectId(),
+          x: source.x + 8,
+          y: source.y + 8,
+        } as EditorObject;
+        editor.apply((doc) => ({ ...doc, objects: [...doc.objects, copy] }));
+        setSelectedId(copy.id);
+        return;
+      }
+      if (kind === 'nudge') {
+        editor.apply((doc) => ({
+          ...doc,
+          objects: doc.objects.map((object) =>
+            object.id === selectedId ? { ...object, x: object.x + dx, y: object.y + dy } : object,
+          ),
+        }));
+        return;
+      }
+      editor.apply((doc) => {
+        const index = doc.objects.findIndex((object) => object.id === selectedId);
+        const target = kind === 'forward' ? index + 1 : index - 1;
+        if (index < 0 || target < 0 || target >= doc.objects.length) return doc;
+        const objects = [...doc.objects];
+        const [moved] = objects.splice(index, 1);
+        objects.splice(target, 0, moved!);
+        return { ...doc, objects };
+      });
+    },
+    [selectedId, saving, atObjectLimit, editor.apply],
+  );
+
+  const selectedIndex = selectedId
+    ? editor.doc.objects.findIndex((object) => object.id === selectedId)
+    : -1;
+  const canReorder =
+    selectedIndex >= 0 && selectedIndex < editor.doc.objects.length - 1 && !saving;
+  const canSendBack = selectedIndex > 0 && !saving;
 
   /* -------------------------------------------------------- insert image */
 
-  const onImageRequested = (pageIndex: number, point: { x: number; y: number }) => {
+  const onImageRequested = useCallback((pageIndex: number, point: { x: number; y: number }) => {
     pendingImageRef.current = { pageIndex, ...point };
     imageInputRef.current?.click();
-  };
+  }, []);
 
   const onImageFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -330,6 +562,10 @@ export function EditPdfTool() {
     if (!file || !pending) return;
     if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
       toast.error('Images must be PNG or JPEG.');
+      return;
+    }
+    if (file.size > LIMITS.tool.maxImageBytes) {
+      toast.error(`That image is larger than the ${Math.round(LIMITS.tool.maxImageBytes / 1048576)} MB limit.`);
       return;
     }
     try {
@@ -360,13 +596,13 @@ export function EditPdfTool() {
 
   /* --------------------------------------------------------------- save */
 
-  const onSave = async () => {
+  const onSave = useCallback(async () => {
     const file = fileRef.current;
     if (!file || editRunner.state.status === 'running') return;
     const verdict = checkClientCapacity({
       fileCount: 1,
       totalBytes: file.size,
-      pageCount: info?.pageCount,
+      pageCount: infoRef.current?.pageCount,
     });
     if (!verdict.ok) {
       toast.error(verdict.message);
@@ -374,10 +610,12 @@ export function EditPdfTool() {
     }
     setEditingId(null);
     editor.endTx();
+    // Freeze from here: this snapshot is what the worker will write.
+    savedDocRef.current = editor.doc;
     const outcome = await editRunner.run(
       await readAsInputFiles([file]),
       { objects: editor.doc.objects, formValues: editor.doc.formValues },
-      { timeoutMs: timeoutForPageCount(info?.pageCount ?? 1) },
+      { timeoutMs: timeoutForPageCount(infoRef.current?.pageCount ?? 1) },
     );
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
@@ -390,7 +628,12 @@ export function EditPdfTool() {
       pageCount: outcome.result.pageCount,
       sizeBytes: outcome.result.data.byteLength,
     });
-  };
+  }, [editor, editRunner]);
+
+  const continueEditing = useCallback(() => {
+    editRunner.reset();
+    setStage('editing');
+  }, [editRunner.reset]);
 
   /* ----------------------------------------------------------- keyboard */
 
@@ -401,16 +644,27 @@ export function EditPdfTool() {
       const typing =
         Boolean(target) &&
         (target!.tagName === 'INPUT' || target!.tagName === 'TEXTAREA' || target!.isContentEditable);
+      const mod = event.ctrlKey || event.metaKey;
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      if (mod && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (event.shiftKey) editor.redo();
         else editor.undo();
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+      if (mod && event.key.toLowerCase() === 'y') {
         event.preventDefault();
         editor.redo();
+        return;
+      }
+      if (mod && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void onSave();
+        return;
+      }
+      if (mod && event.key.toLowerCase() === 'd' && !typing) {
+        event.preventDefault();
+        transformSelected('duplicate');
         return;
       }
       if (event.key === 'Escape') {
@@ -419,25 +673,73 @@ export function EditPdfTool() {
         return;
       }
       if (typing) return;
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (selectedId) {
-          event.preventDefault();
-          deleteSelected();
-        }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
+        event.preventDefault();
+        deleteSelected();
+        return;
+      }
+      if (event.key.startsWith('Arrow') && selectedId && !saving) {
+        event.preventDefault();
+        const step = event.shiftKey ? 10 : 1;
+        const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0;
+        const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0;
+        transformSelected('nudge', dx, dy);
         return;
       }
       const next = KEY_TOOLS[event.key.toLowerCase()];
-      if (next && !event.ctrlKey && !event.metaKey && !event.altKey) setTool(next);
+      if (next && !mod && !event.altKey) setTool(next);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, selectedId, editingId, editor]);
+  }, [
+    stage,
+    selectedId,
+    editingId,
+    saving,
+    editor,
+    onSave,
+    deleteSelected,
+    endEdit,
+    transformSelected,
+  ]);
+
+  /* --------------------------------------------- unsaved-changes guard */
+
+  useEffect(() => {
+    if (stage !== 'editing') return;
+    const hasWork =
+      editor.doc.objects.length > 0 || Object.keys(editor.doc.formValues).length > 0;
+    if (!hasWork || editor.doc === savedDocRef.current) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [stage, editor.doc]);
 
   /* -------------------------------------------------------------- views */
 
-  const inspectState = inspectRunner.state;
-  const editState = editRunner.state;
+  // Derived page data lives above the early return below: hooks must run in the
+  // same order on every render, including after "continue editing" comes back
+  // from the result panel.
+  const objectsByPage = usePageBuckets(editor.doc.objects);
+  const widgetsByPage = usePageBuckets<FormWidgetInfo>(info?.fields ?? NO_WIDGETS);
+  const selectedObject = editor.doc.objects.find((object) => object.id === selectedId) ?? null;
+
+  // Page-bound callbacks, stable per page: an inline arrow would change identity
+  // on every parent render and defeat the memoized pages entirely.
+  const pageBindings = useMemo(() => {
+    const map = new Map<number, PageBinding>();
+    for (const page of info?.pages ?? []) {
+      map.set(page.index, {
+        onSeedReplace: (run: TextRun) => seedReplace(page.index, run),
+        onImageRequested: (point: { x: number; y: number }) => onImageRequested(page.index, point),
+        onVisible: () => void ensureRaster(page.index),
+      });
+    }
+    return map;
+  }, [info, seedReplace, onImageRequested, ensureRaster]);
 
   if (editState.status === 'done') {
     const { result } = editState;
@@ -448,6 +750,8 @@ export function EditPdfTool() {
         sizeBytes={result.data.byteLength}
         onDownload={() => downloadBytes(result.data, result.name)}
         onReset={resetAll}
+        onContinue={continueEditing}
+        continueLabel="Continue editing"
         footerNote={
           <>
             Saved, re-parsed and verified ({result.pageCount} page
@@ -457,9 +761,6 @@ export function EditPdfTool() {
       />
     );
   }
-
-  const selectedObject = editor.doc.objects.find((object) => object.id === selectedId) ?? null;
-  const saving = editState.status === 'running';
 
   return (
     <div className="space-y-4">
@@ -481,7 +782,7 @@ export function EditPdfTool() {
             tool={tool}
             onToolChange={setTool}
             zoom={zoom}
-            onZoomChange={setZoom}
+            onZoomChange={onZoomChange}
             canUndo={editor.canUndo}
             canRedo={editor.canRedo}
             onUndo={editor.undo}
@@ -490,49 +791,65 @@ export function EditPdfTool() {
             onDelete={deleteSelected}
             onSave={() => void onSave()}
             saving={saving}
+            canReorder={canReorder}
+            canSendBack={canSendBack}
+            onReorder={(direction) => transformSelected(direction)}
             showSave
           />
 
-          <div className="max-h-[72vh] overflow-y-auto bg-muted/40 p-4" data-testid="editor-scroll">
-            {info.pages.map((page) => (
-              <EditorPage
-                key={page.index}
-                pageIndex={page.index}
-                width={page.displayWidthPt ?? page.widthPt}
-                height={page.displayHeightPt ?? page.heightPt}
-                zoom={zoom}
-                rasterUrl={rasters[page.index]?.url ?? null}
-                objects={editor.doc.objects}
-                selectedId={selectedId}
-                editingId={editingId}
-                tool={tool}
-                runs={runsByPage[page.index] ?? null}
-                widgets={info.fields}
-                formValues={editor.doc.formValues}
-                onSelect={setSelectedId}
-                onStartEdit={startEdit}
-                onEndEdit={endEdit}
-                onEditText={editText}
-                onCreate={createObject}
-                onSeedReplace={(run) => seedReplace(page.index, run)}
-                onImageRequested={(point) => onImageRequested(page.index, point)}
-                onVisible={() => void ensureRaster(page.index)}
-                onBeginTx={editor.beginTx}
-                onEndTx={editor.endTx}
-                onMoveLive={moveLive}
-                onResizeLive={resizeLive}
-                onFormValue={setFormValue}
-              />
-            ))}
+          <div
+            ref={scrollRef}
+            className="max-h-[72vh] overflow-y-auto bg-muted/40 p-4"
+            data-testid="editor-scroll"
+          >
+            {info.pages.map((page) => {
+              const widgets = widgetsByPage.get(page.index) ?? NO_WIDGETS;
+              const binding = pageBindings.get(page.index);
+              if (!binding) return null;
+              return (
+                <EditorPage
+                  key={page.index}
+                  pageIndex={page.index}
+                  width={page.displayWidthPt ?? page.widthPt}
+                  height={page.displayHeightPt ?? page.heightPt}
+                  zoom={zoom}
+                  rasterUrl={rasters[page.index]?.url ?? null}
+                  objects={objectsByPage.get(page.index) ?? NO_OBJECTS}
+                  selectedId={selectedId}
+                  editingId={editingId}
+                  tool={tool}
+                  runs={runsByPage[page.index] ?? null}
+                  widgets={widgets}
+                  // Only pages that actually own a field care about form values,
+                  // so keystrokes in one field cannot re-render the whole book.
+                  formValues={widgets.length > 0 ? editor.doc.formValues : NO_FORM_VALUES}
+                  readOnly={saving}
+                  onSelect={select}
+                  onStartEdit={startEdit}
+                  onEndEdit={endEdit}
+                  onEditText={editText}
+                  onAutoHeight={autoHeight}
+                  onCreate={createObject}
+                  onSeedReplace={binding.onSeedReplace}
+                  onImageRequested={binding.onImageRequested}
+                  onVisible={binding.onVisible}
+                  onMoveLive={moveLive}
+                  onResizeLive={resizeLive}
+                  onFormValue={setFormValue}
+                  onBeginTx={editor.beginTx}
+                  onEndTx={editor.endTx}
+                />
+              );
+            })}
           </div>
 
-          {saving && editState.status === 'running' && (
+          {saving && (
             <JobProgressPanel progress={editState.progress} onCancel={editRunner.cancel} />
           )}
         </div>
       )}
 
-      {selectedObject && stage === 'editing' && (
+      {selectedObject && stage === 'editing' && !saving && (
         <EditorInspector object={selectedObject} onPatch={patchObject} onDelete={deleteSelected} />
       )}
 
