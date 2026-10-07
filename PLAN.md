@@ -28,7 +28,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Current gate:** P2 shipped **and audited** — **14 of 53 tools live**, 60/60 E2E checks,
 86/86 unit tests, main bundle 684 kB with 0 pdf-lib/pdf.js refs (§10).
 **P3 in flight:** `apps/api` (Express + BullMQ + sandboxed workers + quotas + janitor)
-with 129 tests green (86 engine + 43 API). Remaining: the Docker stack verification and the
+with 134 tests green (86 engine + 48 API). Remaining: the Docker stack verification and the
 kill -9 hardening gate — **blocked on Docker Desktop being installed.**
 Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
 before every push** (see §8 tooling).
@@ -439,8 +439,8 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   job directories, which is what makes the kill -9 gate achievable. New
   `pdf-core` entry `@pdfshush/pdf-core/node` exposes only the isomorphic surface —
   importing the browser barrel into Node would drag `OffscreenCanvas` types in and
-  ship renderer code the server can never run. Gates: **129/129 tests (86 engine +
-  43 API)**, typecheck green in 3 packages, processor verified to load under
+  ship renderer code the server can never run. Gates: **134/134 tests (86 engine +
+48 API)**, typecheck green in 3 packages, processor verified to load under
   `require()` and run a real job end to end. *Bugs its own tests caught:*
   multipart completion order scrambled merge input order, validation errors
   escaping untranslated, and a payload `inputDir` field that was redundant *and* a
