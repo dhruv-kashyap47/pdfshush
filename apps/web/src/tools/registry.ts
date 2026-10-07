@@ -88,9 +88,25 @@ const t = (
 ): ToolDef => ({ slug, name, description, category, status, icon, accent });
 
 /**
- * The three Phase 0 pilots. Everything else is 'planned' until its phase lands.
+ * Live tools. Phase 0 pilots plus the ten Phase 1 tools.
  */
-const LIVE = new Set(['merge-pdf', 'organize-pdf', 'pdf-to-jpg']);
+const LIVE = new Set([
+  // Phase 0
+  'merge-pdf',
+  'organize-pdf',
+  'pdf-to-jpg',
+  // Phase 1
+  'delete-pages',
+  'extract-pages',
+  'rotate-pdf',
+  'split-by-pages',
+  'alternate-mix',
+  'split-in-half',
+  'page-numbers',
+  'crop-pdf',
+  'header-footer',
+  'n-up',
+]);
 
 const tool = (
   slug: string,

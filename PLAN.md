@@ -17,15 +17,17 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | Phase | Scope | Status |
 | --- | --- | --- |
 | **P0 — Foundation** | Monorepo, `pdf-core` engine + job contract, guardrails, web shell, 3 pilot tools | ✅ **Done (2026-10-07)** — see §5 |
-| **P1 — Top-10 tools** | Next wave of client-side tools off existing engine ops | ⬜ Not started (proposal in §6) |
-| **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ⬜ |
+| **P1 — Top-10 tools** | 10 client-side tools off the existing engine (delete/extract/rotate/split/mix/stamp/crop/n-up) | ✅ **Done (2026-10-07)** — see §6 |
+| **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ⬜ Next |
 | **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ⬜ |
 | **P4 — Accounts & workflows** | Anonymous-first JWT/OAuth, saved history, workflow builder | ⬜ |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** P0 signed off (all four gates green, §5). Ready for P1.
+**Current gate:** P1 signed off (41/41 E2E checks, 38/38 unit tests, §6). Ready for P2.
+Repo public: `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep
+before every push** (see §8 tooling).
 
 ---
 
@@ -104,7 +106,7 @@ pdfshush/
 
 ## 4. Full phase plan (P1–P7 detail)
 
-### P1 — Top-10 tools *(proposal; amend per your feedback)*
+### P1 — Top-10 tools ✅ *(done 2026-10-07 — sign-off in §6)*
 Engine ops for these already exist (`refsForSpan`, `parsePageRanges`, `composePageRefs`,
 `renderPages`). Proposed order, each with unit tests + an E2E check:
 **Delete Pages · Extract Pages · Split by pages · Split in half · Alternate & Mix ·
@@ -181,7 +183,51 @@ interrupted jobs, cleanup verification. Plus SEO prerendering, Lighthouse/perf, 
 
 ---
 
-## 6. Gotchas (hard-won; keep here so nobody re-learns them)
+## 6. P1 sign-off (2026-10-07)
+
+**Delivered — 10 new tools, all live on the same engine**
+
+| Tool | Engine path | UI pattern |
+| --- | --- | --- |
+| Delete Pages | `organize` job (kept refs) | mark-to-delete grid |
+| Extract Pages | `parsePageRanges` → `organize` | range input |
+| Rotate | `PageRef.rotateDegrees` (per-page) | per-tile arrows + rotate-all |
+| Split by pages | `split-by-pages` job → ZIP | chunk-size input, 200-part cap |
+| Alternate & Mix | interleaved refs → `organize` | two-file dropzone + pattern preview |
+| Split in half | `ops/split` (MediaBox/CropBox clip) → ZIP of 2 | direction cards |
+| Page Numbers | `stamp` job (`{n}`/`{N}` tokens) | format presets + position |
+| Crop | `compose` crop rect (clamped) | margin inputs + live overlay |
+| Header & Footer | `stamp` job (shared) | header/footer text + positions |
+| N-up | `ops/nup` imposition (2/4/8, source/A4/Letter) | n cards + sheet select |
+
+**Engine additions:** `composeDocument` (pre-save hook) · per-page rotation override ·
+`crop` + `outputName` on organize · `ops/stamp|split|nup` · 4 new jobs (registry = 9 jobs)
+· `thumbnails.pageIndexes` (Crop previews page 1 only).
+
+**Web additions:** `usePageThumbnails` hook (capacity/inspect/thumbs pipeline, extracted
+from Organize so every grid tool shares the guard rails) · `StampTool` is one component
+serving both page-numbers and header-footer modes · registry `LIVE` now has 13 slugs.
+
+**Gates (all green)**
+| Gate | Result |
+| --- | --- |
+| `pnpm typecheck` | ✅ both packages, strict |
+| `pnpm test` | ✅ **38/38** vitest (21 P0 + 17 P1) |
+| `pnpm build` | ✅ main **632 kB / 193 kB gzip**, 0 pdf-lib/pdf.js refs in main chunk (all 94 in `job-worker`) |
+| `pnpm test:e2e` | ✅ **41/41** checks over 16 sections in real Edge — every tool uploads → acts → downloads → magic-byte asserts; zero console errors |
+
+**Bugs caught by tests/E2E and fixed (don't regress):**
+1. Crop clamp used `clamp(v, edge, edge)` → always the edge; now a proper rect ∩ MediaBox.
+2. pdf-lib **deflates content streams** and hex-encodes `drawText` strings → text
+   assertions must inflate streams first (`unzlibSync`) and accept hex.
+3. Test helper regex `stream\r?\n` also matches inside `endstream\n` → advance past
+   `endstream` (9 chars) or every chunk after the first is sliced wrong.
+4. `collectTransferables` could push the same `ArrayBuffer` twice → DataCloneError on
+   `postMessage` (fixed pre-publish).
+
+---
+
+## 7. Gotchas (hard-won; keep here so nobody re-learns them)
 
 **@cantoo/pdf-lib**
 - `doc.isEncrypted` is a **property**, not a method.
@@ -214,7 +260,7 @@ interrupted jobs, cleanup verification. Plus SEO prerendering, Lighthouse/perf, 
 - `JobInputBase['options']` is `Record<string, unknown>` → custom options types must be
   **type aliases** (object literals get implicit index signatures; interfaces do not).
 
-**Tests (anti-regression — all now covered by the 21 tests)**
+**Tests (anti-regression — all covered by the 38 tests)**
 - `parsePageRanges`: bare `"5"` = single page (≠ `"5-"` open range); `"99-200"` on 10
   pages clamps to page 10 (not empty); `pageFileName` pad width = `String(total).length`.
 - `timeoutForPageCount(pageCount, baseMs)` needs an explicit `: number` on `baseMs`
@@ -229,16 +275,24 @@ interrupted jobs, cleanup verification. Plus SEO prerendering, Lighthouse/perf, 
 
 ---
 
-## 7. Changelog
+## 8. Changelog
 
 - **2026-10-07 — P0 complete.** Scaffold, `pdf-core` (21 tests), web app, 3 live tools,
   mega menu + catalog, E2E suite (17 checks), bundle-size fix, initial commit `f16ae4e`.
   *Fixed en route:* missing Router, dropped pool options, JPG→JPEG format mismatch,
   range-parser setState-during-render, footer/breadcrumb polish.
+- **2026-10-07 — P1 complete + repo public.** Pre-publish audit (secrets/PII/dangerous-sinks
+  grep clean; Sejda reference screenshots untracked; transfer-list dedupe fix) → pushed to
+  `github.com/dhruv-kashyap47/pdfshush`, tracking issue #1. Then: `composeDocument` +
+  per-page rotation + crop, `stamp`/`split`/`nup` ops, 4 jobs, `usePageThumbnails` hook,
+  **10 tools live** (Delete, Extract, Rotate, Split-by-pages, Mix, Split-in-half,
+  Page Numbers, Crop, Header & Footer, N-up). Gates: 38/38 unit · 41/41 E2E · main
+  bundle 632 kB with 0 pdf-refs. *Fixed en route:* crop-clamp math, deflate/hex text
+  assertions, `endstream` regex slip.
 
 ---
 
-## 8. Resume cheat-sheet
+## 9. Resume cheat-sheet
 
 ```bash
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
@@ -249,5 +303,9 @@ pnpm test:e2e         # Playwright vs. running dev server (system Edge)
 pnpm build            # production build
 ```
 
-**Next move:** start P1 (§6 proposal — confirm or amend the tool order), then append a
-changelog entry and tick the status board.
+**Next move:** P2 (editor) — read GenOffice `apps/pdf` patterns first (Apache-2.0, skip
+`ee/`), then append a changelog entry and tick the status board. Before every push run the
+**pre-push grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM
+blocks, cloud access keys), (2) local username or machine-path markers, (3) dangerous sink
+APIs — HTML-injection helpers, dynamic code evaluation, shell exec. All three must come
+back empty.

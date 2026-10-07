@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { type PointerEvent as ReactPointerEvent } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -11,131 +11,33 @@ import { SortableContext, arrayMove, useSortable, rectSortingStrategy } from '@d
 import { CSS } from '@dnd-kit/utilities';
 import { Copy, Grip, Loader2, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  LIMITS,
-  timeoutForPageCount,
-  type InspectOutput,
-  type OrganizeJobOutput,
-  type ThumbnailsOutput,
-} from '@pdfshush/pdf-core';
+import { LIMITS, timeoutForPageCount, type OrganizeJobOutput } from '@pdfshush/pdf-core';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
 import { ResultPanel } from '@/components/tools/result-panel';
 import { Button } from '@/components/ui/button';
 import { useJobRunner } from '@/hooks/use-job-runner';
+import { usePageThumbnails, type PageTile } from '@/hooks/use-page-thumbnails';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, totalBytes } from '@/lib/files';
+import { readAsInputFiles, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
-interface PageTile {
-  id: string;
-  docIndex: number;
-  pageIndex: number;
-  url: string;
-  width: number;
-  height: number;
-}
-
 export function OrganizeTool() {
-  const [files, setFiles] = useState<File[]>([]);
-  const [tiles, setTiles] = useState<PageTile[]>([]);
-  const [preparing, setPreparing] = useState(false);
-  const urlsRef = useRef<string[]>([]);
-
-  const inspectRunner = useJobRunner<InspectOutput>('inspect');
-  const thumbsRunner = useJobRunner<ThumbnailsOutput>('thumbnails');
+  const {
+    files,
+    tiles,
+    setTiles,
+    preparing,
+    busy,
+    progress,
+    prepare,
+    reset: resetThumbs,
+    cancel: cancelThumbs,
+  } = usePageThumbnails();
   const organizeRunner = useJobRunner<OrganizeJobOutput>('organize');
 
-  const revokeUrls = () => {
-    for (const url of urlsRef.current) URL.revokeObjectURL(url);
-    urlsRef.current = [];
-  };
-  useEffect(() => () => revokeUrls(), []);
-
-  const prepare = async (incoming: File[]) => {
-    if (incoming.length === 0) {
-      revokeUrls();
-      setTiles([]);
-      setFiles([]);
-      return;
-    }
-
-    const byteVerdict = checkClientCapacity({
-      fileCount: incoming.length,
-      totalBytes: totalBytes(incoming),
-      largestFileBytes: largestBytes(incoming),
-    });
-    if (!byteVerdict.ok) {
-      toast.error(byteVerdict.message);
-      return;
-    }
-
-    setPreparing(true);
-    revokeUrls();
-
-    // Inspect first: page count decides whether rendering previews is safe at all.
-    const inspected = await inspectRunner.run(await readAsInputFiles(incoming));
-    if (!inspected.ok) {
-      setPreparing(false);
-      if (!inspected.aborted) toast.error(inspected.message);
-      return;
-    }
-    const pageCount = inspected.result.documents.reduce((sum, doc) => sum + doc.pageCount, 0);
-    const encrypted = inspected.result.documents.find((doc) => doc.encrypted);
-    if (encrypted) {
-      setPreparing(false);
-      toast.error(`"${encrypted.name}" is password protected — remove it or unlock it first.`);
-      return;
-    }
-
-    const pageVerdict = checkClientCapacity({
-      fileCount: incoming.length,
-      totalBytes: totalBytes(incoming),
-      pageCount,
-    });
-    if (!pageVerdict.ok) {
-      setPreparing(false);
-      toast.error(pageVerdict.message);
-      return;
-    }
-
-    const targetWidthPx = pageCount > 250 ? 110 : undefined;
-    const outcome = await thumbsRunner.run(
-      await readAsInputFiles(incoming),
-      targetWidthPx ? { targetWidthPx } : undefined,
-      { timeoutMs: timeoutForPageCount(Math.max(pageCount, 60)) },
-    );
-    setPreparing(false);
-
-    if (!outcome.ok) {
-      if (!outcome.aborted) toast.error(outcome.message);
-      return;
-    }
-
-    const created: string[] = [];
-    const next: PageTile[] = [];
-    outcome.result.documents.forEach((doc, docIndex) => {
-      doc.thumbnails.forEach((thumb, pageIndex) => {
-        const url = URL.createObjectURL(new Blob([thumb.data], { type: thumb.mimeType }));
-        created.push(url);
-        next.push({
-          id: `${docIndex}:${pageIndex}`,
-          docIndex,
-          pageIndex,
-          url,
-          width: thumb.width,
-          height: thumb.height,
-        });
-      });
-    });
-    urlsRef.current = created;
-    setFiles(incoming);
-    setTiles(next);
-  };
-
-  const running =
-    preparing || organizeRunner.state.status === 'running';
+  const running = busy || organizeRunner.state.status === 'running';
 
   const deleteTile = (id: string) => setTiles((prev) => prev.filter((tile) => tile.id !== id));
 
@@ -200,9 +102,7 @@ export function OrganizeTool() {
         onDownload={() => downloadBytes(result.data, result.fileName)}
         onReset={() => {
           organizeRunner.reset();
-          revokeUrls();
-          setTiles([]);
-          setFiles([]);
+          resetThumbs();
         }}
       />
     );
@@ -212,21 +112,7 @@ export function OrganizeTool() {
     <div className="space-y-4">
       <FileDropzone files={files} onFiles={(next) => void prepare(next)} disabled={running} hint="one PDF to start" multiple={false} />
 
-      {(preparing || thumbsRunner.state.status === 'running') && (
-        <JobProgressPanel
-          progress={
-            thumbsRunner.state.status === 'running'
-              ? thumbsRunner.state.progress
-              : inspectRunner.state.status === 'running'
-                ? inspectRunner.state.progress
-                : null
-          }
-          onCancel={() => {
-            thumbsRunner.cancel();
-            inspectRunner.cancel();
-          }}
-        />
-      )}
+      {busy && <JobProgressPanel progress={progress} onCancel={cancelThumbs} />}
 
       {tiles.length > 0 && (
         <>

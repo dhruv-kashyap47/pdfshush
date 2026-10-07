@@ -8,16 +8,16 @@ run **client-side in a Web Worker**, so your files never leave your device. Heav
 (OCR, compression, Office conversion) will run on bounded server workers with anonymous
 quotas, through the exact same job contract.
 
-## Status: Phase 0 (foundation)
+## Status: Phase 1 (10 client-side tools shipped)
 
 > **Plan, decisions & progress tracker: [`PLAN.md`](./PLAN.md)** — read this first when
 > resuming work; it is updated at the end of every session.
 
 | Layer | State |
 | --- | --- |
-| `packages/pdf-core` | ✅ Engine: job contract, limits, merge/compose/render/zip, 21 tests |
+| `packages/pdf-core` | ✅ Engine: job contract, limits, merge/compose/render/zip/stamp/split/n-up, 38 tests |
 | `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu |
-| Live tools | ✅ Merge, Organize (drag-and-drop pages), PDF → JPG |
+| Live tools (13) | ✅ Merge, Organize, PDF → JPG · Delete, Extract, Rotate, Split by pages, Alternate & Mix, Split in half, Page Numbers, Crop, Header & Footer, N-up |
 | Server (P3), accounts (P4), AI (P5), e-sign/API/MCP (P6) | ⏳ Planned |
 
 Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an
@@ -31,6 +31,7 @@ pnpm dev          # http://localhost:5173
 pnpm typecheck    # tsc across the workspace
 pnpm test         # vitest (pdf-core)
 pnpm build        # production build
+pnpm test:e2e     # Playwright suite vs. running dev server (system Edge)
 ```
 
 Requirements: Node ≥ 20.19, pnpm 11.

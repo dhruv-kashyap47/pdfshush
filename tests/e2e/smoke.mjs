@@ -1,8 +1,8 @@
 /**
- * Phase 0 end-to-end smoke test.
+ * End-to-end smoke test (P0 + P1: all 13 live tools).
  *
  * Drives the real app in a real browser (system Edge via Playwright) and runs
- * all three live tools against generated PDF fixtures, asserting on actual
+ * every live tool against generated PDF fixtures, asserting on actual
  * downloaded bytes. Run with the dev server up:
  *
  *   pnpm dev            # terminal 1
@@ -197,15 +197,186 @@ async function main() {
   const imgDl = await downloadAndAssert(page, 'Download ZIP', 'zip');
   check('ZIP download valid (PK header)', imgDl.ok, `${imgDl.name} ${imgDl.bytes.length}B`);
 
-  /* 5. Planned tool page + 404 */
-  console.log('\n5. Routing');
+  /* 5. Delete Pages */
+  console.log('\n5. Delete Pages tool');
+  await page.goto(`${BASE}/tools/delete-pages`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 3, 60_000, '3 thumbnails');
+  await page.getByRole('button', { name: 'Mark page 2 for deletion' }).click();
+  await waitFor(async () => (await page.getByText(/will remain/).count()) > 0, 5_000, 'marking feedback');
+  check('marking a page shows remain count', true);
+  await page.screenshot({ path: path.join(ARTIFACTS, 'delete-pages-marked.png') });
+  await page.getByRole('button', { name: /Delete selected/ }).click();
+  await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 2, 10_000, '2 thumbnails after delete');
+  check('delete selected removes marked page (3 → 2)', true);
+  await page.getByRole('button', { name: /Save 2 pages/ }).click();
+  await page.getByText('-organized.pdf').waitFor({ timeout: 60_000 });
+  const delDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('delete output is a valid PDF', delDl.ok, `${delDl.name} ${delDl.bytes.length}B`);
+
+  /* 6. Extract Pages */
+  console.log('\n6. Extract Pages tool');
+  await page.goto(`${BASE}/tools/extract-pages`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.getByText(/will extract 3 pages/).count()) > 0,
+    30_000,
+    'extract options',
+  );
+  check('inspect shows extract-all by default', true);
+  await page.getByLabel('Pages to extract').fill('1-2');
+  await waitFor(
+    async () => (await page.getByText(/will extract 2 pages/).count()) > 0,
+    5_000,
+    'range recount',
+  );
+  check('range 1-2 recounts output (3 → 2)', true);
+  await page.getByRole('button', { name: /Extract 2 pages/ }).click();
+  await page.getByText('-extracted.pdf').waitFor({ timeout: 60_000 });
+  const extDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('extracted output is a valid PDF', extDl.ok, `${extDl.name} ${extDl.bytes.length}B`);
+
+  /* 7. Rotate */
+  console.log('\n7. Rotate tool');
+  await page.goto(`${BASE}/tools/rotate-pdf`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 3, 60_000, '3 thumbnails');
+  await page.getByRole('button', { name: 'Rotate page 1 right' }).click();
+  await waitFor(async () => (await page.getByText(/1 rotated/).count()) > 0, 5_000, 'rotation feedback');
+  check('per-page rotation tracked (1 rotated)', true);
+  await page.getByRole('button', { name: 'Rotate all pages right' }).click();
+  await waitFor(async () => (await page.getByText(/4 rotated|3 rotated/).count()) > 0, 5_000, 'rotate all');
+  check('rotate-all turns remaining pages too', true);
+  await page.getByRole('button', { name: /Save 3 pages/ }).click();
+  await page.getByText('-organized.pdf').waitFor({ timeout: 60_000 });
+  const rotDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('rotated output is a valid PDF', rotDl.ok, `${rotDl.name} ${rotDl.bytes.length}B`);
+
+  /* 8. Split by pages */
+  console.log('\n8. Split by pages tool');
+  await page.goto(`${BASE}/tools/split-by-pages`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.getByText(/will produce 3 files/).count()) > 0,
+    30_000,
+    'part estimate',
+  );
+  check('chunk=1 estimates 3 parts', true);
+  await page.getByRole('button', { name: /Split into 3 files/ }).click();
+  await page.getByText('alpha-split.zip').waitFor({ timeout: 60_000 });
+  check('split ZIP names parts', (await page.getByText('alpha-part-1.pdf').count()) > 0);
+  const splitDl = await downloadAndAssert(page, 'Download ZIP', 'zip');
+  check('split download is a valid ZIP', splitDl.ok, `${splitDl.name} ${splitDl.bytes.length}B`);
+
+  /* 9. Alternate & Mix */
+  console.log('\n9. Alternate & Mix tool');
+  await page.goto(`${BASE}/tools/alternate-mix`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA, fileB]);
+  await waitFor(
+    async () => (await page.getByText('A1, B1, A2, B2, A3, …').count()) > 0,
+    30_000,
+    'interleave pattern',
+  );
+  check('interleave pattern preview shown', true);
+  await page.getByRole('button', { name: /Mix 5 pages/ }).click();
+  await page.getByText('-mixed.pdf').waitFor({ timeout: 60_000 });
+  const mixDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('mixed output is a valid PDF', mixDl.ok, `${mixDl.name} ${mixDl.bytes.length}B`);
+
+  /* 10. Split in half */
+  console.log('\n10. Split in half tool');
+  await page.goto(`${BASE}/tools/split-in-half`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.getByRole('button', { name: /Split in half/ }).count()) > 0,
+    30_000,
+    'split form',
+  );
+  await page.getByRole('button', { name: /Split in half/ }).click();
+  await page.getByText('alpha-halves.zip').waitFor({ timeout: 60_000 });
+  check(
+    'halves ZIP lists left/right parts',
+    (await page.getByText('alpha-left.pdf and alpha-right.pdf').count()) > 0,
+  );
+  const halfDl = await downloadAndAssert(page, 'Download ZIP', 'zip');
+  check('halves download is a valid ZIP', halfDl.ok, `${halfDl.name} ${halfDl.bytes.length}B`);
+
+  /* 11. Page Numbers */
+  console.log('\n11. Page Numbers tool');
+  await page.goto(`${BASE}/tools/page-numbers`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.getByText(/3 pages · stamping every page/).count()) > 0,
+    30_000,
+    'stamp form',
+  );
+  await page.getByRole('button', { name: 'Add page numbers' }).click();
+  await page.getByText('-numbered.pdf').waitFor({ timeout: 60_000 });
+  const numDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('numbered output is a valid PDF', numDl.ok, `${numDl.name} ${numDl.bytes.length}B`);
+
+  /* 12. Crop */
+  console.log('\n12. Crop tool');
+  await page.goto(`${BASE}/tools/crop-pdf`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.locator('img[alt="Page 1 crop preview"]').count()) === 1,
+    60_000,
+    'crop preview',
+  );
+  await page.locator('#margin-left').fill('10');
+  await page.screenshot({ path: path.join(ARTIFACTS, 'crop-preview.png') });
+  await page.getByRole('button', { name: /Crop 3 pages/ }).click();
+  await page.getByText('-cropped.pdf').waitFor({ timeout: 60_000 });
+  const cropDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('cropped output is a valid PDF', cropDl.ok, `${cropDl.name} ${cropDl.bytes.length}B`);
+
+  /* 13. Header & Footer */
+  console.log('\n13. Header & Footer tool');
+  await page.goto(`${BASE}/tools/header-footer`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.getByText(/3 pages/).count()) > 0,
+    30_000,
+    'stamp form',
+  );
+  await page.getByLabel('Header text').fill('PDFShush header');
+  await page.getByRole('button', { name: 'Apply header & footer' }).click();
+  await page.getByText('-header-footer.pdf').waitFor({ timeout: 60_000 });
+  const hfDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('header/footer output is a valid PDF', hfDl.ok, `${hfDl.name} ${hfDl.bytes.length}B`);
+
+  /* 14. N-up */
+  console.log('\n14. N-up tool');
+  await page.goto(`${BASE}/tools/n-up`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.getByText(/2 sheets at 2-up/).count()) > 0,
+    30_000,
+    'n-up estimate',
+  );
+  check('2-up estimate shown (3 pages → 2 sheets)', true);
+  await page.getByRole('button', { name: /4-up/ }).click();
+  await waitFor(
+    async () => (await page.getByText(/1 sheet at 4-up/).count()) > 0,
+    5_000,
+    '4-up recount',
+  );
+  check('4-up recount (3 pages → 1 sheet)', true);
+  await page.getByRole('button', { name: /Make 1 sheet/ }).click();
+  await page.getByText('-4up.pdf').waitFor({ timeout: 60_000 });
+  const nupDl = await downloadAndAssert(page, 'Download', 'pdf');
+  check('N-up output is a valid PDF', nupDl.ok, `${nupDl.name} ${nupDl.bytes.length}B`);
+
+  /* 15. Planned tool page + 404 */
+  console.log('\n15. Routing');
   await page.goto(`${BASE}/tools/compress-pdf`, { waitUntil: 'networkidle' });
   check('planned tool page renders', await page.getByText('In development').isVisible());
   await page.goto(`${BASE}/tools/does-not-exist`, { waitUntil: 'networkidle' });
   check('404 page renders', await page.getByText('This page went missing').isVisible());
 
   /* console health */
-  console.log('\n6. Console health');
+  console.log('\n16. Console health');
   const fatal = consoleErrors.filter(
     (text) => !text.includes('favicon') && !text.includes('Download the React DevTools'),
   );

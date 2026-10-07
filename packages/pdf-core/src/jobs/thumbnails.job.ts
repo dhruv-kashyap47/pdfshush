@@ -5,7 +5,11 @@ import { LIMITS } from '../limits.js';
 
 export interface ThumbnailsInput {
   files: { name: string; type?: string; data: Uint8Array; password?: string }[];
-  options?: { targetWidthPx?: number };
+  options?: {
+    targetWidthPx?: number;
+    /** Render only these pages (Crop previews page 1); output follows their order. */
+    pageIndexes?: number[];
+  };
 }
 
 export interface ThumbnailsOutput {
@@ -43,7 +47,10 @@ export const thumbnailsJob: JobDefinition<ThumbnailsInput, ThumbnailsOutput> = {
       const file = input.files[i]!;
       const { pageCount, thumbnails } = await renderThumbnails(
         file.data,
-        { targetWidthPx },
+        {
+          targetWidthPx,
+          ...(input.options?.pageIndexes?.length ? { pageIndexes: input.options.pageIndexes } : {}),
+        },
         ctx,
         file.password,
       );

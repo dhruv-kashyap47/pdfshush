@@ -2,9 +2,18 @@ import type { ComponentType } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Clock, Flame, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
+import { CropTool } from '@/components/tools/crop-tool';
+import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
+import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
+import { NUpTool } from '@/components/tools/n-up-tool';
 import { OrganizeTool } from '@/components/tools/organize-tool';
 import { PdfToImagesTool } from '@/components/tools/pdf-to-images-tool';
+import { RotateTool } from '@/components/tools/rotate-tool';
+import { SplitByPagesTool } from '@/components/tools/split-by-pages-tool';
+import { SplitHalfTool } from '@/components/tools/split-half-tool';
+import { HeaderFooterTool, PageNumbersTool } from '@/components/tools/stamp-tool';
 import { ToolFrame } from '@/components/tools/tool-frame';
 import { ToolCard } from '@/components/landing/tool-card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +26,16 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'merge-pdf': MergeTool,
   'organize-pdf': OrganizeTool,
   'pdf-to-jpg': PdfToImagesTool,
+  'delete-pages': DeletePagesTool,
+  'extract-pages': ExtractPagesTool,
+  'rotate-pdf': RotateTool,
+  'split-by-pages': SplitByPagesTool,
+  'alternate-mix': AlternateMixTool,
+  'split-in-half': SplitHalfTool,
+  'page-numbers': PageNumbersTool,
+  'crop-pdf': CropTool,
+  'header-footer': HeaderFooterTool,
+  'n-up': NUpTool,
 };
 
 export function ToolPage() {
@@ -48,7 +67,7 @@ function PlannedNotice({ tool }: { tool: ToolDef }) {
             <h2 className="font-semibold">In development</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               <strong>{tool.name}</strong> is on the roadmap but not wired up yet — this page is
-              already its permanent home, so nothing needs to change when it ships. The three tools
+              already its permanent home, so nothing needs to change when it ships. The tools
               below are fully working today, and they run on the same engine this one will use.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
