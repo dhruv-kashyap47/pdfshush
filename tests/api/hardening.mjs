@@ -147,6 +147,26 @@ async function main() {
   const before = await health();
   check('stack is healthy before the test', before.status === 'ok');
 
+  // The janitor assertions below only mean anything if the running container
+  // really is using a short retention. `docker compose up -d` will not recreate
+  // a container whose *command* is unchanged, so setting FILE_TTL_MS and
+  // re-running silently leaves the 1-hour default in place -- and the gate then
+  // fails on "the janitor never deleted anything" for no visible reason.
+  const retentionMs = Number(before.retentionMs ?? 0);
+  check(
+    'the running api is using a short retention for this gate',
+    retentionMs > 0 && retentionMs <= 120_000,
+    `retentionMs=${retentionMs || 'unknown'} (want <= 120000; recreate with FILE_TTL_MS set)`,
+  );
+  if (retentionMs > 120_000) {
+    console.log(
+      '\n  Stopping: run this with the retention env set, e.g.\n' +
+        '    $env:FILE_TTL_MS=20000; $env:JANITOR_INTERVAL_MS=5000\n' +
+        '    docker compose up -d --force-recreate',
+    );
+    process.exit(1);
+  }
+
   console.log('\n1. Kill a worker mid-job (SIGKILL, no cleanup possible)');
   const wide = buildWidePdf(220);
   const submitted = await submitJob({ slug: 'merge' }, [

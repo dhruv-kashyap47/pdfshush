@@ -27,7 +27,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 
 **Current gate:** P3 shipped — **hardening gate passed** (kill -9 mid-job → no orphans,
 queue recovers, limits hold). 14 of 53 tools live · 8 of them also runnable server-side ·
-135/135 unit tests · 60/60 browser E2E · 21/21 API integration · 15/15 hardening.
+138/138 unit tests · 62/62 browser E2E · 21/21 API integration · 17/17 hardening.
 **Next: P4** (accounts & workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` —
 **run the pre-push secret/PII grep before every push** (see §9 tooling).
 
@@ -483,6 +483,7 @@ never actually wired, and a stream with no error listener.*
   multipart completion order scrambled merge input order, validation errors
   escaping untranslated, and a payload `inputDir` field that was redundant *and* a
   path hole.
+- **2026-10-08 — Phase 3 surgical bug hunt.** Found and fixed the editor showing the previous document's pages (page-index-keyed raster/text-run caches with no document identity, so same-geometry PDFs hit each other's entries), plus the half-resolution rasters hidden behind it, JSON results served as `application/pdf`, an uncapped aggregate upload size, non-atomic rejected-upload cleanup, a failed save that silently disarmed the unsaved-changes guard, Ctrl+Z deleting text objects, and one undo step per held arrow key. Six new regression tests, each verified to fail with its defect reintroduced. See §12.
 - **2026-10-08 — P3 complete; hardening gate passed.** Stack: `redis` + `api` + `worker`
   from one unprivileged image (`docker compose up -d --build`). API surface: `POST
   /api/jobs` (streaming multipart), `GET /api/jobs/:id`, `GET /api/jobs/:id/files/:name`,
@@ -494,8 +495,8 @@ never actually wired, and a stream with no error listener.*
   blinked, the job **settled as completed** (BullMQ retry + stalled detection), the
   janitor **removed the orphaned directory** (`jobDirs: 0`), Redis quota counters
   survived, and the restarted worker processed the next job. Ops knobs `FILE_TTL_MS` /
-  `JANITOR_INTERVAL_MS` make retention tunable without a rebuild. Gates: **135/135 unit
-  (86 engine + 49 API) · 60/60 browser E2E · 21/21 API integration · 15/15 hardening**,
+  `JANITOR_INTERVAL_MS` make retention tunable without a rebuild. Gates: **138/138 unit
+  (86 engine + 52 API) · 62/62 browser E2E · 21/21 API integration · 17/17 hardening**,
   typecheck green in 3 packages, web bundle unchanged (684 kB, 0 pdf-refs).
   *Bugs the integration suites caught:* the janitor silently ignored its env config (the
   zod schema keys never landed, so every deployment would have used the 1-hour default —
@@ -619,10 +620,11 @@ during a save. Gates after the audit: **86/86 unit · 60/60 E2E · main chunk 68
 4. Quota counters survive in Redis; the restarted worker processes the next job.
 5. All containers are running again afterwards.
 
-**Gates:** typecheck ✓ 3 packages · **135/135 unit** (86 engine + 49 API) · **60/60**
-browser E2E · **21/21** API integration (`node tests/api/smoke.mjs`, real PDFs → Redis →
-sandboxed worker → bytes on disk → verified download) · **15/15** hardening · web bundle
-unchanged (684 kB, 0 pdf-lib/pdf.js refs) · pre-push grep clean.
+**Gates (as re-measured by the Phase 3 audit in §12):** typecheck ✓ 3 packages ·
+**138/138 unit** (86 engine + 52 API) · **62/62** browser E2E · **21/21** API
+integration (`node tests/api/smoke.mjs`, real PDFs → Redis → sandboxed worker → bytes on
+disk → verified download) · **17/17** hardening · web bundle 685 kB with 0 pdf-lib/pdf.js
+refs · pre-push grep clean.
 
 **Known limits, deliberately not hidden**
 - Server-side slugs are the 8 pdf-lib-only jobs; rendering (`thumbnails`,
@@ -633,3 +635,76 @@ unchanged (684 kB, 0 pdf-lib/pdf.js refs) · pre-push grep clean.
   budget. P4's accounts replace the hash with a real subject.
 - Heavy binaries (Ghostscript, qpdf, LibreOffice, OCRmyPDF) are *not* wired yet — that is
   the next slice, and it is what unlocks compress/OCR/Word conversion.
+
+---
+
+## 12. Phase 3 surgical bug hunt (2026-10-08)
+
+An end-to-end audit of the whole Phase 3 codebase, driven by reproducing in a real browser
+rather than by reading. The headline defect was the editor, and it was worse than "renders
+slowly".
+
+### The critical bug: the editor showed the wrong document's pages
+
+**Symptom.** "Change file" from one PDF to another left pages of the *previous* file on
+screen — including the object overlays, which belonged to the document the user had just
+discarded.
+
+**Root cause.** Rasters and text runs are cached in `Record<pageIndex, …>`, keyed by page
+index alone, and `ensureRaster` treated "a cached bitmap within 25% of the width I want"
+as *the right document's page*. Page geometry is not a document identity: virtually every
+PDF is A4 or Letter, so page 1 of the new file satisfied the cache test against page 1 of
+the old one and was never re-rendered. Text runs had the same lifetime problem, so
+"click this line to replace it" would have quoted the old file's text into the new one.
+
+**Fix.** Cache entries are now scoped to a *document generation*, bumped whenever the source
+document changes (new file, start over, unmount). Every async raster/text-run request
+captures the generation it started under and discards its result if the document moved on
+mid-flight — without that, swapping files while pages were rendering painted the old
+document back over the new one. Caches are dropped at the same moment, which also releases
+the blob URLs.
+
+**A second bug hid behind the first.** The opening fit-width zoom is applied in a *layout*
+effect, which runs before the eagerly requested rasters come back. The re-request-on-zoom
+effect therefore iterated an empty cache and did nothing, and a request that arrived while
+a page was already rendering was rejected as "already pending" with no retry — so every
+eager page kept its initial, half-resolution bitmap for the rest of the session. Fixed by
+recording the *requested* width and re-checking a page when its render completes. That
+check immediately exposed a third bug in the fix itself: recording the request at *enqueue*
+time made a bounced page believe it had been drawn, and it never rendered at all. The
+marker now moves to the point where the render actually starts, which also bounds the
+reconciliation loop.
+
+Rendering the first page of a 3-page file went from ~10 s of churn (double renders) to
+0.5 s with every page at full resolution.
+
+### Everything else found and fixed
+
+| # | Defect | Fix |
+| --- | --- | --- |
+| 1 | Every result downloaded as `application/pdf` — including `inspect-result.json`, which is JSON | Content type derived from the stored extension, with an allowlist |
+| 2 | Per-file upload cap but **no aggregate cap**: one anonymous POST could write 50 × 500 MB to disk before any quota was charged | Shared byte counter across concurrent file streams, aborting mid-flight; the partial file is destroyed, not written |
+| 3 | Rejected uploads cleaned up fire-and-forget, so a caller that immediately retried raced its own leftovers | Cleanup awaited before the response is sent |
+| 4 | A **failed** save marked the document saved up front, silently disabling the unsaved-changes guard | The baseline advances only on a successful write, and only if the same file is still open |
+| 5 | Ctrl+Z inside a text box ran *document* undo. Text edits use `live` (no history entry), so it skipped the keystrokes and deleted the whole object | Typing keeps native undo; Ctrl+S still saves |
+| 6 | Every arrow-key repeat was its own undo step, burying real edits under dozens of 1-point nudges | Nudge bursts coalesce into one transaction |
+| 7 | A superseded file selection could install the slower request's results | Monotonic load sequence; a stale response is dropped |
+| 8 | Per-page render failures toasted once *per page* — up to 500 toasts on a large document | Aborts are no longer reported as failures |
+| 9 | `docker compose up -d` does not recreate a container whose command is unchanged, so the hardening gate failed for invisible reasons while running on the 1-hour default TTL | Retention published in `/api/health`; the gate now refuses to start unless the TTL is actually short |
+
+### Regression tests
+
+Each fix is pinned by a test that **fails without it** — verified by reintroducing the
+defect and watching the check go red, not by assertion that it should:
+
+- swap documents → blob-URL comparison proves every page re-rendered (red: *"2/2 pages
+  still showed the previous document"*)
+- Ctrl+Z while typing → the text object must survive
+- nudge burst → one undo restores the exact pre-burst position
+- request-level upload cap → 413 and nothing left on disk
+- JSON result → correct content type
+- expired result → 404 instead of a reset socket
+
+**Gates:** typecheck ✓ 3 packages · **138/138 unit** (86 engine + 52 API) · **62/62** browser
+E2E · **21/21** API integration · **17/17** hardening · web bundle 685 kB, 0 pdf-lib/pdf.js
+refs · pre-push grep clean.

@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  JobAbortedError,
   LIMITS,
   timeoutForPageCount,
   type EditorObject,
@@ -54,6 +55,9 @@ const WARM_RUN_PAGES = 10;
 const WARM_RASTER_PAGES = 20;
 /** How many page bitmaps may be in flight at once (each holds a file copy). */
 const MAX_PARALLEL_RASTERS = 2;
+/** Held arrow keys coalesce into one undo step. */
+const NUDGE_COALESCE_MS = 400;
+
 /** Text-run requests are chunked so a 500-page document is not one giant job. */
 const RUN_PAGE_CHUNK = 40;
 /** Shared empty props so untouched pages never re-render. */
@@ -72,6 +76,14 @@ function newObjectId(): string {
 function clampZoom(value: number): number {
   if (!Number.isFinite(value)) return 1;
   return Math.min(2, Math.max(0.25, Math.round(value * 20) / 20));
+}
+
+/** Cancelled work, not a failure worth reporting to the user. */
+function isAbort(error: unknown): boolean {
+  return (
+    error instanceof JobAbortedError ||
+    (error instanceof Error && (error.name === 'AbortError' || error.name === 'JobAbortedError'))
+  );
 }
 
 interface PageBinding {
@@ -137,17 +149,38 @@ export function EditPdfTool() {
   const zoomTouchedRef = useRef(false);
   /** Doc snapshot handed to the last save: the "unsaved changes" baseline. */
   const savedDocRef = useRef<typeof editor.doc | null>(null);
+  /** Monotonic id for file-selection requests; a stale one must not win. */
+  const loadSequence = useRef(0);
+  /** Timestamp of the last arrow-key nudge, and whether its tx is still open. */
+  const lastNudgeAt = useRef(0);
+  const nudgeTxOpen = useRef(false);
+  const nudgeCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   zoomRef.current = zoom;
   toolRef.current = tool;
   rastersRef.current = rasters;
 
   const rasterPending = useRef(new Set<number>());
+  const rasterRequested = useRef(new Map<number, number>());
   const rasterQueue = useRef<number[]>([]);
   const rasterActive = useRef(0);
   const runsFetched = useRef(new Set<number>());
   const runsInflight = useRef(new Set<number>());
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pendingImageRef = useRef<{ pageIndex: number; x: number; y: number } | null>(null);
+
+  /**
+   * Incremented every time the source document changes. Page-index-keyed caches
+   * (rasters, text runs, in-flight queues) are only meaningful *within* one
+   * document: page 3 of one PDF has nothing to do with page 3 of the next, and
+   * nearly every real PDF shares geometry, so a width-based cache check happily
+   * serves the previous document's image for the new one. Every async path
+   * captures the generation it started under and drops its result if the
+   * document changed while it was in flight -- otherwise swapping files
+   * mid-render paints the old pages over the new ones.
+   */
+  const docGeneration = useRef(0);
+  /** Cached raster width is only reusable if it is close enough not to look soft. */
+  const RASTER_REUSE_TOLERANCE = 0.25;
 
   const inspectState = inspectRunner.state;
   const editState = editRunner.state;
@@ -159,11 +192,16 @@ export function EditPdfTool() {
     const file = fileRef.current;
     const page = infoRef.current?.pages[pageIndex];
     if (!file || !page) return;
+    const generation = docGeneration.current;
     const desired = Math.round(
       (page.displayWidthPt ?? page.widthPt) * zoomRef.current * RASTER_SCALE,
     );
     const cached = rastersRef.current[pageIndex];
-    if (cached && Math.abs(cached.widthPx - desired) <= desired * 0.25) return;
+    if (rasterRequested.current.get(pageIndex) === desired) return;
+    if (cached && Math.abs(cached.widthPx - desired) <= desired * RASTER_REUSE_TOLERANCE) {
+      rasterRequested.current.set(pageIndex, desired);
+      return;
+    }
     // `pending` covers both queued and running pages, so a page asked for twice
     // (IntersectionObserver + eager warm-up) is only fetched once.
     if (rasterPending.current.has(pageIndex)) return;
@@ -175,6 +213,10 @@ export function EditPdfTool() {
       rasterQueue.current.push(pageIndex);
       return;
     }
+    // Recorded only once the render actually starts. A page bounced to the
+    // queue has not been drawn yet, and claiming otherwise satisfied the guard
+    // above forever, so that page never rendered at all.
+    rasterRequested.current.set(pageIndex, desired);
     rasterActive.current += 1;
     try {
       const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
@@ -182,6 +224,9 @@ export function EditPdfTool() {
         targetWidthPx: desired,
         pageIndexes: [pageIndex],
       });
+      // The user swapped files (or hit start over) while this render was in
+      // flight. Its image belongs to a document nobody is looking at any more.
+      if (generation !== docGeneration.current) return;
       const thumb = result.documents[0]?.thumbnails[0];
       if (thumb) {
         const url = URL.createObjectURL(new Blob([thumb.data], { type: thumb.mimeType }));
@@ -192,11 +237,23 @@ export function EditPdfTool() {
         });
         if (toolRef.current === 'text') void ensureRunsRef.current([pageIndex]);
       }
-    } catch {
-      toast.error(`Could not render page ${pageIndex + 1}`);
+    } catch (error) {
+      // A cancelled job is the expected consequence of swapping files or
+      // navigating away; only a genuine render failure is worth a toast.
+      if (generation === docGeneration.current && !isAbort(error)) {
+        toast.error(`Could not render page ${pageIndex + 1}`);
+      }
     } finally {
       rasterPending.current.delete(pageIndex);
       rasterActive.current -= 1;
+      // Re-check this page before moving on. The opening zoom is decided by a
+      // layout effect that runs while these renders are still in flight, and a
+      // request made in that window was rejected as "already pending" -- so no
+      // other pass would ever ask for this page again and it would keep its
+      // initial, half-resolution bitmap for the rest of the session. This is
+      // the only place that can notice; the requested-width guard makes the call a
+      // a no-op when the zoom has not moved, so it cannot spin.
+      void ensureRaster(pageIndex);
       const next = rasterQueue.current.shift();
       if (next !== undefined) {
         // Clear the marker before re-entering, or the dequeued page looks busy.
@@ -210,6 +267,7 @@ export function EditPdfTool() {
 
   const ensureRuns = useCallback(async (indexes: number[]): Promise<void> => {
     const file = fileRef.current;
+    const generation = docGeneration.current;
     const wanted = indexes.filter(
       (index) => !runsFetched.current.has(index) && !runsInflight.current.has(index),
     );
@@ -222,6 +280,9 @@ export function EditPdfTool() {
         const result = await jobPool.run<TextRunsOutput>('text-runs', input, {
           pageIndexes: chunk,
         });
+        // Runs belong to the document they were read from; writing them into a
+        // newer one would let "click to replace" quote a different PDF.
+        if (generation !== docGeneration.current) return;
         setRunsByPage((prev) => ({
           ...prev,
           ...Object.fromEntries(chunk.map((page, i) => [page, result.runs[i] ?? []])),
@@ -230,8 +291,11 @@ export function EditPdfTool() {
       }
     } catch {
       // Runs only power the "click text to replace it" affordance; the text
-      // tool still adds new boxes without them.
-      for (const index of wanted) runsFetched.current.add(index);
+      // tool still adds new boxes without them. Mark them settled either way so
+      // a persistent failure is not retried on every scroll.
+      if (generation === docGeneration.current) {
+        for (const index of wanted) runsFetched.current.add(index);
+      }
     } finally {
       for (const index of wanted) runsInflight.current.delete(index);
     }
@@ -244,15 +308,37 @@ export function EditPdfTool() {
 
   /* ------------------------------------------------------------- setup */
 
-  const resetAll = useCallback(() => {
+  /**
+ * Drops every page-indexed cache and invalidates in-flight work.
+   *
+   * Called on "start over", on unload, and -- critically -- before a new
+   * document's state is installed. Rasters and text runs are keyed by page index
+   * alone; because almost all PDFs share page geometry, a new document's page 1
+   * would otherwise hit the previous document's cache entry and render its
+   * image. Bumping the generation makes every in-flight render and text-run
+   * request discard its result instead of painting it onto the new document.
+   */
+  const invalidateDocumentCaches = useCallback(() => {
+    docGeneration.current += 1;
     for (const raster of Object.values(rastersRef.current)) URL.revokeObjectURL(raster.url);
+    rastersRef.current = {};
     setRasters({});
     setRunsByPage({});
     runsFetched.current.clear();
     runsInflight.current.clear();
+    rasterRequested.current.clear();
     rasterPending.current.clear();
     rasterQueue.current = [];
     rasterActive.current = 0;
+  }, []);
+
+  const resetAll = useCallback(() => {
+    invalidateDocumentCaches();
+    if (nudgeCloseTimer.current !== undefined) {
+      clearTimeout(nudgeCloseTimer.current);
+      nudgeCloseTimer.current = undefined;
+    }
+    nudgeTxOpen.current = false;
     setFiles([]);
     setInfo(null);
     fileRef.current = null;
@@ -260,6 +346,7 @@ export function EditPdfTool() {
     setStage('idle');
     setSelectedId(null);
     setEditingId(null);
+    pendingImageRef.current = null;
     setTool('select');
     setZoom(1);
     zoomTouchedRef.current = false;
@@ -269,11 +356,13 @@ export function EditPdfTool() {
     editor.reset();
     editRunner.reset();
     inspectRunner.reset();
-  }, [editor.reset, editRunner.reset, inspectRunner.reset]);
+  }, [editor.reset, editRunner.reset, inspectRunner.reset, invalidateDocumentCaches]);
 
   // Blob URLs die with the component even if nobody pressed "start over".
   useEffect(
     () => () => {
+      docGeneration.current += 1;
+      if (nudgeCloseTimer.current !== undefined) clearTimeout(nudgeCloseTimer.current);
       for (const raster of Object.values(rastersRef.current)) URL.revokeObjectURL(raster.url);
     },
     [],
@@ -290,8 +379,12 @@ export function EditPdfTool() {
       toast.error(verdict.message);
       return;
     }
+    // A second selection while the first is still inspecting must not have its
+    // results overwritten by the slower of the two.
+    const request = ++loadSequence.current;
     setStage('preparing');
     const outcome = await inspectRunner.run(await readAsInputFiles([file]));
+    if (request !== loadSequence.current) return; // superseded by a newer pick
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       setStage('idle');
@@ -303,7 +396,10 @@ export function EditPdfTool() {
       setStage('idle');
       return;
     }
-    // A new file means a new document: never keep the previous overlay.
+    // A new file means a new document: drop the previous one's caches, rasters
+    // and objects before anything reads them, or page 1 keeps showing the old
+    // file's page 1.
+    invalidateDocumentCaches();
     editor.reset();
     savedDocRef.current = null;
     setFiles(incoming);
@@ -311,6 +407,9 @@ export function EditPdfTool() {
     infoRef.current = doc;
     setInfo(doc);
     setStage('editing');
+    setSelectedId(null);
+    setEditingId(null);
+    pendingImageRef.current = null;
     // First batch up front; deeper pages load when they scroll into view.
     const eager = Math.min(WARM_RASTER_PAGES, doc.pageCount);
     for (let index = 0; index < eager; index += 1) void ensureRaster(index);
@@ -319,7 +418,7 @@ export function EditPdfTool() {
     );
   };
 
-  // Re-render cached pages when the zoom level changes.
+  // Re-request cached pages when the zoom changes, and reconcile after any raster lands. Both dependencies are load-bearing: the fit-width zoom is applied in a *layout* effect, which runs before the eager rasters have arrived, so at that instant there is nothing cached to re-request and every eagerly loaded page silently kept its initial (half-resolution) bitmap until the user touched the zoom again. Watching `rasters` closes that window; the requested-width guard inside `ensureRaster` stops it becoming a loop.
   const onZoomChange = useCallback((next: number) => {
     zoomTouchedRef.current = true;
     setZoom(clampZoom(next));
@@ -328,7 +427,7 @@ export function EditPdfTool() {
   useEffect(() => {
     if (stage !== 'editing') return;
     for (const key of Object.keys(rastersRef.current)) void ensureRaster(Number(key));
-  }, [zoom, stage, ensureRaster]);
+  }, [zoom, stage, ensureRaster, rasters]);
 
   // Open at fit-width (the default in every desktop PDF editor) unless the user
   // has already chosen a zoom level. Layout effect: the container must be laid
@@ -520,12 +619,34 @@ export function EditPdfTool() {
         return;
       }
       if (kind === 'nudge') {
-        editor.apply((doc) => ({
+        // A held arrow key fires keydown per repeat. Pushing a checkpoint for
+        // each one buried real edits under dozens of one-pixel steps, so a burst
+        // is coalesced into a single undo step: the first nudge opens a
+        // transaction, the rest mutate inside it, and a pause closes it.
+        const now = Date.now();
+        const burst = now - lastNudgeAt.current < NUDGE_COALESCE_MS;
+        lastNudgeAt.current = now;
+        const move = (doc: typeof editor.doc) => ({
           ...doc,
           objects: doc.objects.map((object) =>
             object.id === selectedId ? { ...object, x: object.x + dx, y: object.y + dy } : object,
           ),
-        }));
+        });
+        if (burst && nudgeTxOpen.current) {
+          editor.live(move);
+        } else {
+          nudgeTxOpen.current = true;
+          editor.beginTx();
+          editor.apply(move);
+        }
+        // Close the transaction once the burst stops, so the next burst (and
+        // anything else that changes the document) starts a fresh one.
+        if (nudgeCloseTimer.current !== undefined) clearTimeout(nudgeCloseTimer.current);
+        nudgeCloseTimer.current = setTimeout(() => {
+          nudgeCloseTimer.current = undefined;
+          nudgeTxOpen.current = false;
+          editor.endTx();
+        }, NUDGE_COALESCE_MS);
         return;
       }
       editor.apply((doc) => {
@@ -610,16 +731,24 @@ export function EditPdfTool() {
     }
     setEditingId(null);
     editor.endTx();
-    // Freeze from here: this snapshot is what the worker will write.
-    savedDocRef.current = editor.doc;
+    // Freeze from here: this snapshot is what the worker will write. The
+    // "unsaved changes" baseline only advances once the write succeeds --
+    // marking it up front meant a failed save silently disabled the
+    // beforeunload guard, so the user's edits could be lost on navigation.
+    const snapshot = editor.doc;
     const outcome = await editRunner.run(
       await readAsInputFiles([file]),
-      { objects: editor.doc.objects, formValues: editor.doc.formValues },
+      { objects: snapshot.objects, formValues: snapshot.formValues },
       { timeoutMs: timeoutForPageCount(infoRef.current?.pageCount ?? 1) },
     );
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
+    }
+    // A newer document may have been loaded while the save was in flight; that
+    // one's edits are still unsaved.
+    if (fileRef.current === file && infoRef.current !== null) {
+      savedDocRef.current = snapshot;
     }
     void recordRecent({
       toolSlug: 'edit-pdf',
@@ -645,14 +774,27 @@ export function EditPdfTool() {
         Boolean(target) &&
         (target!.tagName === 'INPUT' || target!.tagName === 'TEXTAREA' || target!.isContentEditable);
       const mod = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
 
-      if (mod && event.key.toLowerCase() === 'z') {
+      // Text editing keeps its native undo. Document-level undo while typing is
+      // not merely surprising: text edits are applied with live (no history
+      // entry of their own), so Ctrl+Z inside a text box would skip past the
+      // keystrokes and delete the whole object instead of the last character.
+      if (typing && mod) {
+        if (key === 's') {
+          event.preventDefault();
+          void onSave();
+        }
+        return;
+      }
+
+      if (mod && key === 'z') {
         event.preventDefault();
         if (event.shiftKey) editor.redo();
         else editor.undo();
         return;
       }
-      if (mod && event.key.toLowerCase() === 'y') {
+      if (mod && key === 'y') {
         event.preventDefault();
         editor.redo();
         return;
@@ -662,7 +804,7 @@ export function EditPdfTool() {
         void onSave();
         return;
       }
-      if (mod && event.key.toLowerCase() === 'd' && !typing) {
+      if (mod && key === 'd' && !typing) {
         event.preventDefault();
         transformSelected('duplicate');
         return;

@@ -52,7 +52,9 @@ class FakeQueue implements JobQueue {
   }
 }
 
-async function harness(overrides: { quotaStore?: MemoryQuotaStore; pepper?: string } = {}) {
+async function harness(
+  overrides: { quotaStore?: MemoryQuotaStore; pepper?: string; maxUploadBytes?: number } = {},
+) {
   const dir = await mkdtemp(path.join(tmpdir(), 'pdfshush-http-'));
   const store = new WorkDirStore(dir);
   await store.init();
@@ -63,7 +65,9 @@ async function harness(overrides: { quotaStore?: MemoryQuotaStore; pepper?: stri
     quotaStore: overrides.quotaStore ?? new MemoryQuotaStore(),
     pepper: overrides.pepper ?? 'test-pepper',
     logger: { info() {}, warn() {}, error() {}, debug() {}, trace() {}, fatal() {} } as never,
-    config: { quota: { maxUploadBytes: 5 * 1024 * 1024 } } as never,
+    config: {
+      quota: { maxUploadBytes: overrides.maxUploadBytes ?? 5 * 1024 * 1024 },
+    } as never,
   });
   const app = createApp(context);
   const server: Server = await new Promise((resolve) => {
@@ -245,6 +249,31 @@ describe('POST /api/jobs', () => {
     expect(response.status).toBe(429);
     expect(response.headers.get('retry-after')).toBeTruthy();
   });
+
+  // Regression: the cap was per file only, so one anonymous POST could write
+  // maxFiles x maxBytes to disk before the daily byte quota was ever charged.
+  it('caps the whole request, not just each file', async () => {
+    const pdf = await samplePdf();
+    // Two files, each comfortably under the per-file cap, together over the
+    // request cap: only an aggregate limit can reject this.
+    const cap = Math.floor(pdf.length * 1.5);
+    expect(pdf.length).toBeLessThan(cap);
+    const { url, store } = await harness({ maxUploadBytes: cap });
+    const { body, contentType } = multipart({ slug: 'merge' }, [
+      { name: 'one.pdf', data: pdf },
+      { name: 'two.pdf', data: pdf },
+    ]);
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(413);
+    const payload = (await response.json()) as { code: string };
+    expect(payload.code).toBe('upload_too_large');
+    // The partial request must not leave anything behind.
+    expect((await store.usage()).jobDirs).toBe(0);
+  });
 });
 
 describe('job ownership', () => {
@@ -292,5 +321,41 @@ describe('job ownership', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('application/pdf');
     expect(await response.text()).toBe('%PDF-1.7 fake');
+  });
+
+  // Regression: every result was labelled application/pdf. `inspect` returns
+  // <slug>-result.json, so a correct download arrived with a content type that
+  // made browsers and strict clients treat it as a corrupt PDF.
+  it('serves a JSON result with a JSON content type', async () => {
+    const { url, queue, store, context } = await harness();
+    const jobId = 'e'.repeat(32);
+    await store.prepareJob(jobId);
+    const payload = Buffer.from('{"documents":[{"pageCount":3}]}');
+    await store.writeResult(jobId, 'inspect-result.json', payload);
+    queue.complete(jobId, {
+      status: 'completed',
+      files: [{ name: 'inspect-result.json', bytes: payload.length }],
+    });
+
+    const response = await fetch(url(`/api/jobs/${jobId}/files/inspect-result.json`), {
+      headers: { 'x-job-token': jobToken(context.pepper, jobId) },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect(JSON.parse(await response.text())).toEqual({ documents: [{ pageCount: 3 }] });
+  });
+
+  it('404s a result whose files the janitor already deleted', async () => {
+    const { url, queue, context } = await harness();
+    const jobId = 'd'.repeat(32);
+    queue.complete(jobId, { status: 'completed', files: [{ name: 'gone.pdf', bytes: 10 }] });
+
+    // The job state still lists the file, but nothing is on disk: the exact
+    // state a TTL expiry leaves behind.
+    const response = await fetch(url(`/api/jobs/${jobId}/files/gone.pdf`), {
+      headers: { 'x-job-token': jobToken(context.pepper, jobId) },
+    });
+    expect(response.status).toBe(404);
+    expect(((await response.json()) as { code: string }).code).toBe('result_not_found');
   });
 });

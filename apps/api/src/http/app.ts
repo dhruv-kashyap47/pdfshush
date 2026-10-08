@@ -41,6 +41,10 @@ export function createApp(context: ApiContext): Express {
       status: 'ok',
       queue: counts ?? { state: 'unavailable' },
       workDir: { jobDirs: usage.jobDirs, bytes: usage.bytes },
+      // Published because "why was my result gone?" is otherwise unanswerable,
+      // and because a deployment that silently kept the defaults is invisible.
+      retentionMs: context.config.retentionMs,
+      janitorIntervalMs: context.config.janitorIntervalMs,
       uptimeSeconds: Math.round(process.uptime()),
     });
   });
@@ -77,6 +81,9 @@ export function createApp(context: ApiContext): Express {
 
     const upload = await receiveUpload(request, context.store, jobId, {
       maxBytes: context.config.quota.maxUploadBytes,
+      // Per request, not per file: one anonymous POST must not be able to write
+      // maxFiles x maxBytes to disk before any quota is charged.
+      maxTotalBytes: context.config.quota.maxUploadBytes,
       maxFiles: 50,
       allowedExtensions: ['.pdf'],
     });
@@ -160,8 +167,10 @@ export function createApp(context: ApiContext): Express {
       response.status(404).json({ error: 'Result expired or removed', code: 'result_not_found' });
       return;
     }
-    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Type', contentTypeFor(file.name));
     response.setHeader('Content-Length', String(onDisk.bytes));
+    // RFC 6266: the name goes in a quoted-string, and a safe basename cannot
+    // contain the characters that would need escaping.
     response.setHeader('Content-Disposition', `attachment; filename="${file.name}"`);
     const stream = context.store.openResult(auth.jobId, file.name);
     stream.on('error', (error: unknown) => {
@@ -232,6 +241,29 @@ function subjectFor(request: Request, context: ApiContext): string {
   // Express resolves the client IP honouring `trust proxy`; we never store it.
   const ip = request.ip || request.socket.remoteAddress || 'unknown';
   return subjectId(ip, context.pepper);
+}
+
+/**
+ * Result content type from the stored name. Not every job produces a PDF:
+ * `inspect` returns `<slug>-result.json`, and labelling that `application/pdf`
+ * makes strict clients (and every browser extension) choke on a valid download.
+ */
+const CONTENT_TYPES: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.json': 'application/json; charset=utf-8',
+  '.zip': 'application/zip',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.txt': 'text/plain; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+};
+
+function contentTypeFor(name: string): string {
+  const dot = name.lastIndexOf('.');
+  const extension = dot > 0 ? name.slice(dot).toLowerCase() : '';
+  return CONTENT_TYPES[extension] ?? 'application/octet-stream';
 }
 
 function parseOptionsField(raw: string | undefined): Record<string, unknown> | undefined {

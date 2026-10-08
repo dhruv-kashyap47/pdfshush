@@ -396,6 +396,16 @@ async function main() {
   await page.getByTestId('editor-text-input').waitFor({ timeout: 15_000 });
   await page.getByTestId('editor-text-input').fill('Edited in the browser');
   check('text box created and typed into', true);
+
+  // Ctrl+Z inside a text box must stay a *text* undo. Text edits are applied
+  // with live (no history entry of their own), so a document-level undo here
+  // skipped the keystrokes and deleted the whole object instead.
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(400);
+  check(
+    'Ctrl+Z while typing does not delete the text box',
+    (await page.locator('[data-testid="editor-object-text"]').count()) === 1,
+  );
   await page.getByTestId('editor-tool-select').click(); // blur commits the edit
 
   // The text box grew to fit its content (measured like the exporter wraps).
@@ -482,6 +492,27 @@ async function main() {
     'arrow key nudges the object',
   );
   check('arrow keys nudge the selection', true);
+  // A held arrow key must not push one undo step per repeat, or real edits get
+  // buried under dozens of one-pixel steps. Assert the exact position: one
+  // undo has to undo the whole burst.
+  const textLeft = () =>
+    page
+      .locator('[data-testid="editor-object-text"]')
+      .first()
+      .evaluate((element) => parseFloat(element.style.left));
+  await page.waitForTimeout(900); // let the previous nudge's window close
+  const beforeBurst = await textLeft();
+  for (let i = 0; i < 6; i += 1) await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(900); // let the coalescing window close
+  const afterBurst = await textLeft();
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(500);
+  const afterUndo = await textLeft();
+  check(
+    'a burst of arrow nudges collapses into one undo step',
+    afterBurst > beforeBurst && Math.abs(afterUndo - beforeBurst) < 0.5,
+    `${beforeBurst} -> ${afterBurst} -> undo -> ${afterUndo}`,
+  );
   await page.keyboard.press('Control+d');
   await waitFor(
     async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 2,
@@ -545,6 +576,50 @@ async function main() {
   );
   check('start over opens a clean document', true);
   await page.screenshot({ path: path.join(ARTIFACTS, 'edit-restarted.png') });
+
+  // Swapping the file with "Change file" must re-render every page. Page
+  // rasters are cached by page index, and alpha/beta share page geometry, so
+  // the cache used to serve the previous document's image once the cached width
+  // happened to match the new desired one. Blob URLs are minted per render, so
+  // comparing them answers "was this page re-rendered?" exactly -- a pixel
+  // comparison would pass on two blank white pages.
+  const rasterUrls = () =>
+    page.locator('[data-testid="editor-page-raster"]').evaluateAll((els) =>
+      els.map((el) => el.getAttribute('src')),
+    );
+  // Rasters arrive two at a time and are re-requested once the fit-width zoom
+  // settles, so "loaded" is not "done". Wait for the URLs to stop changing:
+  // without quiescence this check passes or fails depending on which pages
+  // happened to still be queued.
+  async function settledRasters() {
+    let previous = await rasterUrls();
+    for (let i = 0; i < 25; i += 1) {
+      await page.waitForTimeout(400);
+      const current = await rasterUrls();
+      if (current.length > 0 && current.join('|') === previous.join('|')) return current;
+      previous = current;
+    }
+    return previous;
+  }
+  await waitFor(
+    async () => (await rasterUrls()).length === 3,
+    60_000,
+    '3 rasters before the swap',
+  );
+  const beforeSwap = await settledRasters();
+  await page.getByRole('button', { name: 'Change file' }).click();
+  await page.locator('input[accept*="application/pdf"]').setInputFiles([fileB]);
+  await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'beta loaded');
+  const afterSwap = await settledRasters();
+  const reused = afterSwap.filter((url) => beforeSwap.includes(url));
+  check(
+    'changing the file re-renders every page (no stale rasters)',
+    reused.length === 0 && afterSwap.length === 2,
+    reused.length === 0
+      ? `${afterSwap.length} pages re-rendered`
+      : `${reused.length}/${afterSwap.length} pages still showed the previous document`,
+  );
+  await page.screenshot({ path: path.join(ARTIFACTS, 'edit-swapped.png') });
 
   /* 16. Planned tool page + 404 */
   console.log('\n16. Routing');
