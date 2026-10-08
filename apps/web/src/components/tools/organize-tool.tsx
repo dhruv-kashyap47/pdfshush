@@ -76,7 +76,10 @@ export function OrganizeTool() {
 
     const outcome = await organizeRunner.run(
       await readAsInputFiles(files),
-      { pageOrder: tiles.map((tile) => ({ docIndex: tile.docIndex, pageIndex: tile.pageIndex })) },
+      {
+        pageOrder: tiles.map((tile) => ({ docIndex: tile.docIndex, pageIndex: tile.pageIndex })),
+        outputName: `${files[0]!.name.replace(/\.pdf$/i, '')}-organized`,
+      },
       { timeoutMs: timeoutForPageCount(tiles.length) },
     );
     if (!outcome.ok) {

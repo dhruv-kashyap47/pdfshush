@@ -40,6 +40,13 @@ export async function renderPageToImage(
 
   const width = Math.max(1, Math.floor(viewport.width));
   const height = Math.max(1, Math.floor(viewport.height));
+  // An 8x render of a large-format page is ~100 MB of RGBA for one page; refuse
+  // it up front with a clear message rather than exhausting the worker heap.
+  if (Math.max(width, height) > LIMITS.tool.maxImagePixels) {
+    throw new Error(
+      `Rendered page would be ${width}x${height} px; the limit is ${LIMITS.tool.maxImagePixels} px on the longest side. Choose a smaller width.`,
+    );
+  }
   const canvas = factory(width, height);
   const context = canvas.context as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   if (!context) throw new Error('Could not acquire a 2D canvas context');

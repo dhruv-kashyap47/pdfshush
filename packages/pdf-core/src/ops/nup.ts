@@ -51,6 +51,14 @@ export async function imposePages(
   options: NupOptions,
   ctx: JobContext,
 ): Promise<NupResult> {
+  // This op is exported and callable without the job validator. `n: 0` would be
+  // an unbounded loop and `n: NaN` a silent zero-page document, so check here.
+  if (options.n !== 2 && options.n !== 4 && options.n !== 8) {
+    throw new Error('N-up sheets must hold 2, 4 or 8 pages');
+  }
+  if (options.sheet !== undefined && !['source', 'a4', 'letter'].includes(options.sheet)) {
+    throw new Error(`Unknown sheet size "${String(options.sheet)}"`);
+  }
   const progress = createProgressReporter(ctx);
   progress.report('Opening document', 0.02);
 

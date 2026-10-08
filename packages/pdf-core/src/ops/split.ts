@@ -15,6 +15,7 @@ import { PDFDocument } from '@cantoo/pdf-lib';
 import type { JobContext } from '../job.js';
 import { createProgressReporter } from '../job.js';
 import { loadPdfDocument } from './pages.js';
+import { displaySize, pageGeom, viewRectToPdf } from './geometry.js';
 import type { SourceDocument } from './compose.js';
 
 export type SplitOrientation = 'vertical' | 'horizontal';
@@ -57,23 +58,25 @@ export async function splitPagesInHalf(
 
   for (let i = 0; i < pageCount; i += 1) {
     ctx.throwIfAborted();
-    const page = src.getPage(i);
-    // Split the *visible* box, not the MediaBox: scans and exported PDFs often
-    // carry a CropBox that differs from the MediaBox, and viewers show the
-    // CropBox -- cutting the MediaBox would slice empty margin instead of
-    // content. pdf-lib falls back to the MediaBox when no CropBox is present.
-    const base = page.getCropBox();
-    const halves: { first: HalfBox; second: HalfBox } =
+    // Halves are cut in display space -- the visible box with /Rotate applied,
+    // which is what the user sees -- and mapped back to PDF space. Cutting the
+    // raw box made a "left/right" cut on a /Rotate 90 page land top/bottom.
+    const geom = pageGeom(src.getPage(i));
+    const view = displaySize(geom);
+    const viewHalves: { first: HalfBox; second: HalfBox } =
       orientation === 'vertical'
         ? {
-            first: { x: base.x, y: base.y, width: base.width / 2, height: base.height },
-            second: { x: base.x + base.width / 2, y: base.y, width: base.width / 2, height: base.height },
+            first: { x: 0, y: 0, width: view.width / 2, height: view.height },
+            second: { x: view.width / 2, y: 0, width: view.width / 2, height: view.height },
           }
         : {
-            first: { x: base.x, y: base.y + base.height / 2, width: base.width, height: base.height / 2 },
-            second: { x: base.x, y: base.y, width: base.width, height: base.height / 2 },
+            first: { x: 0, y: 0, width: view.width, height: view.height / 2 },
+            second: { x: 0, y: view.height / 2, width: view.width, height: view.height / 2 },
           };
-
+    const halves = {
+      first: viewRectToPdf(geom, viewHalves.first),
+      second: viewRectToPdf(geom, viewHalves.second),
+    };
     const [firstCopy] = await firstDoc.copyPages(src, [i]);
     const [secondCopy] = await secondDoc.copyPages(src, [i]);
     if (!firstCopy || !secondCopy) throw new Error(`Could not copy page ${i + 1}`);

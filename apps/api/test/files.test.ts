@@ -207,6 +207,70 @@ describe('janitor', () => {
     await expect(stat(store.inputDir(fresh))).resolves.toBeDefined();
   });
 
+  // Regression: the sweep decided purely on age, so a job the queue still owned --
+// queued behind a backlog, or waiting on a stalled worker -- had its inputs
+// deleted while the job was about to read them.
+it('keeps a job the queue still owns, however old it is', async () => {
+    const root = await tempDir();
+    const store = new WorkDirStore(root);
+    await store.init();
+
+    const live = 'a'.repeat(32);
+    const dead = 'b'.repeat(32);
+    for (const id of [live, dead]) {
+      await store.prepareJob(id);
+      await writeFile(path.join(store.inputDir(id), 'file.pdf'), 'x');
+    }
+
+    const now = Date.now();
+    const ancient = new Date(now - 24 * 60 * 60 * 1000);
+    for (const id of [live, dead]) {
+      await utimes(path.join(store.root, 'jobs', id), ancient, ancient);
+    }
+
+    // Only `live` is still known to the queue.
+    const isLive = async (jobId: string) => jobId === live;
+
+    const janitor = createJanitor({
+      store,
+      maxAgeMs: 60 * 60 * 1000,
+      intervalMs: 1_000,
+      now: () => now,
+      isLive,
+      unref: true,
+    });
+
+    const removed = await janitor.sweepNow();
+    expect(removed).toContain(dead);
+    expect(removed).not.toContain(live);
+    await expect(stat(store.inputDir(live))).resolves.toBeDefined();
+    await expect(stat(store.inputDir(dead))).rejects.toThrow();
+  });
+
+  it('sweeps stale cancel markers that nothing consumed', async () => {
+    const root = await tempDir();
+    const store = new WorkDirStore(root);
+    await store.init();
+    const marker = path.join(store.controlDir, 'c'.repeat(32));
+    await mkdir(store.controlDir, { recursive: true });
+    await writeFile(marker, new Date().toISOString());
+
+    const now = Date.now();
+    const old = new Date(now - 3 * 60 * 60 * 1000);
+    await utimes(marker, old, old);
+
+    const janitor = createJanitor({
+      store,
+      maxAgeMs: 60 * 60 * 1000,
+      intervalMs: 1_000,
+      now: () => now,
+      unref: true,
+    });
+
+    await janitor.sweepNow();
+    await expect(stat(marker)).rejects.toThrow();
+  });
+
   it('never overlaps sweeps when started on a timer', async () => {
     const root = await tempDir();
     const store = new WorkDirStore(root);

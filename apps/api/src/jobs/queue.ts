@@ -9,7 +9,7 @@
 
 import { Queue, type Job, type JobsOptions } from 'bullmq';
 import IORedis, { type Redis } from 'ioredis';
-import { QUEUE_PDF, type JobPayload, type JobStateSnapshot } from './payload.js';
+import { QUEUE_PDF, parseFailure, type JobPayload, type JobStateSnapshot } from './payload.js';
 import { WorkDirStore } from '../files/store.js';
 
 export interface QueueConnectionOptions {
@@ -38,10 +38,25 @@ export function createConnections(url: string): QueueConnectionOptions {
  * Producers enqueue and read state. The interface exists so the HTTP layer and
  * its tests can run against a fake queue with no Redis in sight.
  */
+/**
+ * What a cancel request found. Only `removed` and `running` are actionable;
+ * `finished` and `unknown` must not be answered as if something was cancelled.
+ */
+export type CancelOutcome = 'removed' | 'running' | 'finished' | 'unknown';
+
+/**
+ * True while the queue still owns a job. Only `completed` and `failed` are
+ * terminal, so anything else -- queued, active, delayed, paused, waiting-children
+ * -- means the job's inputs are still needed and must not be swept.
+ */
+export function isLiveStatus(status: string): boolean {
+  return status !== 'completed' && status !== 'failed';
+}
+
 export interface JobQueue {
   enqueue(payload: JobPayload, opts?: JobsOptions): Promise<string>;
   state(jobId: string): Promise<JobStateSnapshot | undefined>;
-  cancel(jobId: string): Promise<boolean>;
+  cancel(jobId: string): Promise<CancelOutcome>;
   counts(): Promise<{ waiting: number; active: number; completed: number; failed: number }>;
   close(): Promise<void>;
 }
@@ -77,15 +92,23 @@ export class BullJobQueue implements JobQueue {
     return readState(job);
   }
 
-  async cancel(jobId: string): Promise<boolean> {
+  async cancel(jobId: string): Promise<CancelOutcome> {
     const job = await this.queue.getJob(jobId);
-    if (!job) return false;
-    if (await job.isActive()) return false; // let the worker observe the token instead
+    if (!job) return 'unknown';
+    if (await job.isActive()) return 'running'; // the worker observes the cancel marker
     const state = await job.getState();
-    if (state !== 'waiting' && state !== 'delayed') return false;
-    await job.remove();
+    if (state === 'completed' || state === 'failed') return 'finished';
+    if (state === 'active') return 'running';
+    if (state !== 'waiting' && state !== 'delayed') return 'unknown';
+    try {
+      await job.remove();
+    } catch {
+      // A worker picked the job up between the checks above and holds its lock,
+      // so it is running now and has to be cancelled cooperatively.
+      return 'running';
+    }
     await this.store.removeJob(jobId);
-    return true;
+    return 'removed';
   }
 
   async counts() {
@@ -115,7 +138,7 @@ async function readState(job: Job<JobPayload>): Promise<JobStateSnapshot> {
       case 'unknown':
         return {
           status: 'failed',
-          error: { message: job.failedReason ?? 'Job failed', code: 'internal_error' },
+          error: parseFailure(job.failedReason),
         };
       default:
         return { status: 'queued' };

@@ -18,6 +18,8 @@ export interface JanitorOptions {
   onSweep?: (removed: string[]) => void;
   onError?: (error: unknown) => void;
   now?: () => number;
+  /** True while the queue still owns a job; such a job is never swept. */
+  isLive?: (jobId: string) => Promise<boolean>;
   /** Timers keep the process alive by default; tests and embedded use opt out. */
   unref?: boolean;
 }
@@ -25,21 +27,17 @@ export interface JanitorOptions {
 export interface Janitor {
   start(): void;
   stop(): void;
-  /** Exposed for tests and for an admin endpoint: run one pass immediately. */
+  /** Runs one pass immediately. */
   sweepNow(): Promise<string[]>;
-  /** Passes completed since start -- lets a caller prove the timer is alive. */
-  sweepCount(): number;
 }
 
 export function createJanitor(options: JanitorOptions): Janitor {
   const now = options.now ?? Date.now;
   let timer: NodeJS.Timeout | undefined;
   let running = false;
-  let sweeps = 0;
 
   const sweepNow = async (): Promise<string[]> => {
-    const removed = await options.store.sweep(options.maxAgeMs, now());
-    sweeps += 1;
+    const removed = await options.store.sweep(options.maxAgeMs, now(), options.isLive);
     if (removed.length > 0) options.onSweep?.(removed);
     return removed;
   };
@@ -68,6 +66,5 @@ export function createJanitor(options: JanitorOptions): Janitor {
       timer = undefined;
     },
     sweepNow,
-    sweepCount: () => sweeps,
   };
 }

@@ -592,14 +592,26 @@ function ObjectView({
     height: object.height * zoom,
   };
 
-  const imageUrl = useMemo(() => {
-    if (object.kind !== 'image') return null;
-    const buffer = object.data instanceof Uint8Array ? object.data : new Uint8Array(object.data);
-    return URL.createObjectURL(new Blob([buffer as BlobPart], { type: object.mimeType }));
-    // Keyed on the buffer itself so moving/resizing doesn't churn blob URLs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [object.kind === 'image' ? object.data : null, object.kind === 'image' ? object.mimeType : '']);
-  useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
+  // Image objects need a blob URL. It is minted inside an effect rather than
+  // during render: `useMemo` may recompute and discard its result (StrictMode
+  // double-invokes it, and a re-render before commit throws the value away), and
+  // a URL created there is never revoked -- the cleanup only ever saw the
+  // committed one, so each discarded render leaked a URL for the tab's lifetime.
+  const imageData = object.kind === 'image' ? object.data : null;
+  const imageMime = object.kind === 'image' ? object.mimeType : '';
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!imageData) {
+      setImageUrl(null);
+      return;
+    }
+    const buffer = imageData instanceof Uint8Array ? imageData : new Uint8Array(imageData);
+    const url = URL.createObjectURL(new Blob([buffer as BlobPart], { type: imageMime }));
+    setImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+    // Keyed on the buffer and the MIME type only, so moving or resizing the
+    // object does not churn blob URLs.
+  }, [imageData, imageMime]);
 
   // Text boxes fit their content: re-measure whenever the text, width or size
   // changes (font size in the inspector, a corner drag, a seeded replacement).

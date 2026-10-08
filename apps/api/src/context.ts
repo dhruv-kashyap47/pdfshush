@@ -7,12 +7,13 @@
  */
 
 import { randomUUID, createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import type { ApiConfig } from './config.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import type { Logger } from './logger.js';
 import { WorkDirStore } from './files/store.js';
-import type { Janitor } from './files/janitor.js';
 import { QuotaService, newPepper } from './quota/quota.js';
 import type { QuotaStore } from './quota/store.js';
 import type { JobQueue } from './jobs/queue.js';
@@ -26,7 +27,30 @@ export interface ApiContext {
   quota: QuotaService;
   /** Secret for hashing subjects and deriving job tokens. */
   pepper: string;
-  janitor?: Janitor;
+}
+
+/**
+ * The pepper from configuration, or one generated on first boot and kept on the
+ * work volume. Generating a fresh one per process silently invalidated every job
+ * token and reset every quota on each restart.
+ */
+export function resolvePepper(config: ApiConfig): string {
+  if (config.pepper) return config.pepper;
+  const file = path.join(config.workDir, 'control', 'pepper');
+  try {
+    return readFileSync(file, 'utf8').trim();
+  } catch {
+    // Not created yet: fall through.
+  }
+  const pepper = newPepper();
+  mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    writeFileSync(file, pepper, { flag: 'wx', mode: 0o600 });
+    return pepper;
+  } catch {
+    // Another process created it first: use theirs.
+    return readFileSync(file, 'utf8').trim();
+  }
 }
 
 /** Fresh, URL-safe-ish job id (32 hex chars; also passes `safeJobId`). */
@@ -49,7 +73,6 @@ export interface ContextOverrides {
   queue: JobQueue;
   quotaStore: QuotaStore;
   pepper?: string;
-  janitor?: Janitor;
 }
 
 export function createContext(overrides: ContextOverrides): ApiContext {
@@ -66,7 +89,6 @@ export function createContext(overrides: ContextOverrides): ApiContext {
     store: overrides.store ?? new WorkDirStore(config.workDir),
     queue: overrides.queue,
     quota: new QuotaService(overrides.quotaStore as QuotaCounter, config.quota),
-    pepper: overrides.pepper ?? newPepper(),
-    ...(overrides.janitor ? { janitor: overrides.janitor } : {}),
+    pepper: overrides.pepper ?? resolvePepper(config),
   };
 }

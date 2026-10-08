@@ -11,9 +11,9 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { QUEUE_PDF, type JobPayload } from '../jobs/payload.js';
-import { createConnections } from '../jobs/queue.js';
+import { createConnections, isLiveStatus } from '../jobs/queue.js';
 import { createJanitor } from '../files/janitor.js';
 import { WorkDirStore } from '../files/store.js';
 import { loadConfig } from '../config.js';
@@ -67,12 +67,23 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
     logger.warn({ jobId }, 'job stalled -- reclaimed');
   });
 
+  // `Worker` extends `QueueBase`, not `Queue`, so it cannot read a job's state
+  // itself. This lightweight view shares the worker's IORedis connection and is
+  // only used to answer the janitor's liveness question.
+  const stateView = new Queue<JobPayload>(QUEUE_PDF, { connection: connections.queue });
+
   // The worker also sweeps: whichever process is alive can clean up after the
   // other one being killed.
   const janitor = createJanitor({
     store,
     maxAgeMs: config.retentionMs,
     intervalMs: config.janitorIntervalMs,
+    // A job the queue still owns keeps its directory regardless of age.
+    isLive: async (jobId) => {
+      const job = await stateView.getJob(jobId).catch(() => undefined);
+      if (!job) return false;
+      return isLiveStatus(await job.getState());
+    },
     onSweep: (removed) => logger.info({ removed }, 'janitor swept stale job directories'),
     onError: (error) => logger.error({ error: String(error) }, 'janitor sweep failed'),
   });
@@ -83,6 +94,7 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
     janitor.stop();
     // Give in-flight jobs a moment to finish before the child processes die.
     await worker.close();
+    await stateView.close();
     await connections.close();
   };
 

@@ -1,6 +1,6 @@
 import type { JobDefinition } from '../job.js';
 import { composePageRefs, type CropRect, type PageRef } from '../ops/compose.js';
-import { baseName, toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
+import { baseName, safeOutputName, toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
 
 export interface OrganizeJobInput {
   files: { name: string; type?: string; data: Uint8Array; password?: string }[];
@@ -58,12 +58,10 @@ export const organizeJob: JobDefinition<OrganizeJobInput, OrganizeJobOutput> = {
     });
 
     const firstName = input.files[0] ? baseName(input.files[0].name) : 'document';
-    const explicit = input.options?.outputName?.trim();
-    const stem = explicit ? (explicit.endsWith('.pdf') ? explicit : `${explicit}.pdf`) : `${firstName}-organized.pdf`;
     return {
       data: toArrayBuffer(result.data),
       pageCount: result.pageCount,
-      fileName: stem,
+      fileName: safeOutputName(input.options?.outputName, `${firstName}-organized`),
     };
   },
 };

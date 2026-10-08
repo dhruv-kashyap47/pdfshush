@@ -489,6 +489,18 @@ export function EditPdfTool() {
       setStage('idle');
       return;
     }
+    // Second capacity pass. The editor rasterises pages on demand, so the byte
+    // check above cannot bound a document with thousands of tiny pages.
+    const pageVerdict = checkClientCapacity({
+      fileCount: 1,
+      totalBytes: file.size,
+      pageCount: doc.pageCount,
+    });
+    if (!pageVerdict.ok) {
+      toast.error(pageVerdict.message);
+      setStage('idle');
+      return;
+    }
     // A new file means a new document: drop the previous one's caches, rasters
     // and objects before anything reads them, or page 1 keeps showing the old
     // file's page 1.

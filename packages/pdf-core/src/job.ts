@@ -148,7 +148,7 @@ export async function withJobLimits<T>(
 /** Progress reporter that coalesces no-op updates and respects aborts. */
 export function createProgressReporter(ctx: JobContext) {
   let last = -1;
-  return {
+  const reporter = {
     report(phase: string, ratio?: number, message?: string): void {
       if (ratio !== undefined && last >= 0 && Math.abs(ratio - last) < 0.02 && ratio < 1) return;
       if (ratio !== undefined) last = ratio;
@@ -162,7 +162,10 @@ export function createProgressReporter(ctx: JobContext) {
     step(index: number, total: number, phase: string): void {
       ctx.throwIfAborted();
       const ratio = total <= 0 ? 1 : (index + 1) / total;
-      ctx.onProgress({ phase, ratio });
+      // Routed through report(): posting every item of a 500-page run to the
+      // host defeated the coalescing this reporter exists for.
+      reporter.report(phase, ratio);
     },
   };
+  return reporter;
 }

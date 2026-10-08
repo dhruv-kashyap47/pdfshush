@@ -4,7 +4,7 @@
 
 import type { JobDefinition } from '../job.js';
 import { splitPagesInHalf, type SplitOrientation } from '../ops/split.js';
-import { createZip, stripExtension } from '../ops/zip.js';
+import { createZip } from '../ops/zip.js';
 import { baseName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -51,7 +51,7 @@ export const splitHalfJob: JobDefinition<SplitHalfInput, SplitHalfOutput> = {
       ctx,
     );
 
-    const stem = stripExtension(baseName(file.name));
+    const stem = baseName(file.name);
     const first = `${stem}-${result.firstLabel}.pdf`;
     const second = `${stem}-${result.secondLabel}.pdf`;
     const zip = createZip([

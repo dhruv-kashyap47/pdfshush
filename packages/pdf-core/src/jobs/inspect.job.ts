@@ -1,4 +1,4 @@
-import type { JobDefinition } from '../job.js';
+import { createProgressReporter, type JobDefinition } from '../job.js';
 import { inspectPdf, type PageInfo } from '../ops/pages.js';
 import type { FormWidgetInfo } from '../ops/forms.js';
 import { totalInputBytes } from './helpers.js';
@@ -40,8 +40,10 @@ export const inspectJob: JobDefinition<InspectInput, InspectOutput> = {
 
   async run(input, ctx) {
     const documents: InspectOutput['documents'] = [];
-    for (const file of input.files) {
+    const progress = createProgressReporter(ctx);
+    for (const [index, file] of input.files.entries()) {
       ctx.throwIfAborted();
+      progress.step(index, input.files.length, 'Reading documents');
       const info = await inspectPdf(file.data, {
         ...(file.password ? { password: file.password } : {}),
       });

@@ -13,7 +13,7 @@ import { createContext } from './context.js';
 import { loadConfig } from './config.js';
 import { createJanitor } from './files/janitor.js';
 import { WorkDirStore } from './files/store.js';
-import { BullJobQueue, createConnections } from './jobs/queue.js';
+import { BullJobQueue, createConnections, isLiveStatus } from './jobs/queue.js';
 import { RedisQuotaStore } from './quota/redisStore.js';
 import { resolveProcessorPath, startWorkerHost } from './worker/host.js';
 
@@ -36,6 +36,13 @@ async function main(): Promise<void> {
     store,
     maxAgeMs: config.retentionMs,
     intervalMs: config.janitorIntervalMs,
+    // Age alone is not proof a job is finished. Under a backlog the retention
+    // window can pass while a job is still queued, and sweeping then deletes the
+    // inputs the worker is about to read.
+    isLive: async (jobId) => {
+      const snapshot = await queue.state(jobId).catch(() => undefined);
+      return snapshot ? isLiveStatus(snapshot.status) : false;
+    },
     onStart: ({ intervalMs, maxAgeMs }) =>
       context.logger.info({ intervalMs, maxAgeMs }, 'janitor started'),
     onSweep: (removed) => context.logger.info({ removed }, 'janitor swept stale jobs'),

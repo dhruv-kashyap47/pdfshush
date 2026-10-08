@@ -31,6 +31,11 @@ export const thumbnailsJob: JobDefinition<ThumbnailsInput, ThumbnailsOutput> = {
 
   validate(input) {
     if (input.files.length === 0) return { ok: false, issues: [{ message: 'Add at least one PDF' }] };
+    // Page indexes name pages of one document. Applied to several files they
+    // matched the wrong pages -- or failed mid-run on the first short document.
+    if (input.options?.pageIndexes?.length && input.files.length !== 1) {
+      return { ok: false, issues: [{ message: 'Page selection applies to exactly one PDF' }] };
+    }
     return { ok: true };
   },
 

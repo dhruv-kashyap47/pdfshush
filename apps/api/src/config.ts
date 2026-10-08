@@ -21,11 +21,23 @@ const schema = z.object({
   /** Where uploads and results live. Must be on a real volume in production. */
   WORK_DIR: z.string().min(1).default('.work'),
 
-  /** Run the worker in this same process (dev convenience; off in production). */
+  /**
+   * Run the worker in this same process (dev convenience; off in production).
+   * Left undefined when unset so the environment-dependent default applies. The
+   * old transform turned "unset" into `false`, so the default never ran and
+   * `pnpm dev` accepted jobs it never processed.
+   */
   EMBEDDED_WORKER: z
     .string()
     .optional()
-    .transform((value) => value === 'true' || value === '1'),
+    .transform((value) => (value === undefined ? undefined : value === 'true' || value === '1')),
+
+  /**
+   * Secret that keys quota subjects and job tokens. Set it explicitly in any
+   * real deployment. When unset, a random one is created once and kept on the
+   * work volume, so restarts do not invalidate job tokens or reset quotas.
+   */
+  PEPPER: z.string().min(16).optional(),
 
   /** Jobs processed at once by one worker process (CPU-bound: keep it small). */
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
@@ -44,14 +56,12 @@ const schema = z.object({
   QUOTA_TASKS_PER_MINUTE: z.coerce.number().int().positive().optional(),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional(),
 
-  /** Comma-separated allowlist for CORS; empty means same-origin only. */
-  CORS_ORIGINS: z.string().optional(),
-
-  /** Trust `X-Forwarded-For` only behind a proxy we control. */
-  TRUST_PROXY: z
-    .string()
-    .optional()
-    .transform((value) => value === 'true' || value === '1'),
+  /**
+   * Proxies in front of the API whose `X-Forwarded-For` we trust: a hop count
+   * (`1`, `2`) or `true` for one hop. `true` used to mean "trust every
+   * client-supplied header", which let anyone bypass the per-IP quota.
+   */
+  TRUST_PROXY: z.string().optional(),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
@@ -69,7 +79,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   return {
     env: raw.NODE_ENV,
     isProduction: raw.NODE_ENV === 'production',
-    http: { port: raw.PORT, host: raw.HOST, trustProxy: raw.TRUST_PROXY },
+    http: { port: raw.PORT, host: raw.HOST, trustProxy: parseTrustProxy(raw.TRUST_PROXY) },
+    pepper: raw.PEPPER,
     redis: { url: raw.REDIS_URL },
     workDir: raw.WORK_DIR,
     embeddedWorker: raw.EMBEDDED_WORKER ?? !raw.NODE_ENV.startsWith('production'),
@@ -82,10 +93,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     },
     retentionMs: raw.FILE_TTL_MS ?? LIMITS.server.fileTtlMs,
     janitorIntervalMs: raw.JANITOR_INTERVAL_MS ?? 5 * 60_000,
-    corsOrigins: (raw.CORS_ORIGINS ?? '')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
     logLevel: raw.LOG_LEVEL,
   } as const;
+}
+/** Express \	rust proxy\ value: 0 (none) or a hop count. */
+function parseTrustProxy(value: string | undefined): number {
+  if (value === undefined || value === '' || value === 'false' || value === '0') return 0;
+  if (value === 'true') return 1;
+  const hops = Number(value);
+  if (!Number.isInteger(hops) || hops < 0 || hops > 10) {
+    throw new Error('TRUST_PROXY must be a hop count between 0 and 10, or true');
+  }
+  return hops;
 }

@@ -8,8 +8,10 @@
  * total output page count, so "Page {n} of {N}" works in both tools.
  */
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from '@cantoo/pdf-lib';
+import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
+import { displayAngle } from './edit.js';
+import { pageGeom, displaySize, viewToPdf } from './geometry.js';
 
 export type StampPosition =
   | 'top-left'
@@ -59,7 +61,7 @@ export async function stampDocument(
   style: StampStyle = {},
 ): Promise<void> {
   const fontSize = clamp(style.fontSize ?? DEFAULT_STAMP_STYLE.fontSize, 4, 72);
-  const margin = Math.max(0, style.margin ?? DEFAULT_STAMP_STYLE.margin);
+  const margin = clamp(style.margin ?? DEFAULT_STAMP_STYLE.margin, 0, 200);
   // Colour arrives over postMessage (and later over the public API), so clamp
   // it -- an out-of-range component emits a malformed colour operator.
   const color = {
@@ -103,9 +105,14 @@ function stampPage(
   regions: { header?: ResolvedRegion; footer?: ResolvedRegion },
   style: { font: PDFFont; fontSize: number; margin: number; color: { r: number; g: number; b: number } },
 ): void {
+  // Placement is computed in display space (the visible box, /Rotate applied) and
+  // mapped to PDF space. Using the raw MediaBox put headers outside the visible
+  // area on CropBox-offset scans and sideways on rotated pages.
+  const geom = pageGeom(page);
+  const { width: viewWidth, height: viewHeight } = displaySize(geom);
+  const angle = degrees(displayAngle(geom));
   for (const region of [regions.header, regions.footer]) {
     if (!region) continue;
-    const { width: pageWidth, height: pageHeight } = page.getSize();
     let textWidth: number;
     try {
       textWidth = style.font.widthOfTextAtSize(region.text, style.fontSize);
@@ -120,24 +127,27 @@ function stampPage(
       align === 'left'
         ? style.margin
         : align === 'right'
-          ? Math.max(style.margin, pageWidth - style.margin - textWidth)
-          : Math.max(0, (pageWidth - textWidth) / 2);
-    // drawText places the baseline: top rows sit just under the top edge, bottom
-    // rows rest just above the bottom edge.
-    const y = anchor === 'top' ? pageHeight - style.margin - style.fontSize : Math.max(0, style.margin - 2);
+          ? Math.max(style.margin, viewWidth - style.margin - textWidth)
+          : Math.max(0, (viewWidth - textWidth) / 2);
+    // Display y grows downward. The baseline of a top row sits one font size plus
+    // the margin below the top edge; a bottom row rests just above the bottom edge.
+    const y = anchor === 'top' ? style.margin + style.fontSize : viewHeight - style.margin + 2;
+    const [px, py] = viewToPdf(geom, x, y);
 
     page.drawText(region.text, {
-      x,
-      y,
+      x: px,
+      y: py,
       size: style.fontSize,
       font: style.font,
       color: rgb(style.color.r, style.color.g, style.color.b),
+      rotate: angle,
     });
   }
 }
-
 function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
+  // NaN and Infinity from an untrusted request would otherwise propagate into the
+  // drawing operators; fall back to the lower bound instead.
+  return Number.isFinite(value) ? Math.min(Math.max(value, min), max) : min;
 }
 
 function clamp01(value: number): number {

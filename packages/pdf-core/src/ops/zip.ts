@@ -7,10 +7,13 @@ export interface ZipEntry {
 
 /** Packs entries into a zip archive. Deterministic for a given input set. */
 export function createZip(entries: ZipEntry[]): Uint8Array {
+  // Names are made unique here, not by callers: a repeated name used to overwrite
+  // the earlier entry with no error, silently dropping a file from the archive.
+  const names = dedupeNames(entries.map((entry) => entry.name));
   const payload: Zippable = {};
-  for (const entry of entries) {
-    payload[entry.name] = [entry.data, { level: 6 }];
-  }
+  entries.forEach((entry, i) => {
+    payload[names[i]!] = [entry.data, { level: 6 }];
+  });
   return zipSync(payload, { level: 6 });
 }
 

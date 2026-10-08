@@ -65,7 +65,12 @@ export function RotateTool() {
 
     const outcome = await runner.run(
       await readAsInputFiles(files),
-      { pageOrder },
+      {
+        pageOrder,
+        // Without this the shared `organize` job fell back to its own default
+        // and every tool downloaded as "-organized.pdf".
+        outputName: `${files[0]!.name.replace(/\.pdf$/i, '')}-rotated`,
+      },
       { timeoutMs: timeoutForPageCount(tiles.length) },
     );
     if (!outcome.ok) {

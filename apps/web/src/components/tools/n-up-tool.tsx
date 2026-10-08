@@ -73,6 +73,17 @@ export function NUpTool() {
       toast.error('That PDF is password protected — unlock it first.');
       return;
     }
+    // Second capacity pass: the byte check above cannot see the page count, and
+    // a 600-page document is exactly what the client page cap exists to refuse.
+    const pageVerdict = checkClientCapacity({
+      fileCount: 1,
+      totalBytes: file.size,
+      pageCount: doc.pageCount,
+    });
+    if (!pageVerdict.ok) {
+      toast.error(pageVerdict.message);
+      return;
+    }
     setFiles([file]);
     setPageCount(doc.pageCount);
   };

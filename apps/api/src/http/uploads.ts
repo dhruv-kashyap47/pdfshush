@@ -36,7 +36,24 @@ export class InvalidUploadError extends Error {
   }
 }
 
+/** The body itself is not parseable multipart: a client error, so 400 not 500. */
+export class BadMultipartError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BadMultipartError';
+  }
+}
+
 const FIELD_KEYS = new Set(['slug', 'password', 'options']);
+
+/**
+ * Ceiling on a single text field. `options` is the only field that can grow with
+ * the document (a 500-page page order), so an oversized one is refused with the
+ * real reason rather than silently truncated: truncation turns a big page order
+ * into invalid JSON, and the caller is told "not valid JSON" for what is
+ * actually an over-limit request.
+ */
+const MAX_FIELD_CHARS = 8_192;
 
 export function receiveUpload(
   request: Request,
@@ -63,7 +80,7 @@ export function receiveUpload(
         },
       });
     } catch (error) {
-      reject(new InvalidUploadError(error instanceof Error ? error.message : 'Bad multipart body'));
+      reject(new BadMultipartError(error instanceof Error ? error.message : 'Bad multipart body'));
       return;
     }
 
@@ -94,16 +111,29 @@ export function receiveUpload(
       const cleanup = store.removeJob(jobId);
       // The client may still be uploading. Let the error handler write the
       // response first, then close the socket instead of leaving a half-read
-      // request hanging -- which is what made this path flaky.
-      setImmediate(() => {
-        if (!request.complete) request.destroy();
-      });
-      cleanup.catch(() => undefined).then(() => reject(error));
+      // request hanging -- which is what made this path flaky. Cleanup is
+      // awaited before rejecting so a caller that immediately retries cannot
+      // race its own leftovers.
+      cleanup
+        .catch(() => undefined)
+        .then(() => {
+          if (!request.complete) request.destroy();
+          reject(error);
+        });
     };
 
     parser.on('field', (name, value) => {
       // Ignore unexpected field names entirely rather than storing them.
-      if (FIELD_KEYS.has(name)) fields[name] = value.slice(0, 8_192);
+      if (!FIELD_KEYS.has(name)) return;
+      if (value.length > MAX_FIELD_CHARS) {
+        fail(
+          new InvalidUploadError(
+            `The "${name}" field is ${value.length} characters; the limit is ${MAX_FIELD_CHARS}.`,
+          ),
+        );
+        return;
+      }
+      fields[name] = value;
     });
 
     parser.on('file', (_fieldName, stream, info) => {
@@ -112,7 +142,8 @@ export function receiveUpload(
         stream.resume();
         return;
       }
-      const extension = safeFileName(originalName).toLowerCase();
+      const sanitised = safeFileName(originalName);
+      const extension = sanitised.toLowerCase();
       if (
         limits.allowedExtensions &&
         !limits.allowedExtensions.some((allowed) => extension.endsWith(allowed))
@@ -120,6 +151,18 @@ export function receiveUpload(
         stream.resume();
         fail(new InvalidUploadError(`Unsupported file type: ${extension}`));
         return;
+      }
+      // Two parts whose names sanitise to the same basename would resolve to one
+      // path and the second write would truncate the first -- merge then silently
+      // returned the same document twice with one upload missing.
+      const taken = new Set(files.filter((file) => file.name).map((file) => file.name));
+      let name = sanitised;
+      for (let suffix = 2; taken.has(name); suffix += 1) {
+        const dot = sanitised.lastIndexOf('.');
+        name =
+          dot > 0
+            ? `${sanitised.slice(0, dot)}-${suffix}${sanitised.slice(dot)}`
+            : `${sanitised}-${suffix}`;
       }
 
       stream.on('limit', () => {
@@ -148,7 +191,7 @@ export function receiveUpload(
       files.push({ name: '', path: '', bytes: 0 });
       pending.push(
         store
-          .writeInput(jobId, originalName, stream, limits.maxBytes)
+          .writeInput(jobId, name, stream, limits.maxBytes)
           .then((stored) => {
             if (settled) return;
             totalBytes += stored.bytes;
@@ -161,7 +204,9 @@ export function receiveUpload(
       );
     });
 
-    parser.on('error', (error: unknown) => fail(error));
+    parser.on('error', (error: unknown) => {
+      fail(new BadMultipartError(error instanceof Error ? error.message : 'Bad multipart body'));
+    });
 
     parser.on('close', () => {
       if (settled) return;

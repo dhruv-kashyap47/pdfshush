@@ -44,20 +44,42 @@ export function pageGeom(page: PDFPage): PageGeom {
 
 /** Same, from raw boxes -- kept separate so tests and inspect can build a geom without a page. */
 export function geomFromBoxes(cropBox: Box, rotation: number, mediaBox?: Box): PageGeom {
-  let x0 = cropBox.x;
-  let y0 = cropBox.y;
-  let x1 = cropBox.x + cropBox.width;
-  let y1 = cropBox.y + cropBox.height;
+  // Normalise corners before intersecting. Intersecting first and un-swapping
+  // afterwards used the wrong corners for an inverted box.
+  const normalise = (box: Box) => ({
+    x0: Math.min(box.x, box.x + box.width),
+    x1: Math.max(box.x, box.x + box.width),
+    y0: Math.min(box.y, box.y + box.height),
+    y1: Math.max(box.y, box.y + box.height),
+  });
+  const finite = (b: { x0: number; x1: number; y0: number; y1: number }) =>
+    [b.x0, b.x1, b.y0, b.y1].every(Number.isFinite);
+
+  let visible = normalise(cropBox);
+  if (!finite(visible)) {
+    // A malformed CropBox falls back to the MediaBox, as viewers do.
+    if (!mediaBox) throw new Error('Page has an invalid CropBox');
+    visible = normalise(mediaBox);
+  }
   if (mediaBox) {
     // pdf.js intersects CropBox with MediaBox; a CropBox wider than the media
-    // box would otherwise make us map coordinates no viewer ever shows.
-    x0 = Math.max(x0, mediaBox.x);
-    y0 = Math.max(y0, mediaBox.y);
-    x1 = Math.min(x1, mediaBox.x + mediaBox.width);
-    y1 = Math.min(y1, mediaBox.y + mediaBox.height);
+    // box would otherwise make us map coordinates no viewer ever shows. An empty
+    // intersection falls back to the MediaBox, which is what viewers display.
+    const media = normalise(mediaBox);
+    if (finite(media)) {
+      const inter = {
+        x0: Math.max(visible.x0, media.x0),
+        x1: Math.min(visible.x1, media.x1),
+        y0: Math.max(visible.y0, media.y0),
+        y1: Math.min(visible.y1, media.y1),
+      };
+      visible = inter.x1 > inter.x0 && inter.y1 > inter.y0 ? inter : media;
+    }
   }
-  if (x1 < x0) [x0, x1] = [x1, x0];
-  if (y1 < y0) [y0, y1] = [y1, y0];
+  if (!finite(visible) || visible.x1 <= visible.x0 || visible.y1 <= visible.y0) {
+    throw new Error('Page has an empty or invalid visible area');
+  }
+  let { x0, x1, y0, y1 } = visible;
   const rounded = Math.round(rotation / 90) * 90;
   const rot = (((rounded % 360) + 360) % 360) as 0 | 90 | 180 | 270;
   return { x0, y0, x1, y1, rot };

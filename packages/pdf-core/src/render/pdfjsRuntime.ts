@@ -54,7 +54,15 @@ export async function loadPdfForRender(
     ...(config.cMapUrl ? { cMapUrl: config.cMapUrl, cMapPacked: config.cMapPacked ?? true } : {}),
     ...(config.standardFontDataUrl ? { standardFontDataUrl: config.standardFontDataUrl } : {}),
   });
-  const doc = await task.promise;
+  let doc: PDFDocumentProxy;
+  try {
+    doc = await task.promise;
+  } catch (error) {
+    // A failed load (corrupt file, wrong password) must still release the pdf.js
+    // worker it started, or every failed attempt leaks one for the tab's life.
+    await task.destroy().catch(() => undefined);
+    throw error;
+  }
   return {
     doc,
     async destroy() {

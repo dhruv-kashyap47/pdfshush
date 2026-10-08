@@ -11,9 +11,15 @@ import helmet from 'helmet';
 import { ZodError } from 'zod';
 import { ApiContext, jobToken, newJobId } from '../context.js';
 import { subjectId, tokensMatch } from '../quota/quota.js';
-import { receiveUpload, InvalidUploadError } from './uploads.js';
+import { receiveUpload, InvalidUploadError, BadMultipartError } from './uploads.js';
 import { UploadTooLargeError } from '../files/store.js';
-import { createJobSchema, JOB_ERROR_CODES, SERVER_SLUGS, type JobPayload } from '../jobs/payload.js';
+import {
+  createJobSchema,
+  JOB_ERROR_CODES,
+  MAX_UPLOAD_FILES,
+  SERVER_SLUGS,
+  type JobPayload,
+} from '../jobs/payload.js';
 import { UnsafePathError, safeJobId } from '../files/paths.js';
 import { requestCancel } from '../jobs/cancel.js';
 
@@ -21,7 +27,9 @@ export function createApp(context: ApiContext): Express {
   const app = express();
 
   app.disable('x-powered-by');
-  if (context.config.http.trustProxy) app.set('trust proxy', true);
+  // A hop count, not `true`: trusting every `X-Forwarded-For` let a client pick
+  // its own quota identity.
+  if (context.config.http.trustProxy > 0) app.set('trust proxy', context.config.http.trustProxy);
 
   app.use(
     helmet({
@@ -32,10 +40,22 @@ export function createApp(context: ApiContext): Express {
     }),
   );
 
+  /**
+   * Measures the work directory on every read.
+   *
+   * This was briefly cached for 30 seconds, because the container healthcheck
+   * calls it every 15 seconds and a leaked directory made each probe slower.
+   * But a cached answer is wrong exactly when it matters: the number is how
+   * callers tell "my output is on disk" from "it is gone", and a probe landing
+   * between a job completing and the next read reported the directory as
+   * empty. Correctness of a reported number beats the walk.
+   */
+  const measureUsage = async () => context.store.usage().catch(() => ({ jobDirs: 0, bytes: 0 }));
+
   app.get('/api/health', async (_request: Request, response: Response) => {
     const [counts, usage] = await Promise.all([
       context.queue.counts().catch(() => undefined),
-      context.store.usage().catch(() => ({ jobDirs: 0, bytes: 0 })),
+      measureUsage(),
     ]);
     response.json({
       status: 'ok',
@@ -76,17 +96,27 @@ export function createApp(context: ApiContext): Express {
       return;
     }
 
+    // The job directory is created here, after every check that can fail without
+    // touching the disk, and removed again on ANY failure below. Creating it up
+    // front meant a request rejected at the content-type check -- which never
+    // reached the quota -- left an empty directory tree behind for good.
     const jobId = newJobId();
     await context.store.prepareJob(jobId);
 
-    const upload = await receiveUpload(request, context.store, jobId, {
-      maxBytes: context.config.quota.maxUploadBytes,
-      // Per request, not per file: one anonymous POST must not be able to write
-      // maxFiles x maxBytes to disk before any quota is charged.
-      maxTotalBytes: context.config.quota.maxUploadBytes,
-      maxFiles: 50,
-      allowedExtensions: ['.pdf'],
-    });
+    let upload: Awaited<ReturnType<typeof receiveUpload>>;
+    try {
+      upload = await receiveUpload(request, context.store, jobId, {
+        maxBytes: context.config.quota.maxUploadBytes,
+        // Per request, not per file: one anonymous POST must not be able to write
+        // maxFiles x maxBytes to disk before any quota is charged.
+        maxTotalBytes: context.config.quota.maxUploadBytes,
+        maxFiles: MAX_UPLOAD_FILES,
+        allowedExtensions: ['.pdf'],
+      });
+    } catch (error) {
+      await context.store.removeJob(jobId);
+      throw error;
+    }
 
     // Now that the byte count is known, spend the budget.
     const verdict = await context.quota.consume(subject, upload.totalBytes);
@@ -97,12 +127,17 @@ export function createApp(context: ApiContext): Express {
       return;
     }
 
-    const options = parseOptionsField(upload.fields.options);
+    const fieldOptions = parseOptionsField(upload.fields.options);
+    if (fieldOptions.error) {
+      await context.store.removeJob(jobId);
+      response.status(400).json({ error: fieldOptions.error, code: JOB_ERROR_CODES.validation });
+      return;
+    }
     const parsed = createJobSchema.safeParse({
       slug: upload.fields.slug,
       files: upload.files.map((file) => file.name),
       ...(upload.fields.password ? { password: upload.fields.password } : {}),
-      ...(options ? { options } : {}),
+      ...(fieldOptions.value ? { options: fieldOptions.value } : {}),
     });
     if (!parsed.success) {
       await context.store.removeJob(jobId);
@@ -123,7 +158,13 @@ export function createApp(context: ApiContext): Express {
       requestedAt: Date.now(),
     };
 
-    await context.queue.enqueue(payload);
+    try {
+      await context.queue.enqueue(payload);
+    } catch (error) {
+      // Nothing will ever run this job, so its uploads must not be left behind.
+      await context.store.removeJob(jobId);
+      throw error;
+    }
     context.logger.info(
       { jobId, slug: payload.slug, files: payload.files.length, bytes: upload.totalBytes },
       'job queued',
@@ -142,7 +183,7 @@ export function createApp(context: ApiContext): Express {
     if (!auth) return;
     const state = await context.queue.state(auth.jobId);
     if (!state) {
-      response.status(404).json({ error: 'Unknown job', code: 'unknown_job' });
+      response.status(404).json({ error: 'Unknown job', code: JOB_ERROR_CODES.unknownJob });
       return;
     }
     response.json(state);
@@ -155,7 +196,7 @@ export function createApp(context: ApiContext): Express {
     const state = await context.queue.state(auth.jobId);
     const file = state?.files?.find((entry) => entry.name === name);
     if (!file) {
-      response.status(404).json({ error: 'Result not found', code: 'result_not_found' });
+      response.status(404).json({ error: 'Result not found', code: JOB_ERROR_CODES.resultNotFound });
       return;
     }
     // The janitor may delete a job's files the moment its TTL passes -- including
@@ -164,7 +205,10 @@ export function createApp(context: ApiContext): Express {
     // caller getting a clean 404.
     const onDisk = await context.store.statResult(auth.jobId, file.name);
     if (!onDisk) {
-      response.status(404).json({ error: 'Result expired or removed', code: 'result_not_found' });
+      response.status(404).json({
+        error: 'Result expired or removed',
+        code: JOB_ERROR_CODES.resultNotFound,
+      });
       return;
     }
     response.setHeader('Content-Type', contentTypeFor(file.name));
@@ -189,14 +233,28 @@ export function createApp(context: ApiContext): Express {
   app.delete('/api/jobs/:id', async (request: Request, response: Response) => {
     const auth = authorize(request, response, context);
     if (!auth) return;
-    const removed = await context.queue.cancel(auth.jobId);
-    if (!removed) {
-      // Not queued anymore -- ask the worker to stop it cooperatively.
-      await requestCancel(context.store, auth.jobId);
-      response.status(202).json({ status: 'cancelling' });
-      return;
+    const outcome = await context.queue.cancel(auth.jobId);
+    switch (outcome) {
+      case 'removed':
+        response.status(200).json({ status: 'cancelled' });
+        return;
+      case 'running':
+        // The worker observes a marker; the job stops at its next checkpoint.
+        await requestCancel(context.store, auth.jobId);
+        response.status(202).json({ status: 'cancelling' });
+        return;
+      case 'unknown':
+        response.status(404).json({ error: 'Unknown job', code: JOB_ERROR_CODES.unknownJob });
+        return;
+      default:
+        // Already finished. Reporting "cancelling" here told the caller to keep
+        // polling for a change that could never come, and used to write a cancel
+        // marker that nothing would ever clear.
+        response.status(409).json({
+          error: 'Job has already finished',
+          code: JOB_ERROR_CODES.notCancellable,
+        });
     }
-    response.status(200).json({ status: 'cancelled' });
   });
 
   app.use((_request: Request, response: Response) => {
@@ -224,14 +282,14 @@ function authorize(request: Request, response: Response, context: ApiContext): A
     jobId = safeJobId(String(request.params.id ?? ''));
   } catch (error) {
     if (error instanceof UnsafePathError) {
-      response.status(400).json({ error: 'Malformed job id' });
+      response.status(400).json({ error: 'Malformed job id', code: JOB_ERROR_CODES.validation });
       return undefined;
     }
     throw error;
   }
   const token = request.header('x-job-token') ?? '';
   if (!tokensMatch(token, jobToken(context.pepper, jobId))) {
-    response.status(403).json({ error: 'Job token required' });
+    response.status(403).json({ error: 'Job token required', code: JOB_ERROR_CODES.forbidden });
     return undefined;
   }
   return { jobId };
@@ -266,15 +324,20 @@ function contentTypeFor(name: string): string {
   return CONTENT_TYPES[extension] ?? 'application/octet-stream';
 }
 
-function parseOptionsField(raw: string | undefined): Record<string, unknown> | undefined {
-  if (!raw) return undefined;
+function parseOptionsField(raw: string | undefined): { value?: Record<string, unknown>; error?: string } {
+  if (!raw) return {};
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
-    return parsed as Record<string, unknown>;
+    parsed = JSON.parse(raw);
   } catch {
-    return undefined;
+    // Silently dropping the options ran the job with defaults instead -- a
+    // truncation produced "No pages selected" rather than a diagnosable 400.
+    return { error: 'The "options" field is not valid JSON (it may be too large)' };
   }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { error: 'The "options" field must be a JSON object' };
+  }
+  return { value: parsed as Record<string, unknown> };
 }
 
 function errorHandler(context: ApiContext) {
@@ -284,6 +347,11 @@ function errorHandler(context: ApiContext) {
       return;
     }
     if (error instanceof InvalidUploadError) {
+      response.status(400).json({ error: error.message, code: JOB_ERROR_CODES.validation });
+      return;
+    }
+    // A malformed multipart body is the client's error, not ours.
+    if (error instanceof BadMultipartError) {
       response.status(400).json({ error: error.message, code: JOB_ERROR_CODES.validation });
       return;
     }

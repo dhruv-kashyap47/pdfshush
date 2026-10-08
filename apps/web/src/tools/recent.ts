@@ -19,6 +19,34 @@ const DB_NAME = 'pdfshush';
 const STORE = 'recent';
 const MAX_ENTRIES = 12;
 
+type RecentListener = () => void;
+
+const listeners = new Set<RecentListener>();
+
+/** Tells mounted readers the stored history changed. */
+function notify(): void {
+  for (const listener of [...listeners]) {
+    try {
+      listener();
+    } catch {
+      // One bad subscriber must not abort the write or starve the others.
+    }
+  }
+}
+
+/**
+ * Subscribes to changes in the recent history.
+ *
+ * The history lives in IndexedDB, so a mounted reader has no other way of
+ * learning that a tool recorded something after it mounted.
+ */
+export function subscribeRecent(listener: RecentListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -67,6 +95,9 @@ export async function recordRecent(entry: Omit<RecentEntry, 'id' | 'createdAt'>)
   } finally {
     // Always close: an unclosed connection keeps the database pinned open.
     db?.close();
+    // Even on a failed write: readers re-read, and the result is simply the
+    // unchanged list.
+    notify();
   }
 }
 
@@ -102,5 +133,6 @@ export async function clearRecent(): Promise<void> {
     // ignore
   } finally {
     db?.close();
+    notify();
   }
 }

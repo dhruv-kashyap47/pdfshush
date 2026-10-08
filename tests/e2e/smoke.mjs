@@ -12,6 +12,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 import { chromium } from 'playwright';
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
@@ -65,6 +66,53 @@ function buildPdf(pageCount, label) {
   body += `trailer\n<< /Size ${total + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
 
   return Buffer.from(body, 'latin1');
+}
+
+/** Builds a valid `size`x`size` opaque PNG, for the editor image-insert flow. */
+function buildPng(size) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc32 = (buf) => {
+    let c = 0xffffffff;
+    for (const byte of buf) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // truecolour
+  // One filter byte per scanline, then RGB triples.
+  const raw = Buffer.alloc(size * (1 + size * 3));
+  for (let y = 0; y < size; y += 1) {
+    const rowStart = y * (1 + size * 3);
+    raw[rowStart] = 0;
+    for (let x = 0; x < size; x += 1) {
+      const p = rowStart + 1 + x * 3;
+      raw[p] = 40 + ((x * 37) % 200);
+      raw[p + 1] = 90 + ((y * 23) % 150);
+      raw[p + 2] = 200;
+    }
+  }
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 /* ------------------------------------------------------------- tiny asserts */
@@ -135,8 +183,17 @@ async function main() {
   check('title contains PDFShush', (await page.title()).includes('PDFShush'));
   check('hero renders', await page.getByText('without the upload.').isVisible());
   await page.getByRole('button', { name: /All Tools/ }).hover();
-  await waitFor(async () => (await page.getByText('Bates Numbering').count()) > 0, 10_000, 'mega menu');
-  check('mega menu opens with full catalog', true);
+  const megaVisible = await waitFor(
+    async () => (await page.getByText('Bates Numbering').count()) > 0,
+    10_000,
+    'mega menu',
+  );
+  const catalogLinks = await page.locator('a[href^="/tools/"]').count();
+  check(
+    'mega menu opens with full catalog',
+    megaVisible === true && catalogLinks >= 40,
+    `${catalogLinks} tool links`,
+  );
   await page.screenshot({ path: path.join(ARTIFACTS, 'home-megamenu.png') });
   await page.mouse.move(720, 600);
 
@@ -144,11 +201,21 @@ async function main() {
   console.log('\n2. Merge tool');
   await page.goto(`${BASE}/tools/merge-pdf`, { waitUntil: 'networkidle' });
   await page.locator('input[type="file"]').setInputFiles([fileA, fileB]);
-  await waitFor(async () => (await page.getByText('3 pages').count()) > 0, 30_000, 'page counts');
-  check('page counts shown (3p + 2p)', true);
+  const threePageRows = await waitFor(
+    async () => (await page.getByText('3 pages').count()) > 0,
+    30_000,
+    'page counts',
+  );
+  const twoPageRows = await page.getByText('2 pages').count();
+  check(
+    'page counts shown (3p + 2p)',
+    threePageRows === true && twoPageRows > 0,
+    `${twoPageRows} row(s) showing "2 pages"`,
+  );
   await page.getByRole('button', { name: /Merge 2 files/ }).click();
-  await page.getByText('merged.pdf').waitFor({ timeout: 60_000 });
-  check('result panel shows merged.pdf', true);
+  await page.getByText('merged.pdf').first().waitFor({ timeout: 60_000 });
+  const mergedLabel = await page.getByText('merged.pdf').first().textContent();
+  check('result panel shows merged.pdf', /merged\.pdf/.test(mergedLabel ?? ''), mergedLabel ?? '');
   const mergeDl = await downloadAndAssert(page, 'Download', 'pdf');
   check('downloaded file is a valid PDF', mergeDl.ok, `${mergeDl.name} ${mergeDl.bytes.length}B`);
   await page.screenshot({ path: path.join(ARTIFACTS, 'merge-result.png') });
@@ -157,8 +224,15 @@ async function main() {
   console.log('\n3. Organize tool');
   await page.goto(`${BASE}/tools/organize-pdf`, { waitUntil: 'networkidle' });
   await page.locator('input[type="file"]').setInputFiles([fileA]);
-  await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 3, 60_000, '3 thumbnails');
-  check('thumbnails rendered in worker (3 pages)', true);
+  const organizedThumbs = await waitFor(
+    async () => {
+      const n = await page.locator('img[alt^="Page "]').count();
+      return n === 3 ? n : null;
+    },
+    60_000,
+    '3 thumbnails',
+  );
+  check('thumbnails rendered in worker (3 pages)', organizedThumbs === 3, `${organizedThumbs} thumbnails`);
   check(
     'thumbnails are real images',
     await page.locator('img[alt="Page 1"]').evaluate((img) => img.naturalWidth > 0),
@@ -166,28 +240,43 @@ async function main() {
   await page.screenshot({ path: path.join(ARTIFACTS, 'organize-grid.png') });
 
   await page.getByRole('button', { name: 'Delete page' }).nth(1).click();
-  await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 2, 10_000, '2 thumbnails');
-  check('delete page works (3 → 2)', true);
+  const afterMarkDelete = await waitFor(
+    async () => {
+      const n = await page.locator('img[alt^="Page "]').count();
+      return n === 2 ? n : null;
+    },
+    10_000,
+    '2 thumbnails',
+  );
+  check('delete page works (3 → 2)', afterMarkDelete === 2, `${afterMarkDelete} thumbnails`);
 
   await page.getByRole('button', { name: /Save 2 pages/ }).click();
   await page.getByText('-organized.pdf').waitFor({ timeout: 60_000 });
   const orgDl = await downloadAndAssert(page, 'Download', 'pdf');
   check('organized output is a valid PDF', orgDl.ok, `${orgDl.name} ${orgDl.bytes.length}B`);
+  check('organize output is named -organized.pdf', orgDl.name.endsWith('-organized.pdf'), orgDl.name);
 
   /* 4. PDF to JPG */
   console.log('\n4. PDF to JPG tool');
   await page.goto(`${BASE}/tools/pdf-to-jpg`, { waitUntil: 'networkidle' });
   await page.locator('input[type="file"]').setInputFiles([fileA]);
-  await waitFor(
-    async () => (await page.getByText(/will produce 3 images/).count()) > 0,
+  const imgEstimate = await waitFor(
+    async () => page.getByText(/will produce 3 images/).first().textContent(),
     30_000,
     'options panel',
   );
-  check('inspect shows 3 pages / 3 images', true);
+  check('inspect shows 3 pages / 3 images', /3 images/.test(imgEstimate ?? ''), imgEstimate ?? '');
   await page.getByRole('button', { name: 'Convert to JPG' }).click();
   await page.getByText('Download ZIP').waitFor({ timeout: 90_000 });
-  await waitFor(async () => (await page.locator('figure img').count()) === 3, 30_000, '3 previews');
-  check('image previews rendered (3 pages)', true);
+  const previewCount = await waitFor(
+    async () => {
+      const n = await page.locator('figure img').count();
+      return n === 3 ? n : null;
+    },
+    30_000,
+    '3 previews',
+  );
+  check('image previews rendered (3 pages)', previewCount === 3, `${previewCount} previews`);
   check(
     'JPG format actually produces .jpg files',
     (await page.getByText('alpha-1.jpg').count()) > 0,
@@ -203,34 +292,54 @@ async function main() {
   await page.locator('input[type="file"]').setInputFiles([fileA]);
   await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 3, 60_000, '3 thumbnails');
   await page.getByRole('button', { name: 'Mark page 2 for deletion' }).click();
-  await waitFor(async () => (await page.getByText(/will remain/).count()) > 0, 5_000, 'marking feedback');
-  check('marking a page shows remain count', true);
+  const remainText = await waitFor(
+    async () => page.getByText(/will remain/).first().textContent(),
+    5_000,
+    'marking feedback',
+  );
+  // One of three pages is marked, so two must remain.
+  check('marking a page shows remain count', /\b2\b/.test(remainText ?? ''), remainText ?? '');
   await page.screenshot({ path: path.join(ARTIFACTS, 'delete-pages-marked.png') });
   await page.getByRole('button', { name: /Delete selected/ }).click();
-  await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 2, 10_000, '2 thumbnails after delete');
-  check('delete selected removes marked page (3 → 2)', true);
+  const afterDeleteSelected = await waitFor(
+    async () => {
+      const n = await page.locator('img[alt^="Page "]').count();
+      return n === 2 ? n : null;
+    },
+    10_000,
+    '2 thumbnails after delete',
+  );
+  check(
+    'delete selected removes marked page (3 → 2)',
+    afterDeleteSelected === 2,
+    `${afterDeleteSelected} thumbnails`,
+  );
   await page.getByRole('button', { name: /Save 2 pages/ }).click();
-  await page.getByText('-organized.pdf').waitFor({ timeout: 60_000 });
+  // Regression: all three grid tools run the same `organize` job, and without an
+  // explicit outputName it fell back to its own default -- so deleting pages
+  // produced "-organized.pdf".
+  await page.getByText('-deleted.pdf').waitFor({ timeout: 60_000 });
   const delDl = await downloadAndAssert(page, 'Download', 'pdf');
   check('delete output is a valid PDF', delDl.ok, `${delDl.name} ${delDl.bytes.length}B`);
+  check('delete output is named -deleted.pdf', delDl.name.endsWith('-deleted.pdf'), delDl.name);
 
   /* 6. Extract Pages */
   console.log('\n6. Extract Pages tool');
   await page.goto(`${BASE}/tools/extract-pages`, { waitUntil: 'networkidle' });
   await page.locator('input[type="file"]').setInputFiles([fileA]);
-  await waitFor(
-    async () => (await page.getByText(/will extract 3 pages/).count()) > 0,
+  const extractDefault = await waitFor(
+    async () => page.getByText(/will extract 3 pages/).first().textContent(),
     30_000,
     'extract options',
   );
-  check('inspect shows extract-all by default', true);
+  check('inspect shows extract-all by default', /3 pages/.test(extractDefault ?? ''), extractDefault ?? '');
   await page.getByLabel('Pages to extract').fill('1-2');
-  await waitFor(
-    async () => (await page.getByText(/will extract 2 pages/).count()) > 0,
+  const extractRecount = await waitFor(
+    async () => page.getByText(/will extract 2 pages/).first().textContent(),
     5_000,
     'range recount',
   );
-  check('range 1-2 recounts output (3 → 2)', true);
+  check('range 1-2 recounts output (3 → 2)', /2 pages/.test(extractRecount ?? ''), extractRecount ?? '');
   await page.getByRole('button', { name: /Extract 2 pages/ }).click();
   await page.getByText('-extracted.pdf').waitFor({ timeout: 60_000 });
   const extDl = await downloadAndAssert(page, 'Download', 'pdf');
@@ -242,26 +351,40 @@ async function main() {
   await page.locator('input[type="file"]').setInputFiles([fileA]);
   await waitFor(async () => (await page.locator('img[alt^="Page "]').count()) === 3, 60_000, '3 thumbnails');
   await page.getByRole('button', { name: 'Rotate page 1 right' }).click();
-  await waitFor(async () => (await page.getByText(/1 rotated/).count()) > 0, 5_000, 'rotation feedback');
-  check('per-page rotation tracked (1 rotated)', true);
+  const oneRotated = await waitFor(
+    async () => page.getByText(/1 rotated/).first().textContent(),
+    5_000,
+    'rotation feedback',
+  );
+  check('per-page rotation tracked (1 rotated)', /1 rotated/.test(oneRotated ?? ''), oneRotated ?? '');
   await page.getByRole('button', { name: 'Rotate all pages right' }).click();
-  await waitFor(async () => (await page.getByText(/4 rotated|3 rotated/).count()) > 0, 5_000, 'rotate all');
-  check('rotate-all turns remaining pages too', true);
+  const allRotated = await waitFor(
+    async () => page.getByText(/[34] rotated/).first().textContent(),
+    5_000,
+    'rotate all',
+  );
+  check(
+    'rotate-all turns remaining pages too',
+    /[34] rotated/.test(allRotated ?? '') && !/1 rotated/.test(allRotated ?? ''),
+    allRotated ?? '',
+  );
   await page.getByRole('button', { name: /Save 3 pages/ }).click();
-  await page.getByText('-organized.pdf').waitFor({ timeout: 60_000 });
+  // Same shared-job fallback as Delete Pages: rotating produced "-organized.pdf".
+  await page.getByText('-rotated.pdf').waitFor({ timeout: 60_000 });
   const rotDl = await downloadAndAssert(page, 'Download', 'pdf');
   check('rotated output is a valid PDF', rotDl.ok, `${rotDl.name} ${rotDl.bytes.length}B`);
+  check('rotate output is named -rotated.pdf', rotDl.name.endsWith('-rotated.pdf'), rotDl.name);
 
   /* 8. Split by pages */
   console.log('\n8. Split by pages tool');
   await page.goto(`${BASE}/tools/split-by-pages`, { waitUntil: 'networkidle' });
   await page.locator('input[type="file"]').setInputFiles([fileA]);
-  await waitFor(
-    async () => (await page.getByText(/will produce 3 files/).count()) > 0,
+  const partsEstimate = await waitFor(
+    async () => page.getByText(/will produce 3 files/).first().textContent(),
     30_000,
     'part estimate',
   );
-  check('chunk=1 estimates 3 parts', true);
+  check('chunk=1 estimates 3 parts', /3 files/.test(partsEstimate ?? ''), partsEstimate ?? '');
   await page.getByRole('button', { name: /Split into 3 files/ }).click();
   await page.getByText('alpha-split.zip').waitFor({ timeout: 60_000 });
   check('split ZIP names parts', (await page.getByText('alpha-part-1.pdf').count()) > 0);
@@ -272,12 +395,16 @@ async function main() {
   console.log('\n9. Alternate & Mix tool');
   await page.goto(`${BASE}/tools/alternate-mix`, { waitUntil: 'networkidle' });
   await page.locator('input[type="file"]').setInputFiles([fileA, fileB]);
-  await waitFor(
-    async () => (await page.getByText('A1, B1, A2, B2, A3, …').count()) > 0,
+  const interleave = await waitFor(
+    async () => page.getByText('A1, B1, A2, B2, A3, …').first().textContent(),
     30_000,
     'interleave pattern',
   );
-  check('interleave pattern preview shown', true);
+  check(
+    'interleave pattern preview shown',
+    /A1,\s*B1,\s*A2,\s*B2,\s*A3/.test(interleave ?? ''),
+    interleave ?? '',
+  );
   await page.getByRole('button', { name: /Mix 5 pages/ }).click();
   await page.getByText('-mixed.pdf').waitFor({ timeout: 60_000 });
   const mixDl = await downloadAndAssert(page, 'Download', 'pdf');
@@ -350,19 +477,19 @@ async function main() {
   console.log('\n14. N-up tool');
   await page.goto(`${BASE}/tools/n-up`, { waitUntil: 'networkidle' });
   await page.locator('input[type="file"]').setInputFiles([fileA]);
-  await waitFor(
-    async () => (await page.getByText(/2 sheets at 2-up/).count()) > 0,
+  const twoUp = await waitFor(
+    async () => page.getByText(/2 sheets at 2-up/).first().textContent(),
     30_000,
     'n-up estimate',
   );
-  check('2-up estimate shown (3 pages → 2 sheets)', true);
+  check('2-up estimate shown (3 pages → 2 sheets)', /2 sheets at 2-up/.test(twoUp ?? ''), twoUp ?? '');
   await page.getByRole('button', { name: /4-up/ }).click();
-  await waitFor(
-    async () => (await page.getByText(/1 sheet at 4-up/).count()) > 0,
+  const fourUp = await waitFor(
+    async () => page.getByText(/1 sheet at 4-up/).first().textContent(),
     5_000,
     '4-up recount',
   );
-  check('4-up recount (3 pages → 1 sheet)', true);
+  check('4-up recount (3 pages → 1 sheet)', /1 sheet at 4-up/.test(fourUp ?? ''), fourUp ?? '');
   await page.getByRole('button', { name: /Make 1 sheet/ }).click();
   await page.getByText('-4up.pdf').waitFor({ timeout: 60_000 });
   const nupDl = await downloadAndAssert(page, 'Download', 'pdf');
@@ -375,12 +502,15 @@ async function main() {
   await page.locator('input[accept*="application/pdf"]').setInputFiles([fileA]);
   await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'editor mounted');
   check('editor mounts with toolbar', await page.getByTestId('editor-toolbar').isVisible());
-  await waitFor(
-    async () => (await page.locator('[data-testid="editor-page-raster"]').count()) === 3,
+  const rasterCount = await waitFor(
+    async () => {
+      const n = await page.locator('[data-testid="editor-page-raster"]').count();
+      return n === 3 ? n : null;
+    },
     60_000,
     '3 page rasters',
   );
-  check('page rasters rendered (3 pages)', true);
+  check('page rasters rendered (3 pages)', rasterCount === 3, `${rasterCount} rasters`);
   await page.screenshot({ path: path.join(ARTIFACTS, 'edit-editor.png') });
 
   const editorPage = page.locator('[data-testid="editor-page"][data-page-index="0"]');
@@ -395,7 +525,8 @@ async function main() {
   await page.mouse.up();
   await page.getByTestId('editor-text-input').waitFor({ timeout: 15_000 });
   await page.getByTestId('editor-text-input').fill('Edited in the browser');
-  check('text box created and typed into', true);
+  const typedValue = await page.getByTestId('editor-text-input').inputValue();
+  check('text box created and typed into', typedValue === 'Edited in the browser', typedValue);
 
   // Ctrl+Z inside a text box must stay a *text* undo. Text edits are applied
   // with live (no history entry of their own), so a document-level undo here
@@ -418,12 +549,21 @@ async function main() {
   // Fit-width opening zoom, and relative zoom stepping from there.
   const fitZoom = await page.getByTestId('editor-zoom-level').textContent();
   await page.getByTestId('editor-zoom-out').click();
-  await waitFor(
-    async () => (await page.getByTestId('editor-zoom-level').textContent()) !== fitZoom,
+  const zoomedOut = await waitFor(
+    async () => {
+      const level = await page.getByTestId('editor-zoom-level').textContent();
+      return level !== fitZoom ? level : null;
+    },
     5_000,
     'zoom out changes level',
   );
-  check('zoom steps down from the fit-width default', true, `opened at ${fitZoom}`);
+  const fitPercent = Number(String(fitZoom).replace(/[^\d.]/g, ''));
+  const zoomedPercent = Number(String(zoomedOut).replace(/[^\d.]/g, ''));
+  check(
+    'zoom steps down from the fit-width default',
+    zoomedPercent < fitPercent,
+    `${fitZoom} → ${zoomedOut}`,
+  );
   await page.getByTestId('editor-zoom-in').click();
 
   // Highlight by drag.
@@ -434,46 +574,65 @@ async function main() {
   await page.mouse.down();
   await page.mouse.move(box.x + 240, box.y + 405, { steps: 6 });
   await page.mouse.up();
-  await waitFor(
-    async () => (await page.locator('[data-testid="editor-object-highlight"]').count()) === 1,
+  const highlightCount = await waitFor(
+    async () => {
+      const n = await page.locator('[data-testid="editor-object-highlight"]').count();
+      return n === 1 ? n : null;
+    },
     10_000,
     'highlight object',
   );
-  check('highlight created by dragging', true);
+  check('highlight created by dragging', highlightCount === 1, `${highlightCount} highlights`);
 
   // Undo / redo round trip.
   await page.getByTestId('editor-undo').click();
-  await waitFor(
+  const highlightsAfterUndo = await waitFor(
     async () => (await page.locator('[data-testid="editor-object-highlight"]').count()) === 0,
     5_000,
     'undo drops highlight',
   );
-  check('undo removes the highlight', true);
+  const highlightCountAfterUndo = await page.locator('[data-testid="editor-object-highlight"]').count();
+  check(
+    'undo removes the highlight',
+    highlightsAfterUndo === true && highlightCountAfterUndo === 0,
+    `${highlightCountAfterUndo} highlights left`,
+  );
   await page.getByTestId('editor-redo').click();
-  await waitFor(
-    async () => (await page.locator('[data-testid="editor-object-highlight"]').count()) === 1,
+  const afterRedo = await waitFor(
+    async () => {
+      const n = await page.locator('[data-testid="editor-object-highlight"]').count();
+      return n === 1 ? n : null;
+    },
     5_000,
     'redo restores highlight',
   );
-  check('redo restores the highlight', true);
+  check('redo restores the highlight', afterRedo === 1, `${afterRedo} highlights`);
 
   // Select + keyboard delete + undo.
   await page.getByTestId('editor-tool-select').click();
   await page.locator('[data-testid="editor-object-text"]').click();
   await page.keyboard.press('Delete');
-  await waitFor(
+  const afterDeleteKey = await waitFor(
     async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 0,
     5_000,
     'delete removes text',
   );
-  check('delete removes the selected object', true);
+  const textCountAfterDelete = await page.locator('[data-testid="editor-object-text"]').count();
+  check(
+    'delete removes the selected object',
+    afterDeleteKey === true && textCountAfterDelete === 0,
+    `${textCountAfterDelete} text objects`,
+  );
   await page.keyboard.press('Control+z');
-  await waitFor(
-    async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 1,
+  const afterRestoreKey = await waitFor(
+    async () => {
+      const n = await page.locator('[data-testid="editor-object-text"]').count();
+      return n === 1 ? n : null;
+    },
     5_000,
     'undo restores text',
   );
-  check('undo restores the deleted object', true);
+  check('undo restores the deleted object', afterRestoreKey === 1, `${afterRestoreKey} text object`);
 
   // Nudge and duplicate -- the two shortcuts every editor ships with.
   await page.locator('[data-testid="editor-object-text"]').click();
@@ -482,16 +641,18 @@ async function main() {
     .first()
     .evaluate((element) => parseFloat(element.style.left));
   await page.keyboard.press('ArrowRight');
-  await waitFor(
-    async () =>
-      (await page
+  const nudgedLeft = await waitFor(
+    async () => {
+      const left = await page
         .locator('[data-testid="editor-object-text"]')
         .first()
-        .evaluate((element) => parseFloat(element.style.left))) > leftBefore,
+        .evaluate((element) => parseFloat(element.style.left));
+      return left > leftBefore ? left : null;
+    },
     5_000,
     'arrow key nudges the object',
   );
-  check('arrow keys nudge the selection', true);
+  check('arrow keys nudge the selection', nudgedLeft > leftBefore, `${leftBefore} -> ${nudgedLeft}`);
   // A held arrow key must not push one undo step per repeat, or real edits get
   // buried under dozens of one-pixel steps. Assert the exact position: one
   // undo has to undo the whole burst.
@@ -514,19 +675,71 @@ async function main() {
     `${beforeBurst} -> ${afterBurst} -> undo -> ${afterUndo}`,
   );
   await page.keyboard.press('Control+d');
-  await waitFor(
-    async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 2,
+  const duplicated = await waitFor(
+    async () => {
+      const n = await page.locator('[data-testid="editor-object-text"]').count();
+      return n === 2 ? n : null;
+    },
     5_000,
     'duplicate inserts a second copy',
   );
-  check('Ctrl+D duplicates the object', true);
+  check('Ctrl+D duplicates the object', duplicated === 2, `${duplicated} text objects`);
   await page.keyboard.press('Control+z');
-  await waitFor(
-    async () => (await page.locator('[data-testid="editor-object-text"]').count()) === 1,
+  const deduped = await waitFor(
+    async () => {
+      const n = await page.locator('[data-testid="editor-object-text"]').count();
+      return n === 1 ? n : null;
+    },
     5_000,
     'undo removes the duplicate',
   );
-  check('undo removes the duplicate', true);
+  check('undo removes the duplicate', deduped === 1, `${deduped} text object`);
+
+  // Image objects need a blob URL that stays valid across re-renders. The URL
+  // used to be minted inside `useMemo` during render, where React may discard the
+  // memo's value; the cleanup then only revoked the committed copy, so a
+  // discarded render leaked a URL for the tab's lifetime. Assert the *live* one
+  // keeps working after an unrelated re-render, which is what an over-eager
+  // revoke would break.
+  const pngFixture = path.join(FIXTURES, 'swatch.png');
+  await writeFile(pngFixture, buildPng(48));
+  await page.getByTestId('editor-tool-image').click();
+  box = await editorPage.boundingBox();
+  await page.mouse.click(box.x + 120, box.y + 120);
+  await page.locator('input[accept="image/png,image/jpeg"]').setInputFiles([pngFixture]);
+  const imageObject = await page
+    .getByTestId('editor-object-image')
+    .first()
+    .waitFor({ timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  check('image object inserted from a PNG', imageObject === true);
+  const imageRendered = async () =>
+    page
+      .getByTestId('editor-object-image')
+      .first()
+      .evaluate((el) => {
+        const img = el.querySelector('img');
+        return Boolean(img && img.naturalWidth > 0);
+      })
+      .catch(() => false);
+  const imageDrew = await waitFor(imageRendered, 10_000, 'inserted image decodes');
+  check('inserted image actually decodes', imageDrew === true);
+  await page.getByTestId('editor-zoom-in').click();
+  await page.waitForTimeout(600);
+  check(
+    'image blob URL survives an unrelated re-render',
+    (await imageRendered()) === true,
+  );
+  // Remove it again so the save/export assertions below stay about one object.
+  await page.getByTestId('editor-tool-select').click();
+  await page.getByTestId('editor-object-image').click();
+  await page.getByTestId('editor-delete').click();
+  await waitFor(
+    async () => (await page.locator('[data-testid="editor-object-image"]').count()) === 0,
+    5_000,
+    'image object removed',
+  );
 
   // Z-order controls: select the lower object, then bring it forward.
   await page.locator('[data-testid="editor-object-text"]').click();
@@ -542,8 +755,13 @@ async function main() {
 
   // Save -> validated export -> download -> cross-pollination chips.
   await page.getByTestId('editor-save').click();
-  await page.getByText('-edited.pdf').waitFor({ timeout: 90_000 });
-  check('result panel shows alpha-edited.pdf', true);
+  await page.getByText('-edited.pdf').first().waitFor({ timeout: 90_000 });
+  const editedLabel = await page.getByText('-edited.pdf').first().textContent();
+  check(
+    'result panel shows alpha-edited.pdf',
+    /alpha-edited\.pdf/.test(editedLabel ?? ''),
+    editedLabel ?? '',
+  );
   const editDl = await downloadAndAssert(page, 'Download', 'pdf');
   check('edited output is a valid PDF', editDl.ok, `${editDl.name} ${editDl.bytes.length}B`);
   check('cross-pollination chips shown', await page.getByTestId('next-chip-organize-pdf').isVisible());
@@ -569,12 +787,17 @@ async function main() {
   );
   await page.locator('input[accept*="application/pdf"]').setInputFiles([fileA]);
   await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'editor reopened');
-  await waitFor(
+  const leftoverObjects = await waitFor(
     async () => (await page.locator('[data-testid^="editor-object-"]').count()) === 0,
     5_000,
     'no leftover objects',
   );
-  check('start over opens a clean document', true);
+  const leftoverCount = await page.locator('[data-testid^="editor-object-"]').count();
+  check(
+    'start over opens a clean document',
+    leftoverObjects === true && leftoverCount === 0,
+    `${leftoverCount} objects carried over`,
+  );
   await page.screenshot({ path: path.join(ARTIFACTS, 'edit-restarted.png') });
 
   // Swapping the file with "Change file" must re-render every page. Page
@@ -621,15 +844,117 @@ async function main() {
   );
   await page.screenshot({ path: path.join(ARTIFACTS, 'edit-swapped.png') });
 
-  /* 16. Planned tool page + 404 */
-  console.log('\n16. Routing');
+  /* 16. Client page cap */
+  // Regression: `checkClientCapacity` only enforces the 500-page cap when it is
+  // handed a page count, and most tools passed bytes alone. A document far over
+  // the cap was therefore accepted and then rendered/copied in the tab -- the
+  // exact "crashed tab loses the user's files" failure the guard exists for.
+  console.log('\n16. Client page cap');
+  const overCap = path.join(FIXTURES, 'over-cap.pdf');
+  await writeFile(overCap, buildPdf(501, 'OverCap'));
+
+  // Split in half never inspected at all before this, so it had no page count
+  // to check and accepted anything.
+  await page.goto(`${BASE}/tools/split-in-half`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([overCap]);
+  const splitCapMessage = await waitFor(
+    async () => page.getByText(/in-browser limit is 500/).first().textContent(),
+    45_000,
+    'page-cap refusal in split-in-half',
+  );
+  check(
+    'split-in-half refuses a 501-page document',
+    /501 pages.*in-browser limit is 500/s.test(splitCapMessage ?? ''),
+    (splitCapMessage ?? '').replace(/\s+/g, ' ').slice(0, 90),
+  );
+  check(
+    'no files accepted after the page cap refused it',
+    (await page.getByText('Every page gets cut into two halves.').count()) === 0,
+  );
+
+  // A representative single-file tool that used to check bytes only.
+  await page.goto(`${BASE}/tools/extract-pages`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([overCap]);
+  const extractCapMessage = await waitFor(
+    async () => page.getByText(/in-browser limit is 500/).first().textContent(),
+    45_000,
+    'page-cap refusal in extract-pages',
+  );
+  check(
+    'extract-pages refuses a 501-page document',
+    /501 pages.*in-browser limit is 500/s.test(extractCapMessage ?? ''),
+    (extractCapMessage ?? '').replace(/\s+/g, ' ').slice(0, 90),
+  );
+  check(
+    'page-cap message names the real count and limit',
+    /501 pages/.test(extractCapMessage ?? '') &&
+      /in-browser limit is 500/.test(extractCapMessage ?? ''),
+  );
+
+  // Control: the same tool must still accept a document under the cap, so the
+  // check above cannot be passing by refusing everything.
+  await page.goto(`${BASE}/tools/extract-pages`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA]);
+  const underCapText = await waitFor(
+    async () => page.getByText(/will extract 3 pages/).first().textContent(),
+    30_000,
+    'under-cap document still accepted',
+  );
+  check('documents under the cap are still accepted', /3 pages/.test(underCapText ?? ''), underCapText ?? '');
+
+  /* 17. Planned tool page + 404 */
+  console.log('\n17. Routing');
   await page.goto(`${BASE}/tools/compress-pdf`, { waitUntil: 'networkidle' });
   check('planned tool page renders', await page.getByText('In development').isVisible());
   await page.goto(`${BASE}/tools/does-not-exist`, { waitUntil: 'networkidle' });
   check('404 page renders', await page.getByText('This page went missing').isVisible());
 
+  /* 18. Recent history refreshes in-session */
+  // Regression: `useRecent` read IndexedDB once on mount, and the header is a
+  // persistent layout component. Every tool run recorded a new entry that the
+  // menu never showed until a full reload, so Recent was empty for the whole
+  // session no matter how many jobs the user completed.
+  console.log('\n18. Recent history');
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /All Tools/ }).hover();
+  const recentItems = page.locator('p:text-is("Recent")').locator('xpath=following-sibling::ul[1]/li');
+  const recentCount = await waitFor(
+    async () => {
+      const n = await recentItems.count();
+      return n > 0 ? n : null;
+    },
+    15_000,
+    'recent entries after tool runs',
+  );
+  const recentNames = await page
+    .locator('p:text-is("Recent")')
+    .first()
+    .locator('xpath=following-sibling::ul[1]')
+    .innerText();
+  check(
+    'recent history from this session shows without a reload',
+    recentCount > 0,
+    `${recentCount} entries`,
+  );
+  // Assert on the entries collectively rather than one named tool: each tool
+  // records its history fire-and-forget and this suite navigates away straight
+  // after a result, so which writes beat the teardown is not deterministic.
+  // Before the fix the header read IndexedDB once on mount and rendered none
+  // of these at all.
+  const recentToolNames = await page
+    .locator('p:text-is("Recent")')
+    .first()
+    .locator('xpath=following-sibling::ul[1]/li')
+    .evaluateAll((items) => items.map((item) => item.textContent?.trim() ?? ''));
+  check(
+    'recent history lists several tools run earlier in this session',
+    recentToolNames.length >= 3,
+    recentToolNames.join(' | ').slice(0, 90),
+  );
+  await page.screenshot({ path: path.join(ARTIFACTS, 'header-recent.png') });
+
   /* console health */
-  console.log('\n17. Console health');
+  console.log('\n19. Console health');
   const fatal = consoleErrors.filter(
     (text) => !text.includes('favicon') && !text.includes('Download the React DevTools'),
   );

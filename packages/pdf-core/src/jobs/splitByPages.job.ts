@@ -8,7 +8,7 @@
 import type { JobDefinition } from '../job.js';
 import { composePageRefs, refsForSpan } from '../ops/compose.js';
 import { probePageCount } from '../ops/pages.js';
-import { createZip, dedupeNames, stripExtension } from '../ops/zip.js';
+import { createZip, dedupeNames } from '../ops/zip.js';
 import { baseName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -63,7 +63,7 @@ export const splitByPagesJob: JobDefinition<SplitByPagesInput, SplitByPagesOutpu
       throw new Error(`That would create ${partCount} files (limit ${MAX_PARTS}). Use a larger chunk size.`);
     }
 
-    const stem = stripExtension(baseName(file.name));
+    const stem = baseName(file.name);
     const sources = [{ name: file.name, data: file.data, ...(file.password ? { password: file.password } : {}) }];
     const width = String(partCount).length;
 

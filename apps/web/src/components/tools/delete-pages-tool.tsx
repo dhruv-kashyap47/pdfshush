@@ -51,7 +51,12 @@ export function DeletePagesTool() {
 
     const outcome = await runner.run(
       await readAsInputFiles(files),
-      { pageOrder: tiles.map((tile) => ({ docIndex: tile.docIndex, pageIndex: tile.pageIndex })) },
+      {
+        pageOrder: tiles.map((tile) => ({ docIndex: tile.docIndex, pageIndex: tile.pageIndex })),
+        // Without this the shared `organize` job fell back to its own default
+        // and every tool downloaded as "-organized.pdf".
+        outputName: `${files[0]!.name.replace(/\.pdf$/i, '')}-deleted`,
+      },
       { timeoutMs: timeoutForPageCount(tiles.length) },
     );
     if (!outcome.ok) {

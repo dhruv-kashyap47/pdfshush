@@ -55,6 +55,17 @@ export function AlternateMixTool() {
       toast.error('One of those PDFs is password protected — unlock it first.');
       return;
     }
+    // Second capacity pass: mixing copies every page of both files, so the cap has
+    // to see the combined page count, not just the bytes.
+    const pageVerdict = checkClientCapacity({
+      fileCount: picked.length,
+      totalBytes: totalBytes(picked),
+      pageCount: docs.reduce((sum, doc) => sum + doc.pageCount, 0),
+    });
+    if (!pageVerdict.ok) {
+      toast.error(pageVerdict.message);
+      return;
+    }
     setFiles(picked);
     setCounts(docs.map((doc) => doc.pageCount));
   };

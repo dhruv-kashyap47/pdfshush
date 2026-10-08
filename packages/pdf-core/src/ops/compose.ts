@@ -99,13 +99,25 @@ export async function composeDocument(
     copied.push(byIndex);
   }
 
+  // A page dictionary can be placed in the output only once: pdf-lib inserts the
+  // same reference again rather than cloning it, so a second use of a page would
+  // share -- and clobber -- the rotation and crop applied to the first. Repeats
+  // get their own copy, taken from the untouched source document.
+  const placed = new Set<string>();
   for (let i = 0; i < refs.length; i += 1) {
     const ref = refs[i]!;
     ctx.throwIfAborted();
-    const page = copied[ref.docIndex]?.get(ref.pageIndex);
+    let page = copied[ref.docIndex]?.get(ref.pageIndex);
     if (!page) {
       throw new Error(`Page ${ref.pageIndex + 1} of document ${ref.docIndex + 1} does not exist`);
     }
+    const key = `${ref.docIndex}:${ref.pageIndex}`;
+    if (placed.has(key)) {
+      const [fresh] = await out.copyPages(docs[ref.docIndex] as PDFDocument, [ref.pageIndex]);
+      if (!fresh) throw new Error(`Could not duplicate page ${ref.pageIndex + 1}`);
+      page = fresh;
+    }
+    placed.add(key);
 
     // Per-page rotation beats the global option; `degrees()` wrapper required.
     const rotation = ref.rotateDegrees ?? (options.transform === 'rotate' ? options.rotateDegrees ?? 90 : undefined);
@@ -145,12 +157,17 @@ export async function composePageRefs(
 function applyCrop(page: PDFPage, crop: CropRect): void {
   const media = page.getMediaBox();
   // Intersect the requested rect with the media box; a rectangle poking outside
-  // the page shrinks to fit instead of being rejected.
+  // the page shrinks to fit instead of being rejected. The origin is clamped
+  // into the page first: a rectangle entirely off the page used to produce a
+  // CropBox outside the MediaBox, which every viewer renders as a blank page.
   const left = Math.max(media.x, crop.x);
   const bottom = Math.max(media.y, crop.y);
   const right = Math.min(media.x + media.width, crop.x + crop.width);
   const top = Math.min(media.y + media.height, crop.y + crop.height);
-  page.setCropBox(left, bottom, Math.max(1, right - left), Math.max(1, top - bottom));
+  if (right - left <= 0 || top - bottom <= 0) {
+    throw new Error('The crop area does not overlap the page');
+  }
+  page.setCropBox(left, bottom, right - left, top - bottom);
 }
 
 /** Inclusive span of pages from one document. */

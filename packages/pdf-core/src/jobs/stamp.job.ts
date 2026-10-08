@@ -9,7 +9,7 @@ import type { JobDefinition } from '../job.js';
 import { composeDocument, identityRefs, type PageRef } from '../ops/compose.js';
 import { probePageCount } from '../ops/pages.js';
 import { stampDocument, type StampContent, type StampStyle } from '../ops/stamp.js';
-import { baseName, toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
+import { baseName, safeOutputName, toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
 export type StampJobOptions = {
@@ -75,11 +75,10 @@ export const stampJob: JobDefinition<StampJobInput, StampJobOutput> = {
     );
 
     const bytes = await doc.save({ useObjectStreams: false });
-    const stem = options.outputName?.trim() || `${baseName(input.files[0]?.name ?? 'document')}-stamped`;
     return {
       data: toArrayBuffer(bytes),
       pageCount: refs.length,
-      fileName: stem.endsWith('.pdf') ? stem : `${stem}.pdf`,
+      fileName: safeOutputName(options.outputName, `${baseName(input.files[0]?.name ?? 'document')}-stamped`),
     };
   },
 };

@@ -13,8 +13,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts, rgb } from '@cantoo/pdf-lib';
 import { runJob, JobExecutionError } from '../src/jobs/runner.js';
 import { WorkDirStore } from '../src/files/store.js';
-import { jobPayloadSchema, JOB_ERROR_CODES, type JobPayload } from '../src/jobs/payload.js';
-import { normalizeReturnValue } from '../src/jobs/queue.js';
+import {
+  jobPayloadSchema,
+  formatFailure,
+  parseFailure,
+  JOB_ERROR_CODES,
+  type JobPayload,
+} from '../src/jobs/payload.js';
+import { isLiveStatus, normalizeReturnValue } from '../src/jobs/queue.js';
 
 const temps: string[] = [];
 
@@ -188,5 +194,52 @@ describe('queue return values', () => {
     ).toEqual({ files: [{ name: 'out.pdf', bytes: 10 }], pageCount: 3 });
     expect(normalizeReturnValue({ nothing: true })).toBeUndefined();
     expect(normalizeReturnValue(undefined)).toBeUndefined();
+  });
+});
+
+// Regression: BullMQ carries a failure as one plain string. The worker used to
+// throw a bare message, so the API read `job.failedReason` and every failure --
+// validation, timeout, cancellation, bad output -- reached clients as
+// `internal_error`, leaving every other code in the map unreachable.
+describe('failure reasons', () => {
+  it('round-trips every job error code through the wire format', () => {
+    for (const code of Object.values(JOB_ERROR_CODES)) {
+      const message = `something went wrong: ${code}`;
+      expect(parseFailure(formatFailure(code, message))).toEqual({ code, message });
+    }
+  });
+
+  it('keeps a multi-line message intact', () => {
+    const message = 'first line\nsecond line\n  third';
+    expect(parseFailure(formatFailure(JOB_ERROR_CODES.internal, message))).toEqual({
+      code: JOB_ERROR_CODES.internal,
+      message,
+    });
+  });
+
+  it('falls back to internal_error for anything unrecognised', () => {
+    expect(parseFailure('just a plain message')).toEqual({
+      code: JOB_ERROR_CODES.internal,
+      message: 'just a plain message',
+    });
+    expect(parseFailure(undefined)).toEqual({
+      code: JOB_ERROR_CODES.internal,
+      message: 'Job failed',
+    });
+    // A bracketed prefix that is not a real code must not be trusted.
+    expect(parseFailure('[not_a_code] oops').code).toBe(JOB_ERROR_CODES.internal);
+  });
+});
+
+// The janitor deletes a job directory when its age passes the TTL unless the
+// queue still owns it. Only these two states are terminal, so getting this
+// wrong in the permissive direction destroys the inputs of a live job.
+describe('job liveness', () => {
+  it('treats only completed and failed as terminal', () => {
+    expect(isLiveStatus('completed')).toBe(false);
+    expect(isLiveStatus('failed')).toBe(false);
+    for (const status of ['waiting', 'active', 'delayed', 'paused', 'waiting-children']) {
+      expect(isLiveStatus(status)).toBe(true);
+    }
   });
 });

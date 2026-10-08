@@ -4,7 +4,6 @@
 
 import type { JobDefinition } from '../job.js';
 import { imposePages, type NupCount, type NupSheet } from '../ops/nup.js';
-import { stripExtension } from '../ops/zip.js';
 import { baseName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -51,7 +50,7 @@ export const nUpJob: JobDefinition<NUpJobInput, NUpJobOutput> = {
       ctx,
     );
 
-    const stem = stripExtension(baseName(file.name));
+    const stem = baseName(file.name);
     return {
       data: toArrayBuffer(result.data),
       pageCount: result.pageCount,

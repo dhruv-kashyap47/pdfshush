@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Columns2, Loader2, Rows2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { type SplitHalfOutput } from '@pdfshush/pdf-core';
+import { type InspectOutput, type SplitHalfOutput } from '@pdfshush/pdf-core';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
 import { ResultPanel } from '@/components/tools/result-panel';
@@ -20,9 +20,11 @@ export function SplitHalfTool() {
   const [orientation, setOrientation] = useState<Orientation>('vertical');
 
   const runner = useJobRunner<SplitHalfOutput>('split-in-half');
-  const busy = runner.state.status === 'running';
+  // Inspect is what reveals the page count, which the client cap needs.
+  const inspectRunner = useJobRunner<InspectOutput>('inspect');
+  const busy = runner.state.status === 'running' || inspectRunner.state.status === 'running';
 
-  const handleFiles = (incoming: File[]) => {
+  const handleFiles = async (incoming: File[]) => {
     if (incoming.length === 0) {
       setFiles([]);
       return;
@@ -35,6 +37,29 @@ export function SplitHalfTool() {
     });
     if (!verdict.ok) {
       toast.error(verdict.message);
+      return;
+    }
+
+    const outcome = await inspectRunner.run(await readAsInputFiles([file]));
+    if (!outcome.ok) {
+      if (!outcome.aborted) toast.error(outcome.message);
+      return;
+    }
+    const doc = outcome.result.documents[0];
+    if (!doc) return;
+    if (doc.encrypted) {
+      toast.error('That PDF is password protected - unlock it first.');
+      return;
+    }
+    // Second capacity pass: cutting 600 pages doubles the page count in the
+    // output, and the byte check above cannot see it.
+    const pageVerdict = checkClientCapacity({
+      fileCount: 1,
+      totalBytes: file.size,
+      pageCount: doc.pageCount,
+    });
+    if (!pageVerdict.ok) {
+      toast.error(pageVerdict.message);
       return;
     }
     setFiles([file]);

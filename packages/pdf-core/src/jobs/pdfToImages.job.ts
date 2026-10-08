@@ -1,7 +1,7 @@
 import type { JobDefinition } from '../job.js';
 import { renderPages, type ImageFormat, type RenderedImage } from '../render/renderPage.js';
 import { probePageCount } from '../ops/pages.js';
-import { createZip, dedupeNames, pageFileName, stripExtension } from '../ops/zip.js';
+import { createZip, dedupeNames, pageFileName } from '../ops/zip.js';
 import { baseName, toArrayBuffer, totalInputBytes } from './helpers.js';
 import { LIMITS } from '../limits.js';
 
@@ -37,6 +37,19 @@ export const pdfToImagesJob: JobDefinition<PdfToImagesInput, PdfToImagesOutput> 
   validate(input) {
     if (input.files.length !== 1) {
       return { ok: false, issues: [{ message: 'Choose exactly one PDF' }] };
+    }
+    // Options arrive from postMessage / the API: an unknown format would be
+    // returned with an undefined MIME type while the file name said otherwise.
+    const format = input.options?.format;
+    if (format !== undefined && format !== 'png' && format !== 'jpeg') {
+      return { ok: false, issues: [{ message: 'Image format must be png or jpeg' }] };
+    }
+    const width = input.options?.targetWidthPx;
+    if (width !== undefined && (!Number.isFinite(width) || width < 16 || width > LIMITS.tool.maxImagePixels)) {
+      return {
+        ok: false,
+        issues: [{ message: `Image width must be between 16 and ${LIMITS.tool.maxImagePixels} px` }],
+      };
     }
     return { ok: true };
   },
@@ -75,7 +88,7 @@ export const pdfToImagesJob: JobDefinition<PdfToImagesInput, PdfToImagesOutput> 
       file.password,
     );
 
-    const stem = stripExtension(baseName(file.name));
+    const stem = baseName(file.name);
     const ext = format === 'jpeg' ? 'jpg' : 'png';
     const names = dedupeNames(pageIndexes.map((_, i) => pageFileName(stem, i + 1, pageIndexes.length, ext)));
     const images = rendered.map((image, i) => ({

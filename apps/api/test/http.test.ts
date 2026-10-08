@@ -14,8 +14,9 @@ import { createApp } from '../src/http/app.js';
 import { createContext, jobToken, type ApiContext } from '../src/context.js';
 import { WorkDirStore } from '../src/files/store.js';
 import { MemoryQuotaStore } from '../src/quota/store.js';
-import type { JobQueue } from '../src/jobs/queue.js';
+import type { CancelOutcome, JobQueue } from '../src/jobs/queue.js';
 import type { JobPayload, JobStateSnapshot } from '../src/jobs/payload.js';
+import { isCancelRequested } from '../src/jobs/cancel.js';
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -37,8 +38,17 @@ class FakeQueue implements JobQueue {
     return this.states.get(jobId);
   }
 
-  async cancel(jobId: string): Promise<boolean> {
-    return this.states.delete(jobId);
+  /**
+   * Mirrors `BullJobQueue.cancel` exactly, so a test that sets a job state gets
+   * the same outcome the real queue would produce for that state.
+   */
+  async cancel(jobId: string): Promise<CancelOutcome> {
+    const snapshot = this.states.get(jobId);
+    if (!snapshot) return 'unknown';
+    if (snapshot.status === 'active') return 'running';
+    if (snapshot.status === 'completed' || snapshot.status === 'failed') return 'finished';
+    this.states.delete(jobId);
+    return 'removed';
   }
 
   async counts() {
@@ -196,6 +206,32 @@ describe('POST /api/jobs', () => {
       body: JSON.stringify({ slug: 'merge' }),
     });
     expect(response.status).toBe(400);
+  });
+
+  // Regression: `options` was silently truncated at 8192 characters. A large page
+// order was cut mid-JSON, so the request was rejected as "not valid JSON" --
+// blaming the format for what is actually an over-limit field.
+it('refuses an oversized options field with the real reason', async () => {
+    const pdf = await samplePdf();
+    const { url, store } = await harness();
+    // Valid JSON, comfortably over the field limit: only the size can reject it.
+    const oversized = JSON.stringify({ note: 'x'.repeat(9_000) });
+    expect(JSON.parse(oversized)).toBeTruthy();
+    const { body, contentType } = multipart({ slug: 'merge', options: oversized }, [
+      { name: 'one.pdf', data: pdf },
+    ]);
+
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as { error: string };
+    expect(payload.error).toContain('options');
+    expect(payload.error).toMatch(/9000|limit/i);
+    // Nothing left behind for the rejected job.
+    expect((await store.usage()).jobDirs).toBe(0);
   });
 
   it('refuses an unsupported file type', async () => {
@@ -357,5 +393,82 @@ describe('job ownership', () => {
     });
     expect(response.status).toBe(404);
     expect(((await response.json()) as { code: string }).code).toBe('result_not_found');
+  });
+});
+
+/**
+ * `cancel()` returns four distinct outcomes and the route must answer each one
+ * differently. Previously it was a boolean, so "already finished" and "unknown"
+ * were both reported as `202 cancelling` -- telling the caller to keep polling
+ * for a change that could never arrive, and writing a cancel marker that
+ * nothing would ever clear.
+ */
+describe('DELETE /api/jobs/:id', () => {
+  async function queued(harnessResult: Awaited<ReturnType<typeof harness>>) {
+    const jobId = 'a'.repeat(32);
+    harnessResult.queue.complete(jobId, { status: 'queued' });
+    return jobId;
+  }
+
+  const cancel = (url: (s: string) => string, pepper: string, jobId: string) =>
+    fetch(url(`/api/jobs/${jobId}`), {
+      method: 'DELETE',
+      headers: { 'x-job-token': jobToken(pepper, jobId) },
+    });
+
+  it('removes a queued job outright (200)', async () => {
+    const h = await harness();
+    const jobId = await queued(h);
+
+    const response = await cancel(h.url, h.context.pepper, jobId);
+    expect(response.status).toBe(200);
+    expect((await response.json()) as { status: string }).toEqual({ status: 'cancelled' });
+    // A removed job needs no cooperative marker.
+    expect(await isCancelRequested(h.store, jobId)).toBe(false);
+  });
+
+  it('asks a running job to stop cooperatively (202)', async () => {
+    const h = await harness();
+    const jobId = 'b'.repeat(32);
+    h.queue.complete(jobId, { status: 'active' });
+
+    const response = await cancel(h.url, h.context.pepper, jobId);
+    expect(response.status).toBe(202);
+    expect((await response.json()) as { status: string }).toEqual({ status: 'cancelling' });
+    // The worker polls this marker, so it must exist.
+    expect(await isCancelRequested(h.store, jobId)).toBe(true);
+  });
+
+  // Regression: a finished job used to answer 202 "cancelling" and leave a
+  // cancel marker behind that no worker would ever read or clear.
+  it('refuses a job that has already finished (409) and writes no marker', async () => {
+    for (const status of ['completed', 'failed'] as const) {
+      const h = await harness();
+      const jobId = 'c'.repeat(32);
+      h.queue.complete(jobId, { status });
+
+      const response = await cancel(h.url, h.context.pepper, jobId);
+      expect(response.status).toBe(409);
+      const payload = (await response.json()) as { code: string };
+      expect(payload.code).toBe('not_cancellable');
+      expect(await isCancelRequested(h.store, jobId)).toBe(false);
+    }
+  });
+
+  it('404s an unknown job', async () => {
+    const h = await harness();
+    const response = await cancel(h.url, h.context.pepper, 'z'.repeat(32));
+    expect(response.status).toBe(404);
+    expect(((await response.json()) as { code: string }).code).toBe('unknown_job');
+  });
+
+  it('requires the ownership token', async () => {
+    const h = await harness();
+    const jobId = await queued(h);
+    const response = await fetch(h.url(`/api/jobs/${jobId}`), { method: 'DELETE' });
+    expect(response.status).toBe(403);
+    expect(((await response.json()) as { code: string }).code).toBe('forbidden');
+    // A wrong token must not cancel anything.
+    expect(await h.queue.state(jobId)).toBeDefined();
   });
 });

@@ -20,14 +20,16 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P1 — Top-10 tools** | 10 client-side tools off the existing engine (delete/extract/rotate/split/mix/stamp/crop/n-up) | ✅ **Done (2026-10-07)** — see §6 |
 | **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ✅ **Done (2026-10-07)** — see §10 |
 | **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ✅ **Done (2026-10-08)** — see §11 |
+| **Audit remediation (P0/P1/P2)** | Full-codebase audit fixes: output contracts, page cap, filenames, cancel contract, janitor, recent history | ✅ **Done (2026-10-08)** — see §14 |
 | **P4 — Accounts & workflows** | Anonymous-first JWT/OAuth, saved history, workflow builder | ⬜ |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** P3 shipped — **hardening gate passed** (kill -9 mid-job → no orphans,
-queue recovers, limits hold). 14 of 53 tools live · 8 of them also runnable server-side ·
-142/142 unit tests · 62/62 browser E2E · 21/21 API integration · 17/17 hardening.
+**Current gate:** audit remediation shipped — all P0/P1/P2 findings closed. 14 of 53 tools
+live · 8 of them also runnable server-side · **154/154 unit** (88 engine + 66 API) ·
+**75/75 browser E2E** · 21/21 API integration · 17/17 hardening · bundle 688 kB, 0 pdf-lib/pdf.js
+in the main chunk.
 **Next: P4** (accounts & workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` —
 **run the pre-push secret/PII grep before every push** (see §9 tooling).
 
@@ -413,6 +415,20 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-08 — Audit remediation complete.** Full-repository audit → all P0/P1/P2 closed.
+  7 P0s (split jobs returned a JSON stub not a ZIP; every server result named `output.pdf`;
+  leaked job dirs on rejected uploads; duplicate page refs aliased one page dict; disjoint
+  crop produced a blank page; the 500-page cap enforced by only 4 of 13 tools; cancelled
+  jobs were retried to completion). 23 P1s (failure codes all collapsed to `internal_error`;
+  `DELETE` answered `202` for finished jobs and leaked a cancel marker; janitor aged by
+  creation time and could delete a backlogged job's inputs; per-process pepper wiped all
+  tokens and quotas on restart; `TRUST_PROXY=true` let a client choose its own quota identity;
+  Recent history frozen for the session; blob URLs minted in `useMemo`; hard text-break only
+  on the first word; stamp ignoring CropBox/`/Rotate`; `split-in-half` cutting the wrong axis on
+  rotated pages; and more). 3 P2s — chiefly that **29 of 64 E2E assertions asserted a literal
+  `true`**, which is why the output-naming bugs survived three audits; all now assert real
+  conditions. 49 files, +1438/−327. Gates: typecheck 3/3 · **154/154 unit** · **75/75 E2E** ·
+  **21/21** API · **17/17** hardening · bundle 688 kB. Detail in §14.
 - **2026-10-07 — P0 complete.** Scaffold, `pdf-core` (21 tests), web app, 3 live tools,
   mega menu + catalog, E2E suite (17 checks), bundle-size fix, initial commit `f16ae4e`.
   *Fixed en route:* missing Router, dropped pool options, JPG→JPEG format mismatch,
@@ -774,3 +790,88 @@ defect and watching the check go red, not by assertion that it should:
 **Gates:** typecheck ✓ 3 packages · **142/142 unit** (88 engine + 54 API) · **62/62** browser
 E2E · **21/21** API integration · **17/17** hardening · web bundle 685 kB, 0 pdf-lib/pdf.js
 refs · pre-push grep clean.
+
+---
+
+## 14. Audit remediation sign-off (2026-10-08)
+
+A full-repository audit (all 4 packages, not a sample) produced a P0/P1/P2 list. Every item
+is closed; each behavioural fix is pinned by a test proven red without it.
+
+### The seven P0s
+
+| # | Defect | Fix | Proof |
+| --- | --- | --- | --- |
+| 1 | `split-in-half` / `split-by-pages` returned a **156-byte JSON stub**, not the ZIP | `runner.ts` output visitor reads `record.zip` under `record.zipName` | API integration downloads a real ZIP |
+| 2 | merge / n-up / stamp / organize all downloaded as `output.pdf` | visitor also accepts `record.fileName` and `record.name` | E2E asserts the exact filenames |
+| 3 | a request rejected at the content-type check left an empty job dir forever, unmetered | dir created after every fail-fast check; `removeJob` on **all 5** failure paths incl. enqueue failure | `jobDirs === 0` after every reject |
+| 4 | duplicate page refs shared one page dict — `[90,270]` became `[270,270]` | each repeat gets its own `copyPages` clone | engine suite |
+| 5 | a crop box fully outside the page produced a **blank page** | disjoint rect now raises *"The crop area does not overlap the page"* | engine suite |
+| 6 | the 500-page client cap was enforced by **4 of 13** tools | second capacity pass after inspect in every tool; `split-in-half` gained an inspect | E2E: 501-page fixture refused, 3-page accepted |
+| 7 | a cancelled job was **retried and ran to completion** (`attempts: 2`) | `UnrecoverableError` when the abort signal fired | processor suite |
+
+**Deliberately not done:** rejected uploads are still not charged quota. With #3 fixed nothing
+reaches disk, so there is no resource to meter, and charging task quota would penalise a user
+for a typo — a product decision, not a bug.
+
+### The P1s
+
+- **Job failure codes were lost.** Every failure reached clients as `internal_error`, making
+  the whole `JOB_ERROR_CODES` map unreachable. Added `formatFailure` / `parseFailure`
+  (one wire format, both ends) and `CancelOutcome` (`removed`/`running`/`finished`/`unknown`).
+- **`DELETE /api/jobs/:id` answered `202 "cancelling"` for a job that had already finished**,
+  telling the caller to keep polling for a change that could never come — and writing a cancel
+  marker nothing would ever clear. Now `200` / `202` / `404` / `409`.
+- **The janitor aged jobs by creation time** and never swept `control/`. Now ages by mtime,
+  sweeps orphaned cancel markers, and takes an `isLive` predicate so a **backlogged job's inputs
+  can no longer be deleted underneath it** (wired in both `server.ts` and `worker/host.ts`).
+- **The pepper was random per process**, so every restart invalidated all job tokens and reset
+  all quotas. Now persisted at `work/control/pepper` (mode 0600, written `wx`).
+- **`TRUST_PROXY=true` trusted every client-supplied `X-Forwarded-For`**, letting anyone pick
+  their own quota identity. Now a hop count (0–10).
+- **`EMBEDDED_WORKER` unset became `false`**, so its environment-dependent default never ran.
+- Duplicate upload names no longer overwrite each other (`-2`, `-3`); the `options` field is
+  refused **with its real size** instead of being truncated at 8192 and blamed as bad JSON;
+  bad multipart is a 400, not a 500; unused `CORS_ORIGINS` removed.
+- Engine: hard text-break now applies to *every* line (was first-word only); stamp honours
+  CropBox and `/Rotate` and its `clamp` is NaN-safe; `split-in-half` cuts in display space so
+  "left/right" on a `/Rotate 90` page is really left/right; `geometry.ts` normalises box corners
+  *before* intersecting; a rect with neither fill nor stroke draws nothing instead of a black
+  box; `createZip` dedupes entries; `stripExtension(baseName(...))` no longer double-strips
+  `report.final.pdf`; one shared `safeOutputName`; a failed pdf.js load releases its worker;
+  oversized renders are refused up front.
+- Web: **Recent history never refreshed** — `useRecent` read IndexedDB once on mount while the
+  header is a persistent layout component, so the menu stayed empty for the whole session.
+  Added a subscription the store notifies on write.
+- Web: `createObjectURL` moved out of `useMemo` into an effect. `useMemo` may discard its value
+  (StrictMode double-invoke, a re-render before commit) and only the *committed* URL was ever
+  revoked, leaking one per discarded render.
+
+### The P2s
+
+- **29 of 64 E2E assertions asserted a literal `true`**, passing only because a preceding
+  `waitFor` had thrown — which is precisely why the output-naming bugs survived three rounds.
+  **All 64 now assert real conditions**, and the suite grew to **75 checks**.
+- Unit coverage added for the failure-code round trip and the liveness predicate.
+- `DELETE /api/jobs/:id` had **zero** coverage (the only `.delete(` in the suite was inside the
+  fake). Now 5 tests over all four outcomes.
+
+### Two corrections to the audit itself
+
+- `pdf-to-images-tool` **already enforced** the page cap; the original grep reported only the
+  first of its two `checkClientCapacity` call sites. Real count was 8 tools, not 7.
+- All **three** grid tools (not two) shared the `-organized.pdf` fallback, because all three run
+  the same `organize` job.
+
+### Known issues left open (deliberately)
+
+- The `worker` container inherits the Dockerfile `HEALTHCHECK`, which curls `/api/health` — but
+  the worker runs `dist/worker-host.js` and serves no HTTP. It therefore reports **unhealthy**
+  forever. Harmless (`restart: unless-stopped` ignores health), but noisy in `compose ps`.
+- Recent-history writes are fire-and-forget; navigating away immediately after a result can
+  abort the IndexedDB write, so a tool may not appear in Recent. Acceptable, and the E2E
+  asserts on the entry set rather than one named tool for this reason.
+
+**Gates:** typecheck ✓ 3 packages · **154/154 unit** (88 engine + 66 API) · **75/75** browser
+E2E · **21/21** API integration · **17/17** hardening · web bundle 688 kB with 0 pdf-lib/pdf.js
+refs in the main chunk · pre-push secret/PII/dangerous-sink grep clean.

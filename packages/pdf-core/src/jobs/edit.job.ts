@@ -11,7 +11,7 @@ import type { JobDefinition } from '../job.js';
 import { applyEdits, validateExport, type EditorObject } from '../ops/edit.js';
 import { applyFormValues } from '../ops/forms.js';
 import { loadPdfDocument } from '../ops/pages.js';
-import { baseName, toArrayBuffer, totalInputBytes } from './helpers.js';
+import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 import { LIMITS } from '../limits.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -91,29 +91,8 @@ export const editJob: JobDefinition<EditJobInput, EditJobOutput> = {
     await validateExport(saved, expectedPages);
 
     const stem = baseName(file.name).replace(/\.pdf$/i, '');
-    const name = safeOutputName(input.options?.outputName, stem);
+    const name = safeOutputName(input.options?.outputName, `${stem}-edited`);
 
     return { data: toArrayBuffer(saved), name, pageCount: expectedPages, validated: true };
   },
 };
-
-/**
- * Output filename from an untrusted request: no directories, no traversal, no
- * control characters, always `.pdf`. The browser download attribute already
- * sanitizes, but P6 writes this name to disk -- it must be safe there first.
- */
-function safeOutputName(requested: string | undefined, stem: string): string {
-  const fallback = `${stem}-edited.pdf`;
-  if (typeof requested !== 'string') return fallback;
-  const trimmed = requested.trim();
-  if (!trimmed) return fallback;
-  const base = trimmed.split(/[\\/]/).pop() ?? '';
-  const cleaned = base
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001f\u007f]/g, '')
-    .replace(/^\.+/, '')
-    .trim()
-    .slice(0, 120);
-  if (!cleaned) return fallback;
-  return /\.pdf$/i.test(cleaned) ? cleaned : `${cleaned}.pdf`;
-}

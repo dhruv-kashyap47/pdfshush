@@ -143,16 +143,18 @@ export function wrapTextToWidth(
       const candidate = line.length === 0 ? word : `${line} ${word}`;
       if (measure(candidate) <= maxWidth || line.length === 0) {
         line = candidate;
-        // A single word wider than the box: hard-break what fits.
-        while (line.length > 1 && measure(line) > maxWidth) {
-          let cut = line.length - 1;
-          while (cut > 1 && measure(line.slice(0, cut)) > maxWidth) cut -= 1;
-          lines.push(line.slice(0, cut));
-          line = line.slice(cut);
-        }
       } else {
         lines.push(line);
         line = word;
+      }
+      // A word wider than the box is hard-broken wherever it landed -- at the
+      // start of a line (the first word) or after other words (a long URL that
+      // follows a short word used to overflow).
+      while (line.length > 1 && measure(line) > maxWidth) {
+        let cut = line.length - 1;
+        while (cut > 1 && measure(line.slice(0, cut)) > maxWidth) cut -= 1;
+        lines.push(line.slice(0, cut));
+        line = line.slice(cut);
       }
     }
     lines.push(line);
@@ -164,7 +166,7 @@ export function wrapTextToWidth(
  * The angle (CCW degrees) that makes drawn content read left-to-right *in
  * display space*: display +x mapped into PDF space.
  */
-function displayAngle(g: PageGeom): number {
+export function displayAngle(g: PageGeom): number {
   switch (g.rot) {
     case 90:
       return 90;
@@ -626,6 +628,9 @@ function hashBytes(bytes: Uint8Array): string {
 }
 
 function drawRect(page: PDFPage, geom: PageGeom, object: EditRectObject): void {
+  // Neither fill nor stroke means the object is invisible, not an opaque black box:
+  // pdf-lib's default fill colour is black.
+  if (!object.fill && !object.stroke) return;
   const box = viewRectToPdf(geom, object);
   const stroke = object.stroke ? parseHexColor(object.stroke, rgb(0, 0, 0)) : undefined;
   page.drawRectangle({
@@ -644,6 +649,7 @@ function drawRect(page: PDFPage, geom: PageGeom, object: EditRectObject): void {
 }
 
 function drawEllipse(page: PDFPage, geom: PageGeom, object: EditRectObject): void {
+  if (!object.fill && !object.stroke) return;
   const box = viewRectToPdf(geom, object);
   const stroke = object.stroke ? parseHexColor(object.stroke, rgb(0, 0, 0)) : undefined;
   page.drawEllipse({

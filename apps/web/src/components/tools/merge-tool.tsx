@@ -106,6 +106,18 @@ export function MergeTool() {
     }
 
     const pages = entries.reduce((sum, entry) => sum + (entry.pageCount ?? 20), 0);
+    // Merging copies every page of every file, so the cap is checked here rather
+    // than at upload time -- that is the first point the combined total is known.
+    const pageVerdict = checkClientCapacity({
+      fileCount: entries.length,
+      totalBytes: totalBytes(entries.map((entry) => entry.file)),
+      pageCount: pages,
+    });
+    if (!pageVerdict.ok) {
+      toast.error(pageVerdict.message);
+      return;
+    }
+    announceCapacityWarning(pageVerdict);
     const outcome = await mergeRunner.run(
       await readAsInputFiles(entries.map((entry) => entry.file)),
       { reverse },

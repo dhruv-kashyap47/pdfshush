@@ -10,8 +10,9 @@
  * how BullMQ expects a sandboxed processor to export.
  */
 
+import { UnrecoverableError } from 'bullmq';
 import { runJob, JobExecutionError } from '../jobs/runner.js';
-import { jobPayloadSchema, type JobPayload } from '../jobs/payload.js';
+import { JOB_ERROR_CODES, formatFailure, jobPayloadSchema, type JobPayload } from '../jobs/payload.js';
 import { clearCancel, watchForCancel } from '../jobs/cancel.js';
 import { WorkDirStore } from '../files/store.js';
 
@@ -41,10 +42,16 @@ export async function processJob(job: ProcessorJob): Promise<unknown> {
       { jobId: payload.jobId, slug: payload.slug, message: error instanceof Error ? error.message : String(error) },
       'job failed',
     );
+    // A cancelled job must not be retried. BullMQ re-runs an ordinary failure
+    // (attempts: 2), and the retry used to run the job to completion after the
+    // user had been told it was cancelled.
+    if (controller.signal.aborted) {
+      throw new UnrecoverableError(formatFailure(JOB_ERROR_CODES.aborted, 'Job was cancelled'));
+    }
     // Fail the job with a stable, machine-readable reason.
-    const code = error instanceof JobExecutionError ? error.code : 'internal_error';
+    const code = error instanceof JobExecutionError ? error.code : JOB_ERROR_CODES.internal;
     const message = error instanceof Error ? error.message : String(error);
-    throw Object.assign(new Error(message), { name: 'JobExecutionError', code });
+    throw Object.assign(new Error(formatFailure(code, message)), { name: 'JobExecutionError', code });
   } finally {
     stopWatching();
     await clearCancel(store, payload.jobId);

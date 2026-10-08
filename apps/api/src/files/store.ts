@@ -9,7 +9,7 @@
  */
 
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, rename, rm, stat, readdir } from 'node:fs/promises';
+import { mkdir, rename, rm, stat, readdir, utimes } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -73,6 +73,9 @@ export class WorkDirStore {
     let received = 0;
     source.on('data', (chunk: Buffer | string) => {
       received += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+      // Stop at the cap while streaming. Checking after the pipeline finished
+      // meant an oversized file was fully written before it was rejected.
+      if (received > maxBytes) source.destroy(new UploadTooLargeError(maxBytes, received));
     });
 
     try {
@@ -81,10 +84,7 @@ export class WorkDirStore {
       await rm(target, { force: true });
       throw error;
     }
-    if (received > maxBytes) {
-      await rm(target, { force: true });
-      throw new UploadTooLargeError(maxBytes, received);
-    }
+    await this.touchJob(jobId);
     return { name, path: target, bytes: received };
   }
 
@@ -105,7 +105,23 @@ export class WorkDirStore {
       await rm(temporary, { force: true }).catch(() => undefined);
       throw error;
     }
+    await this.touchJob(jobId);
     return { name: path.basename(target), path: target, bytes: data.byteLength };
+  }
+
+  /**
+   * Marks a job directory as recently active. The janitor ages a job by this
+   * timestamp, so a job that is still queued or running must keep refreshing it;
+   * otherwise its inputs are deleted from underneath it.
+   */
+  async touchJob(jobId: string): Promise<void> {
+    const now = new Date();
+    await utimes(resolveWithin(this.jobsDir, jobId), now, now).catch(() => undefined);
+  }
+
+  /** Directory holding cancel markers. Outside `jobs/`, so it needs its own sweep. */
+  get controlDir(): string {
+    return path.join(this.root, 'control', 'cancel.request');
   }
 
   async statResult(jobId: string, name: string) {
@@ -126,44 +142,65 @@ export class WorkDirStore {
     await rm(resolveWithin(this.jobsDir, jobId), { recursive: true, force: true });
   }
 
-  /** Removes job directories untouched for longer than `maxAgeMs`. */
-  async sweep(maxAgeMs: number, now: number = Date.now()): Promise<string[]> {
-    let entries: string[];
-    try {
-      entries = await readdir(this.jobsDir, { withFileTypes: true })
-        .then((list) => list.filter((entry) => entry.isDirectory()).map((entry) => entry.name));
-    } catch {
-      return [];
-    }
-
+  /**
+   * Removes job directories untouched for longer than `maxAgeMs`, and cancel
+   * markers of the same age. `isLive` lets the caller keep a job the queue still
+   * owns: age alone is not proof a job is finished when the queue is backlogged.
+   */
+  async sweep(
+    maxAgeMs: number,
+    now: number = Date.now(),
+    isLive?: (jobId: string) => Promise<boolean>,
+  ): Promise<string[]> {
     const removed: string[] = [];
+    const entries = await this.listDirectories(this.jobsDir);
+
     for (const entry of entries) {
       const directory = resolveWithin(this.jobsDir, entry);
       try {
         const info = await stat(directory);
-        // Freshly modified means either running or recently finished: keep it.
+        // Freshly touched means queued, running or recently finished: keep it.
         if (now - info.mtimeMs < maxAgeMs) continue;
+        if (isLive && (await isLive(entry))) continue;
         await rm(directory, { recursive: true, force: true });
         removed.push(entry);
       } catch {
         // Vanished between readdir and stat -- that is success, not failure.
       }
     }
+
+    // Cancel markers that nothing consumed (the job finished, was killed, or was
+    // never running). Nothing else removes them.
+    try {
+      for (const marker of await readdir(this.controlDir)) {
+        try {
+          const info = await stat(resolveWithin(this.controlDir, marker));
+          if (now - info.mtimeMs < maxAgeMs) continue;
+          await rm(resolveWithin(this.controlDir, marker), { force: true });
+        } catch {
+          // Already gone.
+        }
+      }
+    } catch {
+      // No markers directory yet.
+    }
     return removed;
+  }
+
+  private async listDirectories(directory: string): Promise<string[]> {
+    try {
+      const list = await readdir(directory, { withFileTypes: true });
+      return list.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    } catch {
+      return [];
+    }
   }
 
   /** Diagnostic used by `/api/health` and the hardening test. */
   async usage(): Promise<{ jobDirs: number; bytes: number }> {
-    let jobDirs = 0;
     let bytes = 0;
-    let entries: string[] = [];
-    try {
-      entries = await readdir(this.jobsDir);
-    } catch {
-      return { jobDirs: 0, bytes: 0 };
-    }
+    const entries = await this.listDirectories(this.jobsDir);
     for (const entry of entries) {
-      jobDirs += 1;
       const directory = resolveWithin(this.jobsDir, entry);
       for await (const file of walk(directory)) {
         try {
@@ -173,10 +210,9 @@ export class WorkDirStore {
         }
       }
     }
-    return { jobDirs, bytes };
+    return { jobDirs: entries.length, bytes };
   }
 }
-
 async function* walk(directory: string): AsyncGenerator<string> {
   let entries: import('node:fs').Dirent[];
   try {

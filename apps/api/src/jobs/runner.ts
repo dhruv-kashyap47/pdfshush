@@ -18,6 +18,7 @@ import {
   createProgressReporter,
   getNodeJob,
   isAbortError,
+  LIMITS,
   timeoutForPageCount,
   withJobLimits,
   JobTimeoutError,
@@ -100,7 +101,10 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
       return;
     }
     lastReported = snapshot;
-    void onProgress?.(snapshot);
+    // A transient Redis error here must not become an unhandled rejection: under
+    // Node's default that terminates the sandboxed child and BullMQ re-runs the
+    // whole job. Progress is best-effort.
+    Promise.resolve(onProgress?.(snapshot)).catch(() => undefined);
   };
 
   // Built inside the limits wrapper: that is where the real (timeout-aware)
@@ -114,8 +118,14 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
     },
   });
 
+  // The page count sizes the timeout. It comes from the request body, so it is
+  // clamped: a huge claimed count would hold a worker slot for 15 minutes, and a
+  // too-small one turns a valid 400-page job into a spurious timeout.
   const hint = payload.options?.pageCount;
-  const pageCountHint = typeof hint === 'number' && Number.isFinite(hint) ? hint : 1;
+  const pageCountHint =
+    typeof hint === 'number' && Number.isFinite(hint)
+      ? Math.min(Math.max(Math.floor(hint), 1), LIMITS.client.maxPages)
+      : 1;
 
   let result: unknown;
   try {
@@ -240,17 +250,29 @@ function collectBinaryOutputs(result: unknown): BinaryOutput[] {
       return;
     }
     if (value && typeof value === 'object') {
-      const record = value as { data?: unknown; name?: unknown; parts?: unknown; images?: unknown };
-      const data = record.data;
-      if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
-        const name =
-          typeof record.name === 'string' && record.name.length > 0 ? record.name : fallbackName;
+      // Jobs disagree on their shape: most return `data` + `fileName`, `edit`
+      // returns `data` + `name`, and the split jobs return a `zip` + `zipName`.
+      // Reading only `data` + `name` silently named every other result
+      // `output.pdf` and dropped the bytes of the split jobs entirely.
+      const record = value as {
+        data?: unknown;
+        zip?: unknown;
+        name?: unknown;
+        fileName?: unknown;
+        zipName?: unknown;
+        parts?: unknown;
+        images?: unknown;
+      };
+      const binary = record.data ?? record.zip;
+      if (binary instanceof Uint8Array || binary instanceof ArrayBuffer) {
+        const label = [record.name, record.fileName, record.zipName].find(
+          (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
+        );
         found.push({
-          name,
-          bytes: data instanceof Uint8Array ? data : new Uint8Array(data),
+          name: label ?? fallbackName,
+          bytes: binary instanceof Uint8Array ? binary : new Uint8Array(binary),
         });
-      }
-      if (record.parts) visit(record.parts, index, fallbackName.replace(/\.pdf$/, '') + '-part');
+      }      if (record.parts) visit(record.parts, index, fallbackName.replace(/\.pdf$/, '') + '-part');
       if (record.images) visit(record.images, index, fallbackName.replace(/\.pdf$/, '') + '-image');
     }
   };
