@@ -71,6 +71,27 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # The image's HEALTHCHECK curls /api/health, which only `server.js` serves.
+    # This container runs worker-host.js, which opens no HTTP listener, so the
+    # inherited probe could never pass and the container reported permanently
+    # unhealthy. Probe what this process actually depends on instead: Docker only
+    # runs a probe while the container is up, so the open question is whether it
+    # can still reach its broker -- a worker that cannot reach Redis consumes
+    # nothing.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const R=require('ioredis');const r=new
+          R(process.env.REDIS_URL,{connectTimeout:2000,lazyConnect:true,retryStrategy:()=>null});
+          r.on('error',()=>{});r.connect().then(()=>r.ping()).then(()=>r.quit())
+          .then(()=>process.exit(0)).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      start_period: 25s
+      retries: 3
     # The hardening gate kills this container mid-job on purpose; the volume and
     # the queue must survive it.
     restart: unless-stopped

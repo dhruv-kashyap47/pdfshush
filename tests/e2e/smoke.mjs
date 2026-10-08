@@ -936,11 +936,10 @@ async function main() {
     recentCount > 0,
     `${recentCount} entries`,
   );
-  // Assert on the entries collectively rather than one named tool: each tool
-  // records its history fire-and-forget and this suite navigates away straight
-  // after a result, so which writes beat the teardown is not deterministic.
-  // Before the fix the header read IndexedDB once on mount and rendered none
-  // of these at all.
+  // Every tool records fire-and-forget and this suite navigates away straight
+  // after a result, so these are whichever writes committed before teardown.
+  // Before the refresh fix the header read IndexedDB once on mount and
+  // rendered none of them at all.
   const recentToolNames = await page
     .locator('p:text-is("Recent")')
     .first()
@@ -952,6 +951,39 @@ async function main() {
     recentToolNames.join(' | ').slice(0, 90),
   );
   await page.screenshot({ path: path.join(ARTIFACTS, 'header-recent.png') });
+
+  // Regression, two bugs in one assertion. The write is fire-and-forget and the
+  // page is destroyed the instant a result lands, while every writer also
+  // awaited `indexedDB.open()` before its write transaction existed -- that wait
+  // lost the race and took the entry with it. And the trim cursor walked the
+  // index oldest-first, so past MAX_ENTRIES it deleted the *newest* entries
+  // including the one just written. This is deliberately the last thing recorded
+  // in the run, so by now far more than MAX_ENTRIES have been written: the newest
+  // entry must still be the tool that just ran.
+  await page.goto(`${BASE}/tools/merge-pdf`, { waitUntil: 'networkidle' });
+  await page.locator('input[type="file"]').setInputFiles([fileA, fileB]);
+  await waitFor(async () => (await page.getByText('3 pages').count()) > 0, 30_000, 'merge inspected');
+  await page.getByRole('button', { name: /Merge 2 files/ }).click();
+  await page.getByText('merged.pdf').first().waitFor({ timeout: 60_000 });
+  await page.goto(BASE, { waitUntil: 'networkidle' }); // straight away, no settle
+  await page.getByRole('button', { name: /All Tools/ }).hover();
+  const newestRecent = await waitFor(
+    async () =>
+      page
+        .locator('p:text-is("Recent")')
+        .first()
+        .locator('xpath=following-sibling::ul[1]/li')
+        .first()
+        .textContent()
+        .catch(() => null),
+    15_000,
+    'newest recent entry after an immediate navigation',
+  );
+  check(
+    'a history write survives navigating away immediately',
+    /Merge PDF files/.test(newestRecent ?? ''),
+    (newestRecent ?? '').replace(/\s+/g, ' ').slice(0, 60),
+  );
 
   /* console health */
   console.log('\n19. Console health');

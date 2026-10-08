@@ -272,7 +272,8 @@ function collectBinaryOutputs(result: unknown): BinaryOutput[] {
           name: label ?? fallbackName,
           bytes: binary instanceof Uint8Array ? binary : new Uint8Array(binary),
         });
-      }      if (record.parts) visit(record.parts, index, fallbackName.replace(/\.pdf$/, '') + '-part');
+      }
+      if (record.parts) visit(record.parts, index, fallbackName.replace(/\.pdf$/, '') + '-part');
       if (record.images) visit(record.images, index, fallbackName.replace(/\.pdf$/, '') + '-image');
     }
   };

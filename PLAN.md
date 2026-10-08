@@ -28,7 +28,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 
 **Current gate:** audit remediation shipped — all P0/P1/P2 findings closed. 14 of 53 tools
 live · 8 of them also runnable server-side · **154/154 unit** (88 engine + 66 API) ·
-**75/75 browser E2E** · 21/21 API integration · 17/17 hardening · bundle 688 kB, 0 pdf-lib/pdf.js
+**76/76 browser E2E** · 21/21 API integration · 17/17 hardening · bundle 688 kB, 0 pdf-lib/pdf.js
 in the main chunk.
 **Next: P4** (accounts & workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` —
 **run the pre-push secret/PII grep before every push** (see §9 tooling).
@@ -415,6 +415,16 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-08 — Surgical final pass.** Closed the three items the audit left open. Recent
+  history was losing data outright: the trim cursor iterated the index oldest-first, so past
+  `MAX_ENTRIES` it deleted the *newest* records including the one just written — the list
+  froze at the 12 oldest and no new tool ever appeared again (proved with a 14-write probe:
+  `["Tool 12"…"Tool 1"]`). Fixed by iterating newest-first, and removed the `indexedDB.open()`
+  wait that navigation could kill. The `worker` container reported unhealthy forever because
+  it inherited an HTTP healthcheck it has no listener for; it now overrides that in compose
+  with a broker-reachability probe, and reports healthy. Plus a formatting defect in
+  `runner.ts` that `tsc` could never catch. 5 files, +180/−70. Gates: 154/154 unit · **76/76**
+  E2E · 21/21 API · 17/17 hardening · all three containers healthy. Detail in §15.
 - **2026-10-08 — Audit remediation complete.** Full-repository audit → all P0/P1/P2 closed.
   7 P0s (split jobs returned a JSON stub not a ZIP; every server result named `output.pdf`;
   leaked job dirs on rejected uploads; duplicate page refs aliased one page dict; disjoint
@@ -863,15 +873,53 @@ for a typo — a product decision, not a bug.
 - All **three** grid tools (not two) shared the `-organized.pdf` fallback, because all three run
   the same `organize` job.
 
-### Known issues left open (deliberately)
+### Known issues left open
 
-- The `worker` container inherits the Dockerfile `HEALTHCHECK`, which curls `/api/health` — but
-  the worker runs `dist/worker-host.js` and serves no HTTP. It therefore reports **unhealthy**
-  forever. Harmless (`restart: unless-stopped` ignores health), but noisy in `compose ps`.
-- Recent-history writes are fire-and-forget; navigating away immediately after a result can
-  abort the IndexedDB write, so a tool may not appear in Recent. Acceptable, and the E2E
-  asserts on the entry set rather than one named tool for this reason.
+- ~~The `worker` container reports unhealthy forever~~ — **fixed**, see §15.
+- ~~Recent-history writes can be lost~~ — **fixed**, see §15.
 
-**Gates:** typecheck ✓ 3 packages · **154/154 unit** (88 engine + 66 API) · **75/75** browser
+**Gates:** typecheck ✓ 3 packages · **154/154 unit** (88 engine + 66 API) · **76/76** browser
 E2E · **21/21** API integration · **17/17** hardening · web bundle 688 kB with 0 pdf-lib/pdf.js
 refs in the main chunk · pre-push secret/PII/dangerous-sink grep clean.
+
+---
+
+## 15. Surgical final pass (2026-10-08)
+
+The three items §14 left open, closed. Nothing else was touched.
+
+- **A formatting defect in `runner.ts`.** `}` and the next `if` had been collapsed onto one
+  line by an earlier scripted edit. Valid JS — `tsc` accepts it, which is why it survived —
+  but it read as corruption. Split back onto two lines; statements byte-identical. A sweep of
+  every `.ts/.tsx/.mjs` in the repo for the pattern now returns zero hits.
+- **The worker reported permanently unhealthy.** The image's `HEALTHCHECK` curls
+  `/api/health`, which only `server.js` serves; `worker-host.js` opens no HTTP listener, so
+  the inherited probe could never pass. The worker service now overrides it in compose to
+  probe what that process actually depends on — Docker only runs a probe on a live container,
+  so the open question is broker reachability, via `ioredis` (already a production
+  dependency). Verified to exit 0 when reachable and 1 against a dead port. **No worker code
+  changed** and the API's own check is untouched.
+- **Recent history lost entries.** Probing 14 sequential writes showed the real defect was
+  worse than "a write racing navigation": the trim cursor used
+  `IDBKeyRange.upperBound(createdAt, false)`, which iterates **oldest → newest**, so once
+  there were more than `MAX_ENTRIES` records the deletion fell on the *newest* ones —
+  including the record just written. The list froze at the 12 oldest and no new tool ever
+  appeared again. Fixed by iterating `'prev'`. Also removed the `indexedDB.open()` wait
+  before each write (one shared, never-closed connection; writes serialised), which is the
+  window a navigation could kill. Exported signatures and all 13 call sites unchanged, so the
+  UX is identical.
+
+  Regression test — *"a history write survives navigating away immediately"* — runs merge,
+  navigates away the instant the result lands with no grace period, and asserts the newest
+  Recent entry is that tool. Deliberately the last thing recorded in the suite, so more than
+  `MAX_ENTRIES` writes have already happened: it pins the trim **and** the navigation race.
+  Proven red before the fixes (newest entry was a stale `Header & Footer`).
+
+**Still open (deliberate):** Recent writes stay fire-and-forget. The trim bug and the
+open-latency race are gone, so entries now survive navigation and the cap behaves, but a
+browser that hard-kills the tab mid-transaction could still drop one. Making it durable needs
+awaiting the write or an unload flush — both change UX, so neither was done.
+
+**Gates:** typecheck ✓ 3 packages · **154/154 unit** · **76/76** browser E2E · **21/21** API
+integration · **17/17** hardening · bundle 688 kB, 0 pdf-lib/pdf.js · all three containers
+**healthy** (api, worker, redis) · `/api/health` ok · pre-push grep clean.
