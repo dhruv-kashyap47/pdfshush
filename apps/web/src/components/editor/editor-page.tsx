@@ -48,8 +48,10 @@ export interface EditorPageProps {
   onCreate: (object: EditorObject) => void;
   onSeedReplace: (run: TextRun) => void;
   onImageRequested: (point: { x: number; y: number }) => void;
-  /** Fired once when the page scrolls near the viewport (lazy raster load). */
+  /** Fired when the page scrolls near the viewport (lazy raster load). */
   onVisible?: () => void;
+  /** Fired when the page is far outside the viewport: release its bitmap. */
+  onHidden?: () => void;
   onBeginTx: () => void;
   onEndTx: () => void;
   onMoveLive: (id: string, x: number, y: number) => void;
@@ -397,21 +399,30 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
   useEffect(() => stopGesture, []);
 
   // Lazy raster loading: ask the owner for this page's bitmap once it is near
-  // the viewport (deduped on the owner's side).
+  // the viewport (deduped on the owner's side). `onHidden` lets the owner drop
+  // the decoded bitmap again for pages far from view -- without it a 500-page
+  // document keeps every page it ever scrolled past resident, which is ~1.5 MB
+  // of decoded RGBA per page and the fastest way to kill the tab.
   const visibleRef = useRef(props.onVisible);
   visibleRef.current = props.onVisible;
+  const hiddenRef = useRef(props.onHidden);
+  hiddenRef.current = props.onHidden;
   useEffect(() => {
     const element = containerRef.current;
-    const callback = visibleRef.current;
-    if (!element || !callback) return;
+    if (!element) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          callback();
-          observer.disconnect();
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            visibleRef.current?.();
+          } else {
+            hiddenRef.current?.();
+          }
         }
       },
-      { rootMargin: '400px 0px' },
+      // Asymmetric margins: load a page before it arrives, release it only once
+      // it is a long way past, so ordinary scrolling does not thrash the cache.
+      { rootMargin: '400px 0px 1200px 0px' },
     );
     observer.observe(element);
     return () => observer.disconnect();

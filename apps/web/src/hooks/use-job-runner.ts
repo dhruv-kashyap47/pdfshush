@@ -26,6 +26,13 @@ export function useJobRunner<T>(slug: string) {
   const [state, setState] = useState<JobState<T>>({ status: 'idle' });
   const controllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  /**
+   * Id of the newest run. A superseded run still settles (as aborted), and its
+   * handler used to write `{status:'idle'}` over the state of the run that
+   * replaced it -- so starting a second job made the first one's cancellation
+   * hide the second job's progress panel while it was still running.
+   */
+  const runIdRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -34,6 +41,9 @@ export function useJobRunner<T>(slug: string) {
       controllerRef.current?.abort();
     };
   }, []);
+
+  /** State writes are only valid while this run is still the current one. */
+  const isCurrent = (runId: number) => mountedRef.current && runId === runIdRef.current;
 
   const run = useCallback(
     async (
@@ -44,39 +54,46 @@ export function useJobRunner<T>(slug: string) {
       controllerRef.current?.abort();
       const controller = new AbortController();
       controllerRef.current = controller;
+      const runId = (runIdRef.current += 1);
       setState({ status: 'running', progress: null });
 
       try {
         const result = await jobPool.run<T>(slug, files, options, {
           signal: controller.signal,
           onProgress: (progress) => {
-            if (mountedRef.current) setState({ status: 'running', progress });
+            if (isCurrent(runId)) setState({ status: 'running', progress });
           },
           ...(runOptions?.timeoutMs !== undefined ? { timeoutMs: runOptions.timeoutMs } : {}),
         });
-        if (mountedRef.current) setState({ status: 'done', result });
+        if (isCurrent(runId)) setState({ status: 'done', result });
         return { ok: true, result };
       } catch (error) {
-        if (error instanceof JobAbortedError || (error instanceof Error && error.name === 'AbortError')) {
-          if (mountedRef.current) setState({ status: 'idle' });
-          return { ok: false, aborted: true };
-        }
-        const message = error instanceof Error ? error.message : String(error);
-        if (mountedRef.current) setState({ status: 'error', message });
-        return { ok: false, aborted: false, message };
+        const aborted =
+          error instanceof JobAbortedError ||
+          (error instanceof Error && error.name === 'AbortError');
+        if (isCurrent(runId)) setState(aborted ? { status: 'idle' } : { status: 'error', message: messageOf(error) });
+        return aborted ? { ok: false, aborted: true } : { ok: false, aborted: false, message: messageOf(error) };
       }
     },
     [slug],
   );
 
   const cancel = useCallback(() => {
+    // A cancel is a user action on the *current* run, so it retires that run's
+    // id: its eventual abort handler must not write state either.
+    runIdRef.current += 1;
     controllerRef.current?.abort();
   }, []);
 
   const reset = useCallback(() => {
+    runIdRef.current += 1;
     controllerRef.current?.abort();
     setState({ status: 'idle' });
   }, []);
 
   return { state, run, cancel, reset };
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -47,12 +47,27 @@ export function usePageThumbnails() {
   }, []);
   useEffect(() => () => revokeUrls(), [revokeUrls]);
 
+  /**
+   * Monotonic id for `prepare` calls. A grid tool can be re-entered while the
+   * previous prepare is still rendering (the user picks a second set of files,
+   * or hits "clear" mid-load), and without this the slower request installs its
+   * tiles and file list over the newer one -- the grid then shows pages from a
+   * document that is no longer loaded, which is the same class of bug as the
+   * editor's stale page cache.
+   */
+  const loadSequence = useRef(0);
+
+  /** True while this call is still the newest request. */
+  const isCurrent = (id: number) => id === loadSequence.current;
+
   const prepare = useCallback(
     async (incoming: File[], options: PrepareOptions = {}): Promise<boolean> => {
+      const request = ++loadSequence.current;
       if (incoming.length === 0) {
         revokeUrls();
         setTiles([]);
         setFiles([]);
+        setPreparing(false);
         return true;
       }
 
@@ -62,6 +77,7 @@ export function usePageThumbnails() {
         largestFileBytes: largestBytes(incoming),
       });
       if (!byteVerdict.ok) {
+        if (isCurrent(request)) setPreparing(false);
         toast.error(byteVerdict.message);
         return false;
       }
@@ -74,6 +90,7 @@ export function usePageThumbnails() {
 
       // Inspect first: page count decides whether rendering previews is safe.
       const inspected = await inspectRunner.run(await readAsInputFiles(incoming));
+      if (!isCurrent(request)) return false; // superseded mid-inspect
       if (!inspected.ok) {
         setPreparing(false);
         if (!inspected.aborted) toast.error(inspected.message);
@@ -107,6 +124,7 @@ export function usePageThumbnails() {
         options.pageIndexes ? { pageIndexes: options.pageIndexes } : {},
         { timeoutMs: timeoutForPageCount(Math.max(pageCount, 60)) },
       );
+      if (!isCurrent(request)) return false; // superseded mid-render
       setPreparing(false);
 
       if (!outcome.ok) {
@@ -143,11 +161,16 @@ export function usePageThumbnails() {
   );
 
   const reset = useCallback(() => {
+    // Bump the sequence so a prepare that is still rendering cannot reinstall
+    // its tiles after the user has cleared the grid.
+    loadSequence.current += 1;
+    inspectRunner.cancel();
+    thumbsRunner.cancel();
     revokeUrls();
     setTiles([]);
     setFiles([]);
     setPreparing(false);
-  }, [revokeUrls]);
+  }, [revokeUrls, inspectRunner.cancel, thumbsRunner.cancel]);
 
   const busy =
     preparing ||

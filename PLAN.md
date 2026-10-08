@@ -27,7 +27,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 
 **Current gate:** P3 shipped — **hardening gate passed** (kill -9 mid-job → no orphans,
 queue recovers, limits hold). 14 of 53 tools live · 8 of them also runnable server-side ·
-138/138 unit tests · 62/62 browser E2E · 21/21 API integration · 17/17 hardening.
+142/142 unit tests · 62/62 browser E2E · 21/21 API integration · 17/17 hardening.
 **Next: P4** (accounts & workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` —
 **run the pre-push secret/PII grep before every push** (see §9 tooling).
 
@@ -483,7 +483,13 @@ never actually wired, and a stream with no error listener.*
   multipart completion order scrambled merge input order, validation errors
   escaping untranslated, and a payload `inputDir` field that was redundant *and* a
   path hole.
-- **2026-10-08 — Phase 3 surgical bug hunt.** Found and fixed the editor showing the previous document's pages (page-index-keyed raster/text-run caches with no document identity, so same-geometry PDFs hit each other's entries), plus the half-resolution rasters hidden behind it, JSON results served as `application/pdf`, an uncapped aggregate upload size, non-atomic rejected-upload cleanup, a failed save that silently disarmed the unsaved-changes guard, Ctrl+Z deleting text objects, and one undo step per held arrow key. Six new regression tests, each verified to fail with its defect reintroduced. See §12.
+- **2026-10-08 — Donor lessons applied.** Second pass over the Apache-2.0 GenOffice donor
+  for techniques rather than features: pixel-budgeted raster sizing (a 2000 pt poster page
+  was asking for an 88-megapixel bitmap, ~350 MB for one page), releasing bitmaps for pages
+  far from view (the editor held every page it had ever scrolled past), refusing
+  unencodable text instead of writing it mangled, atomic result writes, and resetting the
+  nudge coalescer on undo. Also fixed the same load race in `usePageThumbnails` and a
+  superseded-run state clobber in `useJobRunner`. See §13.- **2026-10-08 — Phase 3 surgical bug hunt.** Found and fixed the editor showing the previous document's pages (page-index-keyed raster/text-run caches with no document identity, so same-geometry PDFs hit each other's entries), plus the half-resolution rasters hidden behind it, JSON results served as `application/pdf`, an uncapped aggregate upload size, non-atomic rejected-upload cleanup, a failed save that silently disarmed the unsaved-changes guard, Ctrl+Z deleting text objects, and one undo step per held arrow key. Six new regression tests, each verified to fail with its defect reintroduced. See §12.
 - **2026-10-08 — P3 complete; hardening gate passed.** Stack: `redis` + `api` + `worker`
   from one unprivileged image (`docker compose up -d --build`). API surface: `POST
   /api/jobs` (streaming multipart), `GET /api/jobs/:id`, `GET /api/jobs/:id/files/:name`,
@@ -495,8 +501,8 @@ never actually wired, and a stream with no error listener.*
   blinked, the job **settled as completed** (BullMQ retry + stalled detection), the
   janitor **removed the orphaned directory** (`jobDirs: 0`), Redis quota counters
   survived, and the restarted worker processed the next job. Ops knobs `FILE_TTL_MS` /
-  `JANITOR_INTERVAL_MS` make retention tunable without a rebuild. Gates: **138/138 unit
-  (86 engine + 52 API) · 62/62 browser E2E · 21/21 API integration · 17/17 hardening**,
+  `JANITOR_INTERVAL_MS` make retention tunable without a rebuild. Gates: **142/142 unit
+  (88 engine + 54 API) · 62/62 browser E2E · 21/21 API integration · 17/17 hardening**,
   typecheck green in 3 packages, web bundle unchanged (684 kB, 0 pdf-refs).
   *Bugs the integration suites caught:* the janitor silently ignored its env config (the
   zod schema keys never landed, so every deployment would have used the 1-hour default —
@@ -621,7 +627,7 @@ during a save. Gates after the audit: **86/86 unit · 60/60 E2E · main chunk 68
 5. All containers are running again afterwards.
 
 **Gates (as re-measured by the Phase 3 audit in §12):** typecheck ✓ 3 packages ·
-**138/138 unit** (86 engine + 52 API) · **62/62** browser E2E · **21/21** API
+**142/142 unit** (88 engine + 54 API) · **62/62** browser E2E · **21/21** API
 integration (`node tests/api/smoke.mjs`, real PDFs → Redis → sandboxed worker → bytes on
 disk → verified download) · **17/17** hardening · web bundle 685 kB with 0 pdf-lib/pdf.js
 refs · pre-push grep clean.
@@ -635,6 +641,66 @@ refs · pre-push grep clean.
   budget. P4's accounts replace the hash with a real subject.
 - Heavy binaries (Ghostscript, qpdf, LibreOffice, OCRmyPDF) are *not* wired yet — that is
   the next slice, and it is what unlocks compress/OCR/Word conversion.
+
+---
+
+## 13. Donor lessons applied (2026-10-08)
+
+A second pass over the GenOffice donor (`genspark-ai/genoffice`, Apache-2.0), this time
+reading for *techniques* rather than features. Five adopted, four deliberately not.
+
+### Adopted
+
+1. **Pixel-budgeted raster sizing** (`PdfPage.tsx`, donor). Capping the device-pixel-ratio
+   at 2 is not a memory bound: a 2000 pt-wide poster page at 200% zoom on a hi-dpi screen
+   asks for 8000 × 11000 = 88 megapixels, about 350 MB for **one** page. Now the width is
+   derived from a 12-megapixel area budget (`sqrt(MAX_PX / (w·h))`), so large-format
+   documents render at a lower scale instead of crashing the tab.
+2. **Release bitmaps for pages far from view** (`PdfPage.tsx` `useVisibleSet`). The editor
+   kept every page it ever scrolled past: ~9 MB of decoded RGBA each once decoded, so a
+   500-page document was a guaranteed crash. The page observer now reports both entering and
+   leaving, and an eviction pass keeps a 12-page window around the viewport, pinning pages
+   that carry overlay objects or cached text runs.
+3. **Verify the output, and refuse rather than mangle** (`save-pdf.ts` `verifyTextEdits`).
+   `drawText` into a WinAnsi standard font does **not** throw on characters it cannot
+   encode — it writes them mangled, so the user got "saved, 3 pages" and only later found
+   their name had become mojibake. Text objects are now validated against WinAnsi before
+   anything is drawn, with the offending code point named in the error.
+4. **Atomic result writes** (`atomic-write.ts`). `writeResult` streamed straight to the
+   final path, so a crash or full disk left a truncated PDF sitting where the janitor would
+   keep it for an hour and a caller could download it as a corrupt "successful" export.
+   Now written to a sibling temp file and `rename`d into place: a result is either absent
+   or whole.
+5. **Coalesce-key reset on undo** (`App.tsx` `pushUndo`). The nudge coalescer held its own
+   open-transaction flag that `editor.undo()` knew nothing about, so undoing mid-burst left
+   it set and the *next* nudge — possibly seconds later — took the `live` path with no open
+   snapshot and became an un-undoable move.
+
+### Deliberately not adopted
+
+- **`chainPdfium` mutex** — real, but we have no WASM heap; the equivalent hazard (shared
+  mutable state across concurrent jobs) does not exist in pdf-lib.
+- **Save-queue + `SavedSnapshot` subtraction** — their bug is "edits made during a save are
+  silently discarded". Ours is already immune for a different reason: `readOnly` freezes the
+  document for the duration of a save, so no edit can exist that the snapshot missed. Worth
+  remembering if a future feature allows editing during a save.
+- **Per-`webContents` path grants** — Electron-only. Our equivalent boundary is
+  `resolveWithin` plus a sanitised basename, which the P3 audit already exercised.
+- **Font subsetting / OCR / redaction layers** — P5/P6 features, not bug fixes.
+
+### Also fixed while in there
+
+- **`usePageThumbnails` had the same load race I fixed in the editor**: a superseded
+  `prepare()` could install its tiles and file list over the newer request, so the grid
+  could show pages from a document that was no longer loaded. Guarded by the same
+  monotonic-sequence pattern.
+- **`useJobRunner` let a superseded run clobber the current one**: starting job B aborts
+  job A, and A's abort handler wrote `{status:'idle'}` over B — hiding B's progress panel
+  while it was still running. State writes are now scoped to the run that owns them.
+
+**Gates:** typecheck ✓ 3 packages · **142/142 unit** (88 engine + 54 API) · **62/62** browser
+E2E · **21/21** API integration · **17/17** hardening · web bundle 687 kB, 0 pdf-lib/pdf.js
+refs · pre-push grep clean.
 
 ---
 
@@ -705,6 +771,6 @@ defect and watching the check go red, not by assertion that it should:
 - JSON result → correct content type
 - expired result → 404 instead of a reset socket
 
-**Gates:** typecheck ✓ 3 packages · **138/138 unit** (86 engine + 52 API) · **62/62** browser
+**Gates:** typecheck ✓ 3 packages · **142/142 unit** (88 engine + 54 API) · **62/62** browser
 E2E · **21/21** API integration · **17/17** hardening · web bundle 685 kB, 0 pdf-lib/pdf.js
 refs · pre-push grep clean.

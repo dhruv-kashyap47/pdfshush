@@ -9,7 +9,7 @@
  */
 
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, rm, stat, readdir } from 'node:fs/promises';
+import { mkdir, rename, rm, stat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -91,8 +91,20 @@ export class WorkDirStore {
   async writeResult(jobId: string, name: string, data: Uint8Array | Buffer): Promise<StoredFile> {
     const target = this.outputPath(jobId, name);
     await mkdir(path.dirname(target), { recursive: true });
-    const sink = createWriteStream(target);
-    await pipeline(Readable.from([Buffer.from(data)]), sink);
+    // Write to a sibling temp file and rename into place. A crash, a full disk
+    // or a kill -9 mid-write otherwise leaves a truncated PDF sitting at the
+    // real result path, where the janitor will happily keep it for an hour and
+    // a caller can download it as a corrupt "successful" export. `rename` is
+    // atomic within a directory, so a result file is either absent or whole.
+    const temporary = `${target}.${process.pid}.part`;
+    const sink = createWriteStream(temporary);
+    try {
+      await pipeline(Readable.from([Buffer.from(data)]), sink);
+      await rename(temporary, target);
+    } catch (error) {
+      await rm(temporary, { force: true }).catch(() => undefined);
+      throw error;
+    }
     return { name: path.basename(target), path: target, bytes: data.byteLength };
   }
 

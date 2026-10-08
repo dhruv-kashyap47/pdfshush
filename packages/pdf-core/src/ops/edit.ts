@@ -275,6 +275,7 @@ export function validateEditObjects(
           throw new Error(`${at} (text): align must be left, center or right`);
         }
         assertHexColor(at, kind, 'color', text.color);
+        assertEncodable(at, text.text);
         break;
       }
       case 'image': {
@@ -337,6 +338,62 @@ function assertStrokeWidth(at: string, kind: string, value: number | undefined):
   if (!Number.isFinite(value) || value < 0 || value > 200) {
     throw new Error(`${at} (${kind}): stroke width must be between 0 and 200 pt`);
   }
+}
+
+/**
+ * Refuses text the embedded standard font cannot represent.
+ *
+ * `drawText` into a WinAnsi standard font does **not** throw on characters it
+ * cannot encode -- it writes them silently mangled, or drops them. That is the
+ * worst possible failure for an editor: the user sees "saved, 3 pages" and only
+ * discovers later that a name came out as mojibake. Losing the edit loudly at
+ * validation time costs the user one retry; losing it silently costs them the
+ * document. (Same principle as verifying output bytes before offering a
+ * download -- caught here, where it is cheap, rather than after the write.)
+ */
+function assertEncodable(at: string, text: string): void {
+  const unsupported = findUnencodable(text);
+  if (unsupported === undefined) return;
+  throw new Error(
+    `${at} (text): "${unsupported}" (U+${unsupported.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}) ` +
+      'cannot be drawn with the standard font. Use plain Latin text, or flatten it to an image first.',
+  );
+}
+
+/** First character WinAnsi cannot encode, or undefined when all are fine. */
+function findUnencodable(text: string): string | undefined {
+  for (const char of text) {
+    const codePoint = char.codePointAt(0)!;
+    if (isWinAnsi(codePoint)) continue;
+    return char;
+  }
+  return undefined;
+}
+
+/**
+ * WinAnsi (PDF Annex D), beyond ASCII.
+ *
+ * Built from code points rather than literal glyphs on purpose: the high range
+ * is a checklist of single characters, and a list of them written out is both
+ * unreviewable and trivially corrupted by an editor. U+00A0-U+00FF is Latin-1;
+ * 0x80-0x9F is the typographic block PDF maps explicitly. Everything else --
+ * emoji, CJK, Cyrillic, Greek -- is excluded deliberately: those are the common
+ * cases, and the ones where silent mangling does the most damage.
+ */
+const WIN_ANSI_TYPOGRAPHIC = [
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039,
+  0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122,
+  0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+];
+
+const WIN_ANSI_EXTRA = new Set(WIN_ANSI_TYPOGRAPHIC.map((cp) => String.fromCodePoint(cp)));
+
+function isWinAnsi(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x20 && codePoint <= 0x7e) ||
+    (codePoint >= 0xa0 && codePoint <= 0xff) ||
+    WIN_ANSI_EXTRA.has(String.fromCodePoint(codePoint))
+  );
 }
 
 /** Pixel dimensions from the file header, without decoding the image. */

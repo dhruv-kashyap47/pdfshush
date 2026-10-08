@@ -3,7 +3,7 @@
  * filename and the filesystem, and between a `kill -9` and a leaked temp dir.
  */
 
-import { mkdtemp, mkdir, writeFile, utimes, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile, utimes, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -130,6 +130,35 @@ describe('WorkDirStore', () => {
     await expect(stat(store.inputDir(jobId))).rejects.toThrow();
     // Idempotent.
     await expect(store.removeJob(jobId)).resolves.toBeUndefined();
+  });
+
+  // Results are written to a temp file and renamed into place, so a partial
+  // write can never sit at the real result path where a caller would download
+  // it as a corrupt "successful" export.
+  it('publishes a result atomically and leaves no temp files behind', async () => {
+    const store = new WorkDirStore(await tempDir());
+    await store.init();
+    const jobId = 'e'.repeat(32);
+    await store.prepareJob(jobId);
+
+    const stored = await store.writeResult(jobId, 'out.pdf', Buffer.from('%PDF-1.7 whole'));
+    expect(stored.bytes).toBe('%PDF-1.7 whole'.length);
+    expect(await readFile(stored.path, 'utf8')).toBe('%PDF-1.7 whole');
+
+    const entries = await readdir(store.outputDir(jobId));
+    expect(entries).toEqual(['out.pdf']);
+  });
+
+  it('leaves no partial file when a result write fails', async () => {
+    const store = new WorkDirStore(await tempDir());
+    await store.init();
+    const jobId = 'f'.repeat(32);
+    await store.prepareJob(jobId);
+
+    // An unwritable target directory makes the write fail partway.
+    await rm(store.outputDir(jobId), { recursive: true, force: true });
+    await writeFile(store.outputDir(jobId), 'not a directory');
+    await expect(store.writeResult(jobId, 'out.pdf', Buffer.from('x'))).rejects.toThrow();
   });
 
   it('reports usage for the health endpoint', async () => {

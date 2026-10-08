@@ -307,6 +307,36 @@ describe('edit op', () => {
     expect(() => validateEditObjects([textObject()], 2)).not.toThrow();
   });
 
+  // Regression: drawText into a WinAnsi standard font does not throw on
+  // characters it cannot encode -- it writes them mangled. The user got
+  // "saved, 3 pages" and only later found their name had become mojibake, so
+  // the edit is refused up front with a message that says why.
+  it('refuses text the standard font cannot encode instead of mangling it', () => {
+    const cases: [string, string][] = [
+      ['emoji', 'Signed \u{1F600}'],
+      ['CJK', '\u4f60\u597d'],
+      ['Cyrillic', '\u041f\u0440\u0438\u0432\u0435\u0442'],
+      ['Greek', '\u03b1\u03b2\u03b3'],
+    ];
+    for (const [label, text] of cases) {
+      expect(() => validateEditObjects([textObject({ text })], 1), label).toThrow(
+        /cannot be drawn with the standard font/,
+      );
+    }
+  });
+
+  it('accepts the text WinAnsi can represent', () => {
+    const samples = [
+      'Plain ASCII',
+      'Accents: caf\u00e9 na\u00efve \u00fcber',
+      'Typographic: \u201ccurly\u201d \u2013 dash \u2014 em \u2026 ellipsis \u00a9 \u20ac',
+      'Symbols: \u00b0 \u00b1 \u00d7 \u00f7 \u00a7 \u00b6',
+    ];
+    for (const text of samples) {
+      expect(() => validateEditObjects([textObject({ text })], 1), text).not.toThrow();
+    }
+  });
+
   it('draws text, whiteouts and markup, then validates its own export', async () => {
     const doc = await docWithText(2);
     const objects: EditorObject[] = [

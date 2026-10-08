@@ -47,6 +47,17 @@ type DocInfo = InspectOutput['documents'][number];
 
 /** Render scale: page bitmap pixels per CSS px (crisp on hi-dpi screens). */
 const RASTER_SCALE = Math.min(2, (globalThis.devicePixelRatio ?? 1) * 1.5);
+/**
+ * Hard ceiling on one page bitmap, in pixels (~4 RGBA bytes each).
+ *
+ * `min(scale, 2)` is not a memory bound on its own: a poster or CAD drawing
+ * page is 2000+ pt wide, so at 200% zoom on a hi-dpi screen the naive
+ * calculation asks for 8000 × 11000 = 88 megapixels — 350 MB for a single
+ * page, which is a tab crash, not a slow render. Budget the *area* and derive
+ * the width from it. (Lesson borrowed from the GenOffice donor, which caps the
+ * same way with `sqrt(MAX_PX / (w * h))`.)
+ */
+const MAX_RASTER_PIXELS = 12_000_000;
 /** Cap inserted images so a phone photo doesn't take over the page. */
 const MAX_IMAGE_WIDTH_PT = 300;
 /** Pages whose text runs are warmed in the background as the editor opens. */
@@ -90,7 +101,27 @@ interface PageBinding {
   onSeedReplace: (run: TextRun) => void;
   onImageRequested: (point: { x: number; y: number }) => void;
   onVisible: () => void;
+  onHidden: () => void;
 }
+
+/**
+ * How many page bitmaps stay resident.
+ *
+ * Decoded RGBA is ~4 bytes per pixel, so a 1300x1800 page costs roughly 9 MB
+ * once the browser has decoded it -- the blob URL is the cheap part. A long
+ * document scrolled end to end would otherwise hold every page it ever touched,
+ * which is a tab crash rather than a slow render. Keeping a window of pages
+ * around the viewport costs a handful of bitmaps and makes scrolling back
+ * instant.
+ */
+const RESIDENT_RASTERS = 12;
+/**
+ * Rasters loaded eagerly on open, and the furthest-from-viewport distance at which
+ * one is kept. The window has to be wider than RESIDENT_RASTERS, otherwise pages
+ * sitting in the scroll margin get evicted and immediately re-fetched -- which is
+ * worse than keeping them, because each miss re-reads the whole source file.
+ */
+const RETAIN_MARGIN_PAGES = 4;
 
 function probeImageSize(url: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -158,6 +189,9 @@ export function EditPdfTool() {
   zoomRef.current = zoom;
   toolRef.current = tool;
   rastersRef.current = rasters;
+  /** Mirror of `runsByPage` for the eviction pass, which must not re-run on it. */
+  const runsByPageRef = useRef(runsByPage);
+  runsByPageRef.current = runsByPage;
 
   const rasterPending = useRef(new Set<number>());
   const rasterRequested = useRef(new Map<number, number>());
@@ -182,6 +216,20 @@ export function EditPdfTool() {
   /** Cached raster width is only reusable if it is close enough not to look soft. */
   const RASTER_REUSE_TOLERANCE = 0.25;
 
+  /**
+   * Bitmap width for one page: what we want for sharpness, clamped so the
+   * decoded bitmap stays inside `MAX_RASTER_PIXELS`. Pure, so it is unit
+   * testable without a browser and so every caller agrees on the budget.
+   */
+  const rasterWidthPx = (page: { displayWidthPt: number; displayHeightPt: number }): number => {
+    const widthPt = page.displayWidthPt || 1;
+    const heightPt = page.displayHeightPt || 1;
+    const wanted = Math.round(widthPt * zoomRef.current * RASTER_SCALE);
+    if (!Number.isFinite(wanted) || wanted <= 0) return 1;
+    const budgeted = Math.sqrt(MAX_RASTER_PIXELS / (widthPt * heightPt)) * zoomRef.current * RASTER_SCALE;
+    return Math.max(1, Math.round(Math.min(wanted, budgeted)));
+  };
+
   const inspectState = inspectRunner.state;
   const editState = editRunner.state;
   const saving = editState.status === 'running';
@@ -193,9 +241,10 @@ export function EditPdfTool() {
     const page = infoRef.current?.pages[pageIndex];
     if (!file || !page) return;
     const generation = docGeneration.current;
-    const desired = Math.round(
-      (page.displayWidthPt ?? page.widthPt) * zoomRef.current * RASTER_SCALE,
-    );
+    const desired = rasterWidthPx({
+      displayWidthPt: page.displayWidthPt || page.widthPt,
+      displayHeightPt: page.displayHeightPt || page.heightPt,
+    });
     const cached = rastersRef.current[pageIndex];
     if (rasterRequested.current.get(pageIndex) === desired) return;
     if (cached && Math.abs(cached.widthPx - desired) <= desired * RASTER_REUSE_TOLERANCE) {
@@ -262,6 +311,50 @@ export function EditPdfTool() {
       }
     }
   }, []);
+
+  /**
+   * Releases the page bitmaps furthest from the viewport.
+   *
+   * Called when a page scrolls well out of view. Distance is measured in page
+   * indexes, a good proxy for scroll distance in a single document and free to
+   * maintain. Pages carrying overlay objects or cached text runs are pinned:
+   * they are the ones the user is most likely to come back to, and their
+   * overlays are cheap compared with a decoded bitmap.
+   */
+  const releaseDistantRasters = useCallback(
+    (anchorPage: number) => {
+      const keys = Object.keys(rastersRef.current).map(Number);
+      if (keys.length <= RESIDENT_RASTERS) return;
+      // Keep a window around the anchor rather than the N nearest, so a page
+      // sitting just outside the observer margin is not evicted and then
+      // re-fetched on the very next scroll step.
+      const evict = keys.filter((index) => Math.abs(index - anchorPage) > RETAIN_MARGIN_PAGES);
+      if (evict.length === 0) return;
+
+      const pinned = new Set<number>();
+      for (const object of editor.doc.objects) pinned.add(object.pageIndex);
+      for (const index of Object.keys(runsByPageRef.current)) pinned.add(Number(index));
+
+      let released = 0;
+      setRasters((prev) => {
+        const next = { ...prev };
+        for (const pageIndex of evict) {
+          if (pinned.has(pageIndex)) continue;
+          const entry = next[pageIndex];
+          if (!entry) continue;
+          URL.revokeObjectURL(entry.url);
+          delete next[pageIndex];
+          released += 1;
+          // Forget the requested width so a return visit re-renders cleanly
+          // rather than trusting a cache entry that no longer exists.
+          rasterRequested.current.delete(pageIndex);
+        }
+        return released > 0 ? next : prev;
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor.doc.objects],
+  );
 
   /* --------------------------------------------------------- text runs */
 
@@ -764,6 +857,34 @@ export function EditPdfTool() {
     setStage('editing');
   }, [editRunner.reset]);
 
+  /**
+   * Undo/redo wrappers that also retire an in-flight nudge transaction.
+   *
+   * The editor-state module drops its own transaction on undo, but the nudge
+   * coalescer holds a second piece of state (`nudgeTxOpen`) that nothing else
+   * knew about. Undo during a nudge burst used to leave it set, so the *next*
+   * nudge -- potentially seconds later -- took the `live` path with no open
+   * snapshot and silently became an un-undoable move. Resetting it here keeps
+   * the coalescer and the history in agreement.
+   */
+  const closeNudgeTx = useCallback(() => {
+    if (nudgeCloseTimer.current !== undefined) {
+      clearTimeout(nudgeCloseTimer.current);
+      nudgeCloseTimer.current = undefined;
+    }
+    nudgeTxOpen.current = false;
+  }, []);
+
+  const undo = useCallback(() => {
+    closeNudgeTx();
+    editor.undo();
+  }, [editor.undo, closeNudgeTx]);
+
+  const redo = useCallback(() => {
+    closeNudgeTx();
+    editor.redo();
+  }, [editor.redo, closeNudgeTx]);
+
   /* ----------------------------------------------------------- keyboard */
 
   useEffect(() => {
@@ -790,13 +911,13 @@ export function EditPdfTool() {
 
       if (mod && key === 'z') {
         event.preventDefault();
-        if (event.shiftKey) editor.redo();
-        else editor.undo();
+        if (event.shiftKey) redo();
+        else undo();
         return;
       }
       if (mod && key === 'y') {
         event.preventDefault();
-        editor.redo();
+        redo();
         return;
       }
       if (mod && event.key.toLowerCase() === 's') {
@@ -878,10 +999,11 @@ export function EditPdfTool() {
         onSeedReplace: (run: TextRun) => seedReplace(page.index, run),
         onImageRequested: (point: { x: number; y: number }) => onImageRequested(page.index, point),
         onVisible: () => void ensureRaster(page.index),
+        onHidden: () => releaseDistantRasters(page.index),
       });
     }
     return map;
-  }, [info, seedReplace, onImageRequested, ensureRaster]);
+  }, [info, seedReplace, onImageRequested, ensureRaster, releaseDistantRasters]);
 
   if (editState.status === 'done') {
     const { result } = editState;
@@ -927,8 +1049,8 @@ export function EditPdfTool() {
             onZoomChange={onZoomChange}
             canUndo={editor.canUndo}
             canRedo={editor.canRedo}
-            onUndo={editor.undo}
-            onRedo={editor.redo}
+            onUndo={undo}
+            onRedo={redo}
             hasSelection={selectedObject !== null}
             onDelete={deleteSelected}
             onSave={() => void onSave()}
@@ -975,6 +1097,7 @@ export function EditPdfTool() {
                   onSeedReplace={binding.onSeedReplace}
                   onImageRequested={binding.onImageRequested}
                   onVisible={binding.onVisible}
+                  onHidden={binding.onHidden}
                   onMoveLive={moveLive}
                   onResizeLive={resizeLive}
                   onFormValue={setFormValue}
