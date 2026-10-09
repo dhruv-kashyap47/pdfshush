@@ -17,7 +17,13 @@ screeshots/
 tests/fixtures/torture/
 tests/e2e/artifacts/
 tests/artifacts/
-tests/e2e/fixtures/
+# Test inputs are ignored so a session cannot sweep up junk, but the image fixture
+# is committed: it is the only PDF here that exercises pdf.js's scratch-canvas
+# path, and the bug it guards against shipped because it was missing. Re-include
+# needs the parent rule to match files rather than the directory, or git never
+# descends into it.
+tests/e2e/fixtures/*
+!tests/e2e/fixtures/imaged.pdf
 
 # Server work directory (uploads + results): runtime state, never committed.
 .work/

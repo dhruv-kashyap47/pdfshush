@@ -923,3 +923,111 @@ awaiting the write or an unload flush — both change UX, so neither was done.
 **Gates:** typecheck ✓ 3 packages · **154/154 unit** · **76/76** browser E2E · **21/21** API
 integration · **17/17** hardening · bundle 688 kB, 0 pdf-lib/pdf.js · all three containers
 **healthy** (api, worker, redis) · `/api/health` ok · pre-push grep clean.
+
+## 16. Raster pipeline: pages with images never rendered (2026-10-09)
+
+Reported from the field: the editor opened, the canvas stayed blank, and the console showed
+`Could not render page 2` / `Could not render page 3`. Read-only diagnosis first, then the fix.
+
+### The crash
+
+`loadPdfForRender` calls pdf.js `getDocument()` **without a `CanvasFactory`**. pdf.js is not
+content to draw onto the canvas we hand it: image downscaling, soft masks, tiling patterns,
+shadings and transparency groups all ask its canvas factory for scratch space. It defaults to
+`DOMCanvasFactory`, built from `src.ownerDocument || globalThis.document` — and inside a Web
+Worker that is `undefined`. It is a *property* read, not a bare identifier, so there was no
+`ReferenceError`; the first scratch canvas of a page painting an image simply threw:
+
+```
+TypeError: Cannot read properties of undefined (reading 'createElement')
+    at DOMCanvasFactory._createCanvas
+    at CanvasGraphics._scaleImage
+    at CanvasGraphics.paintInlineImageXObject
+```
+
+Proven causally, not just correlated: same PDF, same worker, only the factory differing —
+pages 2 and 3 (the two named in the report) go FAIL → OK. A/B across 8 PDFs: every
+text/vector-only PDF was fine, and `27-09-proposal.pdf` failed p1 but passed p2, so the failing
+set is per-page and follows the image content, not the file.
+
+The fix is `PdfjsCanvasFactory` in `render/canvas.ts`, passed to **`getDocument`**. Not
+`page.render`: `PDFPageProxy.render` hard-codes `canvasFactory: this._transport.canvasFactory`
+(pdf.js `13410`), so a per-render argument is silently ignored — it is a *constructor*, too, so
+passing an instance fails with "is not a constructor". Guarded on `hasOffscreenCanvas()` so Node
+keeps pdf.js's `NodeCanvasFactory` and the unit tests are unaffected.
+
+**`DOMFilterFactory` was checked, not assumed.** It carries the identical hazard
+(`ownerDocument = globalThis.document`), so it was instrumented rather than assumed safe: across
+9 PDFs — image-heavy, alpha/soft-mask, scanned — display rendering only ever calls its base
+`destroy`. Every DOM-touching method is a colour-management/selection path we never take. Left
+alone deliberately: a no-op filter factory would silently drop filter effects, a worse failure
+than a loud one. Revisit if print intent or selection styling lands.
+
+### The blank pages were also a units bug
+
+Independently, `rasterWidthPx` compared `sqrt(MAX_RASTER_PIXELS / (widthPt * heightPt))` — a
+**scale** in px-per-point — against `widthPt * zoom * dpr`, a **width** in pixels. `min()` always
+picked the budget number, so every page was asked to render ~7px wide; `scaleForWidth`'s 0.05
+floor turned that into a **29×42px** bitmap stretched across an 891px column. Measured in the live
+app before the fix. A 29px page still satisfies "the raster `<img>` exists", which is precisely
+why the suite never noticed. The clamp now caps the *scale* and converts to a width
+(`rasterWidthWithinBudget`, in the engine so it is unit-testable and has one owner), keeping the
+12 MP budget intact — area stays within budget at any aspect ratio, and high-DPR cannot inflate
+it because `RASTER_SCALE` already caps at 2.
+
+### Why it shipped
+
+Every PDF in the repo is text and vector: all five E2E fixtures have `/Subtype /Image = 0`, so
+pdf.js's scratch-canvas path was never reached. `editor.test.ts` is the only test that called
+`loadPdfForRender`, and it asserted **viewport geometry only** — it never called `page.render()`.
+The E2E asserted `editor-page-raster` **count**, and its one deliberate pixel comparison was
+replaced with a blob-URL identity check ("a pixel comparison would pass on two blank white
+pages"), which removed the last signal that could have caught either defect. Node cannot catch it
+either: `isNodeJS` makes pdf.js pick `NodeCanvasFactory`, so 154 unit tests were structurally
+incapable of failing.
+
+`tests/e2e/fixtures/imaged.pdf` is now the first fixture with images in it — p1 text/vector
+only, p2 an opaque image downscaled, p3 an alpha image (soft mask + downscale). The images are
+1600×1200 painted into 180×135pt, so the downscale holds at every zoom the editor can reach and
+the test cannot pass by accident. It needed a `.gitignore` change to be committable at all:
+`tests/e2e/fixtures/` was ignored wholesale, so **no fixture was ever tracked** and the browser
+E2E could not run on a clean clone. Narrowed to `fixtures/*` with a negation for `imaged.pdf`
+alone; the other fixtures keep their existing ignored status, undecided.
+
+### Why it was invisible
+
+Two places dropped the cause: `serializeError` returned `{name, message}` with no `stack`, and
+the editor's `catch` discarded even the message. `serializeJobError` now lives in the engine next
+to the error classes (where it can be tested) and carries a 4 kB-trimmed stack, which
+`job-pool` restores onto the reconstructed `Error`. The toast stays one short line; the console
+gets the cause. Stirling-PDF's `reportThumbnailFailure` logs the failing cause for the same
+reason — their note that an empty thumbnail is indistinguishable from "no preview" is the
+accurate description of this bug.
+
+### Lifecycle
+
+A failed page was **poisoned for the session**: the requested-width marker was written before the
+job ran, so the `finally` re-check saw it as satisfied and nothing ever asked again. Failures are
+now counted, the marker cleared so a later zoom or scroll-into-view can retry, and the count caps
+retries at 2 so a page that reliably fails cannot loop.
+
+Clearing the marker alone was **not** enough, and the first attempt at this shipped a comment
+that was simply false: the zoom pass iterates the raster *cache*, and a page that never produced
+a bitmap is not in it, so nothing ever re-asked. Instrumenting it with the fix switched off
+showed a single `attempt 1/2` per page and no retry at all. The pass now also walks the pages
+that failed and are still under the cap. Re-measured with the fix off: pages 2 and 3 record
+`attempts 1, 2` and stop — two each, no page over the cap, four logs total. With the fix on, zero.
+It cannot spin: a failure leaves `rasters` untouched, so it does not re-trigger the pass.
+
+**Gates:** typecheck ✓ 3 packages · **172/172 unit** (18 new) · **83/83** browser E2E (7 new) ·
+**21/21** API integration · **17/17** hardening · main chunk 688.59 kB (+0.04 kB, i.e. nothing —
+0 pdf-lib and 0 pdf.js runtime in it; the factory lands in the worker chunk, confirmed via
+sourcemap) · all three containers **healthy** · pre-push grep clean.
+
+**Still open (deliberate):** recent-history writes stay fire-and-forget (see §15). `wasmUrl` is
+never set, so pdf.js's `useWorkerFetch` sniff — which reads `document.baseURI` and would be a hard
+`ReferenceError` in a worker — short-circuits before it; anyone wiring up CMap/standard-font
+hosting must pass `useWorkerFetch` explicitly. Render-task cancellation stays between pages
+(`ctx.throwIfAborted()`); a single pathological page is bounded by the pool terminating the worker
+on timeout rather than by cooperative mid-render cancel.
+

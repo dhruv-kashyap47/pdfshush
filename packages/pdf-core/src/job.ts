@@ -101,6 +101,56 @@ export function isAbortError(error: unknown): boolean {
 }
 
 /**
+ * What a worker can carry back across a thread boundary.
+ *
+ * Lives here, next to the error classes, rather than inside the worker bundle:
+ * this is the contract that decides whether a production failure is diagnosable,
+ * and it needs a test.
+ */
+export interface SerializedJobError {
+  name: string;
+  message: string;
+  /**
+   * Where it was thrown, trimmed to a sane size.
+   *
+   * This is the only copy that can survive the hop: the receiver rebuilds a fresh
+   * `Error`, so without it a failure inside an engine or third-party library is
+   * reduced to a one-line toast with no trace of the frames underneath. That is
+   * not hypothetical -- a pdf.js rendering fault was reported as nothing but
+   * "Could not render page 3" until the stack was carried here.
+   */
+  stack?: string;
+  issues?: ValidationIssue[];
+}
+
+/** A pathological stack must not become a multi-megabyte message payload. */
+const MAX_SERIALIZED_STACK = 4000;
+
+function trimmedStack(error: unknown): { stack?: string } {
+  if (!(error instanceof Error) || typeof error.stack !== 'string' || error.stack.length === 0) {
+    return {};
+  }
+  const { stack } = error;
+  return {
+    stack: stack.length > MAX_SERIALIZED_STACK ? `${stack.slice(0, MAX_SERIALIZED_STACK)}…` : stack,
+  };
+}
+
+/** Flattens any thrown value into something structured-cloneable and loggable. */
+export function serializeJobError(error: unknown): SerializedJobError {
+  if (error instanceof JobValidationError) {
+    return { name: error.name, message: error.message, ...trimmedStack(error), issues: error.issues };
+  }
+  if (error instanceof JobTimeoutError) {
+    return { name: error.name, message: error.message, ...trimmedStack(error) };
+  }
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message, ...trimmedStack(error) };
+  }
+  return { name: 'Error', message: String(error) };
+}
+
+/**
  * Runs `work` with a hard timeout and cooperative cancellation.
  *
  * Abort cannot interrupt synchronous CPU work inside pdf-lib, so the pool also

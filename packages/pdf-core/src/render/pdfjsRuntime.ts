@@ -8,6 +8,7 @@
  */
 
 import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist';
+import { hasOffscreenCanvas, PdfjsCanvasFactory } from './canvas.js';
 
 export interface PdfjsRuntimeConfig {
   /** URL of the pdf.js worker bundle. Supplied by the host build. */
@@ -50,7 +51,36 @@ export async function loadPdfForRender(
   const buffer = data.slice();
   const task: PDFDocumentLoadingTask = getDocument({
     data: buffer,
+    // Where rendering happens in a Web Worker. pdf.js needs to allocate canvases
+    // of its own while painting (image downscaling, soft masks, tiling patterns,
+    // shadings, transparency groups) and defaults to a DOM-backed factory whose
+    // `globalThis.document` does not exist here. Left to that default, every
+    // page painting an image died with "Cannot read properties of undefined
+    // (reading 'createElement')".
+    //
+    // It must go to `getDocument`, not `page.render`: `PDFPageProxy.render`
+    // overrides the factory with the one the transport built.
+    //
+    // Omitted under Node so pdf.js keeps its `NodeCanvasFactory` there -- which is
+    // also why this cannot be set unconditionally, as `isNodeJS` decides the
+    // default and we must not override it with OffscreenCanvas.
+    //
+    // pdf.js also builds a `DOMFilterFactory` from the same `globalThis.document`,
+    // so it carries the identical latent hazard. It was checked rather than
+    // assumed: across a corpus including image-heavy, alpha/soft-mask and scanned
+    // documents, display rendering only ever calls its base `destroy`, and every
+    // method that touches a DOM is a colour-management/selection path we never
+    // take (`intent: "display"`, no annotation selection). Left alone on purpose:
+    // a no-op filter factory would silently drop filter effects, which is a worse
+    // failure than a loud one. Revisit if print intent or selection styling lands.
+    ...(hasOffscreenCanvas() ? { CanvasFactory: PdfjsCanvasFactory } : {}),
     ...(options.password !== undefined ? { password: options.password } : {}),
+    // `cMapUrl`/`standardFontDataUrl` are only ever supplied together with
+    // `wasmUrl`, and pdf.js's own `useWorkerFetch` sniff reads `document.baseURI`
+    // once they are. That read is a hard ReferenceError in a worker, so anyone
+    // wiring up CMap or standard-font hosting must pass `useWorkerFetch`
+    // explicitly. Today `wasmUrl` is never set, so the check short-circuits
+    // before it gets there.
     ...(config.cMapUrl ? { cMapUrl: config.cMapUrl, cMapPacked: config.cMapPacked ?? true } : {}),
     ...(config.standardFontDataUrl ? { standardFontDataUrl: config.standardFontDataUrl } : {}),
   });

@@ -10,6 +10,7 @@
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
@@ -843,6 +844,136 @@ async function main() {
       : `${reused.length}/${afterSwap.length} pages still showed the previous document`,
   );
   await page.screenshot({ path: path.join(ARTIFACTS, 'edit-swapped.png') });
+
+  /* 15b. Raster quality, and the embedded-image path */
+  // Regression. Two defects hid behind "the <img> exists":
+  //
+  //  1. The raster budget compared a *scale* (px per point) against a pixel
+  //     *width*, so every page was asked to render ~7px wide and `scaleForWidth`'s
+  //     0.05 floor turned that into a 29px bitmap stretched across the column. A
+  //     29px page and a correct one both satisfy "the raster element is present",
+  //     which is why this suite never noticed.
+  //  2. pdf.js allocates scratch canvases of its own while painting a page (image
+  //     downscaling, soft masks, patterns, shadings). It defaults to a DOM-backed
+  //     factory whose `globalThis.document` does not exist in a Web Worker, so
+  //     every page painting an image died with "Cannot read properties of undefined
+  //     (reading 'createElement')" and sat on its placeholder forever. Every other
+  //     fixture in this repo is text and vector, so nothing ever reached that path.
+  //
+  // `fixtures/imaged.pdf` (see make-image-fixture.mjs) is the first fixture here
+  // with images in it, which is the whole point: without it both bugs are untestable.
+  console.log('\n15b. Raster quality + embedded-image rendering');
+  const imaged = path.join(FIXTURES, 'imaged.pdf');
+  if (!existsSync(imaged)) {
+    check(
+      'imaged.pdf fixture exists',
+      false,
+      'run `node tests/e2e/make-image-fixture.mjs` -- without an image-bearing PDF the ' +
+        'pdf.js scratch-canvas path is never exercised and these bugs cannot be caught',
+    );
+  }
+  const rasterDetail = () =>
+    page.locator('[data-testid="editor-page-raster"]').evaluateAll((els) =>
+      els.map((el) => {
+        if (!el.complete || !el.naturalWidth) return { nw: 0, nh: 0, detail: 0 };
+        // Sample the bitmap instead of trusting its presence: a stretched 29px
+        // page and a genuinely rendered one are both "an <img> with a src".
+        const factor = Math.min(1, 64 / el.naturalWidth);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(el.naturalWidth * factor));
+        canvas.height = Math.max(1, Math.round(el.naturalHeight * factor));
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(el, 0, 0, canvas.width, canvas.height);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let sum = 0;
+        let sumSquares = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const luma = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+          sum += luma;
+          sumSquares += luma * luma;
+        }
+        const count = data.length / 4;
+        const mean = sum / count;
+        return {
+          nw: el.naturalWidth,
+          nh: el.naturalHeight,
+          detail: Math.sqrt(Math.max(0, sumSquares / count - mean * mean)),
+        };
+      }),
+    );
+  const loadingCount = () => page.locator('[data-testid="editor-page-loading"]').count();
+
+  const openInEditor = async (file) => {
+    await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'networkidle' });
+    await page.locator('input[accept*="application/pdf"]').setInputFiles([file]);
+    await waitFor(
+      async () => (await page.getByTestId('editor').count()) === 1,
+      60_000,
+      'editor mounted',
+    );
+    await waitFor(
+      async () => (await page.locator('[data-testid="editor-page-raster"]').count()) > 0,
+      60_000,
+      'first raster',
+    );
+    // Quiesce before asserting: rasters arrive two at a time and are re-requested
+    // once the fit-width zoom settles, so "loaded" is not "done".
+    for (let i = 0; i < 25; i += 1) {
+      const before = await rasterDetail();
+      await page.waitForTimeout(400);
+      const after = await rasterDetail();
+      if (JSON.stringify(before) === JSON.stringify(after)) break;
+    }
+  };
+
+  await openInEditor(existsSync(imaged) ? imaged : fileA);
+  const imagedRasters = await rasterDetail();
+  const imagedWidths = imagedRasters.map((r) => r.nw);
+  check(
+    'imaged.pdf: every page renders (the image path no longer throws)',
+    imagedWidths.length === 3 && imagedWidths.every((w) => w > 0),
+    `widths ${imagedWidths.join(', ')}`,
+  );
+  const stillLoading = await loadingCount();
+  check(
+    'imaged.pdf: no page is stuck on its loading placeholder',
+    stillLoading === 0,
+    `${stillLoading} still loading`,
+  );
+  check(
+    'imaged.pdf: rasters are page-sized, not ~29px stretched',
+    imagedWidths.every((w) => w >= 600),
+    `min ${Math.min(...imagedWidths)}px`,
+  );
+  // A4 is 595pt wide; at fit-width the raster must exceed the page's own width.
+  // The old budget produced 29px here.
+  check(
+    'imaged.pdf: A4 renders wider than its 595pt page box',
+    imagedWidths.every((w) => w > 595),
+    `${imagedWidths.join(', ')}px`,
+  );
+  check(
+    'imaged.pdf: bitmaps contain real detail, not a flat placeholder',
+    imagedRasters.some((r) => r.detail >= 8),
+    `luma sd ${imagedRasters.map((r) => Math.round(r.detail)).join(', ')}`,
+  );
+  const imagedToasts = await page.locator('[data-sonner-toast]').allInnerTexts();
+  check(
+    'imaged.pdf: no "could not render page" toast',
+    !imagedToasts.some((t) => /could not render/i.test(t)),
+    imagedToasts.join(' / ') || 'none',
+  );
+  await page.screenshot({ path: path.join(ARTIFACTS, 'edit-imaged.png') });
+
+  // The text/vector case must not regress: it is the common one, and it was the
+  // only kind of PDF this suite covered before.
+  await openInEditor(fileA);
+  const alphaRasters = await rasterDetail();
+  check(
+    'text-only PDF still renders page-sized (common case not regressed)',
+    alphaRasters.length === 3 && alphaRasters.every((r) => r.nw >= 600),
+    `widths ${alphaRasters.map((r) => r.nw).join(', ')}px`,
+  );
 
   /* 16. Client page cap */
   // Regression: `checkClientCapacity` only enforces the 500-page cap when it is

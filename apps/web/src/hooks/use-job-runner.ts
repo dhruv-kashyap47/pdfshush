@@ -71,6 +71,14 @@ export function useJobRunner<T>(slug: string) {
         const aborted =
           error instanceof JobAbortedError ||
           (error instanceof Error && error.name === 'AbortError');
+        if (!aborted) {
+          // Callers show one short toast, which is right for a user and useless
+          // for a bug. The stack rides along on the error (the worker preserves it
+          // across the thread hop), so log it once here rather than at every
+          // call site. Only the error object is logged -- no file bytes, page
+          // contents or local paths.
+          console.error(`[job:${slug}] run failed:`, error);
+        }
         if (isCurrent(runId)) setState(aborted ? { status: 'idle' } : { status: 'error', message: messageOf(error) });
         return aborted ? { ok: false, aborted: true } : { ok: false, aborted: false, message: messageOf(error) };
       }

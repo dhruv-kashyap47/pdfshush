@@ -9,10 +9,10 @@
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   JobAbortedError,
-  JobTimeoutError,
   JobValidationError,
   configurePdfjsRuntime,
   getJob,
+  serializeJobError,
   withJobLimits,
   type JobInputBase,
   type JobProgress,
@@ -87,29 +87,12 @@ async function handleJob(request: JobRequest): Promise<void> {
 
     workerScope.postMessage({ type: 'done', id: request.id, result }, collectTransferables(result));
   } catch (error) {
-    workerScope.postMessage({ type: 'error', id: request.id, error: serializeError(error) });
+    // `serializeJobError` keeps the throw site. Without it this worker is a wall:
+    // the main thread rebuilds a fresh Error and every frame underneath is lost.
+    workerScope.postMessage({ type: 'error', id: request.id, error: serializeJobError(error) });
   } finally {
     inflight.delete(request.id);
   }
-}
-
-interface SerializedError {
-  name: string;
-  message: string;
-  issues?: { field?: string; message: string }[];
-}
-
-function serializeError(error: unknown): SerializedError {
-  if (error instanceof JobValidationError) {
-    return { name: error.name, message: error.message, issues: error.issues };
-  }
-  if (error instanceof JobTimeoutError) {
-    return { name: error.name, message: error.message };
-  }
-  if (error instanceof Error) {
-    return { name: error.name, message: error.message };
-  }
-  return { name: 'Error', message: String(error) };
 }
 
 /**

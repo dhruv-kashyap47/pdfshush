@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import {
   JobAbortedError,
   LIMITS,
+  rasterWidthWithinBudget,
   timeoutForPageCount,
   type EditorObject,
   type EditJobOutput,
@@ -217,18 +218,39 @@ export function EditPdfTool() {
   const RASTER_REUSE_TOLERANCE = 0.25;
 
   /**
+   * Consecutive render failures per page.
+   *
+   * A failed page used to be poisoned for the rest of the session: its
+   * requested-width marker was already recorded before the job ran, so the
+   * re-check in `finally` saw it as satisfied and nothing ever asked again --
+   * the page sat on its loading placeholder forever. Failures are now counted,
+   * the marker is cleared so a later zoom or scroll-into-view can ask again,
+   * and the count caps the retries so a page that reliably fails stops
+   * re-entering the queue instead of looping.
+   */
+  const rasterFailures = useRef(new Map<number, number>());
+  const MAX_RASTER_ATTEMPTS = 2;
+
+  /**
    * Bitmap width for one page: what we want for sharpness, clamped so the
    * decoded bitmap stays inside `MAX_RASTER_PIXELS`. Pure, so it is unit
    * testable without a browser and so every caller agrees on the budget.
+   *
+   * The clamp lives in the engine (`rasterWidthWithinBudget`) because getting the
+   * units wrong here is silent: comparing the area budget against a pixel width
+   * asked for ~7 px pages, which `scaleForWidth`'s floor stretched into a 29 px
+   * bitmap blown up across the whole column -- every page looked blank.
+   *
+   * `displayWidthPt`/`displayHeightPt` are post-rotation dimensions, so a rotated
+   * page is budgeted in the orientation it is actually painted at.
    */
-  const rasterWidthPx = (page: { displayWidthPt: number; displayHeightPt: number }): number => {
-    const widthPt = page.displayWidthPt || 1;
-    const heightPt = page.displayHeightPt || 1;
-    const wanted = Math.round(widthPt * zoomRef.current * RASTER_SCALE);
-    if (!Number.isFinite(wanted) || wanted <= 0) return 1;
-    const budgeted = Math.sqrt(MAX_RASTER_PIXELS / (widthPt * heightPt)) * zoomRef.current * RASTER_SCALE;
-    return Math.max(1, Math.round(Math.min(wanted, budgeted)));
-  };
+  const rasterWidthPx = (page: { displayWidthPt: number; displayHeightPt: number }): number =>
+    rasterWidthWithinBudget(
+      page.displayWidthPt,
+      page.displayHeightPt,
+      zoomRef.current * RASTER_SCALE,
+      MAX_RASTER_PIXELS,
+    );
 
   const inspectState = inspectRunner.state;
   const editState = editRunner.state;
@@ -254,6 +276,7 @@ export function EditPdfTool() {
     // `pending` covers both queued and running pages, so a page asked for twice
     // (IntersectionObserver + eager warm-up) is only fetched once.
     if (rasterPending.current.has(pageIndex)) return;
+    if ((rasterFailures.current.get(pageIndex) ?? 0) >= MAX_RASTER_ATTEMPTS) return;
     rasterPending.current.add(pageIndex);
 
     if (rasterActive.current >= MAX_PARALLEL_RASTERS) {
@@ -267,6 +290,7 @@ export function EditPdfTool() {
     // above forever, so that page never rendered at all.
     rasterRequested.current.set(pageIndex, desired);
     rasterActive.current += 1;
+    let attemptFailed = false;
     try {
       const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
       const result = await jobPool.run<ThumbnailsOutput>('thumbnails', input, {
@@ -286,10 +310,28 @@ export function EditPdfTool() {
         });
         if (toolRef.current === 'text') void ensureRunsRef.current([pageIndex]);
       }
+      rasterFailures.current.delete(pageIndex);
     } catch (error) {
+      attemptFailed = true;
+      const attempts = (rasterFailures.current.get(pageIndex) ?? 0) + 1;
+      rasterFailures.current.set(pageIndex, attempts);
+      // The requested-width marker was written before the job started, so it
+      // still claims this page is done. Leaving it there would mean the re-check
+      // in `finally` -- and every later zoom change -- treated a blank page as
+      // cached. Clearing it is what makes the page retryable at all.
+      rasterRequested.current.delete(pageIndex);
       // A cancelled job is the expected consequence of swapping files or
       // navigating away; only a genuine render failure is worth a toast.
       if (generation === docGeneration.current && !isAbort(error)) {
+        // The toast has to stay one short line, but the cause cannot be thrown
+        // away: the worker serialised it across a thread boundary and this is
+        // the only place left holding it. Only the error itself is logged -- no
+        // file bytes, page contents or paths.
+        console.error(
+          `[edit-pdf] page ${pageIndex + 1} could not be rendered ` +
+            `(attempt ${attempts}/${MAX_RASTER_ATTEMPTS}, target ${desired}px, document ${generation}):`,
+          error,
+        );
         toast.error(`Could not render page ${pageIndex + 1}`);
       }
     } finally {
@@ -302,7 +344,12 @@ export function EditPdfTool() {
       // initial, half-resolution bitmap for the rest of the session. This is
       // the only place that can notice; the requested-width guard makes the call a
       // a no-op when the zoom has not moved, so it cannot spin.
-      void ensureRaster(pageIndex);
+      //
+      // Skipped after a failure: the point of this pass was to catch a *stale
+      // width* on a page that rendered, and re-entering a page that just threw
+      // would retry immediately and forever. Its marker is cleared above, so the
+      // next zoom or scroll-into-view picks it up, capped by MAX_RASTER_ATTEMPTS.
+      if (!attemptFailed) void ensureRaster(pageIndex);
       const next = rasterQueue.current.shift();
       if (next !== undefined) {
         // Clear the marker before re-entering, or the dequeued page looks busy.
@@ -421,6 +468,7 @@ export function EditPdfTool() {
     runsInflight.current.clear();
     rasterRequested.current.clear();
     rasterPending.current.clear();
+    rasterFailures.current.clear();
     rasterQueue.current = [];
     rasterActive.current = 0;
   }, []);
@@ -532,6 +580,16 @@ export function EditPdfTool() {
   useEffect(() => {
     if (stage !== 'editing') return;
     for (const key of Object.keys(rastersRef.current)) void ensureRaster(Number(key));
+    // Pages that *failed* have to be in this pass too. Clearing their
+    // requested-width marker only makes them retryable; something still has to
+    // ask, and iterating the raster cache cannot -- a page that never produced a
+    // bitmap is not in it. Without this the retry budget below was unreachable
+    // and a failed page stayed blank for the rest of the session. `ensureRaster`
+    // caps the attempts, so this converges instead of spinning: each failure
+    // leaves `rasters` untouched, so it cannot re-trigger this effect either.
+    for (const [pageIndex, attempts] of rasterFailures.current) {
+      if (attempts < MAX_RASTER_ATTEMPTS) void ensureRaster(pageIndex);
+    }
   }, [zoom, stage, ensureRaster, rasters]);
 
   // Open at fit-width (the default in every desktop PDF editor) unless the user

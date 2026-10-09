@@ -40,7 +40,11 @@ interface Slot {
 type WorkerMessage =
   | { type: 'progress'; id: number; progress: JobProgress }
   | { type: 'done'; id: number; result: unknown }
-  | { type: 'error'; id: number; error: { name: string; message: string; issues?: { field?: string; message: string }[] } };
+  | {
+      type: 'error';
+      id: number;
+      error: { name: string; message: string; stack?: string; issues?: { field?: string; message: string }[] };
+    };
 
 function workerCount(): number {
   const cores = navigator.hardwareConcurrency ?? 2;
@@ -167,6 +171,9 @@ export class JobPool {
 
     const error = new Error(message.error.message);
     error.name = message.error.name;
+    // The throw site happened in the worker; without this the reconstructed error
+    // points at this line and hides every engine frame underneath it.
+    if (message.error.stack) error.stack = message.error.stack;
     if (message.error.issues) {
       (error as Error & { issues?: unknown }).issues = message.error.issues;
     }

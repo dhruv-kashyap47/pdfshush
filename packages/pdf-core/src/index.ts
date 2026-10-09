@@ -12,6 +12,7 @@ export {
   JobTimeoutError,
   JobValidationError,
   isAbortError,
+  serializeJobError,
 } from './job.js';
 export type {
   JobContext,
@@ -21,6 +22,7 @@ export type {
   JobInputBase,
   JobInputFile,
   JobProgress,
+  SerializedJobError,
   ValidationIssue,
   ValidationResult,
 } from './job.js';
@@ -101,8 +103,14 @@ export type { NupCount, NupOptions, NupResult, NupSheet } from './ops/nup.js';
 // Rendering
 export { configurePdfjsRuntime, loadPdfForRender } from './render/pdfjsRuntime.js';
 export type { PdfjsRuntimeConfig, LoadedPdf } from './render/pdfjsRuntime.js';
-export { defaultCanvasFactory, scaleForWidth } from './render/canvas.js';
-export type { CanvasFactory, RenderCanvas } from './render/canvas.js';
+export {
+  defaultCanvasFactory,
+  hasOffscreenCanvas,
+  PdfjsCanvasFactory,
+  rasterWidthWithinBudget,
+  scaleForWidth,
+} from './render/canvas.js';
+export type { CanvasFactory, PdfjsCanvasEntry, RenderCanvas } from './render/canvas.js';
 export { renderPageToImage, renderPages, renderThumbnails } from './render/renderPage.js';
 export type { ImageFormat, RenderedImage, RenderPageOptions } from './render/renderPage.js';
 export { extractTextRuns, clusterTextRuns } from './render/textRuns.js';
