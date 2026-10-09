@@ -8,17 +8,18 @@ run **client-side in a Web Worker**, so your files never leave your device. Heav
 (OCR, compression, Office conversion) will run on bounded server workers with anonymous
 quotas, through the exact same job contract.
 
-## Status: Phase 1 (10 client-side tools shipped)
+## Status: Phase 1-3 Shipped (14 client-side tools + Phase 3 API stack)
 
 > **Plan, decisions & progress tracker: [`PLAN.md`](./PLAN.md)** — read this first when
 > resuming work; it is updated at the end of every session.
 
 | Layer | State |
 | --- | --- |
-| `packages/pdf-core` | ✅ Engine: job contract, limits, merge/compose/render/zip/stamp/split/n-up, 46 tests |
-| `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu |
-| Live tools (13) | ✅ Merge, Organize, PDF → JPG · Delete, Extract, Rotate, Split by pages, Alternate & Mix, Split in half, Page Numbers, Crop, Header & Footer, N-up |
-| Server (P3), accounts (P4), AI (P5), e-sign/API/MCP (P6) | ⏳ Planned |
+| `packages/pdf-core` | ✅ Environment-agnostic engine: jobs, limits, merge/compose/render/zip/stamp/split/n-up/edit, OffscreenCanvas worker factory, CMap/standard font support |
+| `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu, web worker pool |
+| `apps/api` | ✅ Phase 3 server stack: Express + Redis + BullMQ sandboxed worker + TTL janitor |
+| Live tools (14) | ✅ Edit PDF, Merge, Organize, PDF → JPG, Delete Pages, Extract Pages, Rotate, Split by pages, Alternate & Mix, Split in half, Page Numbers, Crop, Header & Footer, N-up |
+| Accounts (P4), AI (P5), E-sign/API/MCP (P6) | ⏳ Planned |
 
 Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an
 honest "in development" state so links and SEO never churn.
@@ -27,41 +28,52 @@ honest "in development" state so links and SEO never churn.
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:5173
-pnpm typecheck    # tsc across the workspace
-pnpm test         # vitest (pdf-core)
-pnpm build        # production build
-pnpm test:e2e     # Playwright suite vs. running dev server (system Edge)
+pnpm dev              # http://localhost:5173 (client web app)
+pnpm typecheck        # tsc across all workspace projects
+pnpm test             # vitest unit suite (172 tests: pdf-core + api)
+pnpm build            # production bundle build
+pnpm test:e2e         # Playwright suite vs. running dev server (83 checks)
+pnpm stack:up         # docker compose up -d --build (API + Redis + Worker stack)
+pnpm test:api         # API integration suite (21 checks)
+pnpm test:hardening   # Hardening gate (SIGKILL recovery, TTL sweep)
 ```
 
-Requirements: Node ≥ 20.19, pnpm 11.
+Requirements: Node ≥ 20.19, pnpm 11, Docker (for server stack).
 
 ## Architecture
 
 ```
 apps/web                 React SPA (Vite, Tailwind v4, shadcn/ui)
-  src/workers/           module worker: configures pdf.js, runs pdf-core jobs
-  src/lib/job-pool.ts    bounded pool, timeouts, terminate-on-cancel, zero-copy transfer
-  src/tools/registry.ts  the full catalog (~45 tools, categorized like Sejda)
-packages/pdf-core        environment-agnostic engine (worker + Node)
-  src/job.ts             JobDefinition / JobContext / withJobLimits
-  src/limits.ts          every capacity number in one file
-  src/ops/               pages, compose, merge, zip, ranges
-  src/render/            pdf.js runtime, canvas abstraction, page rendering
-  src/jobs/              inspect, merge, organize, pdf-to-images, thumbnails
+  src/workers/           module worker: runs pdf-core, OffscreenCanvas, font & CMap runtime
+  src/lib/job-pool.ts    bounded pool, timeouts, error stacks, terminate-on-cancel, zero-copy
+  src/components/tools/  tool UI components, including the hybrid canvas Edit PDF tool
+  public/                static assets: standard fonts (.pfb) and binary CMaps (.bcmap)
+packages/pdf-core        environment-agnostic PDF engine (Web Worker + Node)
+  src/job.ts             JobDefinition / JobContext / withJobLimits / serializeJobError
+  src/limits.ts          every capacity number in one single source of truth
+  src/ops/               pages, compose, merge, zip, ranges, edit, stamp, split, n-up
+  src/render/            pdf.js bootstrap, PdfjsCanvasFactory (OffscreenCanvas), budgeting
+  src/jobs/              inspect, merge, organize, pdf-to-images, thumbnails, edit, text-runs
+apps/api                 Phase 3 background queue & server API
+  src/server.ts          Express HTTP API + BullMQ producer + TTL janitor
+  src/worker/            sandboxed worker processes (isolated memory & CPU)
 ```
 
 Key invariants:
 
-- **One job contract.** `JobDefinition { validate, estimate, run }` is consumed by the
-  browser pool today and the server queue (Phase 3) later — tools never know where they run.
+- **One job contract.** `JobDefinition { validate, estimate, run }` is consumed identically
+  by the browser pool and the server queue — tools never know where they execute.
+- **Off-main-thread rendering.** Page rendering runs entirely inside Web Workers with
+  `OffscreenCanvas`, worker-safe canvas factories, and static CMap/standard font hosting so
+  large PDFs and non-embedded fonts render cleanly without blocking UI responsiveness.
+- **Budgeted rasters.** Raster bitmaps use area-based allocation (`rasterWidthWithinBudget`)
+  so large-format pages respect the 12 MP memory budget regardless of zoom or display density.
 - **Guardrails first.** File/page/byte limits, per-job timeouts derived from page count,
-  abort signals, bounded worker concurrency, terminate-on-timeout (synchronous PDF work
-  cannot be interrupted any other way).
-- **Transfer, don't copy.** Input buffers are moved into the worker and results are moved
-  back; main-thread bundle contains neither pdf.js nor pdf-lib (verified: ~184 kB gzip).
-- **Refuse, don't crash.** Capacity checks run before work starts; a browser tab never
-  dies halfway through someone's document.
+  abort signals, bounded worker concurrency, and terminate-on-timeout.
+- **Transfer, don't copy.** Input buffers are moved into the worker and results transferred
+  back; main-thread bundle contains neither pdf.js nor pdf-lib.
+- **Refuse, don't crash.** Capacity checks run before work starts; browser tabs never die
+  halfway through a user document.
 
 ## Credits & licensing
 

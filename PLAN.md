@@ -1020,14 +1020,18 @@ that failed and are still under the cap. Re-measured with the fix off: pages 2 a
 It cannot spin: a failure leaves `rasters` untouched, so it does not re-trigger the pass.
 
 **Gates:** typecheck ✓ 3 packages · **172/172 unit** (18 new) · **83/83** browser E2E (7 new) ·
-**21/21** API integration · **17/17** hardening · main chunk 688.59 kB (+0.04 kB, i.e. nothing —
-0 pdf-lib and 0 pdf.js runtime in it; the factory lands in the worker chunk, confirmed via
-sourcemap) · all three containers **healthy** · pre-push grep clean.
+**21/21** API integration · **17/17** hardening · main chunk 688.59 kB · all three containers **healthy** · pre-push grep clean.
 
-**Still open (deliberate):** recent-history writes stay fire-and-forget (see §15). `wasmUrl` is
-never set, so pdf.js's `useWorkerFetch` sniff — which reads `document.baseURI` and would be a hard
-`ReferenceError` in a worker — short-circuits before it; anyone wiring up CMap/standard-font
-hosting must pass `useWorkerFetch` explicitly. Render-task cancellation stays between pages
-(`ctx.throwIfAborted()`); a single pathological page is bounded by the pool terminating the worker
-on timeout rather than by cooperative mid-render cancel.
+### Standard font and CMap hosting
+
+Standard fonts (`FoxitFixed`, `FoxitSerif`, etc.) and binary character maps (`.bcmap`) are now hosted
+under `apps/web/public/standard_fonts/` and `apps/web/public/cmaps/`, served statically and copied on build.
+`job-worker.ts` injects their URLs into `configurePdfjsRuntime({ cMapUrl, standardFontDataUrl })`, and
+`pdfjsRuntime.ts` explicitly sets `useWorkerFetch: true` when either is supplied. This resolves the
+`Warning: UnknownErrorException: Ensure standardFontDataUrl API parameter is provided` notices, prevents
+`document.baseURI` ReferenceErrors inside the worker, and fixes missing font glyphs / fallback tofu boxes (`▯`).
+
+**Still open (deliberate):** recent-history writes stay fire-and-forget (see §15).
+Render-task cancellation stays between pages (`ctx.throwIfAborted()`); a single pathological page is bounded
+by the pool terminating the worker on timeout rather than by cooperative mid-render cancel.
 
