@@ -18,7 +18,13 @@ import {
   type JobProgress,
 } from '@pdfshush/pdf-core';
 
-configurePdfjsRuntime({ workerSrc });
+const origin = typeof self !== 'undefined' && self.location ? self.location.origin : '';
+configurePdfjsRuntime({
+  workerSrc,
+  cMapUrl: origin ? `${origin}/cmaps/` : '/cmaps/',
+  cMapPacked: true,
+  standardFontDataUrl: origin ? `${origin}/standard_fonts/` : '/standard_fonts/',
+});
 
 interface JobRequest {
   type: 'job';

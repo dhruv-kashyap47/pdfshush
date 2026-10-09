@@ -75,14 +75,12 @@ export async function loadPdfForRender(
     // failure than a loud one. Revisit if print intent or selection styling lands.
     ...(hasOffscreenCanvas() ? { CanvasFactory: PdfjsCanvasFactory } : {}),
     ...(options.password !== undefined ? { password: options.password } : {}),
-    // `cMapUrl`/`standardFontDataUrl` are only ever supplied together with
-    // `wasmUrl`, and pdf.js's own `useWorkerFetch` sniff reads `document.baseURI`
-    // once they are. That read is a hard ReferenceError in a worker, so anyone
-    // wiring up CMap or standard-font hosting must pass `useWorkerFetch`
-    // explicitly. Today `wasmUrl` is never set, so the check short-circuits
-    // before it gets there.
-    ...(config.cMapUrl ? { cMapUrl: config.cMapUrl, cMapPacked: config.cMapPacked ?? true } : {}),
-    ...(config.standardFontDataUrl ? { standardFontDataUrl: config.standardFontDataUrl } : {}),
+    ...(config.cMapUrl
+      ? { cMapUrl: config.cMapUrl, cMapPacked: config.cMapPacked ?? true, useWorkerFetch: true }
+      : {}),
+    ...(config.standardFontDataUrl
+      ? { standardFontDataUrl: config.standardFontDataUrl, useWorkerFetch: true }
+      : {}),
   });
   let doc: PDFDocumentProxy;
   try {
