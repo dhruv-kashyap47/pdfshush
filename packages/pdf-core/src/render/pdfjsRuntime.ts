@@ -49,8 +49,15 @@ export async function loadPdfForRender(
   // pdf.js takes ownership of the buffer it is given and may transfer/detach it,
   // so it always gets its own copy. Cost: one extra allocation per document.
   const buffer = data.slice();
-  const task: PDFDocumentLoadingTask = getDocument({
+  const documentOptions = {
     data: buffer,
+    // Dedicated workers have no document.fonts or FontFace installation
+    // surface. Force deterministic glyph-path rendering from the PDF's font
+    // data instead of allowing missing browser font APIs to produce tofu.
+    disableFontFace: true,
+    useSystemFonts: false,
+    // Keep font execution/data handling deterministic for untrusted PDFs.
+    isEvalSupported: false,
     // Where rendering happens in a Web Worker. pdf.js needs to allocate canvases
     // of its own while painting (image downscaling, soft masks, tiling patterns,
     // shadings, transparency groups) and defaults to a DOM-backed factory whose
@@ -81,7 +88,8 @@ export async function loadPdfForRender(
     ...(config.standardFontDataUrl
       ? { standardFontDataUrl: config.standardFontDataUrl, useWorkerFetch: true }
       : {}),
-  });
+  } as Parameters<typeof getDocument>[0];
+  const task: PDFDocumentLoadingTask = getDocument(documentOptions);
   let doc: PDFDocumentProxy;
   try {
     doc = await task.promise;

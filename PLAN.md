@@ -1035,3 +1035,20 @@ under `apps/web/public/standard_fonts/` and `apps/web/public/cmaps/`, served sta
 Render-task cancellation stays between pages (`ctx.throwIfAborted()`); a single pathological page is bounded
 by the pool terminating the worker on timeout rather than by cooperative mid-render cancel.
 
+## 17. Browser-worker font rendering and final audit (2026-10-09)
+
+The editor's browser worker was still vulnerable to PDF.js's browser-font path. In a dedicated
+worker there is no reliable `document.fonts`/`FontFace` installation surface, so standard or
+embedded fonts could become tofu boxes even though CMaps and standard-font files were present.
+
+The loader now forces deterministic PDF glyph-path rendering with `disableFontFace: true`,
+`useSystemFonts: false`, and `isEvalSupported: false`. CMap and standard-font URLs are resolved
+from Vite's base URL, so the same worker works at the site root and under a deployed sub-path.
+The existing OffscreenCanvas factory and `useWorkerFetch` configuration remain unchanged.
+
+The final audit intentionally stayed narrow: no additional speculative refactors were made after
+the renderer fix. The full validation gate passed: **172/172 unit tests**, **all browser E2E
+checks**, workspace typechecks, production web build, asset HTTP checks for CMaps and standard
+fonts, and `git diff --check`. The local `Stirling-PDF-main/` checkout is reference material and
+is ignored rather than included in the application commit.
+

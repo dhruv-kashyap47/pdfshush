@@ -18,12 +18,18 @@ import {
   type JobProgress,
 } from '@pdfshush/pdf-core';
 
-const origin = typeof self !== 'undefined' && self.location ? self.location.origin : '';
+// Resolve static PDF.js assets from the Vite base path. Using only the origin
+// works at `/`, but breaks when the app is deployed under a sub-path and makes
+// the worker fetch the host's HTML fallback as a font.
+const assetsBase =
+  typeof self !== 'undefined' && self.location
+    ? new URL(`${import.meta.env.BASE_URL}`, self.location.origin)
+    : new URL('/', 'http://localhost');
 configurePdfjsRuntime({
   workerSrc,
-  cMapUrl: origin ? `${origin}/cmaps/` : '/cmaps/',
+  cMapUrl: new URL('cmaps/', assetsBase).toString(),
   cMapPacked: true,
-  standardFontDataUrl: origin ? `${origin}/standard_fonts/` : '/standard_fonts/',
+  standardFontDataUrl: new URL('standard_fonts/', assetsBase).toString(),
 });
 
 interface JobRequest {
