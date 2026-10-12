@@ -260,6 +260,28 @@ describe('jobs (registry layer)', () => {
     expect(info.pages[0]?.rotation).toBe(180);
   });
 
+  it('keeps every page in order when no page list is supplied', async () => {
+    // Regression. The no-order fallback returned `[]`, which `composePageRefs`
+    // rejects with "No pages selected" -- so the job was documented as callable
+    // without a selection and was not. Any caller but the UI (the API, a workflow
+    // step) hit a hard failure for the one order that needs no decisions.
+    const a = await makeFixturePdf({ pages: 3 });
+    const output = await organizeJob.run({ files: [{ name: 'a.pdf', data: a }] }, testContext());
+    expect(output.pageCount).toBe(3);
+    const info = await inspectPdf(new Uint8Array(output.data));
+    expect(info.pageCount).toBe(3);
+  });
+
+  it('concatenates every page of every input when no page list is supplied', async () => {
+    const a = await makeFixturePdf({ pages: 2 });
+    const b = await makeFixturePdf({ pages: 3, width: 300 });
+    const output = await organizeJob.run(
+      { files: [{ name: 'a.pdf', data: a }, { name: 'b.pdf', data: b }] },
+      testContext(),
+    );
+    expect(output.pageCount).toBe(5);
+  });
+
   it('never names a merged file after its only source', async () => {
     // Merging one file must not hand back a *different* document under the
     // user's original filename.

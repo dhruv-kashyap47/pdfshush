@@ -60,6 +60,14 @@ export const LIMITS = {
     /** Undo depth. Snapshots share image buffers, so this is cheap. */
     maxHistorySteps: 250,
   },
+  workflow: {
+    /** Steps in one saved recipe. Bounds a stored document and its UI. */
+    maxSteps: 20,
+    /** Recipe name length, after trimming. */
+    maxNameChars: 80,
+    /** Step id length, after trimming. */
+    maxStepIdChars: 64,
+  },
 } as const;
 
 export type Limits = typeof LIMITS;

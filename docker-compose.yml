@@ -44,6 +44,21 @@ services:
       FILE_TTL_MS: ${FILE_TTL_MS:-3600000}
       JANITOR_INTERVAL_MS: ${JANITOR_INTERVAL_MS:-300000}
       LOG_LEVEL: info
+      # Accounts (Phase 4). Compose reads the project-root `.env` for these, so
+      # credentials are never baked into the image. Auth stays off unless a Mongo
+      # URI *and* both Google values resolve; every tool is anonymous regardless.
+      MONGODB_URI: ${MONGODB_URI:-}
+      MONGODB_DB: ${MONGODB_DB:-pdfshush}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/auth/callback}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
+      # Secure cookies over http://localhost are accepted by Chrome and Edge
+      # (localhost is a trustworthy origin), so the secure default holds locally.
+      # Set SESSION_COOKIE_SECURE=false only if a browser refuses the cookie.
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
     ports:
       - "8080:8080"
     volumes:

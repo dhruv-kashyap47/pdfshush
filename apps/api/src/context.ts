@@ -18,6 +18,17 @@ import { QuotaService, newPepper } from './quota/quota.js';
 import type { QuotaStore } from './quota/store.js';
 import type { JobQueue } from './jobs/queue.js';
 import type { QuotaCounter } from './quota/quota.js';
+import type { AuthStore } from './auth/store.js';
+import type { AccountStore } from './account/store.js';
+import type { GoogleOidc } from './auth/google.js';
+
+/** Accounts and sessions, present only when the deployment is configured for them. */
+export interface AuthServices {
+  store: AuthStore;
+  account: AccountStore;
+  oidc: GoogleOidc;
+  close(): Promise<void>;
+}
 
 export interface ApiContext {
   config: ApiConfig;
@@ -25,8 +36,20 @@ export interface ApiContext {
   store: WorkDirStore;
   queue: JobQueue;
   quota: QuotaService;
+  /**
+   * The raw counters behind `quota`. Exposed because limiters that are not the
+   * anonymous tool quota (the auth endpoints) need a window of their own, and
+   * routing them through `QuotaService` would mean teaching it about routes it
+   * does not own.
+   */
+  counters: QuotaCounter;
   /** Secret for hashing subjects and deriving job tokens. */
   pepper: string;
+  /**
+   * Undefined means anonymous-only: no Mongo, no Google credentials, and every
+   * auth route answers 503 while every tool keeps working.
+   */
+  auth?: AuthServices;
 }
 
 /**
@@ -73,6 +96,7 @@ export interface ContextOverrides {
   queue: JobQueue;
   quotaStore: QuotaStore;
   pepper?: string;
+  auth?: AuthServices;
 }
 
 export function createContext(overrides: ContextOverrides): ApiContext {
@@ -81,6 +105,7 @@ export function createContext(overrides: ContextOverrides): ApiContext {
     ...base,
     ...overrides.config,
     quota: { ...base.quota, ...(overrides.config?.quota ?? {}) },
+    auth: { ...base.auth, ...(overrides.config?.auth ?? {}) },
   } as ApiConfig;
 
   return {
@@ -89,6 +114,8 @@ export function createContext(overrides: ContextOverrides): ApiContext {
     store: overrides.store ?? new WorkDirStore(config.workDir),
     queue: overrides.queue,
     quota: new QuotaService(overrides.quotaStore as QuotaCounter, config.quota),
+    counters: overrides.quotaStore as QuotaCounter,
     pepper: overrides.pepper ?? resolvePepper(config),
+    ...(overrides.auth ? { auth: overrides.auth } : {}),
   };
 }

@@ -99,3 +99,15 @@ export function getNodeJob(slug: string): JobDefinition | undefined {
 
 export type { InspectOutput } from './jobs/inspect.job.js';
 export type { EditJobInput, EditJobOptions, EditJobOutput } from './jobs/edit.job.js';
+
+// Slugs and workflow validation. Both are dependency-free (no DOM, no canvas),
+// so the server can validate a saved recipe with the same rules the browser
+// applies -- which is the entire reason the contract lives in the engine.
+export { JOB_SLUGS, isKnownJobSlug, type JobSlugLiteral } from './jobs/slugs.js';
+export {
+  validateWorkflow,
+  WORKFLOW_OUTPUT_JOBS,
+  type Workflow,
+  type WorkflowInput,
+  type WorkflowStep,
+} from './workflow.js';

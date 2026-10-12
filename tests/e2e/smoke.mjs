@@ -1116,8 +1116,94 @@ async function main() {
     (newestRecent ?? '').replace(/\s+/g, ' ').slice(0, 60),
   );
 
+  /* 19. Accounts & workflows (Phase 4) */
+  // The auth API is disabled unless Google credentials are configured, and the
+  // E2E runs without them on purpose: "accounts are off" is a supported state
+  // that must not break anything, so it is the state that gets tested.
+  console.log('\n19. Accounts & workflows');
+
+  await page.goto(`${BASE}/workflows`, { waitUntil: 'networkidle' });
+  check(
+    'workflows page loads',
+    await page.getByRole('heading', { name: 'Workflows', exact: true }).isVisible(),
+  );
+  check(
+    'workflows page works signed out (local storage, not a sign-in wall)',
+    await page.getByText(/Saved in this browser/i).isVisible(),
+  );
+
+  // Build a two-step recipe: the first step takes the uploaded file, the second
+  // consumes the first. The engine's validator is what guarantees that re-linking
+  // is legal, so this exercises the real contract end to end.
+  await page.getByLabel('Name').fill('E2E merge then stamp');
+  const addStep = page.getByLabel('Add a step');
+  // Job slugs, not tool slugs: a recipe names engine jobs (`merge`), and the
+  // builder only offers the ones this deployment can actually run.
+  await addStep.selectOption('merge');
+  await addStep.selectOption('organize');
+  const stepItems = page.locator('ol li');
+  const stepNames = async () =>
+    (await stepItems.allInnerTexts()).map((text) => text.replace(/^\s*\d+\s*/, '').split('\n')[0]?.trim() ?? '');
+  check('two steps added to the recipe', (await stepItems.count()) === 2, `${await stepItems.count()} steps`);
+
+  // Reordering must keep the chain valid rather than leaving a dangling input.
+  const before = await stepNames();
+  await page.getByRole('button', { name: 'Move step down' }).first().click();
+  const after = await stepNames();
+  check(
+    'reordering swaps the two steps',
+    before.length === 2 && after[0] === before[1] && after[1] === before[0],
+    `${before.join(' | ')} -> ${after.join(' | ')}`,
+  );
+
+  // Run it for real: upload → step 1 → step 2 → download. This is the whole
+  // point of the feature, so it is asserted on the bytes rather than on a toast.
+  await page.getByLabel('File to run the workflow on').setInputFiles([fileA]);
+  const [workflowDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: 180_000 }),
+    page.getByRole('button', { name: /run workflow/i }).click(),
+  ]);
+  const workflowBytes = await readFile(await workflowDownload.path());
+  check(
+    'workflow runs end to end and downloads a PDF',
+    workflowBytes.subarray(0, 5).toString('latin1') === '%PDF-',
+    `${workflowDownload.suggestedFilename()} — ${workflowBytes.length} bytes`,
+  );
+
+  await page.getByRole('button', { name: /save workflow/i }).click();
+  await waitFor(
+    async () => (await page.getByText('E2E merge then stamp').count()) === 1,
+    30_000,
+    'saved recipe to appear',
+  );
+  check('a reordered recipe still validates and saves', true, 'engine accepted the re-linked chain');
+
+  await page.getByRole('button', { name: 'Delete workflow' }).first().click();
+  await waitFor(async () => (await page.getByText('E2E merge then stamp').count()) === 0, 20_000, 'recipe removal');
+  check('recipe can be deleted', true);
+
+  await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
+  check(
+    'account page offers sign-in without gating anything',
+    await page.getByText(/Accounts are optional/i).isVisible(),
+  );
+  check(
+    'account page states the privacy boundary',
+    await page.getByText(/Every tool works without signing in/i).isVisible(),
+  );
+
+  // Accounts are disabled in this environment, so `/api/auth/me` answers 204 and
+  // the header must render the sign-in control rather than the Phase 4
+  // placeholder that used to sit there.
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  const signIn = page.getByRole('button', { name: 'Sign in' });
+  check(
+    'header shows a working sign-in control once auth state resolves',
+    await waitFor(async () => (await signIn.count()) > 0, 15_000, 'sign-in control'),
+  );
+
   /* console health */
-  console.log('\n19. Console health');
+  console.log('\n20. Console health');
   const fatal = consoleErrors.filter(
     (text) => !text.includes('favicon') && !text.includes('Download the React DevTools'),
   );

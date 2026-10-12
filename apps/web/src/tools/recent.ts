@@ -5,6 +5,8 @@
  * want to, since "your files never leave this device" is the product promise.
  */
 
+import { RECENT_STORE, pdfshushDb } from '@/lib/idb';
+
 export interface RecentEntry {
   id: string;
   toolSlug: string;
@@ -15,8 +17,7 @@ export interface RecentEntry {
   createdAt: number;
 }
 
-const DB_NAME = 'pdfshush';
-const STORE = 'recent';
+const STORE = RECENT_STORE;
 const MAX_ENTRIES = 12;
 
 type RecentListener = () => void;
@@ -48,18 +49,7 @@ export function subscribeRecent(listener: RecentListener): () => void {
 }
 
 function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: 'id' });
-        store.createIndex('createdAt', 'createdAt');
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB unavailable'));
-  });
+  return pdfshushDb();
 }
 
 /**
@@ -73,19 +63,12 @@ function openDb(): Promise<IDBDatabase> {
  * call, so nothing is left to race. The layout's `useRecent` read opens it at
  * startup, long before the first tool can finish.
  *
- * It is deliberately never closed: `close()` aborts transactions still in
- * flight, which would reintroduce exactly the loss this prevents.
+ * The connection itself is owned by `lib/idb.ts`, which is the only place that
+ * opens the database -- two modules opening it at different versions would make
+ * whichever came second fail outright.
  */
-let connection: Promise<IDBDatabase> | undefined;
-
 function db(): Promise<IDBDatabase> {
-  connection ??= openDb().catch((error: unknown) => {
-    // A cached rejection would poison every later call; forget it and let the
-    // next one open afresh.
-    connection = undefined;
-    throw error;
-  });
-  return connection;
+  return openDb();
 }
 
 /**

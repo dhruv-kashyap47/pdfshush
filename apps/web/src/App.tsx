@@ -3,9 +3,11 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { SiteFooter } from '@/components/layout/footer';
 import { SiteHeader } from '@/components/layout/header';
+import { AccountPage } from '@/pages/account';
 import { HomePage } from '@/pages/home';
 import { NotFoundPage } from '@/pages/not-found';
 import { ToolPage } from '@/pages/tool';
+import { WorkflowsPage } from '@/pages/workflows';
 
 export default function App() {
   return (
@@ -17,6 +19,8 @@ export default function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/tools/:slug" element={<ToolPage />} />
+              <Route path="/workflows" element={<WorkflowsPage />} />
+              <Route path="/account" element={<AccountPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </main>

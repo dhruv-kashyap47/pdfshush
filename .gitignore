@@ -29,3 +29,9 @@ tests/e2e/fixtures/*
 # Server work directory (uploads + results): runtime state, never committed.
 .work/
 apps/api/.work/
+
+# Downloaded OAuth client credentials from Google Cloud Console. The filename
+# itself encodes the client id and the body contains the client secret; neither
+# belongs in git. Real values live in the gitignored `.env`.
+client_secret*.json
+*.apps.googleusercontent.com.json

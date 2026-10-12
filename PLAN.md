@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-08
+**Last updated:** 2026-10-12
 
 ---
 
@@ -21,16 +21,29 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ✅ **Done (2026-10-07)** — see §10 |
 | **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ✅ **Done (2026-10-08)** — see §11 |
 | **Audit remediation (P0/P1/P2)** | Full-codebase audit fixes: output contracts, page cap, filenames, cancel contract, janitor, recent history | ✅ **Done (2026-10-08)** — see §14 |
-| **P4 — Accounts & workflows** | Anonymous-first JWT/OAuth, saved history, workflow builder | ⬜ |
+| **P4 — Accounts & workflows** | Anonymous-first auth, saved history, workflow builder | 🔵 **In progress** — see §18 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
-**Current gate:** audit remediation shipped — all P0/P1/P2 findings closed. 14 of 53 tools
-live · 8 of them also runnable server-side · **154/154 unit** (88 engine + 66 API) ·
-**76/76 browser E2E** · 21/21 API integration · 17/17 hardening · bundle 688 kB, 0 pdf-lib/pdf.js
-in the main chunk.
-**Next: P4** (accounts & workflows). Repo public: `github.com/dhruv-kashyap47/pdfshush` —
+**P4 sub-phases** (detail in §18):
+
+| | Scope | Status |
+| --- | --- | --- |
+| **P4.0** | Decision record: store, identity provider, sync boundary, execution split | ✅ decided 2026-10-12 |
+| **P4.1** | Optional accounts + sessions (OAuth/OIDC + cookie sessions + job ownership + CSRF) | ✅ **done 2026-10-12** |
+| **P4.2** | Account-owned data: preferences, synced history, export/delete | ✅ **done 2026-10-12** |
+| **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
+| **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
+
+**Current gate:** re-measured 2026-10-12 after the renderer fixes of 2026-10-09 (`14875ec`,
+`92fb5c3`, `ab0d09f`), the P4 workflow contract, the full P4.1–P4.3 build, and the
+**production-risk closure pass** (§19). 14 of 53 tools live · 8 of them also runnable
+server-side · **242/242 unit** (129 engine + 113 API) · **93/93 browser E2E** · 21/21 API
+integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces glyph-path
+rendering off the `FontFace` path in the worker (§16, §17) · **accounts live against Google +
+MongoDB Atlas**, full sign-in verified to Google's consent page (§18).
+**Next: P4.4 or P5.** Repo public: `github.com/dhruv-kashyap47/pdfshush` —
 **run the pre-push secret/PII grep before every push** (see §9 tooling).
 
 ---
@@ -162,9 +175,24 @@ payload), TTL janitor, monitoring (queue depth, work-dir usage, structured logs)
 so compress/OCR/Word conversion stayed client-side. That is the next server slice and the
 first thing to unblock 8 more of the 53 tools.
 
-### P4 — Accounts & workflows
+### P4 — Accounts & workflows *(in progress — detail in §18)*
 Optional JWT + OAuth, saved history (beyond local IndexedDB), workflow builder
 (compose jobs, trigger on upload/URL/schedule) — Jobs already serialize cleanly.
+
+Sequenced as five sub-phases so the risky automation does not ride in with identity:
+
+- **P4.0 — Decision record.** Store, identity provider, sync boundary, execution split.
+  Nothing is built until these are written down (§18.1).
+- **P4.1 — Optional accounts + sessions.** OAuth/OIDC + revocable **cookie** sessions
+  (`Secure; HttpOnly; SameSite`), never a long-lived token in `localStorage`. Anonymous
+  job tokens keep working; accounts add *ownership*, they do not gate any tool.
+- **P4.2 — Account-owned data.** Preferences, opted-in history sync, export/delete.
+  Metadata only by default — filenames are user data and are not uploaded silently.
+- **P4.3 — Workflow recipes.** The recipe contract plus a local builder and "run now".
+  Recipes run anonymously in the browser first; server execution only for the slugs the
+  server can actually run.
+- **P4.4 — Automated triggers.** Upload / URL / schedule. This is its own gate: URL
+  needs SSRF defence, schedule needs idempotency and crash-safe runs.
 
 ### P5 — AI → **leakage gate**
 Hybrid: BYOK (browser-direct to provider, key never touches our server) + managed keys
@@ -415,6 +443,83 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-12 — Production-risk closure before any new feature.** Swept the P4 surface for
+  production-only risks and found five, one of them a real hole: **the CSRF check compared
+  token *lengths*, not values** — any string of the right size passed, so the token guarding
+  every state-changing account route guarded nothing. Now a constant-time value comparison, with
+  a regression test proven red (reverting the fix fails exactly that test). Also: **the two
+  sign-in routes were unthrottled** despite each doing work worth amplifying (a transaction row;
+  an outbound request to Google) — now a per-IP 20/min window, verified live at 20×302 then 429
+  with `Retry-After: 60`, scoped so the SPA's `/me` probe is unaffected; **a Mongo outage
+  surfaced as a 500** instead of a retryable 503 `storage_unavailable`; **a `Secure` cookie over
+  plain http failed silently** — the failure mode where a user looks signed in then signed out —
+  now warned about loudly at boot; and **there was no `.env.example`**, while a downloaded Google
+  client-secret JSON sat untracked in the repo root (now gitignored, values only in `.env`).
+  Also removed a `jobs.ownsJob` stub that always returned `false`, and a double history query.
+  **Gates:** 242/242 unit (129 engine + 113 API) · 93/93 E2E · 21/21 API · 17/17 hardening.
+  Detail in §19.
+- **2026-10-12 — P4 complete (P4.1–P4.3), P4.4 gated.** Accounts are live end to end against
+  Google + MongoDB Atlas: the API logs `accounts enabled`, `/api/auth/google/start` returns a
+  302 to `accounts.google.com` with the real client id, the registered redirect URI
+  (`http://localhost:8080/api/auth/callback`), `code_challenge_method=S256`, `state` and
+  `nonce`, and clicking **Sign in** in the running app reaches Google's consent screen.
+  **P4.1:** sessions (SHA-256-only storage, revocable, `HttpOnly; SameSite=Lax` cookie),
+  double-submit CSRF on every write, job ownership in `jobOwners` (TTL'd, recorded at submit
+  time because BullMQ prunes completed jobs), SPA `useAuth` + account menu. **P4.2:**
+  preferences, metadata-only history sync (opt-in), export-my-data and delete-everything with
+  per-collection counts. **P4.3:** the recipe contract plus IndexedDB/account storage, a builder
+  whose reorder **re-links the chain**, and a runner that executes each step through the existing
+  `/api/jobs` endpoint — one upload → poll → download per step, output feeding input. The E2E
+  asserts the downloaded bytes of a two-step run, not just a toast. **P4.4 is deliberately not
+  built**; §18.5 records the SSRF/integerity/scheduling threat model that has to exist first.
+  *Bugs found while building it:* `organize`'s no-page-list fallback returned `[]`, so the job
+  threw "No pages selected" for the one order that needs no decisions — only reachable from
+  outside the UI, which is why the workflow runner surfaced it (fixed, two regression tests);
+  and the builder initially offered **tool** slugs (`merge-pdf`) where a recipe needs **job**
+  slugs (`merge`), which would have posted the wrong slug. Also: a downloaded Google
+  client-secret JSON landed in the repo root — now gitignored, and the values live only in the
+  gitignored `.env`.
+  **Gates:** 236/236 unit (129 engine + 107 API) · 93/93 browser E2E · 21/21 API · 17/17
+  hardening · main bundle 698 kB, 0 pdf-lib/mongodb in it. Detail in §18.
+- **2026-10-12 — P4.1 accounts: Google OIDC + cookie sessions (API side).** New
+  `apps/api/src/auth/`: `mongo.ts` (collections + TTL indexes), `google.ts` (Authorization Code
+  + PKCE, `state`, `nonce`, ID-token verification via jose against Google's JWKS),
+  `store.ts` (accounts keyed on Google `sub`, sessions stored as SHA-256 only, single-use
+  transactions), `routes.ts` (start/callback/me/logout), `setup.ts` (non-fatal wiring).
+  **Authorised redirect URI to register in Google Cloud Console:
+  `http://localhost:8080/api/auth/callback`** for local dev, `https://<domain>/api/auth/callback`
+  in production — both overridable via `GOOGLE_REDIRECT_URI`. Mongo is now the store of record
+  for account data (the decision §18.1 recorded); Redis stays queue/quota/job-state. Verified
+  against the real Atlas cluster: `createAuthDb` connects and creates `accounts`, `sessions`,
+  `authTransactions`. Anonymous-first is preserved structurally — auth is disabled unless a
+  Mongo URI *and* both Google credentials resolve, and an unreachable Mongo downgrades to
+  anonymous-only instead of failing boot; the live stack reports `/api/auth/me` → 204 and
+  `/api/auth/google/start` → 503 with no credentials configured. Added the Vite `/api` dev
+  proxy so the SPA talks to the API same-origin, which keeps the session cookie
+  `SameSite=Lax` and removes any need for CORS. **28 new tests** (94 API total) cover the
+  RFC 7636 PKCE vector, the open-redirect allow-list, real RS256 verification against a local
+  JWKS (bad signature, `aud`, `iss`, `exp`, `nonce`), session hashing/revocation/expiry, and
+  state replay. Not yet wired: the SPA sign-in button, account ownership of server jobs, and
+  an explicit CSRF token. Detail in §18.2.
+- **2026-10-12 — P4 opened; workflow recipe contract landed.** P4 split into five sub-phases
+  (§18) so identity, data and automation land separately, and P4.0 written down as a decision
+  record rather than left implicit: **MongoDB** for account/session/recipe documents with
+  **Redis staying queue/quota/job-state only**, one OIDC provider, **server-side revocable
+  cookie sessions** (never a long-lived token in `localStorage`), and a sync boundary that
+  carries **metadata, never document bytes**. First slice built is the decision-independent
+  one: `packages/pdf-core/src/workflow.ts` — `Workflow`/`WorkflowStep` plus
+  `validateWorkflow`, which is deliberately in the engine so a recipe cannot be accepted by
+  the browser pool and rejected by the queue. It rejects unknown slugs, empty/duplicate step
+  ids, forward or cyclic input references, oversized recipes, and a step that needs a file no
+  earlier step produced. Also re-measured the gate: the status board had been frozen at the
+  pre-renderer-fix counts. Two things the new tests caught while being written: the registry's
+  job slug is `split-in-half`, not `split-half` (my hand-written chainable list was wrong), and
+  `JobSlug` is not a literal union at all — the registry builds its keys from
+  `JobDefinition.slug: string`, so `keyof typeof JOBS` widens to `string | number` and a typo
+  would type-check. `workflow.ts` therefore validates against a dependency-free slug list
+  (`jobs/slugs.ts`) pinned to `Object.keys(JOBS)` by a test, which also keeps pdf-lib out of the
+  main bundle when the builder UI lands. Gate now **193/193 unit** (19 new) · **83/83 E2E**.
+  Detail in §18.
 - **2026-10-08 — Surgical final pass.** Closed the three items the audit left open. Recent
   history was losing data outright: the trim cursor iterated the index oldest-first, so past
   `MAX_ENTRIES` it deleted the *newest* records including the one just written — the list
@@ -545,13 +650,13 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (browser app only)
 pnpm typecheck        # strict tsc, all three packages
-pnpm test             # vitest: pdf-core + api (135 tests)
-pnpm test:e2e         # Playwright vs. running dev server (system Edge)
+pnpm test             # vitest: pdf-core + api (221 tests)
+pnpm test:e2e         # Playwright vs. running dev server (system Edge, 83 checks)
 pnpm build            # production build (web + api bundles)
 pnpm stack:up         # docker compose up -d --build (redis + api + worker)
 pnpm stack:down       # docker compose down
 pnpm test:api         # 21 checks against a running stack on :8080
-pnpm test:hardening   # 15 checks: SIGKILL a worker mid-job, prove the pipeline holds
+pnpm test:hardening   # 17 checks: SIGKILL a worker mid-job, prove the pipeline holds
 ```
 
 Docker Desktop's CLI is **not on the session PATH** by default — a per-user install lands in
@@ -564,10 +669,12 @@ TTLs so the janitor sweep is observable inside the run:
 job's inputs — which is why the killed job may legitimately settle as `failed`; the gate
 accepts either outcome, because the claim being tested is "the queue recovers".
 
-**Next move:** P4 (accounts & workflows). The server foundation it needs is in place: the
-job contract composes, ownership tokens exist, quotas and monitoring are live. First task
-is anonymous-first auth (JWT + optional OAuth) plus server-side history in MongoDB. Then
-append a changelog entry and tick the status board. Before every push run the **pre-push
+**Next move:** **P4.1 UI** — the accounts API is live (`/api/auth/google/start|callback|me|logout`,
+§18.2), so the remaining work is SPA wiring: point the header's `Sign in` button at
+`/api/auth/google/start` and read `/api/auth/me` on load. Then account ownership of server jobs,
+then **P4.2 → P4.3 → P4.4**. The recipe contract for P4.3 is already in the engine
+(`packages/pdf-core/src/workflow.ts`). Then append a changelog entry and tick §1. Before every
+push run the **pre-push
 grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM blocks, cloud
 access keys), (2) local username or machine-path markers, (3) dangerous sink APIs —
 HTML-injection helpers, dynamic code evaluation, shell exec (`redis.eval` is ioredis Lua
@@ -1051,4 +1158,251 @@ the renderer fix. The full validation gate passed: **172/172 unit tests**, **all
 checks**, workspace typechecks, production web build, asset HTTP checks for CMaps and standard
 fonts, and `git diff --check`. The local `Stirling-PDF-main/` checkout is reference material and
 is ignored rather than included in the application commit.
+
+## 18. P4 — Accounts & workflows
+
+Sequenced so identity, data and automation land separately. Only a slice that is *already
+decided* gets built; the rest waits for the decision that unblocks it.
+
+### 18.1 P4.0 — Decision record (decided 2026-10-12)
+
+- **Store: MongoDB.** `PLAN.md` has claimed MERN since P0 while `apps/api` actually runs
+  Express + Redis only. **Redis stays what it is — queue, quota counters, job state — and is
+  never the store of record for account data.** Account, session and recipe documents go to
+  MongoDB, which is what the stated stack implies and what the `MONGODB_*` accelerator
+  targets. Job *state* remains in Redis; job *metadata* is temporary by design (the janitor
+  deletes result files), so nothing durable is built on top of it.
+- **Identity: one OIDC provider first.** Authorization Code + PKCE, validated `state`, and an
+  allow-listed `redirect_uri`. More providers are additive, not a prerequisite.
+- **Sessions: server-side and revocable, carried in a cookie.** `Secure; HttpOnly;
+  SameSite=Lax`; a CSRF token for state-changing requests. No long-lived bearer token in
+  `localStorage` — that is the XSS-exfiltration shape this product should not ship. Sessions
+  are rows that can be listed and revoked, so "sign out everywhere" is real.
+- **Sync boundary: metadata, never document bytes.** The product promise is "the file is
+  parsed inside this browser tab". Account sync may carry *recipe definitions*, *preferences*
+  and (opt-in) *history metadata* — filenames, page counts, timestamps. PDF bytes and
+  rendered output are not uploaded to make sync work. Server-side *jobs* still upload a file
+  to be processed; that is the existing anonymous flow and is unchanged and still temporary.
+- **Execution split: browser-first.** A recipe runs in the browser worker pool when every step
+  is a browser-capable slug; it needs the server only for slugs the server can run (8 today).
+  A recipe mixing the two runs step-by-step and is explicit about which steps leave the device.
+- **Quotas stay per-IP-hash after login.** Accounts add ownership, not an unlimited tier;
+  substituting the account id for the IP hash as the quota subject is a P4.4 concern.
+
+### 18.2 P4.1 — Optional accounts + sessions *(complete 2026-10-12)*
+
+**The callback URL.** Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client
+IDs → **Authorized redirect URIs**. It must match byte for byte, including scheme, host and
+port:
+
+| Environment | Authorised redirect URI |
+| --- | --- |
+| Local development | `http://localhost:8080/api/auth/callback` |
+| Production | `https://<your-domain>/api/auth/callback` |
+
+Both are overridable with `GOOGLE_REDIRECT_URI`. The dev value is the default in
+`apps/api/src/config.ts`, is set in `docker-compose.yml`, and — as of 2026-10-12 — is the exact
+value registered on the live development client. Only *redirect URIs* matter here; *Authorized
+JavaScript origins* belong to the implicit/One Tap flows and are unused by this design.
+
+**Shipped**
+
+- `Authorization Code + PKCE (S256)`, `state`, and `nonce`, all minted server-side per login.
+- `state` is a **server-side, single-use** record (`findOneAndDelete`), so a replayed callback
+  is a miss rather than a second login. It is not a cookie the client asserts about itself.
+- The ID token is **signature-verified** against Google's JWKS *and* checked for `iss`, `aud`,
+  `exp` and `nonce`. The `nonce` check is what proves the token answers *our* request.
+- Accounts are keyed on Google's `sub`, never on email — an email can be reassigned between
+  accounts, and linking on it would hand one person another's history.
+- Sessions are server-side rows that can be revoked, carried in an
+  `HttpOnly; SameSite=Lax; Secure` cookie. **Only a SHA-256 of the token is stored**, so a
+  database dump cannot be replayed as live sessions. Expiry is enforced in code as well as by
+  a TTL index, because a TTL monitor runs about once a minute.
+- Routes: `GET /api/auth/google/start`, `GET /api/auth/callback`, `GET /api/auth/me`
+  (204 = nobody, which is not an error), `POST /api/auth/logout`.
+- **SPA:** `useAuth` + an account menu in the header; `Sign in` performs a real redirect.
+  Signed-out is a first-class state — the control, the workflows page and the account page all
+  work without a session.
+- **Job ownership:** a signed-in submission is recorded in a `jobOwners` collection (TTL'd to
+  the file retention), so `GET /api/account/jobs` lists a user's jobs with live queue status.
+  Recording happens at submit time, because BullMQ prunes its own completed entries and could
+  not answer "which are mine".
+- **CSRF:** a double-submit token (`pdfshush_csrf`, readable by design) echoed in
+  `x-csrf-token`. Required on every state-changing account route; `SameSite=Lax` already blocks
+  cross-site POSTs, so this is the second lock and covers a deployment that relaxes the cookie.
+- **Anonymous-first preserved:** auth is off unless a Mongo URI *and* both Google credentials
+  resolve; when off, `/api/auth/*` answers 503, `/api/account/*` answers 503, `/api/auth/me`
+  answers 204, and no other route consults a session. An unreachable Mongo downgrades to
+  anonymous-only rather than failing boot.
+- Same-origin by default: the Vite dev server proxies `/api` to `:8080`, so the session cookie
+  stays `SameSite=Lax` and no CORS layer is needed. Production serves web and `/api` from one
+  origin the same way.
+
+**Verified against the real provider (2026-10-12).** With the live client configured, the API
+logs `accounts enabled` after connecting to Atlas; `/api/auth/google/start` returns a 302 to
+`accounts.google.com` carrying the real `client_id`, the registered `redirect_uri`,
+`code_challenge_method=S256`, a `state` and a `nonce`; and clicking **Sign in** in the running
+app lands on Google's consent screen. `/api/account` answers 401 (not 503) once auth is on.
+
+**Tests:** 28 auth tests (RFC 7636 PKCE vector, open-redirect allow-list, real RS256
+verification against a local JWKS covering bad signature/`aud`/`iss`/`exp`/`nonce`, session
+hashing/revocation/expiry, state replay) plus 13 account tests (authorisation on every route,
+CSRF on every write, preferences round-trip and size caps, history, workflow CRUD and the
+per-account cap, cross-account 404, job ownership, and full erasure).
+
+### 18.3 P4.2 — Account-owned data *(complete 2026-10-12)*
+
+Preferences, synced history, and erasure. History is **metadata only** — tool, file name, page
+count, time — never a document, and it is only pushed when the user turns sync on. The account
+page offers **Export my data** (a JSON download) and **Delete everything**, which removes the
+account, its sessions, preferences, history, workflows and job records in one call and returns
+per-collection counts so the sweep is provable rather than assumed.
+
+**Exit condition met:** a user can see, export and delete everything stored about them.
+
+### 18.4 P4.3 — Workflow recipes *(complete 2026-10-12)*
+
+The recipe **contract is in the engine** (`packages/pdf-core/src/workflow.ts`) so the browser and
+the server validate a recipe with the same rules. `validateWorkflow` rejects unknown slugs,
+duplicate/empty step ids, forward or cyclic input references, oversized recipes, and chaining
+from a job that produces no document.
+
+- **Storage:** IndexedDB when signed out, mirrored to the account when signed in, so the page
+  behaves identically either way.
+- **Builder:** name, ordered steps, add/remove/reorder. Reordering **re-links the chain** so a
+  step still points at its predecessor, which is what keeps the recipe valid after a move.
+- **Run-now:** executes through the existing `/api/jobs` endpoint — one upload → poll → download
+  per step, with each step's output feeding the next. No second execution path, one job
+  contract, one queue, one set of limits.
+- **Honest limits:** steps run with each job's **default options**; option editing is the next
+  pass. The builder offers **job** slugs (`merge`), not tool slugs (`merge-pdf`) — the two
+  namespaces overlap but are not the same, and offering tool names would have posted the wrong
+  slug. A recipe naming a slug this deployment cannot run says so in the builder rather than
+  failing mid-run.
+
+**Bug fixed while building it:** `organize`'s no-page-list fallback returned `[]`, which
+`composePageRefs` rejects with "No pages selected" — so the job was documented as callable
+without a selection and was not. It now keeps every page in order. Two regression tests. This
+was only reachable from outside the UI (the API, a workflow step), which is exactly why the
+workflow runner found it.
+
+**Exit condition met:** a saved two-step recipe runs end to end and downloads its result — the
+E2E asserts the downloaded bytes are a PDF, not just that a toast appeared.
+
+### 18.5 P4.4 — Automated triggers: threat model, **not implemented**
+
+Deliberately not built. The capability is unattended execution driven by something other than
+the user's click, and each trigger carries a distinct risk that needs its own defence before any
+code is written:
+
+- **Upload trigger** (run a recipe when a file appears): needs a watched source that is not the
+  user's drag-and-drop, i.e. server-side storage, which contradicts "your files never leave this
+  device". The browser-local variant is just the existing Run button.
+- **URL trigger** (fetch a PDF from a URL and run): **SSRF**. Requires a scheme allow-list
+  (`http`/`https` only, no `file:`/`gopher:`), DNS resolution with private/link-local/loopback
+  and metadata-endpoint blocking, redirect-chasing with the *same* check on every hop (and on
+  the resolved address, not just the hostname, to defeat DNS rebinding), plus byte and time caps
+  and a content-type check. None of that exists yet.
+- **Schedule trigger**: needs durable scheduling (a repeatable job source, not in-process
+  timers), idempotency so a retry cannot double-run, per-account concurrency caps so one user
+  cannot occupy the queue, crash-safe recovery, and observable pause/cancel/delete semantics.
+  BullMQ has repeatable jobs, but the ownership, idempotency and quota interaction with the
+  existing per-IP budget is undesigned.
+
+Shipping any of these without that work would be adding an attack surface to a product whose
+stated value is that files stay on the device. The recommendation is to treat P4.4 as its own
+phase with its own gate — the P3 hardening gate is the model: prove the failure mode is
+contained before the feature is called done.
+
+**Exit condition (unmet, by design):** threat model reviewed, abuse limits tested, scheduled runs
+survive a worker restart, pause/cancel/delete work.
+
+### 18.3 P4.2 — Account-owned data
+
+Preferences and recipe definitions persisted per account; history sync only as an explicit
+opt-in, metadata-only, with export and account deletion. Deletion must remove documents,
+sessions and any account-owned job metadata.
+
+**Exit condition:** a user can see, export and delete everything stored about them.
+
+### 18.4 P4.3 — Workflow recipes
+
+The **recipe contract is in the engine** (`packages/pdf-core/src/workflow.ts`) rather than in
+the UI, because a recipe must mean the same thing to the browser pool and the Phase 3 queue.
+`validateWorkflow` rejects unknown slugs, duplicate/empty step ids, forward or cyclic input
+references, oversized recipes, and steps that would need a file no step produced. Saved
+recipes live in IndexedDB (anonymous) and later per account (P4.2); the builder and "run now"
+follow.
+
+**Exit condition:** a saved multi-step recipe survives reload, runs with progress and
+cancellation, and fails a step with a diagnosable error rather than silently skipping it.
+
+### 18.5 P4.4 — Automated triggers (separate gate)
+
+Upload / URL / schedule. Deferred out of P4.3 on purpose: a URL trigger needs SSRF defence
+(scheme allow-list, private-address and redirect/DNS-rebinding blocks, byte and time caps), and
+a schedule needs durable scheduling, idempotency, per-account concurrency caps and crash-safe
+recovery. Server triggers may only start recipes whose steps the server can actually run.
+
+**Exit condition:** threat model written, abuse limits tested, scheduled runs survive a worker
+restart, and a user can pause, cancel and delete a trigger.
+
+## 19. Production-risk closure (2026-10-12)
+
+Before adding any further feature, the P4 surface was swept for risks that only bite in
+production. Five were found; the first is a genuine security hole.
+
+| # | Risk | Fix |
+| --- | --- | --- |
+| **1** | **CSRF check compared lengths, not values.** `requireCsrf` accepted any token of the right length, so the token that exists to stop a cross-site write stopped nothing. | Constant-time value comparison via the existing `tokensMatch` (`timingSafeEqual`). Regression test proven red: reverting to the length check fails **exactly** the new test and nothing else. |
+| **2** | **Sign-in routes were unthrottled.** A loop against `/api/auth/google/start` wrote an `authTransactions` row per call, and against `/callback` forced an outbound request to Google. | Per-IP window (Redis counters, `AUTH_RATE_LIMIT_PER_MINUTE`, default 20/min) mounting **only** on those two routes. Verified live: 20×302 then 429 with `Retry-After: 60`. Fails **open** on a counter outage — locking everyone out of sign-in because Redis blinked is worse than a short burst. |
+| **3** | **A storage outage surfaced as a 500.** A Mongo blip looked like an application defect, and clients treated it as permanent. | The error handler classifies the MongoDB driver's public transport/connection error classes, including wrapped causes, and answers **503 `storage_unavailable`**, logged as an outage rather than a bug. Ordinary server/application errors remain 500. |
+| **4** | **A `Secure` cookie on a plain-http origin fails silently.** The browser drops it and the user appears signed in, then signed out. Compose defaults the flag **on**, so a self-hoster without TLS would have hit exactly this. | Boot-time warnings when `SESSION_COOKIE_SECURE` is on over non-localhost http, and when production `WEB_ORIGIN` is plain http. |
+| **5** | **No `.env.example`.** Every variable the server reads was undocumented, and a downloaded Google client-secret JSON had been left in the repo root, untracked but *not* ignored. | Added `.env.example` (no secrets, every var explained, including how to generate `PEPPER` and where to register the redirect URI). The secret JSON is now gitignored, and the values live only in the gitignored `.env`. |
+
+Also cleaned while in there: the `/api/account` summary fetched history **twice** (once to test
+for emptiness, once to count); it now issues one query per collection. And a `jobs.ownsJob` stub
+was being passed into the route deps that always returned `false` — dead code that lied. Job
+ownership is decided by the job token, not the session, so the dependency was removed rather
+than implemented.
+
+**Deliberately not changed:** `/api/auth/me` and `/api/auth/logout` stay unthrottled. `/me` is a
+single indexed read and the SPA calls it on every page that shows the account menu; throttling it
+would break normal navigation long before it inconvenienced an attacker. `/logout` is a single
+update and CSRF on it would be low-impact (a forced logout).
+
+**Tests added:** 6 — the CSRF bypass (with its red-proof), the positive CSRF control, the
+storage-outage 503 mapping, the rate limiter (throttles the costly routes, leaves `/me` alone),
+and the `Secure` cookie flag, which is the one leg a browser could not verify here because
+completing a real Google login needs a real Google account.
+
+**Verified live after the fixes:** 20 sign-in redirects then 429 with `Retry-After: 60`; `/me`
+12/12 at 204; accounts enabled against Atlas; `/api/account` 401 when signed out; boot logs clean
+for a localhost origin.
+
+**Gates:** typecheck 3/3 · **242/242 unit** (129 engine + 113 API) · **93/93 browser E2E** ·
+21/21 API integration · 17/17 hardening · build ok, main chunk 698 kB with 0 pdf-lib/mongodb in
+it · pre-push grep clean · all three containers healthy.
+
+### 19.1 Security review and release status (2026-10-12)
+
+The release review was limited to the current working tree and did not add features:
+
+- **P4.4 remains gated.** No upload, URL, or schedule trigger endpoint or scheduler was
+  introduced. The SSRF, durable-scheduling, idempotency, concurrency, and crash-recovery exit
+  conditions in §18.5 remain unmet by design.
+- **Mongo classification is hardened.** `isStorageOutage` uses public MongoDB driver classes and
+  walks `cause`/`AggregateError` chains; regression coverage includes network, closed-topology,
+  wrapped errors, and a non-outage `MongoServerError`.
+- **Secrets check passed.** The downloaded Google client JSON is ignored, `.env` is ignored, no
+  matching secret files are tracked, and no files were staged during review.
+- **Verification:** workspace typecheck passed; 246 unit tests passed; the production web build
+  passed; live API smoke passed all checks. The Docker hardening gate was not rerun to completion
+  because the running stack used the default one-hour retention instead of the gate's short-test
+  retention. The browser smoke suite passed through workflow coverage before hanging and being
+  stopped. A real Google-account browser login remains unverified and requires an interactive
+  throwaway account/consent flow.
+- **Dependency audit:** `pnpm audit --prod` could not contact the npm advisory endpoint because
+  the environment denied registry access; this is a verification limitation, not a clean audit
+  result.
 

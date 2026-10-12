@@ -1,5 +1,6 @@
 import type { JobDefinition } from '../job.js';
-import { composePageRefs, type CropRect, type PageRef } from '../ops/compose.js';
+import { composePageRefs, identityRefs, type CropRect, type PageRef } from '../ops/compose.js';
+import { probePageCount } from '../ops/pages.js';
 import { baseName, safeOutputName, toArrayBuffer, toSources, totalInputBytes } from './helpers.js';
 
 export interface OrganizeJobInput {
@@ -48,7 +49,7 @@ export const organizeJob: JobDefinition<OrganizeJobInput, OrganizeJobOutput> = {
 
   async run(input, ctx) {
     const sources = toSources(input.files);
-    const refs = input.options?.pageOrder ?? defaultOrder();
+    const refs = input.options?.pageOrder ?? (await identityOrderFor(input.files));
     const rotate = input.options?.rotateDegrees;
     const crop = input.options?.crop;
 
@@ -66,8 +67,18 @@ export const organizeJob: JobDefinition<OrganizeJobInput, OrganizeJobOutput> = {
   },
 };
 
-function defaultOrder(): PageRef[] {
-  // The UI always supplies an explicit order; this fallback only keeps the job
-  // runnable from tests or an API call with no page selection.
-  return [];
+/**
+ * "Keep every page, in order" for a caller that supplied no page list.
+ *
+ * This used to return `[]`, which `composePageRefs` rejects with "No pages
+ * selected" -- so the documented fallback did not actually work, and any caller
+ * other than the UI (the API, a workflow step) got a hard failure for the one
+ * order that needs no decisions. The page counts have to be read to build it,
+ * which is why this costs a parse; it only runs when no order was given.
+ */
+async function identityOrderFor(files: { name: string; data: Uint8Array; password?: string }[]): Promise<PageRef[]> {
+  const counts = await Promise.all(
+    files.map((file) => probePageCount(file.data, file.password ? { password: file.password } : {})),
+  );
+  return identityRefs(counts);
 }

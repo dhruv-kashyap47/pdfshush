@@ -119,7 +119,8 @@ export type { TextRun, RunItem } from './render/textRuns.js';
 // Jobs
 export { JOBS, getJob, runJob } from './jobs/registry.js';
 export type { JobSlug } from './jobs/registry.js';
-export { inspectJob } from './jobs/inspect.job.js';
+export { JOB_SLUGS, isKnownJobSlug } from './jobs/slugs.js';
+export type { JobSlugLiteral } from './jobs/slugs.js';export { inspectJob } from './jobs/inspect.job.js';
 export type { InspectInput, InspectOutput } from './jobs/inspect.job.js';
 export { mergeJob } from './jobs/merge.job.js';
 export type { MergeJobInput, MergeJobOutput } from './jobs/merge.job.js';
@@ -153,3 +154,7 @@ export { editJob } from './jobs/edit.job.js';
 export type { EditJobInput, EditJobOutput, EditJobOptions } from './jobs/edit.job.js';
 export { textRunsJob } from './jobs/textRuns.job.js';
 export type { TextRunsInput, TextRunsOutput, TextRunsOptions } from './jobs/textRuns.job.js';
+
+// Workflows
+export { validateWorkflow, WORKFLOW_OUTPUT_JOBS } from './workflow.js';
+export type { Workflow, WorkflowInput, WorkflowStep } from './workflow.js';

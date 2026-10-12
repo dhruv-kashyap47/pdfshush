@@ -11,6 +11,8 @@
 import { createApp } from './http/app.js';
 import { createContext } from './context.js';
 import { loadConfig } from './config.js';
+import { createLogger } from './logger.js';
+import { setupAuth } from './auth/setup.js';
 import { createJanitor } from './files/janitor.js';
 import { WorkDirStore } from './files/store.js';
 import { BullJobQueue, createConnections, isLiveStatus } from './jobs/queue.js';
@@ -19,6 +21,18 @@ import { resolveProcessorPath, startWorkerHost } from './worker/host.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const logger = createLogger(config);
+
+  // Accounts are optional and must never be a boot dependency: if Mongo is
+  // unreachable the API still serves every anonymous tool, and /api/auth/*
+  // reports itself unavailable.
+  const auth = await setupAuth(config, logger).catch((error: unknown) => {
+    logger.warn(
+      { error: error instanceof Error ? error.message : String(error) },
+      'accounts unavailable; continuing anonymous-only',
+    );
+    return undefined;
+  });
 
   const connections = createConnections(config.redis.url);
   const store = new WorkDirStore(config.workDir);
@@ -27,9 +41,11 @@ async function main(): Promise<void> {
   const queue = new BullJobQueue(connections.queue, store);
   const context = createContext({
     config,
+    logger,
     store,
     queue,
     quotaStore: new RedisQuotaStore(connections.client),
+    ...(auth ? { auth } : {}),
   });
 
   const janitor = createJanitor({
@@ -79,6 +95,9 @@ async function main(): Promise<void> {
     if (worker) await worker.shutdown(signal);
     await queue.close();
     await connections.close();
+    // Releases the Mongo client. Without this the process waits on an idle
+    // socket and a container restart takes the full stop grace period.
+    if (auth) await auth.close().catch(() => undefined);
   };
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

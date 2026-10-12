@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDown, Clock, Menu, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import { ChevronDown, Clock, LogOut, Menu, Search, User } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Sheet,
   SheetContent,
@@ -13,11 +20,75 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { useAuth, useAuthRedirectNotice } from '@/hooks/use-auth';
 import { useRecent } from '@/hooks/use-recent';
 import { TOOL_CATEGORIES, getTool, liveTools } from '@/tools/registry';
 import { timeAgo } from '@/lib/format';
 
 const QUICK_LINKS = ['merge-pdf', 'organize-pdf', 'compress-pdf', 'pdf-to-jpg'];
+
+/**
+ * Sign-in control. Renders nothing while the first `/api/auth/me` is in flight,
+ * so the header does not flash "Sign in" at an already-signed-in user.
+ */
+function AccountControl() {
+  const { account, loading, signIn, signOut } = useAuth();
+
+  if (loading) return null;
+
+  if (!account) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="hidden text-muted-foreground sm:inline-flex"
+        onClick={signIn}
+      >
+        Sign in
+      </Button>
+    );
+  }
+
+  const label = account.name ?? account.email ?? 'Account';
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="gap-2" aria-label="Account menu">
+          {account.picture ? (
+            <img src={account.picture} alt="" className="h-6 w-6 rounded-full" referrerPolicy="no-referrer" />
+          ) : (
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
+              <User className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <span className="hidden max-w-[10rem] truncate sm:inline">{label}</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+          {account.email ?? label}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/account">
+            <User className="mr-2 h-4 w-4" /> Account
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/workflows">Workflows</Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => {
+            void signOut();
+          }}
+        >
+          <LogOut className="mr-2 h-4 w-4" /> Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function SiteHeader() {
   const [megaOpen, setMegaOpen] = useState(false);
@@ -25,6 +96,9 @@ export function SiteHeader() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const recent = useRecent();
+  // Surfaces a failed sign-in once and strips the query, so a refresh does not
+  // re-toast a message the user already read.
+  useAuthRedirectNotice();
 
   // Close the mega panel on route change or Escape.
   useEffect(() => setMegaOpen(false), [navigate]);
@@ -79,14 +153,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden text-muted-foreground sm:inline-flex"
-            onClick={() => toast.info('Accounts arrive in Phase 4. Every tool works without a login.')}
-          >
-            Sign in
-          </Button>
+          <AccountControl />
           <ModeToggle />
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>

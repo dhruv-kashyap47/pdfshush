@@ -7,9 +7,21 @@
  */
 
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import {
+  MongoClientClosedError,
+  MongoNetworkError,
+  MongoNetworkTimeoutError,
+  MongoNotConnectedError,
+  MongoServerClosedError,
+  MongoServerSelectionError,
+  MongoTopologyClosedError,
+} from 'mongodb';
 import { ZodError } from 'zod';
 import { ApiContext, jobToken, newJobId } from '../context.js';
+import { registerAuthRoutes, SESSION_COOKIE } from '../auth/routes.js';
+import { registerAccountRoutes } from '../account/routes.js';
 import { subjectId, tokensMatch } from '../quota/quota.js';
 import { receiveUpload, InvalidUploadError, BadMultipartError } from './uploads.js';
 import { UploadTooLargeError } from '../files/store.js';
@@ -39,6 +51,71 @@ export function createApp(context: ApiContext): Express {
       crossOriginResourcePolicy: { policy: 'same-site' },
     }),
   );
+
+  // Session cookies are read, never trusted blindly: `resolveSession` looks the
+  // token up and checks both revocation and expiry server-side.
+  app.use(cookieParser());
+
+  /**
+   * Per-IP ceiling on the two abusive-by-design sign-in routes.
+   *
+   * Scoped deliberately: `/start` writes a transaction row and `/callback`
+   * performs an outbound request to Google, so a loop against them is cheap for
+   * an attacker and expensive for us. `/me` and `/logout` are a single indexed
+   * read and a single update, and the SPA calls `/me` on every page that shows
+   * the account menu -- throttling that would break normal navigation long
+   * before it inconvenienced anyone else.
+   *
+   * Fails **open** on a counter outage: refusing every sign-in because Redis
+   * blinked is worse than a brief burst, and neither route can mint a session
+   * without a valid Google exchange.
+   */
+  const authWindowSeconds = 60;
+  const limitSignIn = async (request: Request, response: Response, next: NextFunction) => {
+    try {
+      const ip = request.ip || request.socket.remoteAddress || 'unknown';
+      const used = await context.counters.increment(
+        `auth:${subjectId(ip, context.pepper)}`,
+        authWindowSeconds,
+      );
+      if (used > context.config.auth.authRateLimitPerMinute) {
+        response.setHeader('Retry-After', String(authWindowSeconds));
+        response.status(429).json({
+          error: 'Too many sign-in attempts. Please wait a minute.',
+          code: 'rate_limited',
+        });
+        return;
+      }
+    } catch (error) {
+      context.logger.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        'auth rate limiter unavailable; allowing the request',
+      );
+    }
+    next();
+  };
+  app.use(['/api/auth/google/start', '/api/auth/callback'], limitSignIn);
+
+  registerAuthRoutes(app, {
+    enabled: Boolean(context.auth),
+    ...(context.auth ? { store: context.auth.store, oidc: context.auth.oidc } : {}),
+    webOrigin: context.config.auth.webOrigin,
+    sessionTtlMs: context.config.auth.sessionTtlMs,
+    cookieSecure: context.config.auth.cookieSecure,
+    logger: context.logger,
+  });
+
+  // Account data is JSON. Scoped to this prefix rather than applied globally, so
+  // the upload route keeps streaming multipart to disk untouched and a large
+  // account payload cannot be parsed into memory ahead of the route's own bounds.
+  app.use('/api/account', express.json({ limit: '64kb' }));
+
+  registerAccountRoutes(app, {
+    enabled: Boolean(context.auth),
+    ...(context.auth ? { auth: context.auth.store, account: context.auth.account } : {}),
+    jobs: { queue: context.queue },
+    logger: context.logger,
+  });
 
   /**
    * Measures the work directory on every read.
@@ -165,6 +242,22 @@ export function createApp(context: ApiContext): Express {
       await context.store.removeJob(jobId);
       throw error;
     }
+
+    // Link the job to the account when there is one. Optional on purpose: the
+    // anonymous flow is unchanged and an account is an addition, not a gate.
+    // Recording it here (rather than at status time) means "my jobs" survives
+    // BullMQ pruning its own completed entries.
+    const owner = await currentAccount(request, context);
+    if (owner) {
+      await context.auth?.account
+        .recordJob(owner.id, jobId, payload.slug, context.config.retentionMs)
+        .catch((error: unknown) => {
+          // A failed ownership write must not fail an accepted job: the caller
+          // already has a token that proves ownership.
+          context.logger.warn({ jobId, error: String(error) }, 'could not record job ownership');
+        });
+    }
+
     context.logger.info(
       { jobId, slug: payload.slug, files: payload.files.length, bytes: upload.totalBytes },
       'job queued',
@@ -273,6 +366,19 @@ interface Auth {
 }
 
 /**
+ * The signed-in account for this request, if any.
+ *
+ * Read-only and never required: it is used to *attribute* a job, not to allow
+ * one. A missing or expired session simply means the job stays anonymous.
+ */
+async function currentAccount(request: Request, context: ApiContext) {
+  if (!context.auth) return undefined;
+  const token = (request as Request & { cookies?: Record<string, unknown> }).cookies?.[SESSION_COOKIE];
+  if (typeof token !== 'string' || token.length === 0) return undefined;
+  return context.auth.store.resolveSession(token).catch(() => undefined);
+}
+
+/**
  * Anonymous-first ownership: the caller proves they created the job with the
  * token handed out at creation. Derived from the pepper, so nothing is stored.
  */
@@ -366,10 +472,56 @@ function errorHandler(context: ApiContext) {
       });
       return;
     }
+    // A storage outage is not the caller's fault and not a bug in this request.
+    // Reported as 503 so a client backs off and retries, rather than treating it
+    // as a permanent 500 and giving up -- and so the distinction is visible in
+    // the logs instead of every Mongo blip looking like an application defect.
+    if (isStorageOutage(error)) {
+      context.logger.error(
+        { path: request.path, error: error instanceof Error ? error.message : String(error) },
+        'storage unavailable',
+      );
+      response.status(503).json({
+        error: 'Storage is temporarily unavailable. Please retry.',
+        code: 'storage_unavailable',
+      });
+      return;
+    }
     context.logger.error(
       { path: request.path, error: error instanceof Error ? error.message : String(error) },
       'unhandled request error',
     );
     response.status(500).json({ error: 'Internal error', code: JOB_ERROR_CODES.internal });
   };
+}
+
+/**
+ * Recognises driver-level connection failures using the driver's public error
+ * classes. The cause walk handles a network error wrapped by a higher-level
+ * driver error (and AggregateError keeps the same behavior for bulk operations).
+ * This is deliberately narrower than matching `error.name`: server-side errors,
+ * parse errors, and application errors must not become retryable outages.
+ */
+export function isStorageOutage(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  const outageTypes = [
+    MongoClientClosedError,
+    MongoNetworkError,
+    MongoNetworkTimeoutError,
+    MongoNotConnectedError,
+    MongoServerClosedError,
+    MongoServerSelectionError,
+    MongoTopologyClosedError,
+  ];
+
+  const visit = (candidate: unknown): boolean => {
+    if (!candidate || seen.has(candidate)) return false;
+    seen.add(candidate);
+    if (outageTypes.some((type) => candidate instanceof type)) return true;
+    if (candidate instanceof AggregateError) return candidate.errors.some(visit);
+    if (candidate instanceof Error) return visit(candidate.cause);
+    return false;
+  };
+
+  return visit(error);
 }
