@@ -20,6 +20,7 @@ export const JOB_SLUGS = [
   'n-up',
   'organize',
   'pdf-to-images',
+  'redact',
   'split-by-pages',
   'split-in-half',
   'stamp',

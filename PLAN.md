@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-12
+**Last updated:** 2026-10-14
 
 ---
 
@@ -22,9 +22,22 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ✅ **Done (2026-10-08)** — see §11 |
 | **Audit remediation (P0/P1/P2)** | Full-codebase audit fixes: output contracts, page cap, filenames, cancel contract, janitor, recent history | ✅ **Done (2026-10-08)** — see §14 |
 | **P4 — Accounts & workflows** | Anonymous-first auth, saved history, workflow builder | 🔵 **In progress** — see §18 |
+| **R1 — Secure redaction (ship first)** | Rasterization-first: marks burned into pixels, document rebuilt, output independently verified → **security gate** | ✅ **Done (2026-10-14)** — see §20 |
+| **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
+
+**Redaction sub-phases** (detail in §20):
+
+| | Scope | Status |
+| --- | --- | --- |
+| **R1.0** | Decision record: raster-first vs text-level; what is disclosed | ✅ decided 2026-10-13 |
+| **R1.1** | Rasterize + burn marks into pixels + rebuild a fresh document | ✅ **done 2026-10-14** |
+| **R1.2** | Independent verification of the serialized artifact (text, carriers, **pixels**) | ✅ **done 2026-10-14** |
+| **R1.3** | Fail-closed limits (pages, size, canvas, render failure) + resource release | ✅ **done 2026-10-14** |
+| **R1.4** | Product integration: region selection, disclosure, progress, cancel, download | ✅ **done 2026-10-14** |
+| **R2** | Text-preserving redaction engine — evaluate, audit, then integrate | ⛔ **not started, deliberately** |
 
 **P4 sub-phases** (detail in §18):
 
@@ -36,15 +49,16 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-12 after the renderer fixes of 2026-10-09 (`14875ec`,
-`92fb5c3`, `ab0d09f`), the P4 workflow contract, the full P4.1–P4.3 build, and the
-**production-risk closure pass** (§19). 14 of 53 tools live · 8 of them also runnable
-server-side · **242/242 unit** (129 engine + 113 API) · **93/93 browser E2E** · 21/21 API
-integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces glyph-path
-rendering off the `FontFace` path in the worker (§16, §17) · **accounts live against Google +
-MongoDB Atlas**, full sign-in verified to Google's consent page (§18).
-**Next: P4.4 or P5.** Repo public: `github.com/dhruv-kashyap47/pdfshush` —
-**run the pre-push secret/PII grep before every push** (see §9 tooling).
+**Current gate:** re-measured 2026-10-14 after the redaction work.
+**15 of 53 tools live** (`redact-pdf` added to Security) · 8 runnable server-side ·
+**270/270 unit** (153 engine + 117 API) · **101/101 browser E2E** (8 new redaction checks) ·
+21/21 API integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
+glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
+Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
+main chunk 0 pdf-lib / 0 pdf.js.
+**Next: R2 (deferred until R1 is proven in production) or P5.** Repo public:
+`github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
+(see §9 tooling).
 
 ---
 
@@ -91,6 +105,28 @@ Do not relitigate these without a strong reason; each was researched and chosen.
   concurrency, per-job isolation, janitor, light monitoring (P3) · BYOK never touches
   server + budget middleware (P5) · adversarial fixture corpus (P7), with
   **redaction-leakage tests blocking at P5**.
+- **Redaction strategy (locked 2026-10-13).** Ship **rasterization-first** secure redaction
+  now (§20): the page pixels are the artifact, the document is rebuilt from them, and the
+  exported bytes are independently verified. It is *not* text-preserving, and it says so
+  before the user confirms. **Native text-level redaction is deliberately deferred to the
+  final phase (§20.3)** — it is a different engine with a different risk profile, and shipping
+  a proven-safe rebuild beats shipping an unproven surgical one. Do not present the existing
+  **Whiteout** tool as redaction: it paints over text and leaves it recoverable, and it is
+  labelled cosmetic for exactly that reason.
+
+### 2.1 Reference reading list
+
+Material to read before touching the relevant area. Licensing is recorded so nobody has to
+re-derive it; **none of this is a code dependency** unless a decision below says so.
+
+| Reference | License | Why it is on the list |
+| --- | --- | --- |
+| `github.com/Stirling-Tools/Stirling-PDF` | MIT | Redaction, content-stream manipulation, rendering, verification and security tests. Its redaction is **server-side Java/PDFBox** (`TextRedactionService`, `ManualRedactionService`, `RedactExecuteService`), so it validates the *technique* rather than supplying reusable code for our client-side engine. |
+| `github.com/rock3125/pdf-redaction` | Apache-2.0 | Candidate implementation for **R2** (native text-level redaction). Audit before use. |
+| `github.com/marctjones/excise` | MIT | Candidate implementation for **R2**. Audit before use. |
+| `github.com/storytold/pdfcraft` | check on first read | General PDF pipeline reference; unread. Confirm the licence before adopting anything. |
+| `github.com/affsquadDevs/editorapdf` | check on first read | Browser PDF editor reference (main-thread pdf.js/pdf-lib rendering). |
+| `genspark-ai/genoffice` | Apache-2.0 | Existing code donor (editor, `pdf2docx`, `ai-provider`, MCP). **Avoid its `ee/` directory.** |
 
 ---
 
@@ -109,9 +145,9 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 53 tools (**14 live**), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 53 tools (**15 live**), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
-│   └── src/components/tools/*      13 tool-body files (14 tools — stamp.tsx serves two)
+│   └── src/components/tools/*      14 tool-body files (15 tools — stamp.tsx serves two)
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
 ├── packages/pdf-core               engine — same code path in worker and Node
 │   ├── src/node.ts                  Node-safe barrel: only the isomorphic surface (P3)
@@ -120,9 +156,11 @@ pdfshush/
 │   ├── src/ops/                     pages · compose · merge · zip · split · stamp · nup ·
 │   │                                geometry · edit · forms (P2) · ranges · textMetrics (dep-free*)
 │   ├── src/render/                  pdfjsRuntime · canvas · renderPage · textRuns (P2)
-│   └── src/jobs/                    11: inspect · merge · organize · pdf-to-images · thumbnails ·
-│                                     stamp · split-by-pages · split-half · n-up · edit · text-runs
-├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools (60 checks)
+│   ├── src/redact/                  R1 secure redaction: rasterize · rebuild · verify (§20)
+│   └── src/jobs/                    12: inspect · merge · organize · pdf-to-images · thumbnails ·
+│                                     stamp · split-by-pages · split-half · n-up · edit · text-runs ·
+│                                     redact
+├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools (101 checks)
 ├── tests/api/smoke.mjs             real stack: upload → Redis → worker → download (21 checks)
 ├── tests/api/hardening.mjs         the P3 gate: SIGKILL mid-job, prove the pipeline holds
 ├── docker-compose.yml              redis + api + worker (P3)
@@ -209,6 +247,24 @@ vector output via `toSVG()` → `drawSvgPath`, gated on tests) · public REST AP
 ### P7 — Hardening / torture suite
 Adversarial fixture corpus: malformed PDFs, 10k-page files, encrypted docs, broken fonts,
 interrupted jobs, cleanup verification. Plus SEO prerendering, Lighthouse/perf, a11y pass.
+
+### R1 — Secure redaction → **security gate** *(shipped 2026-10-14 — see §20)*
+Rasterization-first. Every page is re-rendered, the marks are burned into the pixels, and a
+fresh document is built from those images alone, so no original content stream, text layer,
+OCR layer, annotation, form field, attachment or metadata can survive — they are never copied
+across rather than deleted afterwards. The serialized result is reopened and verified
+structurally, by two independent text readers, and **at the pixel level**. Fail-closed on
+unsupported or oversized work. The disclosed cost is text selection, search, links,
+accessibility and vector quality.
+
+### R2 — Advanced redaction (text-preserving) — **final phase, deferred**
+Native redaction that removes the targeted glyphs from the content stream while leaving the
+rest of the page as searchable, selectable text at full vector quality. **Not started, and it
+must not start until R1 is verified in production.** Candidate implementations:
+`rock3125/pdf-redaction` (Apache-2.0) and `marctjones/excise` (MIT). Preference is to **adopt
+and audit proven code rather than rebuild the engine**, subject to licence compatibility, a
+security audit, architecture fit and adversarial testing. Entry criteria, risks and the
+acceptance bar are in §20.3.
 
 ---
 
@@ -443,7 +499,32 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
-- **2026-10-12 — Production-risk closure before any new feature.** Swept the P4 surface for
+- **2026-10-14 — Secure redaction shipped (R1); text-level redaction deferred (R2).** Redaction
+  now **destroys** content instead of covering it. The custom content-stream engine built for
+  this was **abandoned and deleted** (1,403 lines — `engine.ts`, `stream.ts`, `fonts.ts`): its
+  correctness was unproven and it **hung**, and I proved the hang was in the strip path, not in
+  the test fixture or the verification gate. Replaced with **rasterization-first**: every page is
+  re-rendered, the marks are burned into the pixels, and a fresh document is assembled from those
+  images alone — so no content stream, text layer, OCR layer, annotation, form field, attachment
+  or metadata can survive, because none are copied across. Verification reopens the *serialized*
+  file and checks it three ways: **pdf.js extraction**, a **raw content-stream scan** for
+  `Tj`/`TJ`/`BT`, and **pixel decoding** of the embedded image (inflate + PNG predictor unfilter)
+  to prove the marked areas are opaque and the rest of the page still has content. Fail-closed on
+  no canvas, render failure, >150 pages, >100 MB output, no regions or a bad page index; the
+  pdf.js document is released on success, failure and cancellation. `Whiteout / erase text` is
+  renamed **`Whiteout (cosmetic cover)`** — it leaves text recoverable and must never be read as
+  redaction. Delivered as `redact-pdf` in Security with drag-to-mark review, explicit disclosure
+  before confirmation, progress, cancel and a verified download. **R2 — native text-preserving
+  redaction — is deliberately deferred** until R1 is proven in production, with
+  `rock3125/pdf-redaction` (Apache-2.0) and `marctjones/excise` (MIT) as candidates to audit and
+  adopt rather than rebuild (§20.3).
+  *Bugs the tests caught:* pdf-lib **injects `/Producer` and `/Creator` on save**, so a rebuilt
+  document was not metadata-free; a coarse sampling grid reported legitimate text pages as blank
+  and blocked the real browser render; and the registry edits that register the job had been
+  **silently lost**, so the worker threw `Unknown job "redact"` — visible only to the browser E2E.
+  **Gates:** 270/270 unit (153 engine + 117 API) · **101/101** browser E2E (8 new redaction
+  checks) · 21/21 API · 17/17 hardening · main chunk 0 pdf-lib / 0 pdf.js. Detail in §20.
+- **2026-10-12 - Production-risk closure before any new feature.** Swept the P4 surface for
   production-only risks and found five, one of them a real hole: **the CSRF check compared
   token *lengths*, not values** — any string of the right size passed, so the token guarding
   every state-changing account route guarded nothing. Now a constant-time value comparison, with
@@ -650,8 +731,8 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (browser app only)
 pnpm typecheck        # strict tsc, all three packages
-pnpm test             # vitest: pdf-core + api (221 tests)
-pnpm test:e2e         # Playwright vs. running dev server (system Edge, 83 checks)
+pnpm test             # vitest: pdf-core + api (270 tests)
+pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm build            # production build (web + api bundles)
 pnpm stack:up         # docker compose up -d --build (redis + api + worker)
 pnpm stack:down       # docker compose down
@@ -669,11 +750,12 @@ TTLs so the janitor sweep is observable inside the run:
 job's inputs — which is why the killed job may legitimately settle as `failed`; the gate
 accepts either outcome, because the claim being tested is "the queue recovers".
 
-**Next move:** **P4.1 UI** — the accounts API is live (`/api/auth/google/start|callback|me|logout`,
-§18.2), so the remaining work is SPA wiring: point the header's `Sign in` button at
-`/api/auth/google/start` and read `/api/auth/me` on load. Then account ownership of server jobs,
-then **P4.2 → P4.3 → P4.4**. The recipe contract for P4.3 is already in the engine
-(`packages/pdf-core/src/workflow.ts`). Then append a changelog entry and tick §1. Before every
+**Next move:** **R1 has shipped** — secure redaction is live as `redact-pdf` (§20), verified on
+the exported artifact, with the browser E2E asserting the downloaded bytes. The next work is
+**not** R2: native text-level redaction is deliberately deferred until R1 is proven in production
+(§20.3), and its candidates still need the audit described there. The open threads meanwhile are
+**P4.4** (automated triggers — gated on SSRF/scheduling design, §18.5) and **P5** (AI, leakage
+gate). Then append a changelog entry and tick §1. Before every
 push run the **pre-push
 grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM blocks, cloud
 access keys), (2) local username or machine-path markers, (3) dangerous sink APIs —
@@ -1405,4 +1487,121 @@ The release review was limited to the current working tree and did not add featu
 - **Dependency audit:** `pnpm audit --prod` could not contact the npm advisory endpoint because
   the environment denied registry access; this is a verification limitation, not a clean audit
   result.
+
+## 20. Secure redaction (R1 shipped, R2 deferred)
+
+The plan for destroying content rather than covering it. **R1 is the minimum safe,
+production-ready release and it has shipped. R2 is explicitly deferred until R1 is proven in
+production.**
+
+### 20.1 R1 — Rasterization-first redaction ✅ shipped 2026-10-14
+
+**Why rasterization first.** Permanent removal means the original content must not exist in the
+output. Rebuilding every page from a freshly rendered image achieves that *structurally*: the
+output document is created empty and only ever receives images, so every "did we remove X?"
+question collapses into "is X in a document we built from scratch?" — which is answerable by
+inspection. A surgical content-stream engine was built for this and **abandoned** (§8,
+2026-10-14): its correctness was unproven and it hung. That is recorded rather than hidden,
+because the code was deleted on purpose.
+
+**Milestones**
+
+| # | Milestone | Status |
+| --- | --- | --- |
+| R1.0 | Decision record: raster-first vs text-level; what is disclosed to the user | ✅ |
+| R1.1 | Render → burn marks into the bitmap → rebuild a fresh PDF | ✅ |
+| R1.2 | Independent verification of the **serialized** artifact | ✅ |
+| R1.3 | Fail-closed limits and resource release | ✅ |
+| R1.4 | Product integration: marking, disclosure, progress, cancel, download | ✅ |
+| R1.5 | Whiteout relabelled as cosmetic so it is never mistaken for redaction | ✅ |
+
+**Dependencies**
+
+- `pdfjs-dist` (rendering) and `@cantoo/pdf-lib` (rebuild) — **both already present**; R1 added
+  **no new dependency**. `fflate` (already present) is used to inflate image streams during
+  verification.
+- `OffscreenCanvas` for rendering; where it is absent the run is refused, never downgraded.
+- Client-side only: no API, no `SERVER_SLUGS` entry, **files never leave the device**.
+
+**Acceptance criteria (all met, with evidence in §8)**
+
+1. The exported bytes reopen as a valid PDF with the original page count.
+2. **No text is extractable**, proven by two independent readers — pdf.js extraction *and* a raw
+   content-stream scan for `Tj`/`TJ`/`BT`.
+3. No annotation, attachment, form field or metadata survives.
+4. Every page is exactly one substantial image matching its page box's aspect ratio.
+5. **The marks are in the output pixels**: the embedded image is decoded from the exported file
+   and every marked area is opaque.
+6. Unaffected content survives: pages retain contrast outside the marks.
+7. Fail-closed on: no canvas, render failure, >150 pages, >100 MB output, no regions, a region on
+   a nonexistent page.
+8. The pdf.js document is released on success, failure **and cancellation**.
+
+**Security gates.** Every item above runs on *every export* inside `verify.ts`, and a failing
+check throws instead of returning bytes — there is no path that hands back an unverified
+document. Adversarial tests prove the gates can fail: an unredacted document, marks never
+burned, blank placeholder pages, a wrong aspect ratio, and malformed bytes are all rejected.
+The browser E2E asserts on the downloaded artifact (valid PDF, page count, **no `/Type /Font`**,
+no attachment tree, one image XObject per page) and that the console stays clean.
+
+**Risks and mitigations**
+
+| Risk | Mitigation |
+| --- | --- |
+| The tool quietly becomes a cosmetic mask | Verification decodes the *output* pixels; a page with no opaque mark fails |
+| Text/OCR layers silently retained | Two independent readers plus a structural single-image check |
+| Large documents kill the tab | 150-page and 100 MB ceilings, plus the pool's timeout/terminate |
+| A render failure produces a partial file | Fail-closed; nothing is returned on any page failure |
+| Leaked workers/documents | `destroy()` in a `finally`; asserted in tests for success, failure and cancel |
+| Users mistake loss of text for a defect | Disclosed before confirmation and repeated in the result note |
+
+**Known limitations (stated, not hidden).** Text selection, search, links, form fields,
+accessibility and vector quality are lost. The 100 MB output ceiling is enforced but only
+exercised at scale. The real pdf.js rasterization path is proven by the browser E2E rather than
+by unit tests (Node has no canvas, so unit tests inject a rasterizer). R1 makes **no** claim of
+universal PDF compatibility or absolute security beyond the checks above.
+
+### 20.2 R1 is not the end state
+
+R1 is deliberately conservative: it trades fidelity for a property that can be proven. The
+trade is acceptable for a first release and unacceptable as a permanent answer, which is why
+R2 exists and why the disclosure is explicit.
+
+### 20.3 R2 — Native text-preserving redaction ⛔ deferred (final phase)
+
+**Goal.** Remove the targeted glyphs from the content stream so the rest of the page stays
+searchable, selectable text at full vector quality.
+
+**Candidates.** `rock3125/pdf-redaction` (Apache-2.0) and `marctjones/excise` (MIT). Both are
+licence-compatible with AGPL-3.0-or-later; **licence compatibility is necessary but not
+sufficient** — each must pass the audit below. Preference is to **adopt and verify proven code
+rather than rebuild**, because R1's predecessor was rebuilt from scratch and failed.
+
+**Entry criteria (all must hold before any R2 code lands)**
+
+1. **R1 has shipped and been verified in production** — no field failures, and the R1 gates
+   passing on real user documents.
+2. A **security audit** of the chosen implementation: what it removes, what it leaves, and how
+   it behaves on the structures that make text removal hard — nested Form XObjects, Type3 and
+   CID fonts, glyph-level positioning, invisible/OCR render modes, annotations, metadata and
+   attachments.
+3. **Adversarial testing** of the same class R1 has: partial-word, rotated text, nested objects,
+   images, OCR layers, metadata, and negative controls that prove the gate can fail.
+4. An **independent verifier** for the exported artifact, equivalent in strength to R1's — two
+   readers for retained text, structure checks, and pixel evidence for the marks.
+5. **Licence and attribution** recorded (`licenses/`), with no copyleft-incompatible code.
+6. **Architecture fit**: it must run in the existing browser worker and keep documents on the
+   device. A server-side engine (as Stirling-PDF uses) is not acceptable as a default.
+
+**Acceptance criteria.** Every R1 criterion, plus: the redacted span is gone from the text
+layer and from the raw content stream, while surrounding text remains extractable and
+selectable; and the page keeps its vector/text quality.
+
+**Risks.** Content-stream surgery is the class of code that failed once already; a wrong glyph
+box under-redacts *silently*, which is the worst outcome. It must therefore be gated on proven
+removal, not on appearance — the same rule R1 follows.
+
+**Fallback.** If no candidate passes the audit, R2 does not ship and R1 remains the answer,
+with its limitations stated. That is an acceptable outcome; shipping an unproven text-level
+engine is not.
 

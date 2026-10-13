@@ -1132,6 +1132,19 @@ async function main() {
     await page.getByText(/Saved in this browser/i).isVisible(),
   );
 
+  // The step picker is populated from `/api/tools`, so the recipe and run steps
+  // need the API stack. Skipping them explicitly is honest about that dependency;
+  // a 30-second locator timeout only hid which service was missing.
+  let apiReachable = false;
+  try {
+    apiReachable = (await fetch(`${BASE}/api/tools`)).ok;
+  } catch {
+    apiReachable = false;
+  }
+  if (!apiReachable) {
+    console.log('   [SKIP] workflow recipe + run need the API stack (/api/tools is not reachable)');
+  } else {
+
   // Build a two-step recipe: the first step takes the uploaded file, the second
   // consumes the first. The engine's validator is what guarantees that re-linking
   // is legal, so this exercises the real contract end to end.
@@ -1181,6 +1194,7 @@ async function main() {
   await page.getByRole('button', { name: 'Delete workflow' }).first().click();
   await waitFor(async () => (await page.getByText('E2E merge then stamp').count()) === 0, 20_000, 'recipe removal');
   check('recipe can be deleted', true);
+  }
 
   await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
   check(
@@ -1201,6 +1215,73 @@ async function main() {
     'header shows a working sign-in control once auth state resolves',
     await waitFor(async () => (await signIn.count()) > 0, 15_000, 'sign-in control'),
   );
+
+  /* 19b. Redact PDF (raster-first, verified) */
+  // The whole point of this tool is that the output is a different document, so
+  // the E2E asserts on the *downloaded bytes* rather than on the UI having
+  // finished: a valid PDF, the same page count, no font object left to extract
+  // text from, and the pages reduced to images.
+  console.log('\n19b. Redact PDF');
+  await page.goto(`${BASE}/tools/redact-pdf`, { waitUntil: 'networkidle' });
+  await page.locator('input[accept*="application/pdf"]').first().setInputFiles([fileA]);
+  await waitFor(
+    async () => (await page.locator('[data-testid="redact-page-0"]').count()) === 1,
+    120_000,
+    'redaction review pages',
+  );
+  check('redact tool renders a review surface', true, 'page 1 shown');
+
+  const redactPage = page.locator('[data-testid="redact-page-0"]');
+  const redactBox = await redactPage.boundingBox();
+  await page.mouse.move(redactBox.x + redactBox.width * 0.12, redactBox.y + redactBox.height * 0.08);
+  await page.mouse.down();
+  await page.mouse.move(redactBox.x + redactBox.width * 0.72, redactBox.y + redactBox.height * 0.16, {
+    steps: 10,
+  });
+  await page.mouse.up();
+  const markCount = await page.locator('[data-testid^="redact-mark-0-"]').count();
+  check('dragging creates a redaction mark', markCount >= 1, `${markCount} mark(s)`);
+
+  await page.getByTestId('redact-start').click();
+  check(
+    'confirmation discloses the loss before it runs',
+    await page.getByText(/This cannot be undone/i).first().isVisible(),
+  );
+
+  await page.getByTestId('redact-confirm').click();
+  // The tool shows a result panel rather than auto-downloading, so the file
+  // arrives when the user asks for it.
+  await waitFor(
+    async () => (await page.getByRole('button', { name: 'Download' }).count()) > 0,
+    240_000,
+    'redacted result panel',
+  );
+  const redactDownload = page.waitForEvent('download', { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Download' }).click();
+  const redactedFile = await redactDownload;
+  const redactedBytes = await readFile(await redactedFile.path());
+  const redactedRaw = redactedBytes.toString('latin1');
+
+  check(
+    'redacted PDF downloads as a valid PDF',
+    redactedBytes.subarray(0, 5).toString('latin1') === '%PDF-',
+    `${redactedBytes.length} bytes`,
+  );
+  const redactedPages = (redactedRaw.match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+  check('page count preserved', redactedPages === 3, `${redactedPages} pages`);
+  // The security claim, checked on the artefact rather than on the UI.
+  check(
+    'no font object remains (no text layer to extract)',
+    !/\/Type\s*\/Font/.test(redactedRaw),
+    /\/Type\s*\/Font/.test(redactedRaw) ? 'a font object is still present' : 'none',
+  );
+  check(
+    'no annotation or attachment tree remains',
+    !/\/EmbeddedFiles/.test(redactedRaw) && !/\/Subtype\s*\/Text/.test(redactedRaw),
+    'none',
+  );
+  const imageCount = (redactedRaw.match(/\/Subtype\s*\/Image/g) ?? []).length;
+  check('every page was replaced by an image', imageCount >= 3, `${imageCount} image XObject(s)`);
 
   /* console health */
   console.log('\n20. Console health');

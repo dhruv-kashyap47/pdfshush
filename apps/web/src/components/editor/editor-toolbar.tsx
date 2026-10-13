@@ -58,7 +58,10 @@ const ANNOTATE_TOOLS: ToolButton[] = [
   { id: 'highlight', label: 'Highlight (H)', Icon: Highlighter },
   { id: 'strikeout', label: 'Strike out', Icon: Strikethrough },
   { id: 'underline', label: 'Underline', Icon: Underline },
-  { id: 'whiteout', label: 'Whiteout / erase text', Icon: Eraser },
+  // Deliberately not called "erase" and not grouped near anything that sounds
+  // permanent: this paints white over the page and leaves the text underneath
+  // fully recoverable. Real removal is the Redact tool, which rebuilds the page.
+  { id: 'whiteout', label: 'Whiteout (cosmetic cover)', Icon: Eraser },
 ];
 
 const SHAPE_TOOLS: ToolButton[] = [

@@ -21,6 +21,12 @@ export interface PageTile {
 interface PrepareOptions {
   /** Limit preview rendering to these page indexes (Crop only needs page 1). */
   pageIndexes?: number[];
+  /**
+   * Preview width. Grid tools leave this at the default; tools that need to
+   * place something precisely (redaction) ask for a legible render instead of a
+   * 160px thumbnail.
+   */
+  targetWidthPx?: number;
   /** Also passed to the real job later, so tools can re-run inspect cheaply. */
   onInspected?: (info: InspectOutput) => void;
 }
@@ -121,7 +127,10 @@ export function usePageThumbnails() {
       // (LIMITS.client.thumbnailDegradeAtPages) -- one source of truth.
       const outcome = await thumbsRunner.run(
         await readAsInputFiles(incoming),
-        options.pageIndexes ? { pageIndexes: options.pageIndexes } : {},
+        {
+          ...(options.pageIndexes ? { pageIndexes: options.pageIndexes } : {}),
+          ...(options.targetWidthPx ? { targetWidthPx: options.targetWidthPx } : {}),
+        },
         { timeoutMs: timeoutForPageCount(Math.max(pageCount, 60)) },
       );
       if (!isCurrent(request)) return false; // superseded mid-render

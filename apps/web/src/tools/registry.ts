@@ -108,6 +108,8 @@ const LIVE = new Set([
   'n-up',
   // Phase 2
   'edit-pdf',
+  // Phase 5 (security)
+  'redact-pdf',
 ]);
 
 /**
@@ -184,7 +186,8 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     id: 'security',
     label: 'Security',
     tools: [
-      tool('protect-pdf', 'Protect PDF', 'Encrypt with a password so only the holder can open it.', 'security', Lock, 'blue'),
+      tool('redact-pdf', 'Redact PDF', 'Permanently destroy content — the pages are rebuilt without it.', 'security', Eraser, 'rose'),
+  tool('protect-pdf', 'Protect PDF', 'Encrypt with a password so only the holder can open it.', 'security', Lock, 'blue'),
       tool('unlock-pdf', 'Unlock PDF', 'Remove a password from a PDF you own.', 'security', Unlock, 'blue'),
       tool('watermark', 'Watermark', 'Stamp text or an image over every page — tiled or centered.', 'security', Droplets, 'cyan'),
       tool('flatten-pdf', 'Flatten PDF', 'Fuse form fields and annotations into static page content.', 'security', Eraser, 'violet'),

@@ -12,6 +12,7 @@ import { mergeJob } from './merge.job.js';
 import { nUpJob } from './nUp.job.js';
 import { organizeJob } from './organize.job.js';
 import { pdfToImagesJob } from './pdfToImages.job.js';
+import { redactJob } from './redact.job.js';
 import { splitByPagesJob } from './splitByPages.job.js';
 import { splitHalfJob } from './splitHalf.job.js';
 import { stampJob } from './stamp.job.js';
@@ -26,6 +27,7 @@ export const JOBS = {
   [mergeJob.slug]: mergeJob as AnyJob,
   [organizeJob.slug]: organizeJob as AnyJob,
   [pdfToImagesJob.slug]: pdfToImagesJob as AnyJob,
+  [redactJob.slug]: redactJob as AnyJob,
   [thumbnailsJob.slug]: thumbnailsJob as AnyJob,
   [splitByPagesJob.slug]: splitByPagesJob as AnyJob,
   [splitHalfJob.slug]: splitHalfJob as AnyJob,

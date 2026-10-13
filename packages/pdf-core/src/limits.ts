@@ -59,6 +59,18 @@ export const LIMITS = {
     maxImagePixels: 8192,
     /** Undo depth. Snapshots share image buffers, so this is cheap. */
     maxHistorySteps: 250,
+    /** Redaction regions in one request. A bound on the rewrite's cost. */
+    maxRedactRegions: 500,
+    /**
+     * Pages one redaction run may rebuild.
+     *
+     * Rasterization is linear in pages and every page is a full bitmap, so this
+     * ceiling is what stops a large document from becoming a tab-killer rather
+     * than a redaction.
+     */
+    maxRedactPages: 150,
+    /** Largest redacted file we will hand back. Refused above this. */
+    maxRedactOutputBytes: 100 * MB,
   },
   workflow: {
     /** Steps in one saved recipe. Bounds a stored document and its UI. */

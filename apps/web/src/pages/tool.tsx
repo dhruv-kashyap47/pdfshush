@@ -12,6 +12,7 @@ import { NUpTool } from '@/components/tools/n-up-tool';
 import { OrganizeTool } from '@/components/tools/organize-tool';
 import { PdfToImagesTool } from '@/components/tools/pdf-to-images-tool';
 import { RotateTool } from '@/components/tools/rotate-tool';
+import { RedactTool } from '@/components/tools/redact-tool';
 import { SplitByPagesTool } from '@/components/tools/split-by-pages-tool';
 import { SplitHalfTool } from '@/components/tools/split-half-tool';
 import { HeaderFooterTool, PageNumbersTool } from '@/components/tools/stamp-tool';
@@ -38,6 +39,7 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'header-footer': HeaderFooterTool,
   'n-up': NUpTool,
   'edit-pdf': EditPdfTool,
+  'redact-pdf': RedactTool,
 };
 
 export function ToolPage() {

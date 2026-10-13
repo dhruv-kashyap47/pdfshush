@@ -154,6 +154,29 @@ export { editJob } from './jobs/edit.job.js';
 export type { EditJobInput, EditJobOutput, EditJobOptions } from './jobs/edit.job.js';
 export { textRunsJob } from './jobs/textRuns.job.js';
 export type { TextRunsInput, TextRunsOutput, TextRunsOptions } from './jobs/textRuns.job.js';
+export { redactJob } from './jobs/redact.job.js';
+export type { RedactJobInput, RedactJobOutput, RedactJobOptions } from './jobs/redact.job.js';
+
+// Redaction
+export { redactPdf, defaultRedactEnvironment } from './redact/redact.js';
+export type { RedactEnvironment } from './redact/redact.js';
+export { createPdfjsRasterizer } from './redact/rasterize.js';
+export type { Rasterizer, RasterizedPage } from './redact/rasterize.js';
+export { verifyRedaction } from './redact/verify.js';
+export type { VerifyOptions } from './redact/verify.js';
+export { boxesIntersect, boxContains, boxArea, coverageOf } from './redact/geometry.js';
+export type { Box } from './redact/geometry.js';
+export { RedactionUnsafeError, RedactionVerificationError } from './redact/types.js';
+export type {
+  RedactOptions,
+  RedactRegion,
+  RedactResult,
+  RedactionReport,
+  PageReport,
+  UnsafeReason,
+  VerificationCheck,
+  VerificationResult,
+} from './redact/types.js';
 
 // Workflows
 export { validateWorkflow, WORKFLOW_OUTPUT_JOBS } from './workflow.js';
