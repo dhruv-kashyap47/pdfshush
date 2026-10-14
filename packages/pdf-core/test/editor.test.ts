@@ -399,6 +399,33 @@ describe('edit op', () => {
     expect(run!.x + run!.width).toBeLessThanOrEqual(display.width + 1);
   });
 
+  it('exports text edits using a requested standard font family and italic style', async () => {
+    const doc = await docWithText(1);
+    await applyEdits(
+      doc,
+      [
+        {
+          id: 't',
+          kind: 'text',
+          pageIndex: 0,
+          x: 40,
+          y: 40,
+          width: 200,
+          height: 30,
+          text: 'STYLED MARK',
+          fontSize: 16,
+          fontFamily: 'times',
+          italic: true,
+          color: '#2563eb',
+        },
+      ],
+      testContext(),
+    );
+    const saved = await doc.save({ useObjectStreams: false });
+    await expect(validateExport(saved, 1)).resolves.toBeUndefined();
+    expect(pdfContainsText(saved, 'STYLED MARK')).toBe(true);
+  });
+
   it('validateExport rejects truncated bytes and a changed page count', async () => {
     const doc = await docWithText(1);
     const saved = await doc.save();

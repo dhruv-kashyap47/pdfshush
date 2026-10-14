@@ -72,8 +72,16 @@ const MIN_DRAG = 6;
  */
 const HIT_TOLERANCE = 4;
 
-/** Preview font stack -- also what the measurement canvas must use. */
-const TEXT_FONT_STACK = 'Arial, Helvetica, sans-serif';
+function cssFontStack(fontFamily?: string): string {
+  switch (fontFamily) {
+    case 'times':
+      return "'Times New Roman', Times, serif";
+    case 'courier':
+      return "'Courier New', Courier, monospace";
+    default:
+      return "Arial, Helvetica, sans-serif";
+  }
+}
 
 const DEFAULT_COLORS = {
   text: '#121212',
@@ -182,14 +190,21 @@ function measureTextHeight(
   text: string,
 ): number {
   const boxWidth = Math.max(1, object.width);
-  const lineCount = countWrappedLines(text, object.fontSize, Boolean(object.bold), boxWidth);
+  const lineCount = countWrappedLines(
+    text,
+    object.fontSize,
+    Boolean(object.bold),
+    Boolean(object.italic),
+    object.fontFamily,
+    boxWidth,
+  );
   return Math.max(Math.round(object.fontSize * TEXT_LINE_HEIGHT), lineCount * object.fontSize * TEXT_LINE_HEIGHT);
 }
 
-function countWrappedLines(text: string, fontSize: number, bold: boolean, boxWidth: number): number {
+function countWrappedLines(text: string, fontSize: number, bold: boolean, italic: boolean, fontFamily: string | undefined, boxWidth: number): number {
   const context = textMeasureContext();
   if (!context) return Math.max(1, text.split('\n').length);
-  context.font = `${bold ? '700 ' : ''}${fontSize}px ${TEXT_FONT_STACK}`;
+  context.font = `${italic ? 'italic ' : ''}${bold ? '700 ' : ''}${fontSize}px ${cssFontStack(fontFamily)}`;
   const fits = (value: string): boolean => context.measureText(value).width <= boxWidth;
 
   let lines = 0;
@@ -616,6 +631,10 @@ function ObjectView({
   // Text boxes fit their content: re-measure whenever the text, width or size
   // changes (font size in the inspector, a corner drag, a seeded replacement).
   // While editing, the textarea drives this instead so typing grows live.
+  const focusedWhileEditing = useRef(false);
+  useEffect(() => {
+    if (editing) focusedWhileEditing.current = false;
+  }, [editing]);
   const textKey = object.kind === 'text' ? object.text : '';
   const textFontSize = object.kind === 'text' ? object.fontSize : 0;
   const textBold = object.kind === 'text' ? Boolean(object.bold) : false;
@@ -649,7 +668,7 @@ function ObjectView({
     return { x: (event.clientX - parent.left) / zoom, y: (event.clientY - parent.top) / zoom };
   }
 
-  const style: CSSProperties = { ...box, pointerEvents: interactive ? 'auto' : 'none' };
+  const style: CSSProperties = { ...box, pointerEvents: interactive || editing ? 'auto' : 'none' };
 
   return (
     <div
@@ -681,17 +700,29 @@ function ObjectView({
           return (
             <textarea
               value={object.text}
-              autoFocus
               spellCheck={false}
               data-testid="editor-text-input"
-              className="absolute inset-0 resize-none border-2 border-blue-500 bg-white p-0.5 text-left outline-none"
+              className="absolute inset-0 resize-none overflow-hidden rounded-[2px] border border-blue-500/70 bg-white/96 text-left outline-none transition-shadow focus:border-blue-600 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.18)]"
               style={{
+                boxSizing: 'border-box',
+                padding: 0,
+                margin: 0,
                 fontSize: object.fontSize * zoom,
-                fontFamily: TEXT_FONT_STACK,
+                fontFamily: cssFontStack(object.fontFamily),
+                fontStyle: object.italic ? 'italic' : 'normal',
                 lineHeight: TEXT_LINE_HEIGHT,
                 fontWeight: object.bold ? 700 : 400,
                 color: object.color ?? DEFAULT_COLORS.text,
                 textAlign: object.align ?? 'left',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+              autoFocus
+              onFocus={(event) => {
+                focusedWhileEditing.current = true;
+                // Selecting the seeded text lets the user replace it in one
+                // keystroke instead of deleting it character by character.
+                if (object.text.length > 0) event.target.select();
               }}
               onPointerDown={(event) => event.stopPropagation()}
               onChange={(event) => {
@@ -699,6 +730,10 @@ function ObjectView({
                 onAutoHeight?.(object.id, measureTextHeight(object, event.target.value));
               }}
               onBlur={() => {
+                // Ignore the spurious blur that browsers fire during the initial
+                // mount/focus dance; only commit once the user actually had focus.
+                if (!focusedWhileEditing.current) return;
+                focusedWhileEditing.current = false;
                 onAutoHeight?.(object.id, measureTextHeight(object, object.text));
                 onEndEdit();
               }}
@@ -710,7 +745,8 @@ function ObjectView({
             className="absolute inset-0 overflow-hidden whitespace-pre-wrap break-words"
             style={{
               fontSize: object.fontSize * zoom,
-              fontFamily: TEXT_FONT_STACK,
+              fontFamily: cssFontStack(object.fontFamily),
+              fontStyle: object.italic ? 'italic' : 'normal',
               lineHeight: TEXT_LINE_HEIGHT,
               fontWeight: object.bold ? 700 : 400,
               color: object.color ?? DEFAULT_COLORS.text,

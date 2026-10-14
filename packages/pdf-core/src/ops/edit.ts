@@ -39,11 +39,16 @@ export interface EditObjectBase {
   height: number;
 }
 
+export type EditorTextFontFamily = 'helvetica' | 'times' | 'courier';
+
 export interface EditTextObject extends EditObjectBase {
   kind: 'text';
   text: string;
   fontSize: number;
   bold?: boolean;
+  italic?: boolean;
+  /** Standard font family used for the exported text. */
+  fontFamily?: EditorTextFontFamily;
   /** `#rrggbb`. Defaults to near-black. */
   color?: string;
   align?: 'left' | 'center' | 'right';
@@ -276,6 +281,15 @@ export function validateEditObjects(
         if (text.align !== undefined && !['left', 'center', 'right'].includes(text.align)) {
           throw new Error(`${at} (text): align must be left, center or right`);
         }
+        if (
+          text.fontFamily !== undefined &&
+          !['helvetica', 'times', 'courier'].includes(text.fontFamily)
+        ) {
+          throw new Error(`${at} (text): fontFamily must be helvetica, times or courier`);
+        }
+        if (text.italic !== undefined && typeof text.italic !== 'boolean') {
+          throw new Error(`${at} (text): italic must be a boolean`);
+        }
         assertHexColor(at, kind, 'color', text.color);
         assertEncodable(at, text.text);
         break;
@@ -464,27 +478,25 @@ export async function applyEdits(
 
   validateEditObjects(objects, pages.length, (pageIndex) => displaySize(geomFor(pageIndex)));
 
-  const needsText = objects.some((o) => o.kind === 'text');
-  const regular = needsText ? await doc.embedFont(StandardFonts.Helvetica) : undefined;
-  const bold = needsText ? await doc.embedFont(StandardFonts.HelveticaBold) : undefined;
-
   // The same logo pasted 200 times must be stored once: pdf-lib has no image
-  // cache, so key our own on the bytes.
+  // cache, so key our own on the bytes. Fonts are cached by their standard-font
+  // key for the same reason (and so italic/bold variants are embedded once).
   const imageCache = new Map<string, PDFImage>();
+  const fontCache = new Map<string, PDFFont>();
 
   for (let i = 0; i < objects.length; i += 1) {
     ctx.throwIfAborted();
     const object = objects[i]!;
     const page = pages[object.pageIndex]!;
     const geom = geomFor(object.pageIndex);
-    await drawObject(page, geom, object, { regular, bold, imageCache });
+    await drawObject(page, geom, object, { imageCache, fontCache });
     progress.step(i, objects.length, 'Applying edits');
   }
 }
 
 interface FontSet {
-  regular?: PDFFont;
-  bold?: PDFFont;
+  /** Standard-font key (family:bold:italic) → embedded font, so repeats cost nothing. */
+  fontCache: Map<string, PDFFont>;
   /** mime + content hash → embedded image, so repeats cost nothing. */
   imageCache: Map<string, PDFImage>;
 }
@@ -497,7 +509,7 @@ async function drawObject(
 ): Promise<void> {
   switch (object.kind) {
     case 'text':
-      drawText(page, geom, object, fonts);
+      await drawText(page, geom, object, fonts);
       return;
     case 'image':
       await drawImage(page, geom, object, fonts);
@@ -557,9 +569,11 @@ async function drawObject(
   }
 }
 
-function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, fonts: FontSet): void {
-  const font = (object.bold ? fonts.bold : fonts.regular) ?? fonts.regular;
-  if (!font || object.text.length === 0) return;
+async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, fonts: FontSet): Promise<void> {
+  if (object.text.length === 0) return;
+  const fontFamily = object.fontFamily ?? 'helvetica';
+  const font = await embedStandardFont(page.doc, fonts.fontCache, fontFamily, Boolean(object.bold), Boolean(object.italic));
+  if (!font) return;
   const fontSize = clamp(object.fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
   const color = parseHexColor(object.color, rgb(0.07, 0.07, 0.07));
   const angle = degrees(displayAngle(geom));
@@ -713,6 +727,53 @@ export async function validateExport(bytes: Uint8Array, expectedPages: number): 
   const pages = reloaded.getPageCount();
   if (pages !== expectedPages) {
     throw new Error(`Export validation failed: expected ${expectedPages} pages, found ${pages}`);
+  }
+}
+
+async function embedStandardFont(
+  doc: PDFDocument,
+  cache: Map<string, PDFFont>,
+  family: EditorTextFontFamily,
+  bold: boolean,
+  italic: boolean,
+): Promise<PDFFont | undefined> {
+  const key = `${family}:${bold}:${italic}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  let fontName: StandardFonts;
+  if (family === 'times') {
+    fontName = bold && italic
+      ? StandardFonts.TimesRomanBoldItalic
+      : bold
+        ? StandardFonts.TimesRomanBold
+        : italic
+          ? StandardFonts.TimesRomanItalic
+          : StandardFonts.TimesRoman;
+  } else if (family === 'courier') {
+    fontName = bold && italic
+      ? StandardFonts.CourierBoldOblique
+      : bold
+        ? StandardFonts.CourierBold
+        : italic
+          ? StandardFonts.CourierOblique
+          : StandardFonts.Courier;
+  } else {
+    fontName = bold && italic
+      ? StandardFonts.HelveticaBoldOblique
+      : bold
+        ? StandardFonts.HelveticaBold
+        : italic
+          ? StandardFonts.HelveticaOblique
+          : StandardFonts.Helvetica;
+  }
+
+  try {
+    const font = await doc.embedFont(fontName);
+    cache.set(key, font);
+    return font;
+  } catch {
+    return undefined;
   }
 }
 

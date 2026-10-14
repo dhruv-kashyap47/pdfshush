@@ -85,6 +85,23 @@ function newObjectId(): string {
   return `u${Date.now().toString(36)}${objectCounter.toString(36)}`;
 }
 
+function measureTextLine(
+  object: Extract<EditorObject, { kind: 'text' }>,
+  line: string,
+): number {
+  if (typeof document === 'undefined') return line.length * object.fontSize * 0.5;
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return line.length * object.fontSize * 0.5;
+  const family =
+    object.fontFamily === 'times'
+      ? "'Times New Roman', Times, serif"
+      : object.fontFamily === 'courier'
+        ? "'Courier New', Courier, monospace"
+        : 'Arial, Helvetica, sans-serif';
+  context.font = `${object.italic ? 'italic ' : ''}${object.bold ? '700 ' : ''}${object.fontSize}px ${family}`;
+  return context.measureText(line.length > 0 ? line : ' ').width;
+}
+
 function clampZoom(value: number): number {
   if (!Number.isFinite(value)) return 1;
   return Math.min(2, Math.max(0.25, Math.round(value * 20) / 20));
@@ -698,12 +715,34 @@ export function EditPdfTool() {
 
   const editText = useCallback(
     (id: string, text: string) => {
-      editor.live((doc) => ({
-        ...doc,
-        objects: doc.objects.map((object) =>
-          object.id === id && object.kind === 'text' ? { ...object, text } : object,
-        ),
-      }));
+      editor.live((doc) => {
+        const object = doc.objects.find((item) => item.id === id && item.kind === 'text');
+        if (!object || object.kind !== 'text') {
+          return {
+            ...doc,
+            objects: doc.objects.map((item) =>
+              item.id === id && item.kind === 'text' ? { ...item, text } : item,
+            ),
+          };
+        }
+        const page = infoRef.current?.pages[object.pageIndex];
+        const pageWidth = page?.displayWidthPt ?? page?.widthPt ?? 1000;
+        const availableWidth = Math.max(80, pageWidth - object.x);
+        // Grow the box to fit the longest edited line instead of prematurely
+        // wrapping or clipping, but never past the page's right edge.
+        const longestLine = text
+          .split('\\n')
+          .reduce((max, line) => Math.max(max, measureTextLine(object, line)), 0);
+        const nextWidth = Math.max(object.width, Math.min(availableWidth, longestLine + 12));
+        return {
+          ...doc,
+          objects: doc.objects.map((item) =>
+            item.id === id && item.kind === 'text'
+              ? { ...item, text, width: nextWidth }
+              : item,
+          ),
+        };
+      });
     },
     [editor.live],
   );
@@ -744,6 +783,9 @@ export function EditPdfTool() {
         height: run.height,
         text: run.text,
         fontSize: Math.min(72, Math.max(4, Math.round(run.fontSize * 2) / 2)),
+        bold: run.bold,
+        italic: run.italic,
+        fontFamily: run.fontFamily,
         color: '#111827',
       };
       editor.apply((doc) => ({ ...doc, objects: [...doc.objects, whiteout, text] }));

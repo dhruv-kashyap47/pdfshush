@@ -1605,3 +1605,19 @@ removal, not on appearance — the same rule R1 follows.
 with its limitations stated. That is an acceptable outcome; shipping an unproven text-level
 engine is not.
 
+
+## 21. 2026-10-14 - Editor text fidelity and content-stream migration plan
+
+Implemented in this session:
+
+- Standard font family (helvetica, times, courier) and italic support across EditTextObject, exporter, text-run extraction, inspector, and seed-replace.
+- Text-run extraction now captures PDF.js font family/weight/style metadata.
+- Editor text boxes now support in-place click-to-edit reliably, smart auto-height, and smart horizontal expansion while typing.
+- Inspector panel made draggable and scrollable to avoid overflow.
+- Regression coverage added in packages/pdf-core/test/editor.test.ts.
+
+Planned next (no code yet):
+
+- PDFium/WebAssembly content-stream text editing migration with hybrid fallback.
+- Keep raster redaction as the secure default until a text-preserving verifier is proven.
+- Deferred Unicode/CID/subset-font replacement until the content-stream engine is integrated and validated.

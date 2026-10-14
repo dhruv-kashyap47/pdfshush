@@ -12,6 +12,8 @@
 import type { JobContext } from '../job.js';
 import { loadPdfForRender } from './pdfjsRuntime.js';
 
+export type TextRunFontFamily = 'helvetica' | 'times' | 'courier';
+
 export interface TextRun {
   /** Run text (fragments joined with single spaces where a gap remains). */
   text: string;
@@ -24,6 +26,10 @@ export interface TextRun {
   height: number;
   /** true when the baseline runs horizontally (false = rotated/CJK column). */
   horizontal: boolean;
+  /** Best-effort standard-font family of the run, for edit replacement. */
+  fontFamily?: TextRunFontFamily;
+  bold?: boolean;
+  italic?: boolean;
 }
 
 /** One pdf.js text item, already converted into display space. */
@@ -37,6 +43,10 @@ export interface RunItem {
   height: number;
   /** true when the baseline runs horizontally (false = vertical/CJK column). */
   horizontal: boolean;
+  /** Best-effort standard-font family of the run, for edit replacement. */
+  fontFamily?: TextRunFontFamily;
+  bold?: boolean;
+  italic?: boolean;
   /**
    * Baseline position across the line (display y for horizontal runs, x for
    * vertical): items sharing this coordinate belong to the same visual line,
@@ -100,6 +110,9 @@ function mergeLineGroup(group: RunItem[]): TextRun[] {
     width: run.width,
     height: run.height,
     horizontal: run.horizontal,
+    ...(run.fontFamily ? { fontFamily: run.fontFamily } : {}),
+    ...(run.bold ? { bold: true } : {}),
+    ...(run.italic ? { italic: true } : {}),
   }));
 }
 
@@ -150,10 +163,22 @@ export async function extractTextRuns(
         const items: RunItem[] = [];
 
         for (const raw of content.items) {
-          const item = raw as { str?: string; transform?: number[]; width?: number };
+          const item = raw as {
+            str?: string;
+            transform?: number[];
+            width?: number;
+            fontName?: string;
+          };
           if (typeof item.str !== 'string' || item.str.length === 0) continue;
           if (!Array.isArray(item.transform)) continue;
-          const converted = toRunItem(item.str, item.transform, item.width ?? 0, viewport);
+          const style = (content.styles && item.fontName ? content.styles[item.fontName] : undefined) as
+            | {
+                fontFamily?: string;
+                fontWeight?: string | number;
+                fontStyle?: string;
+              }
+            | undefined;
+          const converted = toRunItem(item.str, item.transform, item.width ?? 0, viewport, style, item.fontName);
           if (converted) items.push(converted);
         }
 
@@ -181,6 +206,8 @@ function toRunItem(
   transform: number[],
   width: number,
   viewport: { convertToViewportPoint(x: number, y: number): number[] },
+  style?: { fontFamily?: string; fontWeight?: string | number; fontStyle?: string },
+  fontName?: string,
 ): RunItem | null {
   if (transform.length < 6) return null;
   const a = transform[0]!;
@@ -227,6 +254,12 @@ function toRunItem(
   const end = view[1]!;
   const horizontal = Math.abs(end[0] - start[0]) >= Math.abs(end[1] - start[1]);
 
+  const fontFamily = normalizeFontFamily(style?.fontFamily ?? fontName);
+  const fontWeightText = `${style?.fontWeight ?? ''} ${style?.fontFamily ?? ''} ${fontName ?? ''}`;
+  const bold = /bold/i.test(fontWeightText) || Number(style?.fontWeight) >= 700;
+  const italic =
+    /italic|oblique/i.test(`${style?.fontStyle ?? ''} ${style?.fontFamily ?? ''} ${fontName ?? ''}`);
+
   return {
     text,
     fontSize,
@@ -236,5 +269,19 @@ function toRunItem(
     height: Math.max(...ys) - y,
     horizontal,
     line: horizontal ? start[1] : start[0],
+    fontFamily,
+    bold,
+    italic,
   };
+}
+
+function normalizeFontFamily(name?: string): TextRunFontFamily {
+  const lower = (name ?? '').toLowerCase();
+  if (lower.includes('times') || lower.includes('serif') || lower.includes('roman')) {
+    return 'times';
+  }
+  if (lower.includes('courier') || lower.includes('mono')) {
+    return 'courier';
+  }
+  return 'helvetica';
 }

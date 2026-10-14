@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "packageManager": "pnpm@11.15.0",
+  "packageManager": "pnpm@12.11.2",
   "engines": {
     "node": ">=20.19.0"
   },
