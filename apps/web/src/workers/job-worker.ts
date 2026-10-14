@@ -7,9 +7,11 @@
  */
 
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url';
 import {
   JobAbortedError,
   JobValidationError,
+  configurePdfiumRuntime,
   configurePdfjsRuntime,
   getJob,
   serializeJobError,
@@ -31,6 +33,11 @@ configurePdfjsRuntime({
   cMapPacked: true,
   standardFontDataUrl: new URL('standard_fonts/', assetsBase).toString(),
 });
+
+// PDFium (in-place text editing) is a ~4.6 MB WASM binary. It is configured
+// with a URL rather than imported, so the asset is fetched only when the first
+// text-edit job actually needs it, never at worker startup.
+configurePdfiumRuntime({ wasmUrl: pdfiumWasmUrl });
 
 interface JobRequest {
   type: 'job';

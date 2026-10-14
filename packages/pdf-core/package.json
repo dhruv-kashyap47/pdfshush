@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",
+    "@embedpdf/pdfium": "^2.15.1",
     "fflate": "^0.8.3",
     "pdfjs-dist": "^6.4.299"
   },

@@ -59,6 +59,10 @@ export const LIMITS = {
     maxImagePixels: 8192,
     /** Undo depth. Snapshots share image buffers, so this is cheap. */
     maxHistorySteps: 250,
+    /** In-place text edits in one request. Bounds the PDFium rewrite. */
+    maxTextEdits: 500,
+    /** Cap on either side of a single text edit (find + replace). */
+    maxTextEditChars: 20_000,
     /** Redaction regions in one request. A bound on the rewrite's cost. */
     maxRedactRegions: 500,
     /**

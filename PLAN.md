@@ -24,6 +24,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4 — Accounts & workflows** | Anonymous-first auth, saved history, workflow builder | 🔵 **In progress** — see §18 |
 | **R1 — Secure redaction (ship first)** | Rasterization-first: marks burned into pixels, document rebuilt, output independently verified → **security gate** | ✅ **Done (2026-10-14)** — see §20 |
 | **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
+| **T — In-place text editing** | PDFium `FPDFText_SetText` genuine rewrite of existing text objects, with a verification-driven pdf-lib overlay fallback | 🟡 **engine + job shipped and tested (2026-10-14)** · editor save wired · UI run not yet E2E-verified — see §22 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
@@ -51,12 +52,15 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 
 **Current gate:** re-measured 2026-10-14 after the redaction work.
 **15 of 53 tools live** (`redact-pdf` added to Security) · 8 runnable server-side ·
-**270/270 unit** (153 engine + 117 API) · **101/101 browser E2E** (8 new redaction checks) ·
+**282/282 unit** (165 engine + 117 API) · **101/101 browser E2E** (8 new redaction checks) ·
 21/21 API integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
-main chunk 0 pdf-lib / 0 pdf.js.
-**Next: R2 (deferred until R1 is proven in production) or P5.** Repo public:
+**genuine in-place text editing engine shipped (§22)** · main chunk 0 pdf-lib / 0 pdf.js /
+0 pdfium (PDFium is a lazy 4.6 MB asset fetched on first text edit).
+**Next: run the browser E2E against the new editor save path (§22) and convert the click-to-replace
+affordance to send in-place intents; then R2 (deferred until R1 is proven in production) or P5.**
+Repo public:
 `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
 (see §9 tooling).
 
@@ -499,6 +503,27 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-14 — Genuine in-place text editing engine (§22).** Feasibility spike first:
+  `@embedpdf/pdfium` 2.15.1 (MIT wrapper, BSD-3-Clause PDFium) exposes
+  `FPDFText_SetText`, `FPDFText_SetCharcodes`, `FPDFTextObj_GetText`, `FPDFPageObj_GetBounds`
+  and `FPDFPage_RemoveObject`, i.e. **real mutation of existing text objects**, proven by a
+  Node spike (7/7: rewrite, unrelated-line preservation, rotated page) and matched by
+  Stirling-PDF's shipped v2 editor (same binding, `PdfTextEditorCharcodeController`). New
+  `packages/pdf-core/src/textedit/`: `pdfium.ts` (heap-safe object access), `engine.ts`
+  (`editPdfText`: native pass → verification-driven demotion → overlay pass → final verified
+  save), `verify.ts` (reopen with pdf.js), `runtime.ts` (lazy WASM bootstrap). New `text-edit`
+  job. The editor save path now routes through it and tags click-to-replace boxes with the run
+  they replace, so supported edits are rewritten in place and everything else uses the existing
+  whiteout+overlay — and the UI says which happened. **Findings that changed the design:**
+  `FPDFText_SetCharcodes` in this build takes `(textObject, charcodesPtr, count)`, not upstream
+  PDFium's 4-arg form, so it is driven with a text-object pointer; and `FPDFText_SetText(obj, "")`
+  is **refused**, so a deletion uses `FPDFPage_RemoveObject` and is never re-expressed as a
+  cosmetic whiteout. **Gates:** 165/165 engine (11 new) · 117/117 API · typecheck 3/3 · build ✅
+  main chunk 0 pdf-lib / 0 pdf.js / 0 pdfium (PDFium emits as a lazy 4.6 MB asset) ·
+  **8/8 focused browser E2E** (`tests/e2e/text-edit.mjs`: click run → retype → save → the exported
+  bytes re-extract to the replacement with the original gone). **Note:** the full smoke suite
+  stops before its editor save section at a pre-existing Delete-key failure, reproduced with this
+  work reverted (see §22).
 - **2026-10-14 — Secure redaction shipped (R1); text-level redaction deferred (R2).** Redaction
   now **destroys** content instead of covering it. The custom content-stream engine built for
   this was **abandoned and deleted** (1,403 lines — `engine.ts`, `stream.ts`, `fonts.ts`): its
@@ -1618,6 +1643,87 @@ Implemented in this session:
 
 Planned next (no code yet):
 
-- PDFium/WebAssembly content-stream text editing migration with hybrid fallback.
+- Convert the remaining click-to-replace affordances and the E2E suite to the new `text-edit`
+  save path once it is verified in the browser (§22).
 - Keep raster redaction as the secure default until a text-preserving verifier is proven.
-- Deferred Unicode/CID/subset-font replacement until the content-stream engine is integrated and validated.
+- Unicode/CID/subset-font replacement beyond the font-resolvable cases is still deferred; the
+  engine's honest fallback covers it until the charcode-resolver work in §22 lands.
+
+---
+
+## 22. In-place text editing (engine shipped 2026-10-14)
+
+**Goal.** Click existing PDF text, edit it, and have the *original* glyphs replaced — not
+covered. Preserve layout, font, colour and rotation for the document's own content.
+
+**Feasibility spike (read-only, before any code).** Ran `@embedpdf/pdfium` 2.15.1 as real WASM
+in Node against generated fixtures. Result: **7/7 checks** — `FPDFText_SetText` and
+`FPDFText_SetCharcodes` rewrite an existing text object; unrelated text objects and a rotated
+page survive `FPDFPage_GenerateContent` + `PDFiumExt_SaveAsCopy` + reopen. Confirmed the same
+binding is what Stirling-PDF's shipped v2 editor mutates through (`PdfTextEditorCharcodeController`
+encodes Unicode→charcodes server-side because PDFium's reverse lookup is unreliable for subsets).
+**Conclusion:** in-place mutation is real and available; the smallest viable path is a PDFium
+mutation pass with a pdf-lib overlay fallback, *not* a from-scratch content-stream engine.
+
+**Why the earlier content-stream engine (deleted in §20) is not revived for this.** That engine
+tried to *strip* text for redaction and had unproven correctness. Text editing does not need
+byte surgery: PDFium already re-encodes against the object's own font and writes the operator
+sequence. Redaction stays on the proven raster path and is untouched by any of this.
+
+**What shipped**
+
+- `packages/pdf-core/src/textedit/`
+  - `pdfium.ts` — heap-safe access to page text objects: enumerate, read text/bounds/font size,
+    `setText`, `setCharcodes`, `removeObject`, `generate`, `serialize`, `close`. Owns every
+    WASM pointer lifetime; object pointers are invalidated by `generate`.
+  - `engine.ts` — `editPdfText`: (1) native PDFium pass matching each edit to a text object,
+    (2) reopen the serialized result with pdf.js and demote any replacement that did not survive
+    (PDFium returns `true` even when it writes filler for an unencodable glyph), (3) apply the
+    caller's overlay for demoted edits plus any extra editor objects with pdf-lib, (4) final
+    verified save. Deleting a run uses `FPDFPage_RemoveObject`; a deletion that cannot be done in
+    place is **refused**, never whiteout-covered. An unresolvable edit with no fallback is refused.
+  - `verify.ts` — reopen + re-extract with pdf.js (the product's own reader) and assert each
+    replacement is present.
+  - `runtime.ts` — lazy, cached WASM bootstrap; `configurePdfiumRuntime({ wasmUrl })` mirrors
+    `configurePdfjsRuntime`, and the dynamic `import('@embedpdf/pdfium')` keeps the glue out of
+    every bundle that only type-imports it.
+- `packages/pdf-core/src/jobs/textEdit.job.ts` — the `text-edit` job (slug registered in
+  `registry.ts` / `slugs.ts`). Output reports per-edit `mode: 'in-place' | 'fallback'`, counts,
+  the verification checks and warnings.
+- `ops/edit.ts` — `EditTextObject.inPlace` links a replacement box to the run it replaces.
+- `apps/web/src/workers/job-worker.ts` — `configurePdfiumRuntime({ wasmUrl })`.
+- `apps/web/.../edit-pdf-tool.tsx` — saves via `text-edit`, derives in-place intents from
+  `inPlace` boxes, excludes their whiteout/box from the overlay pass, and toasts the
+  in-place vs overlay split.
+- `licenses/embedpdf-pdfium-MIT.txt`, `licenses/pdfium-BSD-3-Clause.txt`.
+
+**Known compatibility limits (disclosed, not hidden).**
+
+- Matching is per text *object* with whitespace-normalised equality. A visual line split across
+  several objects (common in justified/tabular output) does not match natively and takes the
+  overlay fallback. Charcodes-resolver work (mirroring Stirling's CMap/content-stream strategy)
+  is the next step to widen this.
+- Font encoding: PDFium rewrites Unicode using the object's font; a glyph the subset lacks
+  produces filler, which verification catches and demotes. A replacement that *neither* PDFium
+  nor the WinAnsi overlay font can represent is refused, not mangled (this is deliberate — see
+  `assertEncodable` in `ops/edit.ts`).
+- Scanned/image-only pages have no text objects, so every edit there is an overlay — which is
+  what OCR-assisted editing is for (§4 P7); the engine does not pretend otherwise.
+- Encrypted documents load with a password; PDFium and pdf-lib must both accept the same one.
+
+**Verified in the browser.** `tests/e2e/text-edit.mjs` (new, `pnpm test:e2e:text-edit`) drives the
+real app in Edge: click an existing run → retype → save → download. It asserts the toast says
+"1 replaced in place", the download is a valid PDF, and **pdf.js re-extraction of the exported
+bytes contains the replacement and no longer contains the original** — 8/8 checks.
+
+**Not yet done (honest status).**
+
+- The full smoke suite stops *before* the editor save section at a **pre-existing** failure
+  ("delete removes text", Edge interaction) that reproduces with this work reverted; the new path
+  is instead covered by the focused script above.
+- The API/server pipeline does not run `text-edit` (it needs the WASM asset and pdf.js worker
+  configuration the server has not set up); it is intentionally absent from `NODE_JOBS`.
+- Charcode-strategy resolvers (mirroring Stirling's CMap / content-stream / backend encode), so
+  more splits-across-objects and subset-font cases edit natively instead of falling back.
+- Paragraph/table reflow and Unicode fallback fonts; OCR-assisted editing of scanned pages (P7).
+- Redaction (§20) was not touched and its guarantees are unchanged.

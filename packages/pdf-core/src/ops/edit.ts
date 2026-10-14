@@ -52,6 +52,13 @@ export interface EditTextObject extends EditObjectBase {
   /** `#rrggbb`. Defaults to near-black. */
   color?: string;
   align?: 'left' | 'center' | 'right';
+  /**
+   * Set when this text box is replacing an existing run rather than adding new
+   * text. The `text-edit` job then attempts a genuine in-place rewrite of the
+   * original text object, and only draws this box (plus its `coverId` whiteout)
+   * when that is not possible or does not survive verification.
+   */
+  inPlace?: { find: string; box: { x: number; y: number; width: number; height: number }; coverId?: string };
 }
 
 export interface EditImageObject extends EditObjectBase {

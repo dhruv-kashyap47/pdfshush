@@ -16,6 +16,7 @@ import { redactJob } from './redact.job.js';
 import { splitByPagesJob } from './splitByPages.job.js';
 import { splitHalfJob } from './splitHalf.job.js';
 import { stampJob } from './stamp.job.js';
+import { textEditJob } from './textEdit.job.js';
 import { textRunsJob } from './textRuns.job.js';
 import { thumbnailsJob } from './thumbnails.job.js';
 
@@ -32,6 +33,7 @@ export const JOBS = {
   [splitByPagesJob.slug]: splitByPagesJob as AnyJob,
   [splitHalfJob.slug]: splitHalfJob as AnyJob,
   [stampJob.slug]: stampJob as AnyJob,
+  [textEditJob.slug]: textEditJob as AnyJob,
   [nUpJob.slug]: nUpJob as AnyJob,
   [textRunsJob.slug]: textRunsJob as AnyJob,
 } satisfies Record<string, AnyJob>;

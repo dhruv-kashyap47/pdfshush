@@ -156,6 +156,49 @@ export { textRunsJob } from './jobs/textRuns.job.js';
 export type { TextRunsInput, TextRunsOutput, TextRunsOptions } from './jobs/textRuns.job.js';
 export { redactJob } from './jobs/redact.job.js';
 export type { RedactJobInput, RedactJobOutput, RedactJobOptions } from './jobs/redact.job.js';
+export { textEditJob } from './jobs/textEdit.job.js';
+export type {
+  TextEditJobInput,
+  TextEditJobOutput,
+  TextEditJobOptions,
+  TextEditJobReport,
+} from './jobs/textEdit.job.js';
+
+// In-place text editing (PDFium primary, pdf-lib overlay fallback)
+export {
+  applyNativeTextEdits,
+  defaultPdfiumEnvironment,
+  editPdfText,
+} from './textedit/engine.js';
+export type {
+  NativeTextEditResult,
+  PdfiumEnvironment,
+  TextEditOptions,
+  TextEditRunResult,
+} from './textedit/engine.js';
+export { PdfiumTextDocument } from './textedit/pdfium.js';
+export type { PdfiumTextBounds, PdfiumTextObject } from './textedit/pdfium.js';
+export {
+  configurePdfiumRuntime,
+  isPdfiumConfigured,
+  loadPdfiumModule,
+  resetPdfiumRuntime,
+} from './textedit/runtime.js';
+export type { PdfiumRuntimeConfig } from './textedit/runtime.js';
+export { TextEditUnsafeError } from './textedit/types.js';
+export type {
+  TextEdit,
+  TextEditBox,
+  TextEditCheck,
+  TextEditMode,
+  TextEditOutcome,
+  TextEditReport,
+  TextEditResult,
+  TextEditUnsafeReason,
+  TextEditVerification,
+} from './textedit/types.js';
+export { verifyTextEdits } from './textedit/verify.js';
+export type { TextEditExpectation, TextEditVerificationInput } from './textedit/verify.js';
 
 // Redaction
 export { redactPdf, defaultRedactEnvironment } from './redact/redact.js';

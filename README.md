@@ -15,7 +15,7 @@ quotas, through the exact same job contract.
 
 | Layer | State |
 | --- | --- |
-| `packages/pdf-core` | ✅ Environment-agnostic engine: jobs, limits, merge/compose/render/zip/stamp/split/n-up/edit, OffscreenCanvas worker factory, CMap/standard font support |
+| `packages/pdf-core` | ✅ Environment-agnostic engine: jobs, limits, merge/compose/render/zip/stamp/split/n-up/edit, **in-place text editing (PDFium) with verified overlay fallback**, OffscreenCanvas worker factory, CMap/standard font support |
 | `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu, web worker pool |
 | `apps/api` | ✅ Phase 3 server stack: Express + Redis + BullMQ sandboxed worker + TTL janitor |
 | Live tools (14) | ✅ Edit PDF, Merge, Organize, PDF → JPG, Delete Pages, Extract Pages, Rotate, Split by pages, Alternate & Mix, Split in half, Page Numbers, Crop, Header & Footer, N-up |
@@ -30,7 +30,7 @@ honest "in development" state so links and SEO never churn.
 pnpm install
 pnpm dev              # http://localhost:5173 (client web app)
 pnpm typecheck        # tsc across all workspace projects
-pnpm test             # vitest unit suite (172 tests: pdf-core + api)
+pnpm test             # vitest unit suite (282 tests: pdf-core + api)
 pnpm build            # production bundle build
 pnpm test:e2e         # Playwright suite vs. running dev server (83 checks)
 pnpm stack:up         # docker compose up -d --build (API + Redis + Worker stack)
@@ -53,7 +53,8 @@ packages/pdf-core        environment-agnostic PDF engine (Web Worker + Node)
   src/limits.ts          every capacity number in one single source of truth
   src/ops/               pages, compose, merge, zip, ranges, edit, stamp, split, n-up
   src/render/            pdf.js bootstrap, PdfjsCanvasFactory (OffscreenCanvas), budgeting
-  src/jobs/              inspect, merge, organize, pdf-to-images, thumbnails, edit, text-runs
+  src/textedit/          PDFium in-place text editing + verified pdf-lib overlay fallback
+  src/jobs/              inspect, merge, organize, pdf-to-images, thumbnails, edit, text-runs, text-edit
 apps/api                 Phase 3 background queue & server API
   src/server.ts          Express HTTP API + BullMQ producer + TTL janitor
   src/worker/            sandboxed worker processes (isolated memory & CPU)
@@ -74,11 +75,15 @@ Key invariants:
   back; main-thread bundle contains neither pdf.js nor pdf-lib.
 - **Refuse, don't crash.** Capacity checks run before work starts; browser tabs never die
   halfway through a user document.
+- **Edit text honestly.** Existing text is rewritten in place through PDFium and the result is
+  reopened and re-extracted before download; anything that cannot be rewritten safely falls back
+  to a whiteout-and-overlay and the UI says which happened. Redaction always uses the proven
+  raster path and never routes through the text editor.
 
 ## Credits & licensing
 
 - UI foundation: [shadcn dashboard & landing template](https://github.com/shadcnstore/shadcn-dashboard-landing-template) (MIT, full text in `licenses/`) — landing sections, shadcn/ui components, theme system.
 - Product scope modeled on [Sejda.com](https://www.sejda.com/) (not affiliated).
-- Engine: [pdf-lib fork `@cantoo/pdf-lib`](https://github.com/cantoo-pdf-lib/pdf-lib), [pdf.js](https://mozilla.github.io/pdf.js/), [fflate](https://github.com/101arrowz/fflate).
+- Engine: [pdf-lib fork `@cantoo/pdf-lib`](https://github.com/cantoo-pdf-lib/pdf-lib), [pdf.js](https://mozilla.github.io/pdf.js/), [PDFium WASM `@embedpdf/pdfium`](https://github.com/embedpdf/embed-pdf-viewer) (in-place text editing), [fflate](https://github.com/101arrowz/fflate). Licences for the redistributed PDFium WASM are in `licenses/` (MIT wrapper + BSD-3-Clause PDFium).
 
 Code from the template retains its MIT license; the rest is **AGPL-3.0-or-later** (see `LICENSE`).

@@ -24,6 +24,7 @@ export const JOB_SLUGS = [
   'split-by-pages',
   'split-in-half',
   'stamp',
+  'text-edit',
   'text-runs',
   'thumbnails',
 ] as const;

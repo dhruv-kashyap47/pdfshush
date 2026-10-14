@@ -23,9 +23,11 @@ import {
   rasterWidthWithinBudget,
   timeoutForPageCount,
   type EditorObject,
-  type EditJobOutput,
+  type EditTextObject,
   type FormWidgetInfo,
   type InspectOutput,
+  type TextEdit,
+  type TextEditJobOutput,
   type TextRun,
   type TextRunsOutput,
   type ThumbnailsOutput,
@@ -187,7 +189,7 @@ export function EditPdfTool() {
   const [runsByPage, setRunsByPage] = useState<Record<number, TextRun[]>>({});
 
   const inspectRunner = useJobRunner<InspectOutput>('inspect');
-  const editRunner = useJobRunner<EditJobOutput>('edit');
+  const editRunner = useJobRunner<TextEditJobOutput>('text-edit');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<File | null>(null);
@@ -773,7 +775,7 @@ export function EditPdfTool() {
         width: run.width + 2,
         height: run.height + 2,
       };
-      const text: EditorObject = {
+      const text: EditTextObject = {
         id: newObjectId(),
         kind: 'text',
         pageIndex,
@@ -787,6 +789,14 @@ export function EditPdfTool() {
         italic: run.italic,
         fontFamily: run.fontFamily,
         color: '#111827',
+        // Remember the run being replaced so the save can rewrite it in place
+        // instead of whiteouting and redrawing. The whiteout is kept only as the
+        // fallback and is excluded from the overlay pass when the rewrite works.
+        inPlace: {
+          find: run.text,
+          box: { x: run.x, y: run.y, width: run.width, height: run.height },
+          coverId: whiteout.id,
+        },
       };
       editor.apply((doc) => ({ ...doc, objects: [...doc.objects, whiteout, text] }));
       setSelectedId(text.id);
@@ -941,14 +951,45 @@ export function EditPdfTool() {
     // marking it up front meant a failed save silently disabled the
     // beforeunload guard, so the user's edits could be lost on navigation.
     const snapshot = editor.doc;
+    // Text boxes that replace an existing run become in-place edit intents. Their
+    // whiteout and the box itself are excluded from the overlay pass, because the
+    // job applies them only if the in-place rewrite does not work.
+    const edits: TextEdit[] = [];
+    const linked = new Set<string>();
+    for (const object of snapshot.objects) {
+      if (object.kind !== 'text' || !object.inPlace) continue;
+      const cover = object.inPlace.coverId
+        ? snapshot.objects.find((candidate) => candidate.id === object.inPlace!.coverId)
+        : undefined;
+      edits.push({
+        id: object.id,
+        pageIndex: object.pageIndex,
+        find: object.inPlace.find,
+        replace: object.text,
+        box: object.inPlace.box,
+        fallback: cover ? [cover, object] : [object],
+      });
+      linked.add(object.id);
+      if (cover) linked.add(cover.id);
+    }
+    const objects = snapshot.objects.filter((object) => !linked.has(object.id));
     const outcome = await editRunner.run(
       await readAsInputFiles([file]),
-      { objects: snapshot.objects, formValues: snapshot.formValues },
+      { edits, objects, formValues: snapshot.formValues },
       { timeoutMs: timeoutForPageCount(infoRef.current?.pageCount ?? 1) },
     );
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
+    }
+    // Tell the user honestly which edits were genuine rewrites and which were
+    // overlays, rather than implying every edit replaced the original text.
+    const report = outcome.result.report;
+    if (report.inPlace > 0 || report.fallback > 0) {
+      const parts: string[] = [];
+      if (report.inPlace > 0) parts.push(`${report.inPlace} replaced in place`);
+      if (report.fallback > 0) parts.push(`${report.fallback} drawn as an overlay`);
+      toast.success(`Text edits: ${parts.join(', ')}`);
     }
     // A newer document may have been loaded while the save was in flight; that
     // one's edits are still unsaved.
