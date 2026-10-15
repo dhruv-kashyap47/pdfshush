@@ -20,6 +20,7 @@ import {
   type EditorObject,
   type TextEdit,
 } from '../src/index.js';
+import { sameText } from '../src/textedit/engine.js';
 import { testContext } from './fixtures.js';
 import { pdfContainsText } from './helpers.js';
 
@@ -289,5 +290,91 @@ describe('validation', () => {
         testContext(),
       ),
     ).rejects.toBeInstanceOf(TextEditUnsafeError);
+  });
+});
+
+/** Minimal hand-built PDF with an arbitrary page content stream (ASCII only). */
+function build(content: string): Uint8Array {
+  const objects: string[] = [];
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objects[2] = '<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
+  objects[3] =
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R ' +
+    '/Resources << /Font << /F1 5 0 R >> >> >>';
+  objects[4] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+  objects[5] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+
+  let body = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  for (let n = 1; n < objects.length; n += 1) {
+    offsets[n] = body.length;
+    body += `${n} 0 obj\n${objects[n]}\nendobj\n`;
+  }
+  const xref = body.length;
+  body += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+  for (let n = 1; n < objects.length; n += 1) {
+    body += `${String(offsets[n]).padStart(10, '0')} 00000 n \n`;
+  }
+  body += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(body);
+}
+
+/**
+ * One visual line can be many objects in the file -- a TJ array, a Td shift, a
+ * font change mid-sentence. pdf.js clusters those into the single run the user
+ * clicked, so every shape here must reach PDFium as one in-place edit rather
+ * than an overlay.
+ */
+describe('lines written as several objects', () => {
+  const CASES: Record<string, string> = {
+    'one Tj per word': 'BT /F1 18 Tf 72 700 Td (Hello) Tj (World) Tj ET',
+    'TJ array, kerned': 'BT /F1 18 Tf 72 700 Td [(Hello) -120 (World)] TJ ET',
+    'TJ array, wide gap': 'BT /F1 18 Tf 72 700 Td [(Hello) 400 (World)] TJ ET',
+    'two Tm positions':
+      'BT /F1 18 Tf 1 0 0 1 72 700 Tm (Hello) Tj ET BT /F1 18 Tf 1 0 0 1 119 700 Tm (World) Tj ET',
+    'Td inside one BT': 'BT /F1 18 Tf 72 700 Td (Hello) Tj 50 0 Td (World) Tj ET',
+    'single Tj': 'BT /F1 18 Tf 72 700 Td (Hello World) Tj ET',
+    'bold word inside line': 'BT /F1 18 Tf 72 700 Td (Invoice ) Tj /F1 10 Tf 12 TL (42) Tj ET',
+    'trailing space own object': 'BT /F1 18 Tf 72 700 Td (Hello ) Tj (World) Tj ET',
+    'ligature split': 'BT /F1 18 Tf 72 700 Td (Eff) Tj (icient) Tj ET',
+    'many words': 'BT /F1 18 Tf 72 700 Td (Invoice) Tj ( number) Tj ( 42) Tj ET',
+  };
+
+  for (const [label, content] of Object.entries(CASES)) {
+    it(`edits ${label} in place`, async () => {
+      const source = build(content);
+      const find = (await extractTextRuns(source, [0]))[0]![0]!.text;
+      const result = await editPdfText(
+        source,
+        { edits: [{ id: 'e', pageIndex: 0, find, replace: 'REPLACED' }] },
+        testContext(),
+      );
+      expect(result.outcomes[0]!.mode).toBe('in-place');
+      expect(await pageText(result.bytes, 0)).toContain('REPLACED');
+    });
+  }
+});
+
+/**
+ * PDFium hands back U+0002 for the trailing hyphen of a LaTeX line whose
+ * content stream writes that character at charcode 45, which the font's own
+ * `/Encoding` calls `/hyphen`, `/ToUnicode` maps to U+002D, and every reader
+ * displays as `-`. Nothing in the document explains the 0x02, so matching
+ * tolerates a control code in object text -- but only there, and only when
+ * everything else lines up.
+ */
+describe('glyphs PDFium could not decode', () => {
+  it('lets a control code stand in for the character the reader sees', () => {
+    expect(sameText('occupying a unique posi\u0002', 'occupying a unique posi-')).toBe(true);
+    expect(sameText('The fun\u0002 part', 'The fun- part')).toBe(true);
+  });
+
+  it('still refuses text that differs anywhere else', () => {
+    expect(sameText('a different line entirely\u0002', 'occupying a unique posi-')).toBe(false);
+    expect(sameText('occupying a unique posi\u0002x', 'occupying a unique posi-')).toBe(false);
+    expect(sameText('occupying a uniqu\u0002', 'occupying a unique posi-')).toBe(false);
+    // Printable characters are never waived, only control codes.
+    expect(sameText('occupying a unique posi', 'occupying a unique posi-')).toBe(false);
+    expect(sameText('occupying a unique posi-', 'occupying a unique posi-')).toBe(true);
   });
 });

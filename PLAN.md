@@ -24,7 +24,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4 — Accounts & workflows** | Anonymous-first auth, saved history, workflow builder | 🔵 **In progress** — see §18 |
 | **R1 — Secure redaction (ship first)** | Rasterization-first: marks burned into pixels, document rebuilt, output independently verified → **security gate** | ✅ **Done (2026-10-14)** — see §20 |
 | **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
-| **T — In-place text editing** | PDFium `FPDFText_SetText` genuine rewrite of existing text objects, with a verification-driven pdf-lib overlay fallback | 🟡 **engine + job shipped and tested (2026-10-14)** · editor save wired · UI run not yet E2E-verified — see §22 |
+| **T — In-place text editing** | PDFium genuine rewrite of existing text objects (`SetCharcodes`/`SetText`), multi-object line matching, verification-driven pdf-lib overlay fallback | ✅ **engine + job shipped, browser-verified (2026-10-14)** · charcode resolver + multi-object matching landed · full smoke green — see §22 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
@@ -50,16 +50,19 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-14 after the redaction work.
+**Current gate:** re-measured 2026-10-14 after the in-place editor depth work (§22).
 **15 of 53 tools live** (`redact-pdf` added to Security) · 8 runnable server-side ·
-**282/282 unit** (165 engine + 117 API) · **101/101 browser E2E** (8 new redaction checks) ·
+**302/302 unit** (185 engine + 117 API) · **101/101 browser E2E** (full smoke, API + Redis up so
+nothing is skipped) · **8/8 focused text-edit E2E** ·
 21/21 API integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
-**genuine in-place text editing engine shipped (§22)** · main chunk 0 pdf-lib / 0 pdf.js /
+**genuine in-place text editing shipped end to end (§22)** — charcode resolver + multi-object
+matching take **91/91 runs of a real LaTeX export in place**, and the full smoke suite is green
+including the editor Delete/undo section and console health · main chunk 0 pdf-lib / 0 pdf.js /
 0 pdfium (PDFium is a lazy 4.6 MB asset fetched on first text edit).
-**Next: run the browser E2E against the new editor save path (§22) and convert the click-to-replace
-affordance to send in-place intents; then R2 (deferred until R1 is proven in production) or P5.**
+**Next: server-side `text-edit` and paragraph/table reflow (§22), then R2 (deferred until R1 is
+proven in production) or P5.**
 Repo public:
 `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
 (see §9 tooling).
@@ -503,6 +506,60 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-14 — Phase T depth: charcode resolver, multi-object matching, editor focus fix.**
+  Three findings, each proved before anything was built for it.
+
+  **1. `FPDFText_SetText` corrupts subset-font documents; `SetCharcodes` does not.** On a real
+  LaTeX export (Stirling-PDF's `mushroom-life.pdf`, read as *reference only* — the fixture is not
+  copied into this repo), an A/B over the same 91 runs: `SetText` produced
+  `"The,Lifecycle,of,a,Mushroom,Z"` — every space a comma, so verification reports the
+  replacement absent — while `SetCharcodes` with codes read from the document itself produced
+  `"The Lifecycle of a Mushroom Z"`. New `packages/pdf-core/src/textedit/charcodes.ts` derives
+  that map from the document: `/ToUnicode` inverted first (it is what the reader decodes with),
+  then `/Encoding` (`/BaseEncoding` + `/Differences` glyph names) to fill the gaps it leaves —
+  exactly where whitespace lives on subset fonts. `encodeWithMap` returns `null` at the first
+  character it cannot resolve, never a partial list (`SetCharcodes` replaces the whole glyph
+  string), so the caller falls back to `SetText`, and verification still backstops a wrong map
+  with an overlay rather than a bad file. Precedence is part of correctness: `/Differences` is
+  inserted before the base encoding so the specific declaration claims a character two codes both
+  draw — caught by a failing test where `space` resolved to 32 instead of the `/Differences`
+  code 45. Font identity comes from `FPDFTextObj_GetFont` → `FPDFFont_GetBaseFontName`, subset
+  tag stripped on both sides, keyed per page.
+
+  **2. A visual line is often several text objects.** New `matchObjects` joins contiguous
+  same-line objects (the same ink-overlap test `clusterTextRuns` applies to pdf.js items),
+  compares whitespace-insensitively, and removes a matched *tail* with `FPDFPage_RemoveObject`
+  rather than leaving the old words behind; a tail it cannot remove throws `TextEditUnsafeError`
+  instead of shipping a half-replaced line.
+
+  **3. PDFium hands back a glyph no document data explains.** The 14 runs that still failed all
+  ended in a hyphen: the content stream writes charcode 45, the font program's own `Encoding`
+  says `dup 45 /hyphen put`, `/ToUnicode` maps it to U+002D, pdf.js shows `-` — and
+  `FPDFTextObj_GetText` returns `U+0002`. Translating that code would be a guess (routing it
+  through `/ToUnicode` yields `Θ`, which was tried and measured), so matching instead **tolerates**
+  it: `sameText` requires equal length and identical text everywhere except control codes, so the
+  only runs that can match are ones differing solely in a glyph PDFium already failed to decode.
+  A failure falls back to an overlay; it cannot select a different line.
+
+  **Measured on that real fixture:** replacement present after the native pass
+  **0/91 (`SetText` baseline) → 77/91 (charcodes) → 91/91** (charcodes + multi-object + control
+  tolerance), every one of the 91 surviving re-extraction.
+
+  **4. The click that opens an edit also closed it.** Fixing the blur guard to reset
+  `focusedWhileEditing` when the session *ends* (React applies `autoFocus` before the passive
+  effect) made the first blur commit — but the mousedown that follows the opening pointerdown is
+  retargeted at the non-focusable page container, so the browser dropped focus on `<body>` ~4 ms
+  after the textarea mounted and the editor closed before a character could be typed. The focused
+  E2E failed on `editor-text-input` never becoming visible; focus-event logging pinned the cause
+  (`focusin TEXTAREA` → `mousedown target=DIV/editor-page` → `focusout … active=BODY`). Fixed at
+  the source: the opening gesture consumes exactly one mousedown default, so focus now holds
+  through `mouseup`/`click` while every later outside click still blurs and commits.
+
+  **Gates:** 302/302 unit (185 engine + 117 API; 20 new) · typecheck 3/3 · build ✅ · focused
+  browser E2E 8/8 · full smoke green with the API + Redis stack up (Docker's daemon turned out to
+  be installed at a non-standard path, so §19's workflow run is covered for real), including the
+  editor Delete/undo section and console health. New coverage: 10 multi-object layout shapes,
+  8 charcode-map tests (precedence, refusal, parser), 2 control-tolerance tests.
 - **2026-10-14 — Genuine in-place text editing engine (§22).** Feasibility spike first:
   `@embedpdf/pdfium` 2.15.1 (MIT wrapper, BSD-3-Clause PDFium) exposes
   `FPDFText_SetText`, `FPDFText_SetCharcodes`, `FPDFTextObj_GetText`, `FPDFPageObj_GetBounds`
@@ -1643,11 +1700,14 @@ Implemented in this session:
 
 Planned next (no code yet):
 
-- Convert the remaining click-to-replace affordances and the E2E suite to the new `text-edit`
-  save path once it is verified in the browser (§22).
+- ~~Convert the remaining click-to-replace affordances and the E2E suite to the new `text-edit`
+  save path once it is verified in the browser (§22).~~ ✅ done the same day — the affordance
+  sends in-place intents, `tests/e2e/text-edit.mjs` asserts them, and the full smoke is green.
 - Keep raster redaction as the secure default until a text-preserving verifier is proven.
 - Unicode/CID/subset-font replacement beyond the font-resolvable cases is still deferred; the
-  engine's honest fallback covers it until the charcode-resolver work in §22 lands.
+  engine's honest fallback covered it, and the charcode-resolver + multi-object work in §22 has
+  since landed and closed the subset-font gap (the CID/Type0 gap remains — no `/ToUnicode` means
+  no map, so those edits still fall back).
 
 ---
 
@@ -1697,12 +1757,34 @@ sequence. Redaction stays on the proven raster path and is untouched by any of t
   in-place vs overlay split.
 - `licenses/embedpdf-pdfium-MIT.txt`, `licenses/pdfium-BSD-3-Clause.txt`.
 
+**Phase T depth (2026-10-14, same day): the resolver that makes subset fonts edit natively.**
+Full narrative in §8; the code:
+
+- `textedit/charcodes.ts` — derives Unicode→charcode maps **from the document itself**
+  (`/ToUnicode` first, then `/Encoding`'s base + `/Differences`, per page, keyed by
+  subset-tag-stripped base font name) and `encodeWithMap`, which refuses the whole run at the
+  first unresolvable character instead of writing a partial glyph string. `pdfium.ts` gained
+  `fontNameOf` (via `FPDFTextObj_GetFont` → `FPDFFont_GetBaseFontName`) to look the map up for
+  the object being written; `editPdfText` loads the maps once and the write branch prefers
+  `setCharcodes`, falling back to `setText` only when there is no map for that text.
+- `textedit/engine.ts` — `matchObjects` joins contiguous same-line objects (whitespace-
+  insensitive, ink-overlap test matching `clusterTextRuns`), removes a matched tail with
+  `FPDFPage_RemoveObject`, and throws rather than half-replacing a line. `sameText` tolerates
+  exactly one thing: a control code in PDFium's object text, which is a glyph it failed to decode
+  (every other character, and the length, must still match).
+- Evidence, on Stirling-PDF's `mushroom-life.pdf` — **reference only, not copied into this
+  repo**; reproduce by pointing a temporary probe at
+  `Stirling-PDF-main/app/core/src/test/resources/pdftexteditor/mushroom-life.pdf`: replacement
+  present after the native pass **0/91 (`SetText`) → 77/91 (charcodes) → 91/91** (charcodes +
+  multi-object + control tolerance), all 91 surviving re-extraction. The 14 runs the tolerance
+  fixed all ended in a hyphen whose charcode nothing in the document explains (§8, finding 3).
+
 **Known compatibility limits (disclosed, not hidden).**
 
-- Matching is per text *object* with whitespace-normalised equality. A visual line split across
-  several objects (common in justified/tabular output) does not match natively and takes the
-  overlay fallback. Charcodes-resolver work (mirroring Stirling's CMap/content-stream strategy)
-  is the next step to widen this.
+- Matching joins contiguous same-line objects and compares whitespace-insensitively, tolerating
+  only control codes PDFium returned without decoding (§8 finding 3). A line whose objects still
+  do not match — a scanned page, a CID font with no `/ToUnicode`, text the reader and PDFium
+  disagree about beyond that — takes the overlay fallback and the output says so.
 - Font encoding: PDFium rewrites Unicode using the object's font; a glyph the subset lacks
   produces filler, which verification catches and demotes. A replacement that *neither* PDFium
   nor the WinAnsi overlay font can represent is refused, not mangled (this is deliberate — see
@@ -1711,19 +1793,21 @@ sequence. Redaction stays on the proven raster path and is untouched by any of t
   what OCR-assisted editing is for (§4 P7); the engine does not pretend otherwise.
 - Encrypted documents load with a password; PDFium and pdf-lib must both accept the same one.
 
-**Verified in the browser.** `tests/e2e/text-edit.mjs` (new, `pnpm test:e2e:text-edit`) drives the
+**Verified in the browser.** `tests/e2e/text-edit.mjs` (`pnpm test:e2e:text-edit`) drives the
 real app in Edge: click an existing run → retype → save → download. It asserts the toast says
 "1 replaced in place", the download is a valid PDF, and **pdf.js re-extraction of the exported
-bytes contains the replacement and no longer contains the original** — 8/8 checks.
+bytes contains the replacement and no longer contains the original** — 8/8 checks. The **full
+smoke suite is green too (101/101, API + Redis up, nothing skipped)**, including the editor
+Delete/undo/redo section and console health. Getting there needed one editor fix beyond the
+engine: the click that opens an edit also closed it, because the mousedown of the same gesture
+dropped focus on `<body>` ~4 ms after the textarea mounted — the opening gesture now consumes
+exactly one mousedown default (§8 finding 4).
 
 **Not yet done (honest status).**
 
-- The full smoke suite stops *before* the editor save section at a **pre-existing** failure
-  ("delete removes text", Edge interaction) that reproduces with this work reverted; the new path
-  is instead covered by the focused script above.
 - The API/server pipeline does not run `text-edit` (it needs the WASM asset and pdf.js worker
   configuration the server has not set up); it is intentionally absent from `NODE_JOBS`.
-- Charcode-strategy resolvers (mirroring Stirling's CMap / content-stream / backend encode), so
-  more splits-across-objects and subset-font cases edit natively instead of falling back.
+- A CID/Type0 font with no `/ToUnicode` has no derivable map, so those replacements fall back to
+  the overlay rather than guessing codes — by design, not oversight.
 - Paragraph/table reflow and Unicode fallback fonts; OCR-assisted editing of scanned pages (P7).
 - Redaction (§20) was not touched and its guarantees are unchanged.

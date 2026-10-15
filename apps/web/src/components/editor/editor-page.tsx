@@ -443,6 +443,13 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     return () => observer.disconnect();
   }, []);
 
+  // The gesture that opens a text edit must not also close it. The mousedown
+  // that follows this pointerdown is retargeted at the page container, which
+  // is not focusable, so the browser drops focus on <body>; the textarea we
+  // just mounted blurs inside the same click and the session would end before
+  // a single character is typed. One default is consumed for the gesture that
+  // opened the editor -- every later click outside still blurs and commits.
+  const openingEdit = useRef(false);
   const onPagePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     const p = propsRef.current;
@@ -465,11 +472,13 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       if (topText) {
         p.onSelect(topText.id);
         p.onStartEdit(topText.id);
+        openingEdit.current = true;
         return;
       }
       const run = findRunAt(p.runs, point.x, point.y);
       if (run) {
         p.onSeedReplace(run);
+        openingEdit.current = true;
         return;
       }
     }
@@ -492,6 +501,12 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
         className="relative select-none overflow-hidden border bg-white shadow-sm"
         style={{ width: displayW, height: displayH, cursor: tool === 'select' ? 'default' : 'crosshair' }}
         onPointerDown={onPagePointerDown}
+        onMouseDown={(event) => {
+          // Consume the focus move that belongs to the opening gesture.
+          if (!openingEdit.current) return;
+          openingEdit.current = false;
+          event.preventDefault();
+        }}
         data-testid="editor-page"
         data-page-index={pageIndex}
       >
@@ -633,7 +648,14 @@ function ObjectView({
   // While editing, the textarea drives this instead so typing grows live.
   const focusedWhileEditing = useRef(false);
   useEffect(() => {
-    if (editing) focusedWhileEditing.current = false;
+    // Reset when the session *ends*. React applies `autoFocus` during the
+    // layout phase, before this passive effect runs, so clearing the flag while
+    // `editing` is still true would wipe the onFocus that just fired and the
+    // first (real) blur would then be mistaken for the spurious one: the edit
+    // would never commit, the textarea would stay mounted over the box, and
+    // selection (pointerdown bails while editing) and Delete (typing) would both
+    // be blocked.
+    if (!editing) focusedWhileEditing.current = false;
   }, [editing]);
   const textKey = object.kind === 'text' ? object.text : '';
   const textFontSize = object.kind === 'text' ? object.fontSize : 0;

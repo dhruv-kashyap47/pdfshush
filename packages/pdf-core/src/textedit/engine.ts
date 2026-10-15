@@ -27,7 +27,12 @@ import { LIMITS } from '../limits.js';
 import { applyEdits, validateExport, type EditorObject } from '../ops/edit.js';
 import { applyFormValues } from '../ops/forms.js';
 import { loadPdfDocument } from '../ops/pages.js';
-import { PdfiumTextDocument, type PdfiumTextObject } from './pdfium.js';
+import { encodeWithMap, readFontCharcodes, type FontCharcodesByPage } from './charcodes.js';
+import {
+  PdfiumTextDocument,
+  type PdfiumTextBounds,
+  type PdfiumTextObject,
+} from './pdfium.js';
 import { loadPdfiumModule } from './runtime.js';
 import {
   TextEditUnsafeError,
@@ -83,30 +88,145 @@ function normalize(text: string): string {
   return text.replace(/\s+/gu, ' ').trim();
 }
 
-/** Best text object for an edit, preferring exact text and then box proximity. */
-function matchObject(
+/**
+ * Whitespace removed.
+ *
+ * `clusterTextRuns` merges same-line pdf.js items and inserts a space whenever
+ * the positioning gap exceeds 0.15em, so the editor's `find` can carry a space
+ * the document never wrote: `(Hello) -120 (World)` is one text object reading
+ * `HelloWorld` but is presented to the user as `Hello World`. Comparing without
+ * whitespace matches the text the reader can see rather than the bytes behind it.
+ */
+function withoutWhitespace(text: string): string {
+  return normalize(text).replace(/\s+/gu, '');
+}
+
+/**
+ * Equality that lets a glyph PDFium failed to decode stand in.
+ *
+ * `FPDFTextObj_GetText` hands back U+0002 for the trailing hyphen of a LaTeX
+ * line whose content stream writes that character at charcode 45, which the
+ * font's own `Encoding` declares `/hyphen`, `/ToUnicode` maps to U+002D, and
+ * every reader displays as `-`. Nothing in the document explains the 0x02, so
+ * translating it would be a guess -- and a wrong guess rewrites a line the user
+ * did not select. Ignoring it is bounded instead: lengths must match and every
+ * character that is *not* a control code must be identical, so the only runs
+ * that can match are ones differing solely in glyphs PDFium already failed to
+ * decode. A run that fails this test simply falls back to an overlay; it can
+ * never select a different line.
+ */
+export function sameText(objectText: string, find: string): boolean {
+  if (objectText === find) return true;
+  if (objectText.length !== find.length) return false;
+  for (let i = 0; i < objectText.length; i += 1) {
+    const code = objectText.charCodeAt(i);
+    const undecoded = code < 0x20 || (code >= 0x7f && code < 0xa0);
+    if (!undecoded && objectText[i] !== find[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Two objects sit on one visual line when their ink boxes overlap across the
+ * cross axis and stay within a fraction of an em along it -- the same test
+ * `clusterTextRuns` applies to pdf.js items, so every sequence joined here is
+ * one the editor would have presented as a single line.
+ */
+function sameLine(a: PdfiumTextObject, b: PdfiumTextObject): boolean {
+  const cross = Math.min(a.bounds.top - a.bounds.bottom, b.bounds.top - b.bounds.bottom);
+  if (cross <= 0) return false;
+  const overlap =
+    Math.min(a.bounds.top, b.bounds.top) - Math.max(a.bounds.bottom, b.bounds.bottom);
+  if (overlap < cross * 0.6) return false;
+  const gap = Math.max(
+    0,
+    Math.max(a.bounds.left, b.bounds.left) - Math.min(a.bounds.right, b.bounds.right),
+  );
+  const em = Math.min(a.fontSize || 12, b.fontSize || 12);
+  return gap <= em * 0.8;
+}
+
+function unionBounds(members: PdfiumTextObject[]): PdfiumTextBounds {
+  const first = members[0]!.bounds;
+  const bounds = { ...first };
+  for (const member of members) {
+    bounds.left = Math.min(bounds.left, member.bounds.left);
+    bounds.bottom = Math.min(bounds.bottom, member.bounds.bottom);
+    bounds.right = Math.max(bounds.right, member.bounds.right);
+    bounds.top = Math.max(bounds.top, member.bounds.top);
+  }
+  return bounds;
+}
+
+/**
+ * An edit's target: a single object, or a contiguous run of objects on one line.
+ *
+ * `members` are in content-stream order. The run is rewritten by writing the
+ * replacement into `members[0]` and removing the rest, which keeps the run's
+ * origin (so a left-aligned line does not jump) and leaves everything after it
+ * untouched.
+ */
+interface ObjectMatch {
+  members: PdfiumTextObject[];
+  /** true when only the whitespace-insensitive comparison matched. */
+  loose: boolean;
+}
+
+/**
+ * Best target for an edit. Prefers exact text over the whitespace-insensitive
+ * form, then the fewest objects (so a run only collapses when it must), and
+ * finally the box the user clicked when the same text occurs more than once.
+ */
+function matchObjects(
   doc: PdfiumTextDocument,
   objects: PdfiumTextObject[],
   used: Set<number>,
   edit: TextEdit,
-): PdfiumTextObject | undefined {
-  const needle = normalize(edit.find);
-  const candidates = objects.filter(
-    (object) => !used.has(object.ptr) && normalize(object.text) === needle,
-  );
-  if (candidates.length === 0) return undefined;
-  if (candidates.length === 1 || !edit.box) return candidates[0];
+): ObjectMatch | undefined {
+  const target = normalize(edit.find);
+  const targetKey = withoutWhitespace(edit.find);
+  if (targetKey.length === 0) return undefined;
 
-  const cx = edit.box.x + edit.box.width / 2;
-  const cy = edit.box.y + edit.box.height / 2;
-  let best = candidates[0]!;
+  const cx = edit.box ? edit.box.x + edit.box.width / 2 : undefined;
+  const cy = edit.box ? edit.box.y + edit.box.height / 2 : undefined;
+  const distance = (members: PdfiumTextObject[]): number => {
+    if (cx === undefined || cy === undefined) return 0;
+    const rect = doc.objectDisplayRect(edit.pageIndex, unionBounds(members));
+    return Math.hypot(rect.x + rect.width / 2 - cx, rect.y + rect.height / 2 - cy);
+  };
+
+  let best: ObjectMatch | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
-  for (const candidate of candidates) {
-    const rect = doc.objectDisplayRect(edit.pageIndex, candidate.bounds);
-    const distance = Math.hypot(rect.x + rect.width / 2 - cx, rect.y + rect.height / 2 - cy);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = candidate;
+  const consider = (candidate: ObjectMatch): void => {
+    const candidateDistance = distance(candidate.members);
+    if (best) {
+      if (candidate.loose !== best.loose) {
+        if (candidate.loose) return;
+      } else if (candidate.members.length !== best.members.length) {
+        if (candidate.members.length > best.members.length) return;
+      } else if (candidateDistance >= bestDistance) return;
+    }
+    best = candidate;
+    bestDistance = candidateDistance;
+  };
+
+  for (let start = 0; start < objects.length; start += 1) {
+    if (used.has(objects[start]!.ptr)) continue;
+    let text = '';
+    for (let end = start; end < objects.length; end += 1) {
+      const member = objects[end]!;
+      if (end > start && (used.has(member.ptr) || !sameLine(objects[end - 1]!, member))) break;
+      text += member.text;
+      const collapsed = normalize(text);
+      const key = withoutWhitespace(text);
+      const exact = sameText(collapsed, target);
+      if (exact || sameText(key, targetKey)) {
+        consider({ members: objects.slice(start, end + 1), loose: !exact });
+        break;
+      }
+      // Both comparisons only grow as the concatenation grows, so once the
+      // whitespace-free form has reached the target's length no extension matches.
+      if (key.length >= targetKey.length) break;
     }
   }
   return best;
@@ -134,6 +254,7 @@ export function applyNativeTextEdits(
   edits: TextEdit[],
   ctx: JobContext,
   password?: string,
+  fonts?: FontCharcodesByPage,
 ): NativeTextEditResult {
   const doc = PdfiumTextDocument.open(module, data, password ?? '');
   const progress = createProgressReporter(ctx);
@@ -153,7 +274,7 @@ export function applyNativeTextEdits(
       const objects = doc.listTextObjects(pageIndex);
       const used = new Set<number>();
       for (const edit of pageEdits) {
-        const target = matchObject(doc, objects, used, edit);
+        const target = matchObjects(doc, objects, used, edit);
         if (!target) {
           provisional.set(edit.id, {
             mode: 'fallback',
@@ -161,24 +282,66 @@ export function applyNativeTextEdits(
           });
         } else if (edit.replace.length === 0) {
           // Deletion is a removal, not a rewrite: FPDFText_SetText refuses an
-          // empty string, and a whiteout would leave the text recoverable.
-          if (doc.removeObject(pageIndex, target.ptr)) {
-            used.add(target.ptr);
-            provisional.set(edit.id, { mode: 'in-place' });
-          } else {
-            provisional.set(edit.id, {
-              mode: 'fallback',
-              reason: 'PDFium refused to remove the text object',
-            });
+          // empty string, and a whiteout would leave the text recoverable. A run
+          // has to disappear whole, so every member is removed.
+          const failed = target.members.filter(
+            (member) => !doc.removeObject(pageIndex, member.ptr),
+          );
+          if (failed.length > 0) {
+            throw new TextEditUnsafeError([
+              {
+                kind: 'unresolvable',
+                detail:
+                  `edit "${edit.id}" matched ${target.members.length} text objects on page ` +
+                  `${pageIndex + 1} and PDFium refused to remove ${failed.length} of them; ` +
+                  'the run cannot be deleted in place, and covering it would only hide it',
+              },
+            ]);
           }
-        } else if (doc.setText(target.ptr, edit.replace)) {
-          used.add(target.ptr);
+          for (const member of target.members) used.add(member.ptr);
           provisional.set(edit.id, { mode: 'in-place' });
         } else {
-          provisional.set(edit.id, {
-            mode: 'fallback',
-            reason: 'PDFium refused to rewrite the text object',
-          });
+          const first = target.members[0]!;
+          // Prefer the document's own charcodes over PDFium's Unicode
+          // re-encoding: on subset fonts that re-encoding writes the wrong
+          // glyphs *and* reports success, whereas a map derived from the
+          // document's own /ToUnicode and /Encoding is what the reader decodes
+          // with. A font with no usable map keeps the old behaviour, and
+          // verification still runs over whatever is written, so an over-eager
+          // map costs an overlay rather than a bad file.
+          const charcodes = encodeWithMap(
+            fonts?.get(pageIndex)?.get(doc.fontNameOf(first.ptr) ?? ''),
+            edit.replace,
+          );
+          const written =
+            (charcodes !== null && doc.setCharcodes(first.ptr, charcodes)) ||
+            doc.setText(first.ptr, edit.replace);
+          if (!written) {
+            provisional.set(edit.id, {
+              mode: 'fallback',
+              reason: 'PDFium refused to rewrite the text object',
+            });
+          } else {
+            // The replacement takes the first member's slot, so the remaining
+            // members would print the line a second time. Failing here is
+            // refused outright rather than left to a best effort: a document
+            // that says the text twice is worse than one that fails loudly.
+            const tails = target.members.slice(1);
+            const failed = tails.filter((tail) => !doc.removeObject(pageIndex, tail.ptr));
+            if (failed.length > 0) {
+              throw new TextEditUnsafeError([
+                {
+                  kind: 'unresolvable',
+                  detail:
+                    `edit "${edit.id}" rewrote its first text object but PDFium refused to ` +
+                    `remove ${failed.length} of the ${tails.length} remaining matched objects ` +
+                    `on page ${pageIndex + 1}, which would print the line twice`,
+                },
+              ]);
+            }
+            for (const member of target.members) used.add(member.ptr);
+            provisional.set(edit.id, { mode: 'in-place' });
+          }
         }
         done += 1;
         progress.step(done, edits.length, `Editing page ${pageIndex + 1}`);
@@ -285,7 +448,11 @@ export async function editPdfText(
     throw new TextEditUnsafeError([{ kind: 'no-pdfium', detail }]);
   }
 
-  const native = applyNativeTextEdits(module, data, edits, ctx, password);
+  // Charcode maps come from the document's own /ToUnicode and /Encoding, so
+  // they are read once here and handed to the pass instead of being re-parsed
+  // per page. A document that cannot be read simply yields no maps.
+  const fonts = await readFontCharcodes(data, password);
+  const native = applyNativeTextEdits(module, data, edits, ctx, password, fonts);
 
   // Stage 2: reopen the serialized native bytes and look for each replacement.
   const outcomes: TextEditOutcome[] = native.outcomes.map((outcome) => ({ ...outcome }));

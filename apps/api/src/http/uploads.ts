@@ -189,19 +189,25 @@ export function receiveUpload(
       // the client sent. Reserve a slot now and fill it when the write lands.
       const slot = files.length;
       files.push({ name: '', path: '', bytes: 0 });
-      pending.push(
-        store
-          .writeInput(jobId, name, stream, limits.maxBytes)
-          .then((stored) => {
-            if (settled) return;
-            totalBytes += stored.bytes;
-            files[slot] = stored;
-          })
-          .catch((error: unknown) => {
-            files.length = slot; // drop the placeholder
-            throw error;
-          }),
-      );
+      const write = store
+        .writeInput(jobId, name, stream, limits.maxBytes)
+        .then((stored) => {
+          if (settled) return;
+          totalBytes += stored.bytes;
+          files[slot] = stored;
+        })
+        .catch((error: unknown) => {
+          files.length = slot; // drop the placeholder
+          throw error;
+        });
+      // `fail()` removes the job dir while busboy can still emit parts from the
+      // chunk it is mid-parsing, so a write already in flight dies with ENOENT.
+      // Once `settled` is true nothing awaits `pending` anymore, so that
+      // rejection would reach the process unobserved (seen as an unhandled
+      // ENOENT in the test suite). This extra observer costs nothing on the
+      // happy path, where `Promise.all(pending).catch(fail)` still reports it.
+      void write.catch(() => undefined);
+      pending.push(write);
     });
 
     parser.on('error', (error: unknown) => {

@@ -178,8 +178,10 @@ export class PdfiumTextDocument {
 
   /**
    * Rewrite an object's charcodes directly, bypassing PDFium's reverse
-   * Unicode→CID lookup. Returns false when the build has no such entry point.
-   * Reserved for the subset-font path; the caller supplies font-specific codes.
+   * Unicode→CID lookup. Returns false when the build has no such entry point
+   * or the list is empty. The caller must supply codes the document itself
+   * uses (see `charcodes.ts`); the return value still carries no guarantee
+   * that the right glyphs came out.
    */
   setCharcodes(objPtr: number, charcodes: number[]): boolean {
     if (charcodes.length === 0) return false;
@@ -197,6 +199,34 @@ export class PdfiumTextDocument {
       return false;
     } finally {
       this.free(ptr);
+    }
+  }
+
+  /**
+   * The subset-tag-stripped base font name of a text object, or null when this
+   * build exposes no such entry point. Used only to select a document-derived
+   * charcode map; a name the document does not carry yields no map and no write.
+   */
+  fontNameOf(objPtr: number): string | null {
+    const raw = this.m as unknown as {
+      FPDFTextObj_GetFont?: (obj: number) => number;
+      FPDFFont_GetBaseFontName?: (font: number, buffer: number, length: number) => number;
+    };
+    if (!raw.FPDFTextObj_GetFont || !raw.FPDFFont_GetBaseFontName) return null;
+    try {
+      const font = raw.FPDFTextObj_GetFont(objPtr);
+      if (!font) return null;
+      const length = raw.FPDFFont_GetBaseFontName(font, 0, 0);
+      if (length <= 1) return null;
+      const buffer = this.alloc(length);
+      try {
+        raw.FPDFFont_GetBaseFontName(font, buffer, length);
+        return this.m.pdfium.UTF8ToString(buffer).replace(/^[A-Z]{6}\+/, '');
+      } finally {
+        this.free(buffer);
+      }
+    } catch {
+      return null;
     }
   }
 

@@ -199,6 +199,13 @@ export type {
 } from './textedit/types.js';
 export { verifyTextEdits } from './textedit/verify.js';
 export type { TextEditExpectation, TextEditVerificationInput } from './textedit/verify.js';
+export {
+  encodeWithMap,
+  glyphNameToUnicode,
+  parseToUnicode,
+  readFontCharcodes,
+} from './textedit/charcodes.js';
+export type { FontCharcodes, FontCharcodesByPage } from './textedit/charcodes.js';
 
 // Redaction
 export { redactPdf, defaultRedactEnvironment } from './redact/redact.js';
