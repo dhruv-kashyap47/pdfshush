@@ -17,6 +17,7 @@ import {
   editPdfText,
   extractTextRuns,
   loadPdfiumModule,
+  verifyTextEdits,
   type EditorObject,
   type TextEdit,
 } from '../src/index.js';
@@ -376,5 +377,17 @@ describe('glyphs PDFium could not decode', () => {
     // Printable characters are never waived, only control codes.
     expect(sameText('occupying a unique posi', 'occupying a unique posi-')).toBe(false);
     expect(sameText('occupying a unique posi-', 'occupying a unique posi-')).toBe(true);
+  });
+});
+
+describe('text-edit verification', () => {
+  it('fails the page-count check when the output lost a page', async () => {
+    // The check has to read the count back from the exported bytes. Echoing the
+    // caller's `expectedPageCount` back at itself would make it unfailable.
+    const bytes = await makeTextFixture(); // two pages
+    const result = await verifyTextEdits(bytes, { expectedPageCount: 1, expectations: [] });
+    const pageCount = result.checks.find((check) => check.name === 'page-count');
+    expect(pageCount?.ok).toBe(false);
+    expect(result.ok).toBe(false);
   });
 });

@@ -86,6 +86,14 @@ export function receiveUpload(
 
     const files: StoredFile[] = [];
     const fields: Record<string, string> = {};
+    /**
+     * Names already claimed by a part in this request, reserved the moment the
+     * part is seen. `files` cannot serve this purpose: files are written
+     * concurrently and an in-flight one is still an empty placeholder, so its
+     * committed name is not in the list yet and a second part could claim the
+     * same path.
+     */
+    const reservedNames = new Set<string>();
     const maxTotalBytes = limits.maxTotalBytes ?? limits.maxBytes;
     /**
      * Bytes committed by finished files -- the running total charged to quota.
@@ -155,15 +163,15 @@ export function receiveUpload(
       // Two parts whose names sanitise to the same basename would resolve to one
       // path and the second write would truncate the first -- merge then silently
       // returned the same document twice with one upload missing.
-      const taken = new Set(files.filter((file) => file.name).map((file) => file.name));
       let name = sanitised;
-      for (let suffix = 2; taken.has(name); suffix += 1) {
+      for (let suffix = 2; reservedNames.has(name); suffix += 1) {
         const dot = sanitised.lastIndexOf('.');
         name =
           dot > 0
             ? `${sanitised.slice(0, dot)}-${suffix}${sanitised.slice(dot)}`
             : `${sanitised}-${suffix}`;
       }
+      reservedNames.add(name);
 
       stream.on('limit', () => {
         fail(new UploadTooLargeError(limits.maxBytes, totalBytes));

@@ -12,6 +12,7 @@
  * missing after the round-trip is demoted to the overlay path by the engine.
  */
 
+import { loadPdfDocument } from '../ops/pages.js';
 import { extractTextRuns } from '../render/textRuns.js';
 import type { TextEditCheck, TextEditVerification } from './types.js';
 
@@ -55,10 +56,11 @@ export async function verifyTextEdits(
   try {
     const runs = await extractTextRuns(bytes, probePages);
     runsByPage = runs.map((pageRuns) => normalize(pageRuns.map((run) => run.text).join(' ')));
-    // Page count is read from a full-document extraction only when no pages were
-    // requested; otherwise the caller's own page count stands, and the reopen
-    // itself is the structural check.
-    pageCount = input.expectedPageCount;
+    // Read the page count back from the bytes we are about to hand out. The
+    // caller's `expectedPageCount` describes the input, so comparing it with
+    // itself would make this check vacuous -- the redaction verifier avoids the
+    // same mistake by reopening the output.
+    pageCount = (await loadPdfDocument(bytes)).getPageCount();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return {

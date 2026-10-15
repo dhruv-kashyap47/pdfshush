@@ -9,7 +9,7 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { existsSync } from 'node:fs';
 import { Queue, Worker } from 'bullmq';
 import { QUEUE_PDF, type JobPayload } from '../jobs/payload.js';
@@ -115,9 +115,11 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
 }
 
 // Run directly (not when imported by tests or the embedded worker).
+// `pathToFileURL` produces the same `file:///C:/...` form as `import.meta.url`.
+// The previous `file://` + path concatenation dropped the drive slash, so it
+// was never true on Windows and `pnpm worker` exited without starting.
 const invokedDirectly =
-  process.argv[1] !== undefined &&
-  import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}`;
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
   startWorkerHost().catch((error: unknown) => {

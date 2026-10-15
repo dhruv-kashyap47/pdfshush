@@ -733,7 +733,7 @@ export function EditPdfTool() {
         // Grow the box to fit the longest edited line instead of prematurely
         // wrapping or clipping, but never past the page's right edge.
         const longestLine = text
-          .split('\\n')
+          .split('\n')
           .reduce((max, line) => Math.max(max, measureTextLine(object, line)), 0);
         const nextWidth = Math.max(object.width, Math.min(availableWidth, longestLine + 12));
         return {

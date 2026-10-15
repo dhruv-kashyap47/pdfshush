@@ -198,6 +198,27 @@ describe('POST /api/jobs', () => {
     await expect(store.statResult(created.jobId, 'evil.pdf')).resolves.toBeUndefined();
   });
 
+  it('keeps every upload when two parts share a name', async () => {
+    const { url } = await harness();
+    const pdf = await samplePdf();
+    const { body, contentType } = multipart({ slug: 'merge' }, [
+      { name: 'dup.pdf', data: pdf },
+      { name: 'dup.pdf', data: pdf },
+    ]);
+
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(202);
+    const created = (await response.json()) as { jobId: string; files: { name: string }[] };
+    // A shared path means the second write truncated the first, and merge then
+    // ran with one document twice. Concurrent writes are not settled when the
+    // next part arrives, so the name must be reserved when the part is seen.
+    expect(created.files.map((file) => file.name)).toEqual(['dup.pdf', 'dup-2.pdf']);
+  });
+
   it('refuses a non-multipart body', async () => {
     const { url } = await harness();
     const response = await fetch(url('/api/jobs'), {
