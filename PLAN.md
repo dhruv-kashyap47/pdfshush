@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-14
+**Last updated:** 2026-10-16
 
 ---
 
@@ -21,7 +21,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P2 — Editor** | Sejda-class PDF editor (3 edit modes, undo, export validation) | ✅ **Done (2026-10-07)** — see §10 |
 | **P3 — Server pipeline** | Express + BullMQ workers, quotas, isolation → **hardening gate** | ✅ **Done (2026-10-08)** — see §11 |
 | **Audit remediation (P0/P1/P2)** | Full-codebase audit fixes: output contracts, page cap, filenames, cancel contract, janitor, recent history | ✅ **Done (2026-10-08)** — see §14 |
-| **P4 — Accounts & workflows** | Anonymous-first auth, saved history, workflow builder | 🔵 **In progress** — see §18 |
+| **P4 — Accounts & workflows** | Anonymous-first auth, saved history, workflow builder | ✅ **Done (2026-10-12); P4.4 triggers deliberately gated** — see §18 |
 | **R1 — Secure redaction (ship first)** | Rasterization-first: marks burned into pixels, document rebuilt, output independently verified → **security gate** | ✅ **Done (2026-10-14)** — see §20 |
 | **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
 | **T — In-place text editing** | PDFium genuine rewrite of existing text objects (`SetCharcodes`/`SetText`), multi-object line matching, verification-driven pdf-lib overlay fallback | ✅ **engine + job shipped, browser-verified (2026-10-14)** · charcode resolver + multi-object matching landed · full smoke green — see §22 |
@@ -50,10 +50,11 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-16 after the P5 AI port (§23) and the gap-closing pass (§23.7).
+**Current gate:** re-measured 2026-10-16 after the P5 AI port (§23), the gap-closing pass (§23.7),
+and the Phase 1-5 security review + `redactSecrets` hardening (§24).
 **18 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
 `edit-pdf-with-ai` under a new **AI** category) · 8 runnable server-side ·
-**827/827 unit** (189 engine · 129 API · 357 provider · 152 agent) · **101/101 browser E2E** (full
+**836/836 unit** (189 engine · 131 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
 smoke, API up so only the workflow-run steps skip) · **8/8 focused text-edit E2E** · **18/18 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
@@ -66,7 +67,8 @@ mode with per-subject budgets on the server (off unless a key is set), the P5 le
 key in IndexedDB behind `sanitizeAiSettings` with a one-click delete (§23)** · main chunk 0 pdf-lib /
 0 pdf.js / 0 pdfium, now enforced by `pnpm test:bundle` (PDFium is a lazy 4.6 MB asset fetched on first
 text edit).
-**Next: R2 (deferred until R1 is proven in production) or P6 (e-sign / public API / MCP).**
+**Next: P6 (e-sign / public REST API / MCP) — opened 2026-10-16, plan in §24.4**; R2 stays deferred
+until R1 is proven in production, and P4.4 triggers stay gated.
 Repo public:
 `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
 (see §9 tooling).
@@ -510,6 +512,22 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-16 — P1–P5 security review, `redactSecrets` hardened, and P6 opened.** See §24.
+
+  A read-only review of everything shipped through P5 — server (sessions/CSRF, uploads + path safety,
+  the sandboxed worker, quota, the managed-AI gateway) and client (the BYOK key path, custom
+  endpoints, the agent loop's bounds, the DOM/sink surface) — plus the §9 pre-push grep over every
+  tracked file. **No Critical or High findings.** The one real defect, fixed: `redactSecrets` claimed
+  to scrub "anything bearer-shaped" but only matched `sk-`/`key-`/`token-`, and the one-shot
+  smart-redaction path (`lib/ai/ask.ts`) returned provider errors without calling it at all — a proxy
+  echoing the `Authorization` header could have put a key on screen. It now lives in
+  `packages/ai-provider/src/redact-secrets.ts` (a package, so it finally has unit tests), covers the
+  prefixes this app actually ships plus `Bearer`/`Basic`/`AIza`/`AKIA`/`xox`/JWT shapes, and runs on
+  both error paths. Counts: **836/836 unit** (7 new provider tests; the API count had already risen
+  to 131 with the processor-discovery tests) · **101/101 + 8/8 + 18/18 + 11/11** browser E2E ·
+  bundle boundary holds. §1 refreshed (`Last updated`, P4 marked done with P4.4 gated) and §24.4 lays
+  out the **P6 (e-sign / public API / MCP)** plan, since P1–P5 are verified end to end.
+
 - **2026-10-16 — the four honest P5 gaps closed: real in-place AI rewrites, the key in IndexedDB,
   per-page change markers, and a managed-mode browser E2E.** See §23.7.
 
@@ -925,7 +943,7 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (browser app only)
 pnpm typecheck        # strict tsc, all five packages
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (827 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (836 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
@@ -2185,4 +2203,94 @@ request body.
 discovery mechanism, not a full-document render; above ~200 pages the rail is long; the overlay boxes
 show *where* a change lands, not a pixel-accurate simulation of the final render; and R2 (text-level
 redaction) remains gated behind R1 in production (§20.3).
+
+---
+
+## 24. Security review (P1–P5) + P6 opening plan (2026-10-16)
+
+### 24.1 Scope and method
+
+A read-only review of everything shipped through P5, split by trust boundary: (a) the server —
+sessions/CSRF, uploads + path safety, the sandboxed worker, quota accounting, the managed-AI
+gateway; (b) the client — the BYOK key path, custom-endpoint handling, the agent loop's bounds, and
+the DOM/code-execution sinks. Plus the pre-push grep from §9 over every tracked file (secret patterns,
+machine-path markers, dangerous sinks). **No files were changed to review them; the one fix below is
+the review's output.**
+
+### 24.2 Findings
+
+**No Critical or High findings.** The one real defect, now fixed:
+
+- **`redactSecrets` under-delivered its own contract (Medium, fixed).** Its comment promised to scrub
+  "anything that looks like a bearer token", but the regex only matched `sk-`/`key-`/`token-` shapes,
+  and the one-shot path (`lib/ai/ask.ts` → smart-redaction proposals) returned provider errors
+  **without calling it at all** — so a proxy that echoes the `Authorization` header could put a key on
+  screen. Fixed: the function moved to `packages/ai-provider/src/redact-secrets.ts` (a package, so it
+  is unit-testable — `apps/web` has no runner), now covers the prefixes this app actually ships
+  (`gsk_`/`xai-`/`ci_live_`/`ak-`/`apikey-`), `Bearer`/`Basic` header echoes, and
+  `AIza`/`AKIA`/`xox`/compact-JWT shapes, and runs on **both** the streaming and one-shot error paths.
+  `packages/ai-provider/test/redact-secrets.test.ts` is the first test this function has ever had.
+
+Accepted / by-design (recorded, not "fixed"):
+
+- **BYOK key is stored unencrypted in IndexedDB** (§23.7.1). Honest: IndexedDB does not encrypt and
+  any same-origin script can read it. It is out of `localStorage`'s name-enumerable surface, erasable
+  by one call, and never sent to our server, logged, or put in a URL.
+- **No host allowlist on a custom provider base URL.** The request is the user's own, from the user's
+  own browser, to the user's own endpoint (Ollama/LM Studio is the case); scheme+credentials are
+  already validated and tested.
+- **Document text reaches the chosen provider** (that is the feature) and, in managed mode, our API —
+  disclosed in the trust notes and asserted by `tests/e2e/ai-managed.mjs`.
+
+Low-severity items left open, deliberately, with reasons: model output is **never** passed through
+`redactSecrets` (a document may legitimately contain a credential the user asked about — corrupting a
+real answer is worse); the one new `child_process` use (`tests/e2e/ai-managed.mjs`) spawns a fixed
+argv with no shell.
+
+### 24.3 Controls the review confirmed (already in place)
+
+- **Server.** httpOnly + SameSite=Lax + Secure session cookie with server-side revocation;
+  double-submit CSRF; `timingSafeEqual` job-token comparison with a derived (never stored) token;
+  `resolveWithin` for every work-dir path; streaming uploads with a per-*request* byte ceiling and
+  sanitised basenames; anonymous quota keyed by a peppered IP hash with `trust proxy` set to a hop
+  count; `helmet` with `default-src 'none'`; auth rate-limiting scoped to the two expensive routes and
+  failing open only on a counter outage.
+- **Client.** Key never in a URL (headers only, all three protocols), never to our API, never logged,
+  masked in the DOM; base-URL and custom-header validation on read *and* write; no
+  `dangerouslySetInnerHTML`/`innerHTML`/`eval`/`new Function` anywhere, no markdown renderer, no
+  telemetry; agent loop bounded by turn cap, tool allowlist, cancellation, and a
+  **user-Apply gate before any document mutation**.
+
+### 24.4 P6 — E-sign / public REST API / MCP: opening plan
+
+P1–P5 are **verified end to end** (§24 gates below), so P6 can open. Sequenced so the identity-sensitive
+API and the agent-facing MCP server do not land before the thing they both stand on — the accounts and
+job contract from P3/P4 — is extended, tested, and rate-limited.
+
+**Gate to enter P6 (met 2026-10-16):** 836/836 unit · 101/101 + 8/8 + 18/18 + 11/11 browser E2E ·
+bundle boundary holds · pre-push grep clean · §24 review with no Critical/High.
+
+- **P6.0 — Decision record (first, nothing built before it).** Signature form (draw/type/upload),
+  what an "audit trail" actually attests to and what it does **not** (no eIDAS/ESIGN certification
+  claim), where signature artifacts are stored, the API-key model (hashing at rest, scopes, rotation),
+  and the MCP transport(s) — all written down like §18.1/§20.3.
+- **P6.1 — E-sign.** `szimek/signature_pad` (MIT, §2) for capture, its `toSVG()` → pdf-lib
+  `drawSvgPath` for vector output, placement/fill through the P2 editor, ordered recipients, and an
+  append-only audit record (document hash, signer identity, timestamps). **Gate:** a signature
+  round-trips and re-extracts; vector path proven by test; no key material ever enters the document;
+  a tamper after signing is detectable.
+- **P6.2 — Public REST API.** API keys bound to an account, hashed at rest and shown once, scoped,
+  with per-key rate limits and quotas on the existing P3 job contract; OpenAPI spec + docs. **Gate:**
+  authn/authz matrix (missing/garbage/expired/revoked key, wrong scope), per-key isolation, and proof
+  that anonymous tool access is unchanged.
+- **P6.3 — PDFShush MCP server.** Expose the tool catalog to agents (design donor: GenOffice MCP,
+  Apache-2.0), reusing the same job contract and the same server-side sandbox — **not** a new
+  execution path. **Gate:** tool-schema parity with the registry (auto-checked), every job still runs
+  inside the bounded worker, and no filesystem/network escape.
+- **P6.4 — Hardening pass for the new surface.** Abuse cases for keys and signing, SSRF review for any
+  URL a new tool fetches, and a rotation/revocation drill — folded into P7's torture suite.
+
+**Still gated, unchanged:** **P4.4** automated triggers (SSRF + scheduling, §18.5) and **R2** text-level
+redaction (not before R1 is proven in production, §20.3). P6 does not depend on either.
+
 
