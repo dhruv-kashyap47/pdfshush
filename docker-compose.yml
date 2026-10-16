@@ -59,6 +59,24 @@ services:
       # (localhost is a trustworthy origin), so the secure default holds locally.
       # Set SESSION_COOKIE_SECURE=false only if a browser refuses the cookie.
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      # Managed AI (Phase 5). The four strings are safe to pass empty: `ai.enabled`
+      # is decided by a truthy model *and* key, so a deployment with neither boots
+      # BYOK-only, exactly as before. The budget numbers are deliberately NOT
+      # listed here -- they are `z.coerce.number().positive()`, and an empty
+      # string coerces to 0 and fails validation, which makes the API refuse to
+      # boot. They arrive through `env_file` below when the operator sets them.
+      AI_MANAGED_PROVIDER: ${AI_MANAGED_PROVIDER:-openai}
+      AI_MANAGED_MODEL: ${AI_MANAGED_MODEL:-}
+      AI_MANAGED_API_KEY: ${AI_MANAGED_API_KEY:-}
+      AI_MANAGED_BASE_URL: ${AI_MANAGED_BASE_URL:-}
+    # Anything else in the project-root `.env` reaches the container too, so
+    # optional knobs (AI budget overrides, TTLs) can be set without this file
+    # listing each one. A key that is absent from `.env` is simply absent here,
+    # which is what keeps every schema default in force; `required: false` keeps
+    # a fresh clone (no `.env`) working.
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8080:8080"
     volumes:

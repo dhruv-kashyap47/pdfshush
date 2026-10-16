@@ -26,11 +26,17 @@ export interface WorkerHostOptions {
 
 export function resolveProcessorPath(explicit?: string): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  // dist/worker-host.js -> dist/processor.cjs ; src/worker/host.ts -> same guess
-  const candidate = explicit ?? path.resolve(here, 'processor.cjs');
-  if (existsSync(candidate)) return candidate;
+  // Built: the bundle sits next to the processor, so `dist/worker-host.js` and
+  // the bundled `dist/server.js` both find `dist/processor.cjs` as a sibling.
+  // Dev: `tsx` reports the real source path, so the sibling guess lands in
+  // `src/worker/`, where nothing is ever emitted -- fall back to the package's
+  // `dist/`, or `pnpm dev`/`pnpm worker` could never process a job locally.
+  const candidates = explicit
+    ? [explicit]
+    : [path.resolve(here, 'processor.cjs'), path.resolve(here, '..', '..', 'dist', 'processor.cjs')];
+  for (const candidate of candidates) if (existsSync(candidate)) return candidate;
   throw new Error(
-    `Sandboxed processor not found at ${candidate}. Run "pnpm --filter @pdfshush/api build" first.`,
+    `Sandboxed processor not found at ${candidates.join(' or ')}. Run "pnpm --filter @pdfshush/api build" first.`,
   );
 }
 

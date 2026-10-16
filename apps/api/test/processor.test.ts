@@ -7,6 +7,7 @@
  * serialise. It needs no Redis, which is exactly why it can be tested.
  */
 
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -14,6 +15,7 @@ import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts, rgb } from '@cantoo/pdf-lib';
 import { processJob } from '../src/worker/processor.js';
+import { resolveProcessorPath } from '../src/worker/host.js';
 import { WorkDirStore } from '../src/files/store.js';
 import { jobPayloadSchema, type JobPayload } from '../src/jobs/payload.js';
 import { requestCancel, isCancelRequested, clearCancel } from '../src/jobs/cancel.js';
@@ -142,5 +144,21 @@ describe('cancellation signalling', () => {
     const { job } = jobFor(payload);
     await processJob(job);
     expect(await isCancelRequested(store, payload.jobId)).toBe(false);
+  });
+});
+
+describe('processor discovery', () => {
+  it('honours an explicit path and names it when it is missing', () => {
+    const missing = path.join(tmpdir(), 'pdfshush-absent', 'processor.cjs');
+    expect(() => resolveProcessorPath(missing)).toThrow(/Sandboxed processor not found/);
+    expect(() => resolveProcessorPath(missing)).toThrow(/build/);
+  });
+
+  it('finds the built processor from a source checkout, or says how to build it', () => {
+    // A bundled run resolves a sibling; a `tsx` run resolves the package `dist/`.
+    // CI has no build, and then the build hint is the correct answer.
+    const bundled = path.join(process.cwd(), 'dist', 'processor.cjs');
+    if (existsSync(bundled)) expect(resolveProcessorPath()).toBe(bundled);
+    else expect(() => resolveProcessorPath()).toThrow(/build/);
   });
 });

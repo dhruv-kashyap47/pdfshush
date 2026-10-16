@@ -21,6 +21,8 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/pdf-core/package.json packages/pdf-core/package.json
+COPY packages/ai-agent/package.json packages/ai-agent/package.json
+COPY packages/ai-provider/package.json packages/ai-provider/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
@@ -31,6 +33,12 @@ FROM deps AS build
 WORKDIR /repo
 COPY tsconfig.base.json ./
 COPY packages/pdf-core packages/pdf-core
+# The API bundles `@pdfshush/ai-provider` from source -- esbuild aliases it to
+# `src/index.ts` because the package's `main` is TypeScript, which `node` cannot
+# load at runtime -- so its sources have to be in the build context.
+# `@pdfshush/ai-agent` is only ever imported with `import type` (erased before
+# esbuild resolves anything), so its manifest in the deps stage is enough.
+COPY packages/ai-provider packages/ai-provider
 COPY apps/api apps/api
 RUN pnpm --filter @pdfshush/api build
 
