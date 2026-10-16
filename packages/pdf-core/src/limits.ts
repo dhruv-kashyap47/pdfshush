@@ -43,6 +43,15 @@ export const LIMITS = {
     maxTimeoutMs: 15 * 60_000,
     /** Extra time granted per page of work, on top of the base timeout. */
     timeoutPerPageMs: 750,
+    /**
+     * Most memory one job is allowed to say it will need. `estimate()` is the
+     * contract's own answer to "how big is this", and the server runner refuses a
+     * job that exceeds this before it runs -- see `apps/api/src/jobs/runner.ts`.
+     * Sized above the worst legitimate case for the default upload cap (a 500 MB
+     * input through a x3 job estimates 1.5 GB), so it rejects runaway work, not
+     * merely large work. Pair it with the worker's `WORKER_CHILD_MAX_OLD_SPACE_MB`.
+     */
+    maxWorkingSetBytes: 1536 * MB,
   },
   tool: {
     /** Thumbnail width handed to the page grid tools. */

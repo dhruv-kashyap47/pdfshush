@@ -40,6 +40,13 @@ export interface ChildEnvOptions {
   workDir: string;
   /** Reported to libraries that branch on `NODE_ENV`. */
   nodeEnv?: string;
+  /**
+   * Resource policy the processor enforces (admission control). It has to travel
+   * explicitly because the child environment is an allowlist -- the child cannot
+   * call `loadConfig()`, since that reads the very variables it is not given.
+   * A byte count is not a secret, so it is safe to hand over.
+   */
+  maxJobWorkingSetBytes?: number;
 }
 
 export function childEnv(options: ChildEnvOptions): NodeJS.ProcessEnv {
@@ -51,5 +58,8 @@ export function childEnv(options: ChildEnvOptions): NodeJS.ProcessEnv {
   // The one variable the processor actually requires (see `processor.ts`).
   env.WORK_DIR = options.workDir;
   if (options.nodeEnv !== undefined) env.NODE_ENV = options.nodeEnv;
+  if (options.maxJobWorkingSetBytes !== undefined) {
+    env.MAX_JOB_WORKING_SET_BYTES = String(options.maxJobWorkingSetBytes);
+  }
   return env;
 }

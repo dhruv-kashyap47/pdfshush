@@ -55,13 +55,17 @@ export function resolveProcessorPath(explicit?: string): string {
  * provoking the host's OOM killer.
  */
 export function sandboxOptions(
-  config: Pick<ApiConfig, 'env' | 'workerConcurrency' | 'workerChildMaxOldSpaceMb'>,
+  config: Pick<ApiConfig, 'env' | 'workerConcurrency' | 'workerChildMaxOldSpaceMb' | 'maxJobWorkingSetBytes'>,
   workDir: string,
 ) {
   return {
     concurrency: config.workerConcurrency,
     workerForkOptions: {
-      env: childEnv({ workDir, nodeEnv: config.env }),
+      env: childEnv({
+        workDir,
+        nodeEnv: config.env,
+        maxJobWorkingSetBytes: config.maxJobWorkingSetBytes,
+      }),
       execArgv: [`--max-old-space-size=${config.workerChildMaxOldSpaceMb}`],
     },
     // A job that takes longer than this without renewing its lock is assumed

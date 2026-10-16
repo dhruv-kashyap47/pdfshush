@@ -77,7 +77,12 @@ describe('sandboxOptions', () => {
     process.env.PEPPER = 'pepper-value';
     try {
       const options = sandboxOptions(
-        { env: 'production', workerConcurrency: 2, workerChildMaxOldSpaceMb: 512 },
+        {
+          env: 'production',
+          workerConcurrency: 2,
+          workerChildMaxOldSpaceMb: 512,
+          maxJobWorkingSetBytes: 1_000_000,
+        },
         '/srv/work',
       );
       expect(options.workerForkOptions.env?.WORK_DIR).toBe('/srv/work');
@@ -88,9 +93,27 @@ describe('sandboxOptions', () => {
     }
   });
 
+  it('forwards the admission ceiling, since the child cannot read config', () => {
+    const options = sandboxOptions(
+      {
+        env: 'production',
+        workerConcurrency: 1,
+        workerChildMaxOldSpaceMb: 512,
+        maxJobWorkingSetBytes: 123_456,
+      },
+      '/srv/work',
+    );
+    expect(options.workerForkOptions.env?.MAX_JOB_WORKING_SET_BYTES).toBe('123456');
+  });
+
   it('caps the child heap and replaces the inherited execArgv', () => {
     const options = sandboxOptions(
-      { env: 'development', workerConcurrency: 1, workerChildMaxOldSpaceMb: 768 },
+      {
+        env: 'development',
+        workerConcurrency: 1,
+        workerChildMaxOldSpaceMb: 768,
+        maxJobWorkingSetBytes: 1,
+      },
       '/srv/work',
     );
     expect(options.workerForkOptions.execArgv).toEqual(['--max-old-space-size=768']);

@@ -96,6 +96,28 @@ describe('runJob', () => {
     ).rejects.toBeInstanceOf(JobExecutionError);
   });
 
+  it('refuses a job whose estimated working set exceeds the ceiling', async () => {
+    const source = await fixture();
+    const { store, jobId } = await seededStore([
+      { name: 'one.pdf', bytes: source },
+      { name: 'two.pdf', bytes: source },
+    ]);
+
+    // `merge` estimates its working set as the sum of its inputs, so a ceiling
+    // below that sum is exactly what a deployment with a smaller memory budget
+    // would configure. Rejecting here is the point: the job would otherwise be
+    // handed to a child that cannot hold it.
+    const error = await runJob({
+      payload: payload({ jobId, files: ['one.pdf', 'two.pdf'] }),
+      store,
+      maxWorkingSetBytes: source.byteLength,
+    }).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(JobExecutionError);
+    expect((error as JobExecutionError).code).toBe(JOB_ERROR_CODES.tooLarge);
+    expect((error as Error).message).toMatch(/limit for one job/);
+  });
+
   it('reports a missing input instead of failing obscurely', async () => {
     const { store, jobId } = await seededStore([{ name: 'one.pdf', bytes: await fixture() }]);
     await expect(

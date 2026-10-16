@@ -16,6 +16,7 @@ import {
 } from './payload.js';
 import {
   createProgressReporter,
+  formatBytes,
   getNodeJob,
   isAbortError,
   LIMITS,
@@ -56,6 +57,8 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** Overrides the contract-derived timeout (used by tests). */
   timeoutMs?: number;
+  /** Overrides `LIMITS.job.maxWorkingSetBytes` (used by tests and tuning). */
+  maxWorkingSetBytes?: number;
 }
 
 export async function runJob(options: RunOptions): Promise<RunResult> {
@@ -82,6 +85,30 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
     throw new JobExecutionError(
       JOB_ERROR_CODES.validation,
       validation.issues[0]?.message ?? 'Invalid job input',
+    );
+  }
+
+  // The page count sizes the timeout. It comes from the request body, so it is
+  // clamped: a huge claimed count would hold a worker slot for 15 minutes, and a
+  // too-small one turns a valid 400-page job into a spurious timeout.
+  const hint = payload.options?.pageCount;
+  const pageCountHint =
+    typeof hint === 'number' && Number.isFinite(hint)
+      ? Math.min(Math.max(Math.floor(hint), 1), LIMITS.client.maxPages)
+      : 1;
+
+  // Admission control: the contract's own estimate of the working set, checked
+  // before any of it is allocated. `estimate` was never consulted on the server,
+  // so a request that passed the byte quota could still hand a child a workload
+  // that cannot fit in its heap -- which then surfaced as a heap error, or as
+  // host OOM if the child had no ceiling. The child's heap limit is the backstop
+  // for jobs the estimate understates (rasterising jobs are the known case).
+  const cost = definition.estimate(input, pageCountHint);
+  const ceiling = options.maxWorkingSetBytes ?? LIMITS.job.maxWorkingSetBytes;
+  if (cost.memoryBytes > ceiling) {
+    throw new JobExecutionError(
+      JOB_ERROR_CODES.tooLarge,
+      `This job would need about ${formatBytes(cost.memoryBytes)} of memory to work on, over the ${formatBytes(ceiling)} limit for one job`,
     );
   }
 
@@ -117,15 +144,6 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
       if (jobSignal.aborted) throw new JobAbortedError();
     },
   });
-
-  // The page count sizes the timeout. It comes from the request body, so it is
-  // clamped: a huge claimed count would hold a worker slot for 15 minutes, and a
-  // too-small one turns a valid 400-page job into a spurious timeout.
-  const hint = payload.options?.pageCount;
-  const pageCountHint =
-    typeof hint === 'number' && Number.isFinite(hint)
-      ? Math.min(Math.max(Math.floor(hint), 1), LIMITS.client.maxPages)
-      : 1;
 
   let result: unknown;
   try {

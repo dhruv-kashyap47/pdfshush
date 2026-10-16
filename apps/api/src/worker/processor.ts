@@ -24,6 +24,13 @@ interface ProcessorJob {
   log?: { info(payload: unknown, message?: string): void; error(payload: unknown, message?: string): void };
 }
 
+/** Reads a positive byte count from the environment, ignoring anything else. */
+function readByteLimit(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const value = Number.parseInt(raw, 10);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 export async function processJob(job: ProcessorJob): Promise<unknown> {
   const payload = jobPayloadSchema.parse(job.data) as JobPayload;
   const store = new WorkDirStore(process.env.WORK_DIR ?? '.work');
@@ -35,12 +42,17 @@ export async function processJob(job: ProcessorJob): Promise<unknown> {
   // this process cannot time itself out either -- see `jobs/children.ts`.
   await publishChild(store, payload.jobId, process.pid);
 
+  // The host forwards its admission ceiling: this process's environment is an
+  // allowlist, so it cannot read the configuration itself.
+  const maxWorkingSetBytes = readByteLimit(process.env.MAX_JOB_WORKING_SET_BYTES);
+
   try {
     const result = await runJob({
       payload,
       store,
       signal: controller.signal,
       onProgress: (progress) => job.updateProgress(progress),
+      ...(maxWorkingSetBytes !== undefined ? { maxWorkingSetBytes } : {}),
     });
     return { files: result.files, ...(result.pageCount !== undefined ? { pageCount: result.pageCount } : {}) };
   } catch (error) {

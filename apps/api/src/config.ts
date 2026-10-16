@@ -75,6 +75,13 @@ const schema = z.object({
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional(),
 
   /**
+   * Largest working set `estimate()` may report for one job before the worker
+   * refuses it. Unset means "use LIMITS.job.maxWorkingSetBytes". Raise it
+   * together with MAX_UPLOAD_BYTES: a bigger input cap means bigger estimates.
+   */
+  MAX_JOB_WORKING_SET_BYTES: z.coerce.number().int().positive().optional(),
+
+  /**
    * Per-IP ceiling on `/api/auth/*`, in requests per minute.
    *
    * The anonymous tool quota deliberately does not cover these routes: each one
@@ -157,7 +164,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     workDir: raw.WORK_DIR,
     embeddedWorker: raw.EMBEDDED_WORKER ?? !raw.NODE_ENV.startsWith('production'),
     workerConcurrency: raw.WORKER_CONCURRENCY,
-    workerChildMaxOldSpaceMb: raw.WORKER_CHILD_MAX_OLD_SPACE_MB ?? 1536,
+    workerChildMaxOldSpaceMb: raw.WORKER_CHILD_MAX_OLD_SPACE_MB ?? 2048,
+    maxJobWorkingSetBytes: raw.MAX_JOB_WORKING_SET_BYTES ?? LIMITS.job.maxWorkingSetBytes,
     quota: {
       tasksPerDay: raw.QUOTA_TASKS_PER_DAY ?? LIMITS.server.anonymousTasksPerDay,
       tasksPerMinute: raw.QUOTA_TASKS_PER_MINUTE ?? LIMITS.server.anonymousTasksPerMinute,
