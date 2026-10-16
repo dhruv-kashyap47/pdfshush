@@ -27,7 +27,24 @@ export interface UploadLimits {
   maxFiles: number;
   /** Optional allowlist on the original extension. */
   allowedExtensions?: string[];
+  /**
+   * Signature every file must contain in its first kilobyte. An extension is
+   * advisory -- a caller can name anything `.pdf` -- and whatever is behind that
+   * name is handed to a PDF parser, which is where the expensive failure modes
+   * live. Checking the header is the cheapest way to make the extension honest.
+   */
+  magic?: { bytes: Buffer; label: string };
 }
+
+/**
+ * The PDF header. The specification tolerates junk before it (readers scan the
+ * first 1024 bytes), so this is a "found within the window" test, not a prefix
+ * test.
+ */
+export const PDF_SIGNATURE = { bytes: Buffer.from('%PDF-'), label: 'PDF' };
+
+/** How much of a file is read when looking for its signature. */
+const SIGNATURE_WINDOW_BYTES = 1024;
 
 export class InvalidUploadError extends Error {
   constructor(message: string) {
@@ -177,19 +194,53 @@ export function receiveUpload(
         fail(new UploadTooLargeError(limits.maxBytes, totalBytes));
       });
 
+      // Signature check. The header may sit anywhere in the first kilobyte (the
+      // specification tolerates leading junk), so this cannot decide until it has
+      // seen that much -- or the file ends. The bytes come from the stream that is
+      // already being written, deliberately: opening a second handle on the file
+      // turns the later directory removal into EPERM on Windows.
+      const magic = limits.magic;
+      const head: Buffer[] = [];
+      let headBytes = 0;
+      let signatureDecided = magic === undefined;
+      const checkSignature = (): void => {
+        if (signatureDecided || !magic) return;
+        signatureDecided = true;
+        if (!Buffer.concat(head, headBytes).includes(magic.bytes)) {
+          fail(new InvalidUploadError(`"${name}" is not a ${magic.label} file`));
+        }
+      };
+
       // The per-file cap alone does not bound a *request*: 50 files of 500 MB
       // each is 25 GB of anonymous disk writes, and the daily byte quota is only
       // charged once the whole body has landed. Counting as bytes arrive (not
       // when a file finishes) is what makes the total a real ceiling.
       stream.on('data', (chunk: Buffer | string) => {
         if (settled) return;
-        streamedBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+        const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+        streamedBytes += buffer.length;
         if (streamedBytes > maxTotalBytes) {
           // Destroying the stream unwinds the in-flight write, so the partial
           // file never reaches the disk in the first place.
           stream.destroy();
           fail(new UploadTooLargeError(maxTotalBytes, streamedBytes));
+          return;
         }
+        if (!signatureDecided) {
+          head.push(buffer);
+          headBytes += buffer.length;
+          if (headBytes >= SIGNATURE_WINDOW_BYTES) {
+            checkSignature();
+            // Unwind the in-flight write, exactly as the over-cap path does.
+            if (settled) stream.destroy();
+          }
+        }
+      });
+
+      // A file shorter than the window decides here instead.
+      stream.on('end', () => {
+        if (settled) return;
+        checkSignature();
       });
 
       // Files are written concurrently, so completion order is not upload

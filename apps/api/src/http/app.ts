@@ -26,7 +26,7 @@ import { AiBudgetService, AiConcurrencyGuard } from '../ai/budget.js';
 import { registerAiRoutes } from '../ai/routes.js';
 import type { AiProviderId } from '@pdfshush/ai-provider';
 import { subjectId, tokensMatch } from '../quota/quota.js';
-import { receiveUpload, InvalidUploadError, BadMultipartError } from './uploads.js';
+import { receiveUpload, InvalidUploadError, BadMultipartError, PDF_SIGNATURE } from './uploads.js';
 import { UploadTooLargeError } from '../files/store.js';
 import {
   createJobSchema,
@@ -216,6 +216,7 @@ export function createApp(context: ApiContext): Express {
         maxTotalBytes: context.config.quota.maxUploadBytes,
         maxFiles: MAX_UPLOAD_FILES,
         allowedExtensions: ['.pdf'],
+        magic: PDF_SIGNATURE,
       });
     } catch (error) {
       await context.store.removeJob(jobId);

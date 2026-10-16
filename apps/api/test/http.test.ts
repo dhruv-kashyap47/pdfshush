@@ -268,6 +268,39 @@ it('refuses an oversized options field with the real reason', async () => {
     expect(response.status).toBe(400);
   });
 
+  it('refuses a file that is named .pdf but is not one', async () => {
+    const { url, store } = await harness();
+    // The extension is advisory: this is what a caller who renames a ZIP, or
+    // who is probing the parser, actually sends.
+    const { body, contentType } = multipart({ slug: 'merge' }, [
+      { name: 'payload.pdf', data: Buffer.from('PK\u0003\u0004 not actually a pdf') },
+    ]);
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(400);
+    const payload = (await response.json()) as { error: string };
+    expect(payload.error).toMatch(/not a PDF/i);    // The rejected bytes are not left on disk.
+    expect((await store.usage()).jobDirs).toBe(0);
+  });
+
+  it('accepts a PDF whose header is not at byte zero', async () => {
+    const { url } = await harness();
+    // The specification tolerates leading junk; readers scan the first kilobyte,
+    // so a strict prefix test would reject documents real tools produce.
+    const { body, contentType } = multipart({ slug: 'merge' }, [
+      { name: 'junk.pdf', data: Buffer.concat([Buffer.from('\uFEFF junk\n'), await samplePdf()]) },
+    ]);
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(202);
+  });
+
   it('refuses an unknown slug and cleans up the upload', async () => {
     const { url, store } = await harness();
     const pdf = await samplePdf();
