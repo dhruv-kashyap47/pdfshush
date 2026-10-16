@@ -59,6 +59,16 @@ const schema = z.object({
   FILE_TTL_MS: z.coerce.number().int().min(1_000).optional(),
   JANITOR_INTERVAL_MS: z.coerce.number().int().min(250).optional(),
 
+  /**
+   * Wall-clock ceiling for a single job child, in ms. Past this the host kills
+   * it outright. The in-job timeout is cooperative -- it cannot interrupt
+   * synchronous CPU work -- and BullMQ renews the job lock from the host, so a
+   * stuck child never looks stalled to anyone. Defaults to the job timeout
+   * ceiling plus a margin, because a job still running past that point is stuck
+   * rather than slow.
+   */
+  JOB_HARD_LIMIT_MS: z.coerce.number().int().min(1_000).optional(),
+
   /** Anonymous quota overrides. Unset means "use LIMITS.server". */
   QUOTA_TASKS_PER_DAY: z.coerce.number().int().positive().optional(),
   QUOTA_TASKS_PER_MINUTE: z.coerce.number().int().positive().optional(),
@@ -156,6 +166,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     },
     retentionMs: raw.FILE_TTL_MS ?? LIMITS.server.fileTtlMs,
     janitorIntervalMs: raw.JANITOR_INTERVAL_MS ?? 5 * 60_000,
+    jobHardLimitMs: raw.JOB_HARD_LIMIT_MS ?? LIMITS.job.maxTimeoutMs + 5 * 60_000,
     auth: {
       // Both halves are required: a Mongo URI with no Google credentials has
       // nothing to authenticate, and credentials with no store have nowhere to

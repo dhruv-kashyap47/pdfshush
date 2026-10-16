@@ -15,6 +15,7 @@ import { Queue, Worker } from 'bullmq';
 import { QUEUE_PDF, type JobPayload } from '../jobs/payload.js';
 import { createConnections, isLiveStatus } from '../jobs/queue.js';
 import { createJanitor } from '../files/janitor.js';
+import { startChildWatchdog } from '../jobs/children.js';
 import { WorkDirStore } from '../files/store.js';
 import { loadConfig, type ApiConfig } from '../config.js';
 import { createLogger } from '../logger.js';
@@ -122,8 +123,28 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
   });
   janitor.start();
 
+  // The cooperative in-job timeout cannot interrupt synchronous CPU work, and
+  // BullMQ renews the job lock from *this* process -- not the child that is
+  // stuck -- so a wedged child never looks stalled to anyone. This is the only
+  // thing that actually ends it. Killing the child makes BullMQ fail the job.
+  const watchdog = startChildWatchdog(store, {
+    hardLimitMs: config.jobHardLimitMs,
+    isActive: async (jobId) => {
+      const job = await stateView.getJob(jobId).catch(() => undefined);
+      if (!job) return false;
+      return (await job.getState()) === 'active';
+    },
+    onKill: (child) =>
+      logger.warn(
+        { jobId: child.jobId, pid: child.pid, ageMs: Date.now() - child.startedAt },
+        'job child exceeded its hard limit and was killed',
+      ),
+    onError: (error) => logger.error({ error: String(error) }, 'child watchdog sweep failed'),
+  });
+
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'worker shutting down');
+    watchdog.stop();
     janitor.stop();
     // Give in-flight jobs a moment to finish before the child processes die.
     await worker.close();
@@ -144,7 +165,7 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
     'worker host ready',
   );
 
-  return { worker, janitor, shutdown, store, logger };
+  return { worker, janitor, watchdog, shutdown, store, logger };
 }
 
 // Run directly (not when imported by tests or the embedded worker).

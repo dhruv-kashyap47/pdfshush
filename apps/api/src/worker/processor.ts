@@ -14,6 +14,7 @@ import { UnrecoverableError } from 'bullmq';
 import { runJob, JobExecutionError } from '../jobs/runner.js';
 import { JOB_ERROR_CODES, formatFailure, jobPayloadSchema, type JobPayload } from '../jobs/payload.js';
 import { clearCancel, watchForCancel } from '../jobs/cancel.js';
+import { clearChild, publishChild } from '../jobs/children.js';
 import { WorkDirStore } from '../files/store.js';
 
 interface ProcessorJob {
@@ -28,6 +29,11 @@ export async function processJob(job: ProcessorJob): Promise<unknown> {
   const store = new WorkDirStore(process.env.WORK_DIR ?? '.work');
   const controller = new AbortController();
   const stopWatching = watchForCancel(store, payload.jobId, controller);
+
+  // Announce this process so the host can kill it if the work below pins the
+  // event loop. A cooperative timeout cannot interrupt synchronous parsing, and
+  // this process cannot time itself out either -- see `jobs/children.ts`.
+  await publishChild(store, payload.jobId, process.pid);
 
   try {
     const result = await runJob({
@@ -55,6 +61,7 @@ export async function processJob(job: ProcessorJob): Promise<unknown> {
   } finally {
     stopWatching();
     await clearCancel(store, payload.jobId);
+    await clearChild(store, payload.jobId);
   }
 }
 
