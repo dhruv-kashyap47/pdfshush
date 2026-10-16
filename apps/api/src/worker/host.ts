@@ -16,8 +16,9 @@ import { QUEUE_PDF, type JobPayload } from '../jobs/payload.js';
 import { createConnections, isLiveStatus } from '../jobs/queue.js';
 import { createJanitor } from '../files/janitor.js';
 import { WorkDirStore } from '../files/store.js';
-import { loadConfig } from '../config.js';
+import { loadConfig, type ApiConfig } from '../config.js';
 import { createLogger } from '../logger.js';
+import { childEnv } from './child-env.js';
 
 export interface WorkerHostOptions {
   /** Path to the bundled CommonJS processor; defaults to dist/processor.cjs. */
@@ -40,6 +41,36 @@ export function resolveProcessorPath(explicit?: string): string {
   );
 }
 
+/**
+ * The BullMQ options that bound a sandboxed child, pulled out of
+ * `startWorkerHost` so the security-relevant ones are unit-testable without a
+ * running Redis.
+ *
+ * `workerForkOptions.env` is the allowlist from `child-env.ts`: `fork()` replaces
+ * the child's environment with it at exec time, so the API's secrets are absent
+ * rather than merely hidden. `execArgv` replaces the inherited one outright --
+ * which also drops any `--inspect` or dev-loader flag the parent was started
+ * with -- and caps the child's V8 heap so a runaway job aborts itself instead of
+ * provoking the host's OOM killer.
+ */
+export function sandboxOptions(
+  config: Pick<ApiConfig, 'env' | 'workerConcurrency' | 'workerChildMaxOldSpaceMb'>,
+  workDir: string,
+) {
+  return {
+    concurrency: config.workerConcurrency,
+    workerForkOptions: {
+      env: childEnv({ workDir, nodeEnv: config.env }),
+      execArgv: [`--max-old-space-size=${config.workerChildMaxOldSpaceMb}`],
+    },
+    // A job that takes longer than this without renewing its lock is assumed
+    // dead: BullMQ reclaims it instead of leaving the queue wedged.
+    lockDuration: 60_000,
+    stalledInterval: 30_000,
+    maxStalledCount: 2,
+  };
+}
+
 export async function startWorkerHost(options: WorkerHostOptions = {}) {
   const config = loadConfig();
   const logger = createLogger(config);
@@ -47,17 +78,13 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
   await store.init();
 
   const processorPath = resolveProcessorPath(options.processorPath);
-  process.env.WORK_DIR = store.root;
 
   const connections = createConnections(config.redis.url);
   const worker = new Worker<JobPayload>(QUEUE_PDF, processorPath, {
     connection: connections.queue,
-    concurrency: config.workerConcurrency,
-    // A job that takes longer than this without renewing its lock is assumed
-    // dead: BullMQ reclaims it instead of leaving the queue wedged.
-    lockDuration: 60_000,
-    stalledInterval: 30_000,
-    maxStalledCount: 2,
+    // Environment allowlist + heap ceiling for the forked child; see
+    // `sandboxOptions` and `child-env.ts`.
+    ...sandboxOptions(config, store.root),
   });
 
   worker.on('completed', (job) => {

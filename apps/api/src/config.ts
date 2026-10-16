@@ -43,6 +43,14 @@ const schema = z.object({
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
 
   /**
+   * Hard V8 heap ceiling for a single sandboxed job child, in MB. Node aborts
+   * that child with a heap error at this bound instead of letting the host's
+   * OOM killer pick a victim (which could be the API). Sized above the largest
+   * job admission control will accept, so a legitimate job still finishes.
+   */
+  WORKER_CHILD_MAX_OLD_SPACE_MB: z.coerce.number().int().min(128).max(16_384).optional(),
+
+  /**
    * How long a job's files may sit in the work directory before the janitor
    * removes them, and how often it looks. Both are ops knobs: the hardening
    * gate shortens them so a sweep is observable, and a deployment can tune
@@ -139,6 +147,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     workDir: raw.WORK_DIR,
     embeddedWorker: raw.EMBEDDED_WORKER ?? !raw.NODE_ENV.startsWith('production'),
     workerConcurrency: raw.WORKER_CONCURRENCY,
+    workerChildMaxOldSpaceMb: raw.WORKER_CHILD_MAX_OLD_SPACE_MB ?? 1536,
     quota: {
       tasksPerDay: raw.QUOTA_TASKS_PER_DAY ?? LIMITS.server.anonymousTasksPerDay,
       tasksPerMinute: raw.QUOTA_TASKS_PER_MINUTE ?? LIMITS.server.anonymousTasksPerMinute,
