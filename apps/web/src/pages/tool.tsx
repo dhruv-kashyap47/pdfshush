@@ -3,9 +3,11 @@ import { Link, useParams } from 'react-router-dom';
 import { Clock, Flame, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
+import { ChatWithPdfTool } from '@/components/tools/chat-with-pdf-tool';
 import { CropTool } from '@/components/tools/crop-tool';
 import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
 import { EditPdfTool } from '@/components/tools/edit-pdf-tool';
+import { EditPdfWithAiTool } from '@/components/tools/edit-pdf-with-ai-tool';
 import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
 import { NUpTool } from '@/components/tools/n-up-tool';
@@ -16,11 +18,13 @@ import { RedactTool } from '@/components/tools/redact-tool';
 import { SplitByPagesTool } from '@/components/tools/split-by-pages-tool';
 import { SplitHalfTool } from '@/components/tools/split-half-tool';
 import { HeaderFooterTool, PageNumbersTool } from '@/components/tools/stamp-tool';
+import { SummarizePdfTool } from '@/components/tools/summarize-pdf-tool';
 import { ToolFrame } from '@/components/tools/tool-frame';
 import { ToolCard } from '@/components/landing/tool-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { NotFoundPage } from '@/pages/not-found';
+import { AiTrustNotes } from '@/components/ai/ai-trust-notes';
 import { getTool, liveTools, type ToolDef } from '@/tools/registry';
 
 /** Live tool bodies, keyed by slug. Add a tool here when its job lands. */
@@ -40,6 +44,9 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'n-up': NUpTool,
   'edit-pdf': EditPdfTool,
   'redact-pdf': RedactTool,
+  'summarize-pdf': SummarizePdfTool,
+  'chat-with-pdf': ChatWithPdfTool,
+  'edit-pdf-with-ai': EditPdfWithAiTool,
 };
 
 export function ToolPage() {
@@ -49,9 +56,10 @@ export function ToolPage() {
   if (!tool) return <NotFoundPage />;
 
   const Body = LIVE_BODIES[tool.slug];
+  const isAi = tool.category === 'ai';
 
   return (
-    <ToolFrame tool={tool}>
+    <ToolFrame tool={tool} wide={isAi} notes={isAi ? <AiTrustNotes /> : undefined}>
       {Body ? <Body /> : <PlannedNotice tool={tool} />}
     </ToolFrame>
   );

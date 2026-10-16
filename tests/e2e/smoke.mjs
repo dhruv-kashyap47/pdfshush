@@ -1285,9 +1285,15 @@ async function main() {
 
   /* console health */
   console.log('\n20. Console health');
-  const fatal = consoleErrors.filter(
-    (text) => !text.includes('favicon') && !text.includes('Download the React DevTools'),
-  );
+  const fatal = consoleErrors.filter((text) => {
+    if (text.includes('favicon') || text.includes('Download the React DevTools')) return false;
+    // With no API running, the app's own capability probes (`/api/tools`,
+    // `/api/auth/me`) fail and the browser logs the failed resource. That is the
+    // designed offline posture — section 19 skips the same dependency — so it is
+    // only tolerated while the API is genuinely absent. With the stack up, any
+    // console error still fails the run.
+    return !(apiReachable === false && /Failed to load resource|Request failed \(50\d\)/i.test(text));
+  });
   check('no console/page errors', fatal.length === 0, fatal.slice(0, 3).join(' | '));
 
   await browser.close();

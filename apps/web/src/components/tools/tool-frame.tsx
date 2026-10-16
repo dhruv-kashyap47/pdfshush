@@ -3,20 +3,30 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Zap } from 'lucide-react';
 import { TOOL_CATEGORIES, type ToolDef } from '@/tools/registry';
 import { ToolSlugContext } from '@/tools/tool-context';
+import { cn } from '@/lib/utils';
 
 interface ToolFrameProps {
   tool: ToolDef;
   children: ReactNode;
+  /** Wider container for app-like tool surfaces (the AI workspace). */
+  wide?: boolean;
+  /** Replace the default trust notes (used by tools that disclose a different data path). */
+  notes?: ReactNode;
 }
 
 /** Standard chrome for every tool page: breadcrumb, heading, body, trust notes. */
-export function ToolFrame({ tool, children }: ToolFrameProps) {
+export function ToolFrame({ tool, children, wide = false, notes }: ToolFrameProps) {
   const Icon = tool.icon;
   const categoryLabel =
     TOOL_CATEGORIES.find((category) => category.id === tool.category)?.label ?? tool.category;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-10">
+    <div
+      className={cn(
+        'mx-auto px-4 py-8 sm:px-6 lg:px-10',
+        wide ? 'max-w-6xl' : 'max-w-5xl',
+      )}
+    >
       <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link to="/" className="transition-colors hover:text-foreground">
           Home
@@ -39,22 +49,24 @@ export function ToolFrame({ tool, children }: ToolFrameProps) {
 
       <ToolSlugContext.Provider value={tool.slug}>{children}</ToolSlugContext.Provider>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-2">
-        <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Private by construction.</span> The file is
-            parsed inside this browser tab. Nothing is uploaded, nothing is stored on a server.
-          </p>
+      {notes ?? (
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Private by construction.</span> The file is
+              parsed inside this browser tab. Nothing is uploaded, nothing is stored on a server.
+            </p>
+          </div>
+          <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
+            <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">No limits.</span> No account, no watermarks,
+              no “3 tasks per hour”. In-browser processing is capped at 500 pages / 250 MB per run.
+            </p>
+          </div>
         </div>
-        <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
-          <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">No limits.</span> No account, no watermarks,
-            no “3 tasks per hour”. In-browser processing is capped at 500 pages / 250 MB per run.
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

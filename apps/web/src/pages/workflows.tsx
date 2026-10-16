@@ -95,11 +95,18 @@ export function WorkflowsPage() {
   }, [reload]);
 
   // Re-check which steps this deployment cannot run whenever the recipe changes.
+  // The badge is cosmetic, so an unreachable API (which cannot answer) clears it
+  // rather than rejecting: an unhandled rejection here is console noise on a
+  // page that is explicitly designed to work signed out and offline.
   useEffect(() => {
     let cancelled = false;
-    void unsupportedSteps(draft).then((steps) => {
-      if (!cancelled) setBlocked(steps);
-    });
+    void unsupportedSteps(draft)
+      .then((steps) => {
+        if (!cancelled) setBlocked(steps);
+      })
+      .catch(() => {
+        if (!cancelled) setBlocked([]);
+      });
     return () => {
       cancelled = true;
     };

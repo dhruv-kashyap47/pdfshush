@@ -22,6 +22,9 @@ import { ZodError } from 'zod';
 import { ApiContext, jobToken, newJobId } from '../context.js';
 import { registerAuthRoutes, SESSION_COOKIE } from '../auth/routes.js';
 import { registerAccountRoutes } from '../account/routes.js';
+import { AiBudgetService, AiConcurrencyGuard } from '../ai/budget.js';
+import { registerAiRoutes } from '../ai/routes.js';
+import type { AiProviderId } from '@pdfshush/ai-provider';
 import { subjectId, tokensMatch } from '../quota/quota.js';
 import { receiveUpload, InvalidUploadError, BadMultipartError } from './uploads.js';
 import { UploadTooLargeError } from '../files/store.js';
@@ -154,12 +157,36 @@ export function createApp(context: ApiContext): Express {
         tasksPerMinute: context.config.quota.tasksPerMinute,
         tasksPerDay: context.config.quota.tasksPerDay,
       },
+      ai: { enabled: context.config.ai.enabled },
     });
   });
 
   app.get('/api/quota', async (request: Request, response: Response) => {
     const subject = subjectFor(request, context);
     response.json(await context.quota.peek(subject));
+  });
+
+  // Managed AI (optional). Present only when the deployment set a key + model;
+  // otherwise the route answers 503 and the SPA stays BYOK-only.
+  registerAiRoutes(app, {
+    enabled: context.config.ai.enabled,
+    provider: context.config.ai.provider as AiProviderId,
+    config: {
+      apiKey: context.config.ai.apiKey,
+      model: context.config.ai.model,
+      ...(context.config.ai.baseUrl ? { baseUrl: context.config.ai.baseUrl } : {}),
+    },
+    maxOutputTokens: context.config.ai.maxOutputTokens,
+    budget: new AiBudgetService(context.counters, {
+      dailyTokens: context.config.ai.dailyTokens,
+      anonDailyTokens: context.config.ai.anonDailyTokens,
+      perMinute: context.config.ai.perMinute,
+      reserveTokens: context.config.ai.maxOutputTokens,
+    }),
+    concurrency: new AiConcurrencyGuard(),
+    subjectFor: (request) => subjectFor(request, context),
+    isAuthenticated: async (request) => Boolean(await currentAccount(request, context)),
+    logger: context.logger,
   });
 
   app.post('/api/jobs', async (request: Request, response: Response) => {

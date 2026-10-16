@@ -25,7 +25,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **R1 — Secure redaction (ship first)** | Rasterization-first: marks burned into pixels, document rebuilt, output independently verified → **security gate** | ✅ **Done (2026-10-14)** — see §20 |
 | **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
 | **T — In-place text editing** | PDFium genuine rewrite of existing text objects (`SetCharcodes`/`SetText`), multi-object line matching, verification-driven pdf-lib overlay fallback | ✅ **engine + job shipped, browser-verified (2026-10-14)** · charcode resolver + multi-object matching landed · full smoke green — see §22 |
-| **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ⬜ |
+| **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ✅ **shipped (2026-10-16): BYOK summarize/chat/edit-with-AI, smart redaction + leakage gate, managed client + server budgets, in-place AI rewrites, IndexedDB key store, managed browser E2E** — see §23 |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
@@ -50,19 +50,23 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-14 after the in-place editor depth work (§22).
-**15 of 53 tools live** (`redact-pdf` added to Security) · 8 runnable server-side ·
-**302/302 unit** (185 engine + 117 API) · **101/101 browser E2E** (full smoke, API + Redis up so
-nothing is skipped) · **8/8 focused text-edit E2E** ·
+**Current gate:** re-measured 2026-10-16 after the P5 AI port (§23) and the gap-closing pass (§23.7).
+**18 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
+`edit-pdf-with-ai` under a new **AI** category) · 8 runnable server-side ·
+**827/827 unit** (189 engine · 129 API · 357 provider · 152 agent) · **101/101 browser E2E** (full
+smoke, API up so only the workflow-run steps skip) · **8/8 focused text-edit E2E** · **18/18 AI E2E**
+(chat + highlight apply + in-place replacement + key-handling, local SSE mock) · **11/11 managed AI
+E2E** (real API routes, in-memory counters, no Redis/docker) ·
 21/21 API integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
-**genuine in-place text editing shipped end to end (§22)** — charcode resolver + multi-object
-matching take **91/91 runs of a real LaTeX export in place**, and the full smoke suite is green
-including the editor Delete/undo section and console health · main chunk 0 pdf-lib / 0 pdf.js /
-0 pdfium (PDFium is a lazy 4.6 MB asset fetched on first text edit).
-**Next: server-side `text-edit` and paragraph/table reflow (§22), then R2 (deferred until R1 is
-proven in production) or P5.**
+**genuine in-place text editing shipped end to end (§22; AI replacements now use it too, §23.7.2)** ·
+**AI: BYOK summarize/chat/edit-with-AI + smart redaction proposals in the browser, an opt-in managed
+mode with per-subject budgets on the server (off unless a key is set), the P5 leakage gate green, the
+key in IndexedDB behind `sanitizeAiSettings` with a one-click delete (§23)** · main chunk 0 pdf-lib /
+0 pdf.js / 0 pdfium, now enforced by `pnpm test:bundle` (PDFium is a lazy 4.6 MB asset fetched on first
+text edit).
+**Next: R2 (deferred until R1 is proven in production) or P6 (e-sign / public API / MCP).**
 Repo public:
 `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
 (see §9 tooling).
@@ -241,9 +245,9 @@ Sequenced as five sub-phases so the risky automation does not ride in with ident
 
 ### P5 — AI → **leakage gate**
 Hybrid: BYOK (browser-direct to provider, key never touches our server) + managed keys
-with per-user/day budgets enforced by middleware. Features: smart redaction, summarize,
-chat-with-PDF. **Blocking gate:** redaction-leakage tests (extracted text must never
-contain redacted spans).
+with per-user/day budgets enforced by middleware (opt-in, off unless the deployment sets a key).
+Features: summarize, chat-with-PDF, agentic editing (propose → review → apply), smart redaction.
+**Blocking gate:** redaction-leakage tests (extracted text must never contain redacted spans).
 
 ### P6 — E-sign / API / MCP
 Signature flows (draw/type/upload via `signature_pad`, ordered recipients, audit trail;
@@ -505,6 +509,114 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-16 — the four honest P5 gaps closed: real in-place AI rewrites, the key in IndexedDB,
+  per-page change markers, and a managed-mode browser E2E.** See §23.7.
+
+  **`replace_text` is now a genuine rewrite.** The edit plan gained `intents: AiInPlaceIntent[]`; a
+  replacement becomes a rewrite of the run the document already has, and `applyEditPlan` routes it
+  through the `text-edit` job with the old whiteout+redraw demoted to that edit's *fallback* (applied
+  by the engine only when the rewrite is impossible or does not verify). `delete_text` follows the
+  same path with `replace: ''`, so erased words are removed rather than hidden. `ai.mjs` now proves it
+  from the downloaded bytes: the exported PDF contains the replacement and **no longer contains the
+  original run** — a silent demotion to the overlay would leave the original text in the stream and
+  fail the check. Overlay-only plans still never load PDFium.
+
+  **The BYOK key left localStorage.** All AI state at rest (provider settings *and* the mode) now lives
+  in one IndexedDB record (`apps/web/src/lib/ai/storage.ts`), with the old key pair adopted once and
+  deleted, `sanitizeAiSettings` still gating every read and write, and a "Forget key" action that
+  deletes the record. Doing it properly surfaced two real defects: a **hydration race** (two mounts in
+  the same tick; the second read landed between the first one's migration read and its write, found an
+  empty store and cleared localStorage, and returned defaults — the key was on disk but gone from the
+  session) now fixed with single-flight hydration, and a **key-in-error-message** path closed by
+  `redactSecrets` on every BYOK error. The page rail also marks pages with queued changes (amber dot),
+  and `apps/api/test/support/managed-server.ts` + `tests/e2e/ai-managed.mjs` cover the managed path in
+  a browser against the real routes with in-memory counters (no Redis, no docker).
+
+- **2026-10-16 — P5 UI: one flagship AI workspace, per-change review, and a real bundle leak fixed and
+  guarded.** See §23.6.
+
+  **One workspace, three tools.** `components/ai/ai-workspace.tsx` replaces the two old AI shells
+  (`ai-chat-panel` and `ai-document-tool`, both deleted) with a single two-pane surface: the document
+  on the left — one legible page at a time, rendered by the same `thumbnails` worker path every other
+  tool uses, with the *pending* AI changes drawn onto the page as overlay boxes — and the assistant on
+  the right (streaming answers, a live tool-by-tool activity timeline, `[page N]` citations rendered as
+  chips that jump the preview, token spend). The empty state is a hero dropzone with the settings card
+  inline; AI tool pages now use a wider frame with AI-specific trust notes that say what actually
+  leaves the tab.
+
+  **Review is now per-change.** The edit plan gained structured `AiEditEntry[]`: every additive change
+  owns the object ids it added, and each whole-document family (page order, rotation, header/footer)
+  remembers the value from before it was first touched — so one card can be discarded on its own and
+  `plan.actions` is *derived* from the survivors rather than appended to. Apply reports each engine step
+  (`onStep`: overlays → page order → stamping) as a progress row.
+
+  **A real invariant had broken, and is now guarded.** The new graph made the web app's *main* chunk
+  jump from 771 kB to 1426 kB and contain 161 pdf-lib modules: `edit-skill.ts` imported the runtime
+  `identityRefs` from pdf-core, which lives in `ops/compose.ts` — a module whose top-level
+  `import { PDFDocument } from '@cantoo/pdf-lib'` cannot be shaken out. The helper is three lines, so it
+  is now local to `edit-skill.ts`; the main chunk is back to **859 kB / 0 engines**. Because the break
+  was invisible to a string grep, `tests/bundle-boundary.mjs` (`pnpm test:bundle`) now fails when the
+  entry chunk contains pdf-lib / pdf.js / pdfium, reading the sourcemap's module list (with a
+  text-signature fallback) and asserting the engines still ship in the worker chunks.
+
+- **2026-10-16 — Phase P5 landed: ported AI stack, BYOK summarize/chat, smart-redaction leakage
+  gate, managed server with budgets.** See §23 for the full record.
+
+  **Ported, not reinvented.** Two new packages — `@pdfshush/ai-provider` (registry + protocols +
+  watchdog + settings guard; **357 tests**) and `@pdfshush/ai-agent` (the ReAct loop, skill
+  contract, stream-text; **152 tests**) — copied from the Apache-2.0 donor and pruned: the Codex
+  app-server (the only Node-built-in source on the browser path), the Genspark/OpenCode provider
+  ids and adapters, and the Electron transport are gone. `ai-settings-guard.ts` was made
+  browser-safe; `DEFAULT_AI_PROVIDER` is now `openai` instead of `genspark`.
+
+  **BYOK end to end, no server in the loop.** `apps/web/src/lib/ai/{settings,transport,pdf-session,
+  pdf-skill}.ts` plus `components/ai/*`: the tab talks straight to the chosen provider with the
+  user's key (localStorage at the time — moved to IndexedDB in §23.7.1, sanitized on read and write),
+  reads all page text once through the
+  existing `text-runs` job, and drives the shared agent loop for `summarize-pdf` and
+  `chat-with-pdf` (a new **AI** category; 13 read/answer tools with page citations). The key never
+  reaches a PDFShush server.
+
+  **Smart redaction — the leakage gate (blocking).** The model only *proposes*: it is handed a
+  bounded, numbered list of text runs and returns the indices it flags; geometry stays in
+  pdf-core. `redact-tool.tsx` gained "Find sensitive data with AI" → proposed marks the user
+  reviews → the existing R1 `redact` job destroys them → R1's verifier proves it. The gate itself
+  is `packages/pdf-core/test/ai-redaction.test.ts`: on the exported bytes, two independent readers
+  (pdf.js extraction + raw content-stream scan) find no proposed span; non-targeted content and
+  pixel marks survive; and the **negative control** routes the same spans through the cosmetic
+  whiteout path and *must fail* the gate.
+
+  **Managed mode (server, off by default).** `apps/api/src/ai/{budget,routes}.ts`: a streaming SSE
+  proxy in front of one PDFShush key, with `AiBudgetService` reserving the per-turn worst case and
+  settling to the provider's reported usage (per-minute + daily windows over the existing Redis
+  counter store, two tiers — anonymous IP-hash vs account), one concurrent stream per subject, and
+  fail-closed `429 code:'ai_budget'` with `Retry-After`. Off unless `AI_MANAGED_API_KEY` **and**
+  `AI_MANAGED_MODEL` are set, so a default deployment and CI need no secrets. **11 focused API
+  tests** cover reserve/settle/refund/tier, the concurrency guard, 503-when-off, validation, SSE
+  streaming, and 429.
+
+- **2026-10-16 — P5 finished: agentic edit-by-chat, managed mode in the browser, AI browser E2E.**
+  See §23.1.1 and §23.3.
+
+  **Edit PDF with AI** (`edit-pdf-with-ai`, a new LIVE tool) closes the feature surface. The model
+  reads the document and *proposes* edits; the user reviews a pending list and presses Apply, which
+  chains the existing `edit` → `organize` → `stamp` jobs (each validating its own input and output).
+  Markup/replace/delete select a run by page + verbatim text so geometry stays in pdf-core;
+  replace is a whiteout over the old run plus a redrawn text object, which is a guaranteed result on
+  every document. The plan is capped and cancellable; nothing is written until Apply.
+
+  **Managed mode reached the browser.** `managed.ts` is a dependency-free SSE consumer for
+  `/api/ai/chat` (content, reasoning, tool calls, stop, usage), `ask.ts` normalizes BYOK and managed
+  into one "ask a question" shape so smart redaction works in both, and a mode toggle in the AI
+  settings card is stored under `pdfshush.ai.mode.v1` — outside `AiSettings`, because the package
+  guard strips unknown fields. A `/api/tools` `ai.enabled` probe hides the toggle on deployments
+  without a managed key, so BYOK stays the default and the shipped path keeps bytes in the tab.
+
+  **AI browser E2E, no keys.** `tests/e2e/ai.mjs` drives the real client stack against
+  `tests/support/mock-llm.mjs`, a local OpenAI-compatible SSE mock: it proves a grounded chat answer
+  with a citation, and an edit that is queued for review, applied, downloaded as a valid PDF, and
+  still carries the marked text. Run with `pnpm test:e2e:ai`.
 
 - **2026-10-14 — Phase T depth: charcode resolver, multi-object matching, editor focus fix.**
   Three findings, each proved before anything was built for it.
@@ -812,9 +924,13 @@ never actually wired, and a stream with no error listener.*
 ```bash
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (browser app only)
-pnpm typecheck        # strict tsc, all three packages
-pnpm test             # vitest: pdf-core + api (270 tests)
+pnpm typecheck        # strict tsc, all five packages
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (827 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
+pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
+pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
+pnpm test:e2e:ai-managed # managed trial through the real API routes, in-memory counters (11 checks)
+pnpm test:bundle      # after `pnpm build`: entry chunk must carry no PDF engine
 pnpm build            # production build (web + api bundles)
 pnpm stack:up         # docker compose up -d --build (redis + api + worker)
 pnpm stack:down       # docker compose down
@@ -836,8 +952,11 @@ accepts either outcome, because the claim being tested is "the queue recovers".
 the exported artifact, with the browser E2E asserting the downloaded bytes. The next work is
 **not** R2: native text-level redaction is deliberately deferred until R1 is proven in production
 (§20.3), and its candidates still need the audit described there. The open threads meanwhile are
-**P4.4** (automated triggers — gated on SSRF/scheduling design, §18.5) and **P5** (AI, leakage
-gate). Then append a changelog entry and tick §1. Before every
+**P4.4** (automated triggers — gated on SSRF/scheduling design, §18.5) and **R2 / P6**; **P5 (AI) has
+shipped and its honest gaps are closed** — BYOK summarize/chat/edit-with-AI, smart redaction with its
+blocking leakage gate, an opt-in managed mode, AI replacements that rewrite the document's own text,
+the key in IndexedDB with a one-click delete, and a managed-mode browser E2E (§23, §23.7). Then append
+a changelog entry and tick §1. Before every
 push run the **pre-push
 grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM blocks, cloud
 access keys), (2) local username or machine-path markers, (3) dangerous sink APIs —
@@ -845,6 +964,14 @@ HTML-injection helpers, dynamic code evaluation, shell exec (`redis.eval` is ior
 with constant scripts — documented inline; `tests/api/hardening.mjs` uses
 `execFileSync` with fixed argv to SIGKILL a container — documented inline). All three
 must come back empty.
+
+**E2E notes.** `tests/support/e2e-util.mjs` holds the shared fixtures (`buildPdf`,
+`extractText`, `waitFor`). The AI scripts run against `tests/support/mock-llm.mjs`; the
+managed one additionally boots `apps/api/test/support/managed-server.ts` with
+`node --import tsx` from `apps/api` (in-memory quota counters, no Redis/Mongo) and points the
+trial at the mock via `AI_MANAGED_BASE_URL`, so `pnpm test:e2e:ai-managed` needs only
+`pnpm dev` running. With no API up, the app's own `/api/*` probes fail; the scripts tolerate
+exactly those *resource-load* failures and still fail on any real console error.
 
 ---
 
@@ -1811,3 +1938,251 @@ exactly one mousedown default (§8 finding 4).
   the overlay rather than guessing codes — by design, not oversight.
 - Paragraph/table reflow and Unicode fallback fonts; OCR-assisted editing of scanned pages (P7).
 - Redaction (§20) was not touched and its guarantees are unchanged.
+
+---
+
+## 23. P5 — AI (ported 2026-10-16)
+
+### 23.1 What was built
+
+Port GenOffice's production AI stack into PDFShush, then wire two features, a smart-redaction
+proposal flow, and a metered server path.
+
+| Piece | Where | Notes |
+| --- | --- | --- |
+| `@pdfshush/ai-provider` | `packages/ai-provider` | Provider registry + protocols (OpenAI-compatible, Anthropic, Gemini), SSE framing, watchdog, output-cap fallback, settings guard, `browser` barrel (no Node). **357 tests.** |
+| `@pdfshush/ai-agent` | `packages/ai-agent` | ReAct loop (`AgentLoop`, stateful multi-turn, cancel/reset), skill contract, stream-text, redact-core. Zero-dep, isomorphic. **152 tests.** |
+| BYOK transport | `apps/web/src/lib/ai/transport.ts` | `AgentTransport` over `streamForProvider`, directly from the tab. |
+| Settings | `apps/web/src/lib/ai/settings.ts` | `AiSettings` in localStorage, `sanitizeAiSettings` on every read/write; `aiReady` availability predicate. |
+| PDF read skill | `apps/web/src/lib/ai/{pdf-session,pdf-skill}.ts` | Page text extracted once via the `text-runs` job; tools `get_document` / `read_pages` / `search_text` / `goto_page`, each output-capped. |
+| Summarize / chat / edit UI | `components/ai/ai-workspace.tsx` (+ `ai-chat`, `ai-document-pane`, `edit-plan-panel`, `ai-trust-notes`), reached via the thin `components/tools/{summarize-pdf,chat-with-pdf,edit-pdf-with-ai}-tool.tsx` wrappers | One two-pane workspace shared by all three tools: page preview with pending-change overlays on the left, streaming chat + activity timeline + clickable citations on the right. New **AI** category. See §23.6. |
+| Agentic editing | `apps/web/src/lib/ai/edit-skill.ts` + `components/tools/edit-pdf-with-ai-tool.tsx` | Model **proposes**, user reviews, "Apply" chains the existing `edit` → `organize` → `stamp` jobs. |
+| Smart redaction | `apps/web/src/lib/ai/redaction-propose.ts` + `redact-tool.tsx` | Model returns run **indices**; pdf-core owns the geometry; R1 destroys; R1 verifies. |
+| Leakage gate | `packages/pdf-core/test/ai-redaction.test.ts` | The blocking gate (below). |
+| Managed server | `apps/api/src/ai/{budget,routes}.ts` | SSE proxy + `AiBudgetService`; off unless configured. |
+| Managed client | `apps/web/src/lib/ai/{managed,mode,ask}.ts` | SSE consumer for the same route; one-shot for redaction; mode toggle outside `AiSettings`; `/api/tools` capability probe. |
+| AI browser E2E | `tests/e2e/ai.mjs` + `tests/support/mock-llm.mjs` | Real client stack against a local SSE mock; chat + edit-apply, no keys. |
+| Limits | `packages/pdf-core/src/limits.ts` `LIMITS.ai` | Single source for managed budgets + client caps. |
+
+#### 23.1.1 Agentic editing (P5.5)
+
+The donor's edit tools are mapped onto the engine PDFShush already ships, reusing the same
+"propose → review → apply" discipline as smart redaction:
+
+- **The model never touches bytes.** It reads text runs (`text-runs`) and page sizes (`inspect`),
+  then calls tools that append to a pending plan: `markup_text`, `replace_text`, `delete_text`,
+  `insert_text`, `rotate_pages`, `delete_pages`, `set_page_order`, `add_header_footer`,
+  `add_page_numbers` (plus the read tools and `list_pending_edits`).
+- **Geometry stays in pdf-core.** Markup/replace/delete select a run by *page + verbatim text*;
+  the box comes from the extracted run, so a paraphrase cannot move a mark. Replace is a real,
+  guaranteed result on every document: a `whiteout` over the old run plus a redrawn text object.
+- **Every proposed change becomes one of three validated engine inputs** — overlay objects (`edit`),
+  page order/rotation (`organize`, via `PageRef[]`), header/footer (`stamp`). Each job validates its
+  input and re-parses its own output, so a wrong plan fails a step loudly instead of producing a bad
+  download.
+- **Apply is a sequential chain**: `edit` → `organize` → `stamp`, each step consuming the previous
+  step's bytes. The plan is capped (`MAX_PENDING_EDITS`) and cancellable; nothing is written until
+  the user presses Apply. Registered as the LIVE tool `edit-pdf-with-ai` in the **AI** category.
+
+### 23.2 The leakage gate (blocking, green)
+
+`packages/pdf-core/test/ai-redaction.test.ts`, on the **exported bytes** of a fixture with a known
+secret:
+
+1. **Two independent readers find no proposed span** — pdf.js text extraction
+   (`no-extractable-text`) *and* a raw content-stream scan (`content-has-no-text-operators`), plus a
+   `forbidden-strings-absent` sweep.
+2. **Non-targeted content survives** — `page-not-blank` + `page-images-substantial`, and the marks
+   are confined to the proposed rectangles (a page with no proposal has zero marks).
+3. **The marks are in the pixels** — R1's `marks-burned-in` pixel evidence.
+4. **Negative control** — the same spans routed through the cosmetic whiteout path keep the text
+   layer, so the gate **fails** (`no-extractable-text` and `forbidden-strings-absent` both false).
+   Without this, a gate that always answered "safe" would look identical to one that works.
+
+The hard edges on the path: the model may only **select runs by index** (a paraphrase cannot move a
+mark), the run list is capitally bounded (`MAX_OFFERED_RUNS`, `MAX_PROMPT_CHARS`), and R1 remains
+the only destructive path — so R2 stays deferred.
+
+### 23.3 Managed mode (server)
+
+- **Off unless `AI_MANAGED_API_KEY` and `AI_MANAGED_MODEL` are both set.** A default deployment and
+  CI behave exactly as before (BYOK only).
+- `AiBudgetService`: keys `ai:{subject}:tok:d` (TTL 24h) and `ai:{subject}:req:m` (TTL 60s) over the
+  existing Redis/Memory counter store; **reserve** the per-turn worst case, **settle** to reported
+  usage, refund the difference; unreported usage keeps the reservation (no free tier). Two tiers:
+  anonymous IP-hash (`AI_MANAGED_ANON_DAILY_TOKENS`) vs account (`AI_MANAGED_DAILY_TOKENS`).
+- One concurrent stream per subject (`AiConcurrencyGuard`; per instance — the shipped topology is a
+  single API process, and the daily budget is the backstop either way).
+- `POST /api/ai/chat` streams SSE (`meta`/`delta`/`reasoning`/`tool`/`stop`/`usage`/`done`/`error`)
+  and fails closed with `429 code:'ai_budget'` + `Retry-After`. Never logs prompt content.
+- **Privacy:** managed is the one path where document text reaches our server. It is wired into the
+  browser as an explicit, user-chosen mode (a toggle in the AI settings card, stored under a
+  separate key from `AiSettings` because the package guard strips unknown fields). The default is
+  still BYOK, and a deployment without a managed key hides the toggle (`/api/tools` reports
+  `ai.enabled`), so the shipped client path keeps every byte in the tab unless the user opts in.
+  `managed.ts` consumes the SSE stream for both the agent loop and the redaction proposal's one-shot
+  call; `ask.ts` normalizes BYOK and managed into the same "ask one question" shape.
+
+### 23.4 Gates run
+
+- `pnpm typecheck` — 5 packages clean (web, api, pdf-core, ai-provider, ai-agent).
+- `pnpm test` — **827/827** (189 engine · 129 API · 357 provider · 152 agent).
+- `pnpm --filter @pdfshush/api build` — server bundles (AI provider aliased into `dist/server.js`).
+- `pnpm --filter @pdfshush/web build` — main chunk **864 kB, 0 pdf-lib / 0 pdf.js / 0 pdfium** (322
+  modules); the worker and pdfium chunks are unchanged, and nothing in the AI packages pulls a Node
+  built-in into the browser graph.
+- `pnpm test:bundle` — the boundary guard (§23.6). It is what caught the `identityRefs` leak: a string
+  grep over the minified chunk cannot see it, the sourcemap's module list can.
+- `node tests/e2e/ai.mjs` — **18/18** after §23.7 (was 8/8): chat + citation, the migration/leak
+  checks, a queued highlight applied and re-extracted, and a **replacement proven in place** — the
+  exported PDF contains `Annual Summary` and no longer contains `Quarterly Report`.
+- `node tests/e2e/ai-managed.mjs` — **11/11** against the real API routes (in-memory counters) and the
+  local mock (§23.7.4).
+- `node tests/e2e/smoke.mjs` — **101/101**; `node tests/e2e/text-edit.mjs` — **8/8**.
+
+### 23.5 Not yet done (honest status)
+
+- **BYOK key storage.** ✅ **Done (§23.7.1):** the settings and the mode now live in one IndexedDB
+  record, the old localStorage keys are migrated away, and "Forget key" deletes the record.
+- **In-place text rewrite.** ✅ **Done (§23.7.2):** `replace_text` (and `delete_text`) now route
+  through `text-edit`, so the document's own run is rewritten; the whiteout+redraw is only that edit's
+  engine fallback. Proven from the exported bytes, not from a toast.
+- **Edit-review preview.** ✅ **Done (§23.6):** pending changes are drawn as overlay boxes on the
+  page preview and listed as individually discardable cards; **§23.7.3** adds a per-page dot on the
+  rail so a change on another page is discoverable.
+- **Managed mode in CI.** ✅ **Done (§23.7.4):** `tests/e2e/ai-managed.mjs` drives the real API
+  routes (booted with in-memory counters, no Redis/Mongo) against the local mock from a browser.
+- **R2 (text-level redaction)** stays gated behind R1 in production (§20.3) — unchanged, deliberate.
+
+### 23.6 The AI workspace (P5 UI, 2026-10-16)
+
+P5.1–P5.7 shipped the machinery; the surfaces it landed on were two thin shells. This is the UI pass
+that makes the AI features read as one of the app's main MVPs, and it hides no behaviour — the whole
+path is still "the model proposes, the user reviews, the engine writes".
+
+**Layout.** `ai-workspace.tsx` is the single shell for `summarize-pdf`, `chat-with-pdf` and
+`edit-pdf-with-ai`; only the copy, the skill and one extra panel differ.
+
+- **Left — the document.** `ai-document-pane.tsx` renders *one* legible page (900 px) through the same
+  `thumbnails` job every other tool uses, re-rendered per active page rather than caching a whole
+  document's worth of images; a numbered rail scrolls to any page, and pages the last answer cited get
+  a dot. Overlay boxes for the pending plan are positioned as percentages of the display-space page
+  size — the same contract `redact-tool` uses — so a highlight lands on the right glyphs at any zoom.
+- **Right — the assistant.** `ai-chat.tsx` streams the loop's output, shows each tool call as it
+  happens (`TOOL_COPY` verbs, running → done/failed), turns each `[page N]` into a violet chip
+  (`lib/ai/citations.ts` parses `[page N]`, `[pages N, M]`, `[pages 4-6]`, tolerant of spacing) that
+  jumps the preview, offers starter prompts, reports token spend, and keeps the conversation in the
+  loop so follow-ups carry context. Turn text is joined with a blank line so a turn that ended to call
+  a tool does not run into the next turn's prose.
+- **Below (edit only) — the review.** `edit-plan-panel.tsx` lists one card per change with a page chip
+  and a discard button, then one Apply button.
+
+**Per-change review (`edit-skill.ts`).** The plan now carries `entries: AiEditEntry[]`:
+
+- An *additive* change (markup / replace / erase / insert) records the ids of the objects it added; its
+  `undo` subtracts exactly those, so discarding one card cannot disturb the others.
+- A *whole-document* family (page order, rotation, header/footer) keeps the value captured before the
+  family was first touched, and a newer op in the same family supersedes the previous card; discarding
+  the survivor restores that captured value.
+- `plan.actions` (the model-facing summary) is **derived** from `entries` on every mutation, so the list
+  the model reads and the list the user sees cannot drift apart.
+- `applyEditPlan` takes `onStep?: (step: ApplyStep) => void` and reports `edit` → `organize` → `stamp`
+  in order, which is what the progress row renders.
+
+**The bundle boundary.** The preview pane and the AI graph pulled `identityRefs` (defined in
+`ops/compose.ts`, which imports pdf-lib at module scope) into the entry chunk: 771 kB → 1426 kB, 161
+pdf-lib modules. `identityRefs` is a three-line loop and is now local to `edit-skill.ts` (859 kB, 0
+engines). `tests/bundle-boundary.mjs` reads the sourcemap's module list after a build and fails on any
+pdf-lib/pdfjs/pdfium module in the entry chunk — a grep over minified output would not have caught this,
+which is exactly why the guard exists.
+
+**Honest limits of this pass.** The preview renders one page per interaction (citations and edits on
+other pages are one click away, not simultaneous); above roughly 200 pages the rail is long but still
+works; `replace_text` was still whiteout-plus-redraw at this point (**fixed in §23.7.2**); and the
+overlays show *where* a change lands, not a pixel-accurate simulation of the final render.
+
+**Smaller fixes from the same pass.** `FileDropzone` takes an optional `note`, so the AI pages say
+"Parsed on this device — no file is ever uploaded" rather than the engine's blanket "never uploaded" —
+true for a job-only tool, too broad next to a provider form. The settings card's Save button now
+reflects whether the form is actually *dirty* instead of whether the config merely looks usable, and
+the chat aborts an in-flight stream when it unmounts. The provider/model catalogue is untouched: it is
+the donor's curated, date-stamped list, not a placeholder.
+
+### 23.7 Closing the four gaps (2026-10-16)
+
+§23.5 named four gaps, plus "complete the security". All four are closed. What is still open is named
+at the end, and it is not a gap I am hiding behind a green check.
+
+**23.7.1 The key moved out of localStorage — and the move found a real bug.**
+
+`lib/ai/storage.ts` is now the single home of the AI state at rest: one IndexedDB record
+(`pdfshush.ai` → `state` → `ai`) holding *both* the provider settings and the chosen mode, so the two
+are read, migrated and erased together and can never come from different generations of the record.
+`settings.ts` and `mode.ts` became thin synchronous facades over an in-memory snapshot, because
+components hold these values in React state.
+
+Why bother, honestly: neither store encrypts, and anything running in the origin can read either — do
+not let the file's comments oversell it. What does change is that the key is no longer a
+string-keyed `localStorage` entry (the store a review, an extension, or a generic "clear site data"
+sweep enumerates by name), and it is now erasable by an explicit `delete` instead of overwriting
+fields. The guarantees that actually matter were already elsewhere and are unchanged: the key never
+leaves the device (`transport.ts` talks to the provider directly), it is never a job payload, a URL, a
+log line, or part of the recent-files record.
+
+Three things came out of doing it properly:
+
+- **A hydration race that silently dropped the key.** Two components mount in the same tick — and
+  React's dev-mode double mount makes that the norm, not an edge case. The second hydration ran
+  *between* the first one's legacy read and its write, found an empty store **and** an
+  already-cleared localStorage, and returned defaults; the first one's result was discarded by its
+  own `alive` guard. Net effect: the key was on disk but gone from the session. Hydration is now
+  single-flight (`hydrateAiState` memoizes one promise) and an empty store returns the current
+  snapshot rather than clobbering it. Found by the E2E, which seeds the *legacy* keys on purpose.
+- **The key could reach the DOM through an error message.** Provider error bodies are echoed to the
+  user, and a 4xx from a proxy can quote the request it rejected. `redactSecrets` now scrubs the key
+  (and anything bearer-shaped) from every message the BYOK transport surfaces.
+- **"Forget key".** A real affordance, not a doc line: it deletes the record and returns to defaults,
+  and it appears whenever *any* provider slot holds a key — not just the active one.
+
+**23.7.2 `replace_text` rewrites the document's own run.**
+
+The plan now carries `intents: AiInPlaceIntent[]` next to `objects`. An intent is `{pageIndex, find
+(the run's own verbatim text), replace, box, fallbackIds}` — the honest form of a replacement.
+`applyEditPlan` splits the plan: intents go to `text-edit` (PDFium rewrites the glyphs where they
+already are, so the run keeps the document's own font, size and matrix), and each intent's
+`fallbackIds` — the whiteout and the drawn text the plan already held — are handed to the engine as
+that edit's fallback, which it applies **only** when the rewrite is impossible or does not survive
+re-extraction. Passing them as ordinary overlays would paint the fallback over a rewrite that worked,
+which is exactly the double-draw this split exists to prevent. A plan with no intents still never
+loads the PDFium engine: pure overlays stay with `edit`.
+
+`delete_text` goes through the same path with `replace: ''`, so the words are *removed*, not hidden.
+That is the stance §22 already took for the editor — a deletion that is only covered is not a
+deletion — and the engine enforces it: it refuses an empty replacement it cannot perform rather than
+quietly whiteouting the run.
+
+The test is the point: `tests/e2e/ai.mjs` asks for a replacement, applies it, downloads the file and
+extracts its text. The exported PDF contains `Annual Summary` **and no longer contains** `Quarterly
+Report`. A silent demotion to the overlay would leave the original text in the content stream and fail
+that check — which is why the assertion is on the bytes rather than on the report the UI prints.
+
+**23.7.3 A change on another page is discoverable.** The page rail marks every page with a queued
+change (amber dot, `data-testid="ai-changed-page"`), alongside the violet dot for cited pages. The
+overlay boxes still only cover the page on screen; the rail is what tells you the plan touches page 7
+while you are looking at page 1.
+
+**23.7.4 Managed mode is covered by a browser E2E.** `apps/api/test/support/managed-server.ts` boots
+the *shipped* `createApp` — routing, schema, budget, SSE framing, provider adapter — with the same
+in-memory counters the API's own tests use, so the run needs no Redis, no Mongo and no docker; the
+"provider" is the same local SSE mock BYOK uses (`AI_MANAGED_BASE_URL`). `tests/e2e/ai-managed.mjs`
+then proves, in a browser: `/api/tools` advertises the trial, the settings card offers it, the choice
+is persisted in the same IndexedDB record, a turn streams through `/api/ai/chat` and renders with a
+citation, the edit tool proposes a reviewable change, **no provider key is sent from the browser**,
+and — stated rather than implied — the document text that *does* cross the wire is present in the
+request body.
+
+**Still open, deliberately.** The preview renders one page per interaction and the rail dots are the
+discovery mechanism, not a full-document render; above ~200 pages the rail is long; the overlay boxes
+show *where* a change lands, not a pixel-accurate simulation of the final render; and R2 (text-level
+redaction) remains gated behind R1 in production (§20.3).
+

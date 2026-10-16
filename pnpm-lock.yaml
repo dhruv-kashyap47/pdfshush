@@ -200,6 +200,12 @@ importers:
       '@cantoo/pdf-lib':
         specifier: ^2.11.1
         version: 2.11.1(html-entities@2.6.0)
+      '@pdfshush/ai-agent':
+        specifier: workspace:*
+        version: link:../../packages/ai-agent
+      '@pdfshush/ai-provider':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider
       '@pdfshush/pdf-core':
         specifier: workspace:*
         version: link:../../packages/pdf-core
@@ -279,6 +285,12 @@ importers:
       '@embedpdf/pdfium':
         specifier: ^2.15.1
         version: 2.15.1
+      '@pdfshush/ai-agent':
+        specifier: workspace:*
+        version: link:../../packages/ai-agent
+      '@pdfshush/ai-provider':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider
       '@pdfshush/pdf-core':
         specifier: workspace:*
         version: link:../../packages/pdf-core
@@ -394,6 +406,34 @@ importers:
       vite:
         specifier: ^8.3.3
         version: 8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
+
+  packages/ai-agent:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/ai-provider:
+    dependencies:
+      '@pdfshush/ai-agent':
+        specifier: workspace:*
+        version: link:../ai-agent
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@24.19.1)(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   packages/pdf-core:
     dependencies:

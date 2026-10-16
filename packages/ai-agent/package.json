@@ -1,0 +1,24 @@
+{
+  "name": "@pdfshush/ai-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generic ReAct agent loop: pluggable skills (tools + prompt + context), pluggable LLM transport. Ported from GenOffice (Apache-2.0).",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./redact-range": "./src/redact-range.ts",
+    "./redact-core": "./src/redact-core.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

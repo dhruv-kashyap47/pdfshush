@@ -9,12 +9,14 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "worker": "pnpm build && tsx src/worker/host.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --target=node24 --format=esm --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --outfile=dist/server.js && esbuild src/worker/host.ts --bundle --platform=node --target=node24 --format=esm --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --outfile=dist/worker-host.js && esbuild src/worker/processor.ts --bundle --platform=node --target=node24 --format=cjs --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --footer:js=\"module.exports = processJob;\" --outfile=dist/processor.cjs",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node24 --format=esm --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --alias:@pdfshush/ai-provider=../../packages/ai-provider/src/index.ts --outfile=dist/server.js && esbuild src/worker/host.ts --bundle --platform=node --target=node24 --format=esm --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --outfile=dist/worker-host.js && esbuild src/worker/processor.ts --bundle --platform=node --target=node24 --format=cjs --packages=external --alias:@pdfshush/pdf-core/node=../../packages/pdf-core/src/node.ts --footer:js=\"module.exports = processJob;\" --outfile=dist/processor.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",
+    "@pdfshush/ai-agent": "workspace:*",
+    "@pdfshush/ai-provider": "workspace:*",
     "@pdfshush/pdf-core": "workspace:*",
     "bullmq": "^6.3.11",
     "busboy": "^1.6.0",

@@ -11,6 +11,12 @@ interface FileDropzoneProps {
   disabled?: boolean;
   /** Small helper text under the prompt. */
   hint?: string;
+  /**
+   * The privacy line under the prompt. Defaults to the engine's claim, which is
+   * true for every tool that only executes jobs. Tools whose data path is wider
+   * (the AI tools send the text you ask about to a provider) pass their own.
+   */
+  note?: string;
 }
 
 /**
@@ -18,7 +24,14 @@ interface FileDropzoneProps {
  * exist it collapses to a compact "add more" bar (the file list lives in the
  * tool component, which owns ordering).
  */
-export function FileDropzone({ files, onFiles, multiple = true, disabled, hint }: FileDropzoneProps) {
+export function FileDropzone({
+  files,
+  onFiles,
+  multiple = true,
+  disabled,
+  hint,
+  note = 'Processed on this device — never uploaded',
+}: FileDropzoneProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -80,9 +93,7 @@ export function FileDropzone({ files, onFiles, multiple = true, disabled, hint }
             or drag and drop them here — {multiple ? 'multiple files supported' : 'one file'} · max 100 MB each
           </span>
           {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
-          <span className="text-xs font-medium text-primary">
-            Processed on this device — never uploaded
-          </span>
+          <span className="text-xs font-medium text-primary">{note}</span>
         </button>
       ) : (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">

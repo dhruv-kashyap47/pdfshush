@@ -105,6 +105,19 @@ const schema = z.object({
   SESSION_COOKIE_SECURE: z.string().optional(),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+
+  /**
+   * Managed AI. Off unless both a key and a model are present, so a deployment
+   * without them behaves exactly as before (BYOK only) and CI needs no secrets.
+   */
+  AI_MANAGED_PROVIDER: z.string().default('openai'),
+  AI_MANAGED_MODEL: z.string().optional(),
+  AI_MANAGED_API_KEY: z.string().optional(),
+  AI_MANAGED_BASE_URL: z.string().optional(),
+  AI_MANAGED_DAILY_TOKENS: z.coerce.number().int().positive().optional(),
+  AI_MANAGED_ANON_DAILY_TOKENS: z.coerce.number().int().positive().optional(),
+  AI_MANAGED_PER_MINUTE: z.coerce.number().int().positive().optional(),
+  AI_MANAGED_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().optional(),
 });
 
 export type ApiConfig = ReturnType<typeof loadConfig>;
@@ -158,6 +171,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
           : raw.SESSION_COOKIE_SECURE === 'true' || raw.SESSION_COOKIE_SECURE === '1',
     },
     logLevel: raw.LOG_LEVEL,
+    ai: {
+      enabled: Boolean(raw.AI_MANAGED_API_KEY && raw.AI_MANAGED_MODEL),
+      provider: raw.AI_MANAGED_PROVIDER,
+      model: raw.AI_MANAGED_MODEL ?? '',
+      apiKey: raw.AI_MANAGED_API_KEY ?? '',
+      baseUrl: raw.AI_MANAGED_BASE_URL,
+      dailyTokens: raw.AI_MANAGED_DAILY_TOKENS ?? LIMITS.ai.managedDailyTokens,
+      anonDailyTokens: raw.AI_MANAGED_ANON_DAILY_TOKENS ?? LIMITS.ai.managedAnonDailyTokens,
+      perMinute: raw.AI_MANAGED_PER_MINUTE ?? LIMITS.ai.managedRequestsPerMinute,
+      maxOutputTokens: raw.AI_MANAGED_MAX_OUTPUT_TOKENS ?? LIMITS.ai.managedMaxOutputTokens,
+    },
   } as const;
 }
 /** Express \	rust proxy\ value: 0 (none) or a hop count. */

@@ -33,6 +33,7 @@ import {
   Lock,
   Mail,
   Merge,
+  MessageSquare,
   Minimize2,
   PenTool,
   Presentation,
@@ -110,6 +111,10 @@ const LIVE = new Set([
   'edit-pdf',
   // Phase 5 (security)
   'redact-pdf',
+  // Phase 5 (AI)
+  'summarize-pdf',
+  'chat-with-pdf',
+  'edit-pdf-with-ai',
 ]);
 
 /**
@@ -132,6 +137,9 @@ const TOOL_NEXT: Record<string, string[]> = {
   'crop-pdf': ['pdf-to-jpg', 'edit-pdf'],
   'header-footer': ['page-numbers', 'edit-pdf'],
   'n-up': ['pdf-to-jpg', 'organize-pdf'],
+  'summarize-pdf': ['chat-with-pdf', 'redact-pdf'],
+  'chat-with-pdf': ['summarize-pdf', 'redact-pdf'],
+  'edit-pdf-with-ai': ['edit-pdf', 'organize-pdf'],
 };
 
 const tool = (
@@ -211,6 +219,15 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       tool('jpg-to-pdf', 'JPG to PDF', 'Bundle photos and scans into a single PDF.', 'convert-to', FileImage, 'amber'),
       tool('word-to-pdf', 'Word to PDF', 'Convert .docx files to PDF.', 'convert-to', FileText, 'blue'),
       tool('html-to-pdf', 'HTML to PDF', 'Render any web page into a print-perfect PDF.', 'convert-to', FileCode, 'orange'),
+    ],
+  },
+  {
+    id: 'ai',
+    label: 'AI',
+    tools: [
+      tool('summarize-pdf', 'Summarize PDF', 'Get a grounded summary with page citations, using your own AI key.', 'ai', Sparkles, 'violet'),
+      tool('chat-with-pdf', 'Chat with PDF', 'Ask questions and get answers cited from the pages — key stays in your browser.', 'ai', MessageSquare, 'cyan'),
+      tool('edit-pdf-with-ai', 'Edit PDF with AI', 'Describe the change in words — highlight, rewrite or move pages — then review and apply.', 'ai', Wand2, 'green'),
     ],
   },
   {

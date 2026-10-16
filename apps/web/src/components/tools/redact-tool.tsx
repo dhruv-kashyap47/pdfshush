@@ -11,8 +11,8 @@
  * and vector quality do not survive. That is a real trade, not a footnote.
  */
 
-import { useCallback, useRef, useState } from 'react';
-import { Loader2, ShieldCheck, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, Settings2, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   timeoutForPageCount,
@@ -20,7 +20,10 @@ import {
   type PageReport,
   type RedactRegion,
   type RedactJobOutput,
+  type TextRunsOutput,
 } from '@pdfshush/pdf-core';
+import type { AiSettings } from '@pdfshush/ai-provider/browser';
+import { AiSettingsCard } from '@/components/ai/ai-settings-card';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
 import { ResultPanel } from '@/components/tools/result-panel';
@@ -30,6 +33,12 @@ import { usePageThumbnails } from '@/hooks/use-page-thumbnails';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
 import { readAsInputFiles, totalBytes } from '@/lib/files';
+import { jobPool } from '@/lib/job-pool';
+import { proposeSensitiveRegions, type ProposedRegion } from '@/lib/ai/redaction-propose';
+import { managedAsk } from '@/lib/ai/ask';
+import { managedAvailable } from '@/lib/ai/managed';
+import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
+import { aiReady, clearAiSettings, loadAiSettings, loadAiState, saveAiSettings, storedKeyPresent } from '@/lib/ai/settings';
 import { recordRecent } from '@/tools/recent';
 
 /** A committed mark, in display-space points. */
@@ -43,15 +52,65 @@ interface Rect {
 /** The minimum drag that counts as a mark, in CSS pixels. */
 const MIN_DRAG_PX = 6;
 
+/** Merge AI-proposed rectangles into the manual ones, skipping near-duplicates. */
+function mergeRegions(prev: Record<number, Rect[]>, incoming: ProposedRegion[]): Record<number, Rect[]> {
+  const next: Record<number, Rect[]> = { ...prev };
+  for (const region of incoming) {
+    const list = [...(next[region.pageIndex] ?? [])];
+    const rect: Rect = { x: region.x, y: region.y, width: region.width, height: region.height };
+    const duplicate = list.some(
+      (existing) =>
+        Math.abs(existing.x - rect.x) < 1 &&
+        Math.abs(existing.y - rect.y) < 1 &&
+        Math.abs(existing.width - rect.width) < 1,
+    );
+    if (!duplicate) list.push(rect);
+    next[region.pageIndex] = list;
+  }
+  return next;
+}
+
 export function RedactTool() {
   const { files, tiles, busy, progress, prepare, reset, cancel } = usePageThumbnails();
   const [info, setInfo] = useState<InspectOutput | null>(null);
   const [regions, setRegions] = useState<Record<number, Rect[]>>({});
   const [draft, setDraft] = useState<{ pageIndex: number; rect: Rect } | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [settings, setSettings] = useState<AiSettings>(() => loadAiSettings());
+  const [showSettings, setShowSettings] = useState(false);
+  const [mode, setMode] = useState<AiMode>(() => loadAiMode());
+  const [managedOk, setManagedOk] = useState(false);
+  const [finding, setFinding] = useState(false);
+  const [findError, setFindError] = useState<string | null>(null);
+  const findAbort = useRef<AbortController | null>(null);
   const runner = useJobRunner<RedactJobOutput>('redact');
 
   const running = busy || runner.state.status === 'running';
+
+  useEffect(() => {
+    let alive = true;
+    void loadAiState().then((state) => {
+      if (!alive) return;
+      setSettings(state.settings);
+      setMode(state.mode);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void managedAvailable().then((ok) => {
+      if (alive) setManagedOk(ok);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const effectiveMode: AiMode = mode === 'managed' && managedOk ? 'managed' : 'byok';
+  const aiUsable = effectiveMode === 'managed' ? true : aiReady(settings);
 
   /** Page size in points, per page index. */
   const pageSize = (pageIndex: number): { width: number; height: number } | null => {
@@ -157,6 +216,53 @@ export function RedactTool() {
     });
   };
 
+  /* ---------------------------------------------------- AI-assisted finding */
+
+  const findSensitive = async () => {
+    if (finding || running || files.length === 0) return;
+    if (!aiUsable) {
+      // No usable path yet — open the settings form instead of failing silently.
+      setShowSettings(true);
+      return;
+    }
+    setFinding(true);
+    setFindError(null);
+    const controller = new AbortController();
+    findAbort.current = controller;
+    try {
+      const runs = await jobPool.run<TextRunsOutput>(
+        'text-runs',
+        await readAsInputFiles(files),
+        {},
+        { signal: controller.signal },
+      );
+      const outcome = await proposeSensitiveRegions(runs.runs, {
+        settings,
+        ...(effectiveMode === 'managed' ? { ask: managedAsk } : {}),
+        signal: controller.signal,
+      });
+      if (outcome.error) {
+        setFindError(outcome.error);
+        return;
+      }
+      if (outcome.regions.length === 0) {
+        toast.info('AI found no sensitive data in this document.');
+        return;
+      }
+      setRegions((prev) => mergeRegions(prev, outcome.regions));
+      toast.success(
+        `AI proposed ${outcome.regions.length} area${outcome.regions.length === 1 ? '' : 's'} from ${outcome.offered} text runs. Review, then redact.`,
+      );
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setFindError(cause instanceof Error ? cause.message : String(cause));
+      }
+    } finally {
+      setFinding(false);
+      findAbort.current = null;
+    }
+  };
+
   /* ---------------------------------------------------------------- run */
 
   const runRedact = async () => {
@@ -255,12 +361,77 @@ export function RedactTool() {
               {markCount} area{markCount === 1 ? '' : 's'} marked across {Object.keys(regions).length} page
               {Object.keys(regions).length === 1 ? '' : 's'}
             </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void findSensitive()}
+              disabled={running || finding}
+              data-testid="redact-ai-find"
+            >
+              {finding ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 h-4 w-4" />
+              )}
+              {finding ? 'Finding sensitive data…' : 'Find sensitive data with AI'}
+            </Button>
+            {finding ? (
+              <Button variant="ghost" size="sm" onClick={() => findAbort.current?.abort()}>
+                Stop
+              </Button>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSettings((shown) => !shown)}
+              disabled={running}
+            >
+              <Settings2 className="mr-1.5 h-4 w-4" /> AI settings
+            </Button>
             {markCount > 0 && (
               <Button variant="ghost" size="sm" onClick={() => setRegions({})} disabled={running}>
                 <Trash2 className="mr-1.5 h-4 w-4" /> Clear all
               </Button>
             )}
           </div>
+
+          {findError ? (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {findError}
+            </p>
+          ) : null}
+
+          <p className="text-xs text-muted-foreground">
+            AI only <strong>proposes</strong> marks from the document text; nothing is redacted until
+            you review and confirm. Your key stays in this browser, and the document is sent only to
+            your chosen provider.
+          </p>
+
+          {showSettings ? (
+            <AiSettingsCard
+              settings={settings}
+              mode={effectiveMode}
+              onModeChange={(next) => {
+                setMode(next);
+                saveAiMode(next);
+              }}
+              managedAvailable={managedOk}
+              onSave={(next) => {
+                setSettings(saveAiSettings(next));
+                setShowSettings(false);
+              }}
+              {...(storedKeyPresent(settings)
+                ? {
+                    onForget: () => {
+                      void clearAiSettings().then((next) => {
+                        setSettings(next);
+                        setShowSettings(false);
+                      });
+                    },
+                  }
+                : {})}
+            />
+          ) : null}
 
           <div className="space-y-6">
             {tiles.map((tile) => {

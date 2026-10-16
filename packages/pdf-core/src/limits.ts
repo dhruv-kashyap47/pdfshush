@@ -84,6 +84,20 @@ export const LIMITS = {
     /** Step id length, after trimming. */
     maxStepIdChars: 64,
   },
+  ai: {
+    /** Per-account managed daily token allowance (managed mode only). */
+    managedDailyTokens: 200_000,
+    /** Per-IP anonymous trial allowance (managed mode only). */
+    managedAnonDailyTokens: 20_000,
+    /** Managed requests one subject may start per minute. */
+    managedRequestsPerMinute: 6,
+    /** Output-token ceiling for one managed turn. */
+    managedMaxOutputTokens: 4096,
+    /** Characters of document text one browser AI run may hold. */
+    clientMaxContextChars: 400_000,
+    /** Model round-trips one browser agent run may take. */
+    clientMaxTurns: 24,
+  },
 } as const;
 
 export type Limits = typeof LIMITS;
