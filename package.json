@@ -9,7 +9,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @pdfshush/web dev",
+    "dev": "pnpm --parallel --filter @pdfshush/web --filter @pdfshush/api dev",
     "build": "pnpm --filter @pdfshush/web build",
     "preview": "pnpm --filter @pdfshush/web preview",
     "typecheck": "pnpm -r typecheck",
