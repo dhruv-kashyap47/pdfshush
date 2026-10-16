@@ -63,17 +63,13 @@ export function providerUsable(settings: AiSettings, id: AiProviderId): boolean 
  * Scrub a secret (and anything that looks like a bearer token) out of a message
  * before it is shown or logged.
  *
- * A provider error body is echoed to the user, and an error object that quotes
- * the request it made is exactly the kind of thing that ends up in a screenshot
- * with the key visible. The key is the one string this app must never render.
+ * The implementation lives in `@pdfshush/ai-provider` because it is pure,
+ * dependency-free logic that both runtimes need — the browser (BYOK) and the
+ * API's managed gateway — and because a package is where it can be unit-tested
+ * (`apps/web` has no runner of its own). Re-exported here so the existing
+ * `./settings` import site keeps working.
  */
-export function redactSecrets(message: string, secret: string | undefined): string {
-  let safe = message;
-  if (secret && secret.trim()) {
-    safe = safe.split(secret).join('[redacted]');
-  }
-  return safe.replace(/\b(?:sk|key|token)-[A-Za-z0-9._-]{8,}/gi, '[redacted]');
-}
+export { redactSecrets } from '@pdfshush/ai-provider/browser';
 
 /** The provider the next request would use (falls back to a sane default). */
 export function resolvedProvider(settings: AiSettings): AiProviderId {

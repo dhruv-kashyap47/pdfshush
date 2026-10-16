@@ -102,6 +102,7 @@ export type {
   ResolvedEndpoint,
 } from './registry'
 export { sanitizeAiSettings } from './ai-settings-guard'
+export { REDACTED, redactSecrets } from './redact-secrets'
 export { chatForProvider } from './chat'
 export { setAiUserAgent, setRescueFetch } from './fetch'
 export { isAiNetworkError } from './network-error'

@@ -56,6 +56,7 @@ export {
 } from './registry'
 export type { AiProtocol, ProviderAdapter, ProviderCapabilities, ResolvedEndpoint } from './registry'
 export { sanitizeAiSettings } from './ai-settings-guard'
+export { REDACTED, redactSecrets } from './redact-secrets'
 export { chatForProvider } from './chat'
 export { streamForProvider } from './stream'
 export type { StreamCallbacks } from './stream'

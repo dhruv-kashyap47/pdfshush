@@ -9,6 +9,7 @@
 import {
   activeProvider,
   chatForProvider,
+  redactSecrets,
   type AiSettings,
 } from '@pdfshush/ai-provider/browser';
 import { streamManaged } from './managed';
@@ -27,7 +28,11 @@ export function byokAsk(settings: AiSettings): AiAsk {
     const provider = activeProvider(settings);
     const config = settings.providers[provider];
     if (!config) return { ok: false, error: 'No AI provider is configured.' };
-    return chatForProvider(provider, config, system, user, signal);
+    const result = await chatForProvider(provider, config, system, user, signal);
+    if (result.ok || !result.error) return result;
+    // The streaming path redacts in ./transport; this one-shot path is the
+    // other way a provider error reaches the screen, so it must scrub too.
+    return { ...result, error: redactSecrets(result.error, config.apiKey) };
   };
 }
 
@@ -42,6 +47,7 @@ export const managedAsk: AiAsk = async (system, user, signal) => {
     );
     return { ok: true, content };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: redactSecrets(message) };
   }
 };
