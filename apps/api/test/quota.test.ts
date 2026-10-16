@@ -16,9 +16,9 @@ describe('QuotaService', () => {
     const service = new QuotaService(new MemoryQuotaStore(), LIMITS);
 
     for (let i = 0; i < 3; i += 1) {
-      expect((await service.consume('subject', 0)).allowed).toBe(true);
+      expect((await service.reserveUpload('subject', 0)).allowed).toBe(true);
     }
-    const denied = await service.consume('subject', 0);
+    const denied = await service.reserveUpload('subject', 0);
     expect(denied.allowed).toBe(false);
     expect(denied.window).toBe('minute');
     expect(denied.limit).toBe(3);
@@ -29,10 +29,10 @@ describe('QuotaService', () => {
     const store = new MemoryQuotaStore();
     const service = new QuotaService(store, LIMITS);
 
-    await service.consume('subject', 0);
-    await service.consume('subject', 0);
-    await service.consume('subject', 0);
-    for (let i = 0; i < 5; i += 1) await service.consume('subject', 0);
+    await service.reserveUpload('subject', 0);
+    await service.reserveUpload('subject', 0);
+    await service.reserveUpload('subject', 0);
+    for (let i = 0; i < 5; i += 1) await service.reserveUpload('subject', 0);
 
     expect(await store.read('quota:subject:m')).toBe(8);
   });
@@ -43,13 +43,13 @@ describe('QuotaService', () => {
     const service = new QuotaService(store, LIMITS);
 
     // Burn the minute limit, wait for the window to expire, keep going.
-    for (let i = 0; i < 3; i += 1) await service.consume('subject', 0);
-    expect((await service.consume('subject', 0)).window).toBe('minute');
+    for (let i = 0; i < 3; i += 1) await service.reserveUpload('subject', 0);
+    expect((await service.reserveUpload('subject', 0)).window).toBe('minute');
     clock += 61_000;
 
-    expect((await service.consume('subject', 0)).allowed).toBe(true);
-    expect((await service.consume('subject', 0)).allowed).toBe(true);
-    const daily = await service.consume('subject', 0);
+    expect((await service.reserveUpload('subject', 0)).allowed).toBe(true);
+    expect((await service.reserveUpload('subject', 0)).allowed).toBe(true);
+    const daily = await service.reserveUpload('subject', 0);
     expect(daily.allowed).toBe(false);
     expect(daily.window).toBe('day');
     expect(daily.limit).toBe(5);
@@ -62,26 +62,48 @@ describe('QuotaService', () => {
       tasksPerMinute: 100,
     });
 
-    expect((await service.consume('subject', 600)).allowed).toBe(true);
-    expect((await service.consume('subject', 600)).allowed).toBe(false);
+    expect((await service.reserveUpload('subject', 600)).allowed).toBe(true);
+    expect((await service.reserveUpload('subject', 600)).allowed).toBe(false);
   });
 
-  it('prechecks without spending budget', async () => {
+  it('reserves the byte ceiling up front, then settles to what landed', async () => {
     const store = new MemoryQuotaStore();
-    const service = new QuotaService(store, LIMITS);
+    const service = new QuotaService(store, { ...LIMITS, bytesPerDay: 1_000, tasksPerMinute: 100 });
 
-    expect((await service.precheck('subject')).allowed).toBe(true);
-    expect(await store.read('quota:subject:m')).toBe(0);
+    // The reservation is visible immediately -- that is the whole point: a
+    // parallel request must see this one's claim before it starts writing.
+    expect((await service.reserveUpload('subject', 600)).allowed).toBe(true);
+    expect(await store.read('quota:subject:bytes')).toBe(600);
 
-    for (let i = 0; i < 3; i += 1) await service.consume('subject', 0);
-    expect((await service.precheck('subject')).allowed).toBe(false);
-    // Still three: precheck must not have consumed anything.
-    expect(await store.read('quota:subject:m')).toBe(3);
+    // Settling down to the real size releases the unused part of the claim.
+    await service.settleUpload('subject', 600, 100);
+    expect(await store.read('quota:subject:bytes')).toBe(100);
+  });
+
+  it('refuses a reservation that would break the daily allowance, and releases it', async () => {
+    const store = new MemoryQuotaStore();
+    const service = new QuotaService(store, { ...LIMITS, bytesPerDay: 1_000, tasksPerMinute: 100 });
+
+    await service.reserveUpload('subject', 600);
+    const denied = await service.reserveUpload('subject', 600);
+    expect(denied.allowed).toBe(false);
+    expect(denied.window).toBe('bytes');
+    // The refused claim is gone, not billed: only the first 600 stands.
+    expect(await store.read('quota:subject:bytes')).toBe(600);
+  });
+
+  it('releases the whole claim when the upload is rejected', async () => {
+    const store = new MemoryQuotaStore();
+    const service = new QuotaService(store, { ...LIMITS, bytesPerDay: 1_000, tasksPerMinute: 100 });
+
+    await service.reserveUpload('subject', 600);
+    await service.settleUpload('subject', 600, 0);
+    expect(await store.read('quota:subject:bytes')).toBe(0);
   });
 
   it('reports remaining budget for the UI', async () => {
     const service = new QuotaService(new MemoryQuotaStore(), LIMITS);
-    await service.consume('subject', 0);
+    await service.reserveUpload('subject', 0);
     const peeked = await service.peek('subject');
     expect(peeked.tasksPerMinute.used).toBe(1);
     expect(peeked.tasksPerMinute.limit).toBe(3);

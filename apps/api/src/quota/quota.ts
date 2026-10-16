@@ -65,15 +65,20 @@ export class QuotaService {
   ) {}
 
   /**
-   * Consumes one unit of quota for `subject`, plus `bytes` of daily upload
-   * budget. Counting happens even when the call is rejected, so a client that
-   * keeps hammering cannot reset its own window by being rejected.
+   * Charges a task and **reserves** the request's byte ceiling before the body
+   * is streamed.
+   *
+   * The read-only check this replaces was racy by construction: N parallel
+   * requests each saw an uncharged window and each streamed up to the per-request
+   * cap to disk before any of them was billed, so the transient disk footprint
+   * was proportional to concurrency rather than to the quota. Reserving the
+   * ceiling up front moves the window the moment a request starts, and
+   * `settleUpload` refunds whatever it did not use. With the default limits this
+   * also bounds concurrency on its own: four in-flight 500 MB uploads exhaust the
+   * 2 GB daily allowance.
    */
-  async consume(subject: string, bytes: number): Promise<QuotaVerdict> {
-    const perMinute = await this.counters.increment(
-      `quota:${subject}:m`,
-      MINUTE_SECONDS,
-    );
+  async reserveUpload(subject: string, reserveBytes: number): Promise<QuotaVerdict> {
+    const perMinute = await this.counters.increment(`quota:${subject}:m`, MINUTE_SECONDS);
     if (perMinute > this.limits.tasksPerMinute) {
       return {
         allowed: false,
@@ -97,54 +102,32 @@ export class QuotaService {
       };
     }
 
-    if (bytes > 0) {
-      const uploaded = await this.counters.addBytes(`quota:${subject}:bytes`, bytes, DAY_SECONDS);
-      if (uploaded > this.limits.bytesPerDay) {
-        return {
-          allowed: false,
-          window: 'bytes',
-          limit: this.limits.bytesPerDay,
-          used: uploaded,
-          retryAfterSeconds: DAY_SECONDS,
-          reason: 'Daily upload allowance reached.',
-        };
-      }
+    const reserved = await this.counters.addBytes(`quota:${subject}:bytes`, reserveBytes, DAY_SECONDS);
+    if (reserved > this.limits.bytesPerDay) {
+      // Refused before a byte was written, so the claim is released rather than
+      // billed: this is a reservation, not a charge. The task counters above
+      // stand, because hammering must not be able to reset a window.
+      await this.counters.addBytes(`quota:${subject}:bytes`, -reserveBytes, DAY_SECONDS);
+      return {
+        allowed: false,
+        window: 'bytes',
+        limit: this.limits.bytesPerDay,
+        used: reserved,
+        retryAfterSeconds: DAY_SECONDS,
+        reason: 'Daily upload allowance reached.',
+      };
     }
 
     return { allowed: true, retryAfterSeconds: 0 };
   }
 
   /**
-   * Read-only check, used *before* streaming a large upload so an over-quota
-   * client never sends 500 MB for a job that would be refused anyway. It does
-   * not consume budget; `consume` does that after the bytes land.
+   * Replaces a reservation with the bytes that actually landed. A rejected
+   * request settles at zero, releasing the whole claim.
    */
-  async precheck(subject: string): Promise<QuotaVerdict> {
-    const [perMinute, perDay] = await Promise.all([
-      this.counters.read(`quota:${subject}:m`),
-      this.counters.read(`quota:${subject}:d`),
-    ]);
-    if (perMinute >= this.limits.tasksPerMinute) {
-      return {
-        allowed: false,
-        window: 'minute',
-        limit: this.limits.tasksPerMinute,
-        used: perMinute,
-        retryAfterSeconds: MINUTE_SECONDS,
-        reason: `Rate limit reached: ${this.limits.tasksPerMinute} requests per minute.`,
-      };
-    }
-    if (perDay >= this.limits.tasksPerDay) {
-      return {
-        allowed: false,
-        window: 'day',
-        limit: this.limits.tasksPerDay,
-        used: perDay,
-        retryAfterSeconds: DAY_SECONDS,
-        reason: `Daily limit reached: ${this.limits.tasksPerDay} tasks per day.`,
-      };
-    }
-    return { allowed: true, retryAfterSeconds: 0 };
+  async settleUpload(subject: string, reservedBytes: number, actualBytes: number): Promise<void> {
+    const delta = actualBytes - reservedBytes;
+    if (delta !== 0) await this.counters.addBytes(`quota:${subject}:bytes`, delta, DAY_SECONDS);
   }
 
   /** Read-only variant for `/api/quota` so the UI can show remaining budget. */

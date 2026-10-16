@@ -192,11 +192,14 @@ export function createApp(context: ApiContext): Express {
   app.post('/api/jobs', async (request: Request, response: Response) => {
     const subject = subjectFor(request, context);
 
-    // Refuse before the upload: no point receiving 500 MB for a rejected task.
-    const precheck = await context.quota.precheck(subject);
-    if (!precheck.allowed) {
-      response.setHeader('Retry-After', String(precheck.retryAfterSeconds));
-      response.status(429).json({ error: precheck.reason, code: JOB_ERROR_CODES.quota });
+    // Reserve before the upload: no point receiving 500 MB for a rejected task,
+    // and reserving (rather than merely reading) is what stops parallel uploads
+    // from each streaming to disk before any of them is billed.
+    const ceiling = context.config.quota.maxUploadBytes;
+    const reservation = await context.quota.reserveUpload(subject, ceiling);
+    if (!reservation.allowed) {
+      response.setHeader('Retry-After', String(reservation.retryAfterSeconds));
+      response.status(429).json({ error: reservation.reason, code: JOB_ERROR_CODES.quota });
       return;
     }
 
@@ -205,10 +208,10 @@ export function createApp(context: ApiContext): Express {
     // front meant a request rejected at the content-type check -- which never
     // reached the quota -- left an empty directory tree behind for good.
     const jobId = newJobId();
-    await context.store.prepareJob(jobId);
 
     let upload: Awaited<ReturnType<typeof receiveUpload>>;
     try {
+      await context.store.prepareJob(jobId);
       upload = await receiveUpload(request, context.store, jobId, {
         maxBytes: context.config.quota.maxUploadBytes,
         // Per request, not per file: one anonymous POST must not be able to write
@@ -219,18 +222,19 @@ export function createApp(context: ApiContext): Express {
         magic: PDF_SIGNATURE,
       });
     } catch (error) {
-      await context.store.removeJob(jobId);
+      // Both cleanup operations must be attempted: a storage failure must not
+      // strand the quota reservation, and a quota-store failure must not leave
+      // the temporary job directory behind.
+      await Promise.allSettled([
+        context.store.removeJob(jobId),
+        // Nothing was accepted, so release the claim instead of billing it.
+        context.quota.settleUpload(subject, ceiling, 0),
+      ]);
       throw error;
     }
 
-    // Now that the byte count is known, spend the budget.
-    const verdict = await context.quota.consume(subject, upload.totalBytes);
-    if (!verdict.allowed) {
-      await context.store.removeJob(jobId);
-      response.setHeader('Retry-After', String(verdict.retryAfterSeconds));
-      response.status(429).json({ error: verdict.reason, code: JOB_ERROR_CODES.quota });
-      return;
-    }
+    // Now that the real byte count is known, replace the reservation with it.
+    await context.quota.settleUpload(subject, ceiling, upload.totalBytes);
 
     const fieldOptions = parseOptionsField(upload.fields.options);
     if (fieldOptions.error) {

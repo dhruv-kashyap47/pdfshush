@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 export function CtaSection() {
   return (
     <section className="mx-auto max-w-7xl px-4 pb-14 pt-4 sm:px-6 lg:px-8">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-emerald-700 px-6 py-10 text-center sm:px-10 sm:py-12">
+      <div className="relative overflow-hidden rounded-none bg-primary px-6 py-10 text-center sm:px-10 sm:py-12">
         <div className="mx-auto max-w-2xl text-primary-foreground">
           <h2 className="text-2xl font-bold sm:text-3xl">Try it on your most annoying PDF</h2>
           <p className="mt-2 text-sm opacity-90 sm:text-base">
