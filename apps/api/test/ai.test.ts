@@ -213,6 +213,37 @@ describe('POST /api/ai/chat', () => {
     expect(await counters.read(`ai:${subject}:tok:d`)).toBe(15);
   });
 
+  it('never echoes the managed key when a gateway quotes the request back', async () => {
+    // A provider error embeds part of the response body. If a proxy answers
+    // 401 while quoting the Authorization header, that body carries our key --
+    // and this route streams it to the browser. It must not.
+    const KEY = 'sk-managed-0123456789abcdefghij'; // public-hygiene: fixture
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: { message: `invalid api key: ${KEY}` } }), {
+          status: 401,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const { url } = await harness({ enabled: true, model: 'gpt-4o-mini', apiKey: KEY });
+
+    const response = await httpFetch(url('/api/ai/chat'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ system: 's', messages: [{ role: 'user', text: 'hi' }] }),
+    });
+    // SSE headers open before the provider is called, so the failure is an
+    // event rather than a status code.
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).toContain('event: error');
+    expect(text).toContain('[redacted]');
+    expect(text).not.toContain(KEY);
+    expect(text).not.toContain('sk-managed');
+  });
+
   it('refuses a second concurrent turn for the same subject', async () => {
     let release: (() => void) | undefined;
     const gate = new Promise<void>((resolve) => {

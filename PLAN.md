@@ -54,7 +54,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 and the Phase 1-5 security review + `redactSecrets` hardening (§24).
 **18 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
 `edit-pdf-with-ai` under a new **AI** category) · 8 runnable server-side ·
-**836/836 unit** (189 engine · 131 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
+**837/837 unit** (189 engine · 132 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
 smoke, API up so only the workflow-run steps skip) · **8/8 focused text-edit E2E** · **18/18 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
@@ -517,14 +517,16 @@ never actually wired, and a stream with no error listener.*
   A read-only review of everything shipped through P5 — server (sessions/CSRF, uploads + path safety,
   the sandboxed worker, quota, the managed-AI gateway) and client (the BYOK key path, custom
   endpoints, the agent loop's bounds, the DOM/sink surface) — plus the §9 pre-push grep over every
-  tracked file. **No Critical or High findings.** The one real defect, fixed: `redactSecrets` claimed
-  to scrub "anything bearer-shaped" but only matched `sk-`/`key-`/`token-`, and the one-shot
-  smart-redaction path (`lib/ai/ask.ts`) returned provider errors without calling it at all — a proxy
-  echoing the `Authorization` header could have put a key on screen. It now lives in
-  `packages/ai-provider/src/redact-secrets.ts` (a package, so it finally has unit tests), covers the
-  prefixes this app actually ships plus `Bearer`/`Basic`/`AIza`/`AKIA`/`xox`/JWT shapes, and runs on
-  both error paths. Counts: **836/836 unit** (7 new provider tests; the API count had already risen
-  to 131 with the processor-discovery tests) · **101/101 + 8/8 + 18/18 + 11/11** browser E2E ·
+  tracked file. **No Critical or High findings.** Two real defects, both fixed — one client, one server.
+  `redactSecrets` claimed to scrub "anything bearer-shaped" but only matched `sk-`/`key-`/`token-`, and
+  the one-shot smart-redaction path (`lib/ai/ask.ts`) returned provider errors without calling it at
+  all — a proxy echoing the `Authorization` header could have put a key on screen. The managed gateway
+  (`api/src/ai/routes.ts`) streamed a raw provider error body to the browser, which could likewise
+  carry the *deployment's* key. Both now run the same function, moved to
+  `packages/ai-provider/src/redact-secrets.ts` (a package, so it finally has unit tests); it covers the
+  prefixes this app actually ships plus `Bearer`/`Basic`/`AIza`/`AKIA`/`xox`/JWT shapes. Counts:
+  **837/837 unit** (7 new provider tests and 1 new API test; the API count had already risen to 131
+  with the processor-discovery tests) · **101/101 + 8/8 + 18/18 + 11/11** browser E2E ·
   bundle boundary holds. §1 refreshed (`Last updated`, P4 marked done with P4.4 gated) and §24.4 lays
   out the **P6 (e-sign / public API / MCP)** plan, since P1–P5 are verified end to end.
 
@@ -943,7 +945,7 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (browser app only)
 pnpm typecheck        # strict tsc, all five packages
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (836 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (837 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
@@ -2214,12 +2216,13 @@ A read-only review of everything shipped through P5, split by trust boundary: (a
 sessions/CSRF, uploads + path safety, the sandboxed worker, quota accounting, the managed-AI
 gateway; (b) the client — the BYOK key path, custom-endpoint handling, the agent loop's bounds, and
 the DOM/code-execution sinks. Plus the pre-push grep from §9 over every tracked file (secret patterns,
-machine-path markers, dangerous sinks). **No files were changed to review them; the one fix below is
+machine-path markers, dangerous sinks). **No files were changed to review them; the two fixes below are
 the review's output.**
 
 ### 24.2 Findings
 
-**No Critical or High findings.** The one real defect, now fixed:
+**No Critical or High findings.** Two real defects, both fixed — the same class, one client and one
+server:
 
 - **`redactSecrets` under-delivered its own contract (Medium, fixed).** Its comment promised to scrub
   "anything that looks like a bearer token", but the regex only matched `sk-`/`key-`/`token-` shapes,
@@ -2230,6 +2233,13 @@ the review's output.**
   (`gsk_`/`xai-`/`ci_live_`/`ak-`/`apikey-`), `Bearer`/`Basic` header echoes, and
   `AIza`/`AKIA`/`xox`/compact-JWT shapes, and runs on **both** the streaming and one-shot error paths.
   `packages/ai-provider/test/redact-secrets.test.ts` is the first test this function has ever had.
+- **The managed gateway streamed a raw provider error to the client (Low, fixed).** A provider error
+  embeds up to 500 chars of the response body (`httpBodyDetail`), and `apps/api/src/ai/routes.ts`
+  logged and streamed that message unchanged. A gateway that answers `401` while quoting the request
+  it rejected would have carried the *deployment's* managed key into a browser event (and the log) —
+  the server-side twin of the bug above. It now runs the same `redactSecrets` (the `index.ts` export,
+  so the API reuses one implementation), proven by a test that stubs a key-echoing `401` and asserts
+  the key never appears in the stream while the redaction marker does.
 
 Accepted / by-design (recorded, not "fixed"):
 
@@ -2267,7 +2277,7 @@ P1–P5 are **verified end to end** (§24 gates below), so P6 can open. Sequence
 API and the agent-facing MCP server do not land before the thing they both stand on — the accounts and
 job contract from P3/P4 — is extended, tested, and rate-limited.
 
-**Gate to enter P6 (met 2026-10-16):** 836/836 unit · 101/101 + 8/8 + 18/18 + 11/11 browser E2E ·
+**Gate to enter P6 (met 2026-10-16):** 837/837 unit · 101/101 + 8/8 + 18/18 + 11/11 browser E2E ·
 bundle boundary holds · pre-push grep clean · §24 review with no Critical/High.
 
 - **P6.0 — Decision record (first, nothing built before it).** Signature form (draw/type/upload),

@@ -14,7 +14,7 @@
 import express, { type Express, type Request, type Response } from 'express';
 import { z } from 'zod';
 import type { AgentMessage, AgentToolDef } from '@pdfshush/ai-agent';
-import { streamForProvider, type AiProviderId } from '@pdfshush/ai-provider';
+import { redactSecrets, streamForProvider, type AiProviderId } from '@pdfshush/ai-provider';
 import type { Logger } from '../logger.js';
 import { AiBudgetService, AiConcurrencyGuard } from './budget.js';
 
@@ -167,7 +167,12 @@ export function registerAiRoutes(app: Express, deps: AiRoutesDeps): void {
           );
           stream.send('done', {});
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'The AI request failed.';
+          const raw = error instanceof Error ? error.message : 'The AI request failed.';
+          // A provider error embeds up to 500 chars of the response body
+          // (`httpBodyDetail`), and a proxy that rejects the request can quote
+          // the request back -- Authorization header included. This key is the
+          // deployment's, but it must not reach a client or a log in the clear.
+          const message = redactSecrets(raw, deps.config.apiKey);
           deps.logger.warn({ error: message }, 'managed ai stream failed');
           stream.send('error', { message });
         } finally {

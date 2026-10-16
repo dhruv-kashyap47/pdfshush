@@ -34,7 +34,7 @@ honest "in development" state so links and SEO never churn.
 pnpm install
 pnpm dev              # web app: http://localhost:5173 (every client-side tool + BYOK AI)
 pnpm typecheck        # tsc across all workspace projects
-pnpm test             # vitest unit suite (836 tests)
+pnpm test             # vitest unit suite (837 tests)
 pnpm build            # production web bundle
 ```
 
