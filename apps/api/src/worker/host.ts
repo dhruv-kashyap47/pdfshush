@@ -85,7 +85,16 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
   const processorPath = resolveProcessorPath(options.processorPath);
 
   const connections = createConnections(config.redis.url, logger);
-  const worker = new Worker<JobPayload>(QUEUE_PDF, processorPath, {
+  // BullMQ hands the processor to Node's ESM loader in the forked child, so it
+  // must reach that loader as a URL. A bare Windows path (`C:\...\processor.cjs`)
+  // is handed straight through and the child then rejects it -- "Only URLs with
+  // a scheme in: file, data, and node are supported ... Received protocol 'c:'" --
+  // so every job failed instantly, on Windows only.
+  //
+  // It has to be the URL *object*, not `pathToFileURL(...).href`: BullMQ branches
+  // on `processor instanceof URL` and existsSync's it directly (worker.js), so a
+  // href string falls into the path branch and fails its existence check.
+  const worker = new Worker<JobPayload>(QUEUE_PDF, pathToFileURL(processorPath), {
     connection: connections.queue,
     // Environment allowlist + heap ceiling for the forked child; see
     // `sandboxOptions` and `child-env.ts`.

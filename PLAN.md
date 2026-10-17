@@ -50,14 +50,19 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-17 after the cinematic Greek hero plate (§8, top entry) and a
-desktop-only hero grade pass; the P5 AI port (§23), the gap-closing pass (§23.7), and the
-Phase 1-5 security review + `redactSecrets` hardening (§24) all still hold.
+**Current gate:** re-measured 2026-10-17 after the cinematic Greek hero plate, a desktop-only hero
+grade pass, and the **Windows worker-loader fix** (§8, second entry) — the first run in which the
+browser suite actually reached its server-side workflow steps; the P5 AI port (§23), the gap-closing
+pass (§23.7), and the Phase 1-5 security review + `redactSecrets` hardening (§24) all still hold.
 **18 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
 `edit-pdf-with-ai` under a new **AI** category) · 8 runnable server-side ·
 **881/881 unit** (189 engine · 176 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
-smoke, API up so only the workflow-run steps skip) · **8/8 focused text-edit E2E** · **18/18 AI E2E**
-(chat + highlight apply + in-place replacement + key-handling, local SSE mock) · **11/11 managed AI
+smoke — re-measured 2026-10-17 with the API, Redis and a worker all up, so the workflow-run steps
+now **execute** instead of skipping; see §8's second entry) · **8/8 focused text-edit E2E** ·
+**17/17 AI E2E**
+(chat + highlight apply + in-place replacement + key-handling, local SSE mock; re-measured — 17, not
+the 18 previously recorded, all passing, so the drift came from the §23.6 AI-workspace consolidation
+rather than a lost assertion, but treat 18 as a contract worth confirming) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
 21/21 API integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
@@ -546,6 +551,40 @@ never actually wired, and a stream with no error listener.*
   outliers; it is a diagnostic, **not** a gate. Gates: **881/881 unit** (189 engine · 176 API ·
   364 provider · 152 agent) · `pnpm typecheck` ✅ all five packages · pre-push secret/PII/dangerous-sink
   grep clean, with `.env` and the Google client-secret JSON confirmed untracked **and** gitignored.
+
+- **2026-10-17 — the job worker could not load its own processor on Windows: every server-side job
+  failed instantly.** Found while re-running the browser E2E against the hero commit, and fixed.
+
+  **The bug.** `apps/api/src/worker/host.ts` passed a bare Windows path (`path.resolve(...)` →
+  `C:\...\dist\processor.cjs`) to BullMQ's `Worker`. BullMQ forwards the processor to Node's ESM
+  loader in the forked child, which rejects a `c:` protocol: `Only URLs with a scheme in: file,
+  data, and node are supported ... Received protocol 'c:'`. Every job the server accepted died on
+  arrival. `POST /api/jobs` still returned `202` — the failure only surfaced on the job's own
+  status, which is why this read as a *hang* rather than an error: the workflow run waits on a
+  download that a failed job never produces, so the E2E burned its full 180 s `waitForEvent`.
+
+  **The fix is `pathToFileURL(processorPath)`** — and it has to be the URL **object**, not
+  `.href`. That distinction is the whole trap: BullMQ branches on `processor instanceof URL` and
+  existsSync's it directly (`bullmq/dist/cjs/classes/worker.js`). A `href` string takes the *path*
+  branch, where `fs.existsSync('file:///C:/…')` is false and the worker refuses to start with
+  "File file:///C:/… does not exist". Verified on this machine: `existsSync(path)` true,
+  `existsSync(href)` **false**, `existsSync(new URL(href))` true. So the first attempt at this fix
+  traded one instant failure for a different one.
+
+  **Why it survived so long, and why it is worth reading this entry.** All 18 live tools run
+  client-side in a Web Worker, so the server pipeline is reached only by `test:api` /
+  `test:hardening` (which need Docker + Redis and were, by the admission in §9, only ever
+  compose-validated) and by the workflow section of the browser suite — which **skips itself
+  whenever `/api/tools` is unreachable**. So the bug was masked whenever the API was absent. The
+  `dev` script now starts web *and* API together, which removed the mask: the API answered on the
+  host, the skip stopped firing, and the first genuine server-side execution in the browser suite
+  hit it. A gate that skips on a missing dependency also hides breakage in that dependency — the
+  skip is not evidence the code path works.
+
+  **Verified.** A `merge` job went from instant failure to `completed` with a valid 3-page
+  `alpha-merged.pdf`, and the full browser suite went from 86-then-abort to **101/101** with the
+  previously unreachable step now asserting on bytes: "workflow runs end to end and downloads a
+  PDF — alpha-organized-merged.pdf — 1664 bytes". Gates: typecheck ✅ · 176/176 API unit ✅.
 
 - **2026-10-17 — Redis resilience, diagnostics, and PDFShush wordmark integration.** Redis queue/quota
   connections now use bounded exponential backoff with jitter, credential-redacted targets, deduplicated
@@ -1043,9 +1082,13 @@ honest gaps are closed** (§23). **P6 is open and its P6.9 hardening interlude i
 the §24 Highs' code work and every Medium are closed, with the child filesystem scope accepted by
 design and **H4 (rotate the on-disk credentials) left as the one operator action**. The **next
 build step is P6.0, the e-sign / public-API / MCP decision record** (§24.4), then P6.1 e-sign.
-One live gate limitation: `test:api` and `test:hardening` need a running Redis + Docker stack, so
-the Redis-backed watchdog and the container caps are unit-proven and compose-validated, not yet
-fired against a live daemon. Then append
+One live gate limitation: `test:api` and `test:hardening` need a running Redis + Docker stack. **Since the worker-loader fix
+(§8) this is no longer hypothetical**: the compose `redis` service publishes nothing to the host
+(`ports:` is deliberately absent — api/worker reach it over the compose network), so to run the
+API and a worker on the host you need a *separate* Redis published on 6379, e.g.
+`docker run -d -p 6379:6379 redis:7-alpine`. Then `pnpm --filter @pdfshush/api worker`, and
+`/api/health` should report `"status":"ok"` with a non-zero `workers.count` before trusting any
+server-side E2E. Then append
 a changelog entry and tick §1. Before every
 push run the **pre-push
 grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM blocks, cloud
@@ -1054,6 +1097,11 @@ HTML-injection helpers, dynamic code evaluation, shell exec (`redis.eval` is ior
 with constant scripts — documented inline; `tests/api/hardening.mjs` uses
 `execFileSync` with fixed argv to SIGKILL a container — documented inline). All three
 must come back empty.
+
+**A skipped check is not a passing check.** The workflow section of the browser suite skips itself
+whenever `/api/tools` is unreachable, which is exactly how a broken server pipeline stayed
+invisible until §8's second entry. When a gate self-skips, treat the skipped path as *unverified*,
+not as covered.
 
 **E2E notes.** `tests/support/e2e-util.mjs` holds the shared fixtures (`buildPdf`,
 `extractText`, `waitFor`). The AI scripts run against `tests/support/mock-llm.mjs`; the
