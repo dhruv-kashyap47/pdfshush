@@ -12,6 +12,7 @@ import { createApp } from './http/app.js';
 import { createContext } from './context.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
+import { trustProxyWarning } from './http/trust-proxy.js';
 import { setupAuth } from './auth/setup.js';
 import { createJanitor } from './files/janitor.js';
 import { WorkDirStore } from './files/store.js';
@@ -22,6 +23,10 @@ import { resolveProcessorPath, startWorkerHost } from './worker/host.js';
 async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config);
+
+  // M1: a shared proxy IP silently merges every visitor's quota into one.
+  const proxyNote = trustProxyWarning(config);
+  if (proxyNote) logger.warn(proxyNote);
 
   // Accounts are optional and must never be a boot dependency: if Mongo is
   // unreachable the API still serves every anonymous tool, and /api/auth/*
