@@ -1,4 +1,20 @@
-apps/web/src/components/layout/header.tsx:2:import { Link, useLocation, useNavigate } from 'react-router-dom';
-apps/web/src/components/layout/header.tsx:98:  const location = useLocation();
-apps/web/src/pages/account.tsx:134:        <h1 className="sr-only">Account</h1>
-apps/web/src/pages/account.tsx:172:      <h1 className="sr-only">Account</h1>
+import { CtaSection } from '@/components/landing/cta';
+import { FaqSection } from '@/components/landing/faq';
+import { FeaturesSection } from '@/components/landing/features';
+import { HeroSection } from '@/components/landing/hero';
+import { AllToolsSection, PopularToolsSection } from '@/components/landing/tools-sections';
+import { AiShowcase } from '@/components/landing/ai-showcase';
+
+export function HomePage() {
+  return (
+    <>
+      <HeroSection />
+      <AiShowcase />
+      <PopularToolsSection />
+      <AllToolsSection />
+      <FeaturesSection />
+      <FaqSection />
+      <CtaSection />
+    </>
+  );
+}
