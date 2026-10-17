@@ -15,6 +15,7 @@ import { createContext, jobToken, type ApiContext } from '../src/context.js';
 import { WorkDirStore } from '../src/files/store.js';
 import { MemoryQuotaStore } from '../src/quota/store.js';
 import type { CancelOutcome, JobQueue } from '../src/jobs/queue.js';
+import type { RedisConnectionHealth } from '../src/jobs/redis.js';
 import type { JobPayload, JobStateSnapshot } from '../src/jobs/payload.js';
 import { isCancelRequested } from '../src/jobs/cancel.js';
 
@@ -26,6 +27,8 @@ afterEach(async () => {
 
 class FakeQueue implements JobQueue {
   readonly payloads: JobPayload[] = [];
+  /** Flip to model a Redis command failing while the connection is up. */
+  failCounts = false;
   private readonly states = new Map<string, JobStateSnapshot>();
 
   async enqueue(payload: JobPayload): Promise<string> {
@@ -52,7 +55,12 @@ class FakeQueue implements JobQueue {
   }
 
   async counts() {
+    if (this.failCounts) throw new Error('redis command failed');
     return { waiting: this.payloads.length, active: 0, completed: 0, failed: 0 };
+  }
+
+  async workerCount(): Promise<number> {
+    return 1;
   }
 
   async close(): Promise<void> {}
@@ -63,7 +71,12 @@ class FakeQueue implements JobQueue {
 }
 
 async function harness(
-  overrides: { quotaStore?: MemoryQuotaStore; pepper?: string; maxUploadBytes?: number } = {},
+  overrides: {
+    quotaStore?: MemoryQuotaStore;
+    pepper?: string;
+    maxUploadBytes?: number;
+    redisHealth?: () => RedisConnectionHealth;
+  } = {},
 ) {
   const dir = await mkdtemp(path.join(tmpdir(), 'pdfshush-http-'));
   const store = new WorkDirStore(dir);
@@ -78,6 +91,7 @@ async function harness(
     config: {
       quota: { maxUploadBytes: overrides.maxUploadBytes ?? 5 * 1024 * 1024 },
     } as never,
+    ...(overrides.redisHealth ? { redisHealth: overrides.redisHealth } : {}),
   });
   const app = createApp(context);
   const server: Server = await new Promise((resolve) => {
@@ -137,6 +151,54 @@ describe('GET /api/health', () => {
     expect(body.status).toBe('ok');
     expect(body.queue.waiting).toBe(0);
     expect(body.workDir.bytes).toBe(0);
+  });
+
+  it('degrades without hanging when Redis is unavailable', async () => {
+    const { url } = await harness({
+      redisHealth: () => ({
+        status: 'unavailable',
+        error: 'connect ECONNREFUSED 127.0.0.1:6379',
+      }),
+    });
+    const response = await fetch(url('/api/health'));
+    // The API is still available; only Redis is not.
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      status: string;
+      redis: { status: string; error?: string };
+      queue: { state?: string };
+      workers: { state?: string };
+    };
+    expect(body.status).toBe('degraded');
+    expect(body.redis).toEqual({
+      status: 'unavailable',
+      error: 'connect ECONNREFUSED 127.0.0.1:6379',
+    });
+    // Queue/worker detail is skipped while Redis is down, so the probe answers
+    // immediately instead of waiting on a buffered command.
+    expect(body.queue).toEqual({ state: 'unavailable' });
+    expect(body.workers).toEqual({ state: 'unavailable' });
+  });
+
+  it('reports connected Redis separately from the worker count', async () => {
+    const { url } = await harness({ redisHealth: () => ({ status: 'connected' }) });
+    const body = (await (await fetch(url('/api/health'))).json()) as {
+      status: string;
+      redis: { status: string };
+      workers: { count?: number };
+    };
+    expect(body.status).toBe('ok');
+    expect(body.redis).toEqual({ status: 'connected' });
+    expect(body.workers).toEqual({ count: 1 });
+  });
+
+  it('stays up when the queue read fails', async () => {
+    const { url, queue } = await harness();
+    queue.failCounts = true;
+    const response = await fetch(url('/api/health'));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { queue: { state?: string } };
+    expect(body.queue).toEqual({ state: 'unavailable' });
   });
 });
 

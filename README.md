@@ -54,9 +54,13 @@ pnpm stack:down                     # stop the Docker stack
 
 - **A** needs Docker Desktop running. Compose reads the project-root `.env` for the optional
   accounts (`MONGODB_*`, `GOOGLE_*`) and managed-AI (`AI_MANAGED_*`) settings.
-- **B** needs a Redis on `127.0.0.1:6379` (`docker run -d -p 6379:6379 redis:7-alpine`), plus
+- **B** needs a Redis on `127.0.0.1:6379` (`pnpm redis:up`, which is
+  `docker compose up -d redis`, or `docker run -d -p 6379:6379 redis:7-alpine`), plus
   one `pnpm --filter @pdfshush/api build` so the sandboxed processor bundle exists — the API
   itself still boots and serves tools without either, it just cannot process queued jobs.
+  Without Redis the API logs one actionable `redis unavailable; retrying with bounded backoff`
+  line and reconnects on its own once Redis appears; `/api/health` reports
+  `redis.status: "unavailable"` and `status: "degraded"` for the duration.
   `tsx` does not read `.env`, so accounts and managed AI need those variables exported in
   your shell. Both are optional: anonymous tools and BYOK AI need nothing.
 

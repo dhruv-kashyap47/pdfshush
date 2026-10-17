@@ -84,7 +84,7 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
 
   const processorPath = resolveProcessorPath(options.processorPath);
 
-  const connections = createConnections(config.redis.url);
+  const connections = createConnections(config.redis.url, logger);
   const worker = new Worker<JobPayload>(QUEUE_PDF, processorPath, {
     connection: connections.queue,
     // Environment allowlist + heap ceiling for the forked child; see
@@ -98,8 +98,11 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
   worker.on('failed', (job, error) => {
     logger.warn({ jobId: job?.id, slug: job?.name, error: error.message }, 'job failed');
   });
+  // BullMQ forwards each connection failure here (twice for the blocking and
+  // non-blocking clients). Routing it through the shared reporter collapses the
+  // duplicates and keeps the raw error out of `console.error`.
   worker.on('error', (error) => {
-    logger.error({ error: error.message }, 'worker error');
+    connections.report('worker', error);
   });
   worker.on('stalled', (jobId) => {
     logger.warn({ jobId }, 'job stalled -- reclaimed');
@@ -109,6 +112,7 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
   // itself. This lightweight view shares the worker's IORedis connection and is
   // only used to answer the janitor's liveness question.
   const stateView = new Queue<JobPayload>(QUEUE_PDF, { connection: connections.queue });
+  stateView.on('error', (error) => connections.report('worker-state', error));
 
   // The worker also sweeps: whichever process is alive can clean up after the
   // other one being killed.
@@ -165,6 +169,10 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
       concurrency: config.workerConcurrency,
       processorPath,
       workDir: store.root,
+      // The broker is named so a misconfigured REDIS_URL is visible at boot;
+      // the connection module logs "redis connected" / "redis unavailable"
+      // as soon as the first connection attempt resolves.
+      redis: connections.target,
     },
     'worker host ready',
   );

@@ -21,6 +21,7 @@ import type { QuotaCounter } from './quota/quota.js';
 import type { AuthStore } from './auth/store.js';
 import type { AccountStore } from './account/store.js';
 import type { GoogleOidc } from './auth/google.js';
+import type { RedisConnectionHealth } from './jobs/redis.js';
 
 /** Accounts and sessions, present only when the deployment is configured for them. */
 export interface AuthServices {
@@ -45,6 +46,12 @@ export interface ApiContext {
   counters: QuotaCounter;
   /** Secret for hashing subjects and deriving job tokens. */
   pepper: string;
+  /**
+   * Live Redis connection state for `/api/health`. Absent when the context is
+   * built with an in-memory queue double, where the queue itself is the only
+   * signal and there is nothing to distinguish.
+   */
+  redisHealth?: () => RedisConnectionHealth;
   /**
    * Undefined means anonymous-only: no Mongo, no Google credentials, and every
    * auth route answers 503 while every tool keeps working.
@@ -96,6 +103,7 @@ export interface ContextOverrides {
   queue: JobQueue;
   quotaStore: QuotaStore;
   pepper?: string;
+  redisHealth?: () => RedisConnectionHealth;
   auth?: AuthServices;
 }
 
@@ -116,6 +124,7 @@ export function createContext(overrides: ContextOverrides): ApiContext {
     quota: new QuotaService(overrides.quotaStore as QuotaCounter, config.quota),
     counters: overrides.quotaStore as QuotaCounter,
     pepper: overrides.pepper ?? resolvePepper(config),
+    ...(overrides.redisHealth ? { redisHealth: overrides.redisHealth } : {}),
     ...(overrides.auth ? { auth: overrides.auth } : {}),
   };
 }

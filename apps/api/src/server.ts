@@ -39,17 +39,18 @@ async function main(): Promise<void> {
     return undefined;
   });
 
-  const connections = createConnections(config.redis.url);
+  const connections = createConnections(config.redis.url, logger);
   const store = new WorkDirStore(config.workDir);
   await store.init();
 
-  const queue = new BullJobQueue(connections.queue, store);
+  const queue = new BullJobQueue(connections.queue, store, connections.report);
   const context = createContext({
     config,
     logger,
     store,
     queue,
     quotaStore: new RedisQuotaStore(connections.client),
+    redisHealth: () => connections.health(),
     ...(auth ? { auth } : {}),
   });
 
@@ -74,7 +75,15 @@ async function main(): Promise<void> {
   const app = createApp(context);
   const server = app.listen(config.http.port, config.http.host, () => {
     context.logger.info(
-      { host: config.http.host, port: config.http.port, env: config.env },
+      {
+        host: config.http.host,
+        port: config.http.port,
+        env: config.env,
+        // The broker is named so a misconfigured REDIS_URL is obvious at boot;
+        // the connection module logs "redis connected" or "redis unavailable"
+        // as soon as the first connection attempt resolves.
+        redis: connections.target,
+      },
       'api listening',
     );
   });

@@ -514,6 +514,17 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-17 — Redis resilience, diagnostics, and PDFShush wordmark integration.** Redis queue/quota
+  connections now use bounded exponential backoff with jitter, credential-redacted targets, deduplicated
+  structured failure logs, and non-blocking connection health. `/api/health` has a 2-second timeout around
+  queue/worker probes and reports Redis, queue, worker, and work-directory state separately, so a broker
+  outage cannot hang the health endpoint. Added focused Redis diagnostics and health-route tests. A
+  security pass found no tracked credentials or new shell/eval/DOM sinks; the existing on-disk credential
+  rotation action remains open under H4 (§24.2). The supplied monochrome `pdfshush` wordmark now powers
+  the shared header, mobile header, and footer logo component; the existing palette and favicon remain
+  unchanged. Verification is limited where the local pnpm signature could not be verified; see the release
+  note for the exact commands and results.
+
 - **2026-10-17 — P6.9 hardening interlude: the §24 Highs and Mediums are closed.** See §24.2/§24.4.
 
   **H1** — the job child's environment is now an **allowlist** (`apps/api/src/worker/child-env.ts`),

@@ -38,6 +38,13 @@ import {
 import { UnsafePathError, safeJobId } from '../files/paths.js';
 import { requestCancel } from '../jobs/cancel.js';
 
+/**
+ * Bounds the queue/work-dir reads behind `/api/health`. A disconnected BullMQ
+ * client buffers commands forever, so an unbounded probe would hang the very
+ * endpoint that is supposed to report the outage.
+ */
+const HEALTH_TIMEOUT_MS = 2_000;
+
 export function createApp(context: ApiContext): Express {
   const app = express();
 
@@ -133,13 +140,27 @@ export function createApp(context: ApiContext): Express {
   const measureUsage = async () => context.store.usage().catch(() => ({ jobDirs: 0, bytes: 0 }));
 
   app.get('/api/health', async (_request: Request, response: Response) => {
-    const [counts, usage] = await Promise.all([
-      context.queue.counts().catch(() => undefined),
+    // Redis reachability is read synchronously from the connection state. Only
+    // when it is not known to be down do we ask the queue for counts -- a
+    // buffered BullMQ command on a disconnected client never settles, and the
+    // probe must always answer.
+    const redis = context.redisHealth?.() ?? { status: 'unknown' as const };
+    const reachable = redis.status !== 'unavailable';
+    const [counts, usage, workers] = await Promise.all([
+      reachable ? withTimeout(context.queue.counts(), HEALTH_TIMEOUT_MS) : Promise.resolve(undefined),
       measureUsage(),
+      reachable && context.queue.workerCount
+        ? withTimeout(context.queue.workerCount(), HEALTH_TIMEOUT_MS)
+        : Promise.resolve(undefined),
     ]);
     response.json({
-      status: 'ok',
+      // `status` reports the API + Redis path only; a missing worker is
+      // reported under `workers` so "the API is up but nothing is consuming
+      // the queue" is visible without looking like an API outage.
+      status: redis.status === 'unavailable' ? 'degraded' : 'ok',
+      redis,
       queue: counts ?? { state: 'unavailable' },
+      workers: typeof workers === 'number' ? { count: workers } : { state: 'unavailable' },
       workDir: { jobDirs: usage.jobDirs, bytes: usage.bytes },
       // Published because "why was my result gone?" is otherwise unanswerable,
       // and because a deployment that silently kept the defaults is invisible.
@@ -392,6 +413,29 @@ export function createApp(context: ApiContext): Express {
 }
 
 /* ----------------------------------------------------------------- helpers */
+
+/**
+ * Resolves to `undefined` if `promise` has not settled within `ms`, or if it
+ * rejects. The health route reports Redis and queue state separately, so a
+ * failing read degrades the detail rather than the response. The abandoned
+ * promise keeps its own rejection handler attached by `Promise.race`, so a late
+ * failure cannot surface as an unhandled rejection.
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race<T | undefined>([
+      promise,
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), ms);
+      }),
+    ]);
+  } catch {
+    return undefined;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 interface Auth {
   jobId: string;

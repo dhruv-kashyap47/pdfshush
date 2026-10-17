@@ -22,7 +22,8 @@
     "test:api": "node tests/api/smoke.mjs",
     "test:hardening": "node tests/api/hardening.mjs",
     "stack:up": "docker compose up -d --build",
-    "stack:down": "docker compose down"
+    "stack:down": "docker compose down",
+    "redis:up": "docker compose up -d redis"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

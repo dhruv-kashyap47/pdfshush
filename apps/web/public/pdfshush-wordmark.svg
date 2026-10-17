@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">pdfshush</title>
+  <desc id="desc">Minimal black-and-white pdfshush wordmark with a four-point sparkle.</desc>
+  <rect width="1200" height="320" fill="#fff"/>
+  <g fill="#080808">
+    <text x="105" y="205" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="142" font-weight="300" letter-spacing="-7">pdf</text>
+    <text x="306" y="205" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="142" font-weight="750" letter-spacing="-7">shush</text>
+    <path d="M1012 76 C1017 94 1024 101 1042 106 C1024 111 1017 118 1012 136 C1007 118 1000 111 982 106 C1000 101 1007 94 1012 76 Z"/>
+  </g>
+</svg>

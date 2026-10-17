@@ -11,23 +11,63 @@ import { Queue, type Job, type JobsOptions } from 'bullmq';
 import IORedis, { type Redis } from 'ioredis';
 import { QUEUE_PDF, parseFailure, type JobPayload, type JobStateSnapshot } from './payload.js';
 import { WorkDirStore } from '../files/store.js';
+import type { Logger } from '../logger.js';
+import {
+  attachRedisDiagnostics,
+  boundedRetryStrategy,
+  redactRedisUrl,
+  redisHealth,
+  reportRedisConnectionError,
+  type RedisConnectionHealth,
+} from './redis.js';
 
 export interface QueueConnectionOptions {
   url: string;
+  /** Credential-free URL, for logs and health output. */
+  target: string;
   /** BullMQ connection: blocking commands must not be retried locally. */
   queue: Redis;
   client: Redis;
+  /** Non-blocking view of whether Redis is reachable, for `/api/health`. */
+  health(): RedisConnectionHealth;
+  /** Routes a connection failure through the shared, deduped reporter. */
+  report(role: string, error: unknown): void;
   close(): Promise<void>;
 }
 
-export function createConnections(url: string): QueueConnectionOptions {
-  const shared = { maxRetriesPerRequest: null, enableReadyCheck: true } as const;
-  const queue = new IORedis(url, shared);
-  const client = new IORedis(url, { maxRetriesPerRequest: 3 });
+export function createConnections(url: string, logger: Logger): QueueConnectionOptions {
+  const target = redactRedisUrl(url);
+  // Bounded exponential backoff instead of ioredis's fixed 2s cadence: a long
+  // outage should not hammer the broker (or the log) at a constant rate, and
+  // jitter keeps restarted replicas from reconnecting in lockstep.
+  const backoff = boundedRetryStrategy();
+
+  // BullMQ's blocking commands must be allowed to wait (`maxRetriesPerRequest:
+  // null`); the quota client stays bounded so a counter outage fails fast
+  // rather than hanging a request.
+  const queue = new IORedis(url, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: true,
+    retryStrategy: backoff,
+  });
+  const client = new IORedis(url, {
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: true,
+    retryStrategy: backoff,
+  });
+  attachRedisDiagnostics(queue, { logger, role: 'queue', target });
+  attachRedisDiagnostics(client, { logger, role: 'quota', target });
+
+  const report = (role: string, error: unknown) =>
+    reportRedisConnectionError({ logger, role, target }, error);
+
   return {
     url,
+    target,
     queue,
     client,
+    health: () => redisHealth([queue, client]),
+    report,
     async close() {
       await Promise.allSettled([queue.quit(), client.quit()]);
     },
@@ -58,6 +98,8 @@ export interface JobQueue {
   state(jobId: string): Promise<JobStateSnapshot | undefined>;
   cancel(jobId: string): Promise<CancelOutcome>;
   counts(): Promise<{ waiting: number; active: number; completed: number; failed: number }>;
+  /** How many BullMQ workers are attached to the queue. Absent on test doubles. */
+  workerCount?(): Promise<number>;
   close(): Promise<void>;
 }
 
@@ -67,6 +109,7 @@ export class BullJobQueue implements JobQueue {
   constructor(
     connection: Redis,
     private readonly store: WorkDirStore,
+    onError?: (role: string, error: unknown) => void,
   ) {
     this.queue = new Queue<JobPayload>(QUEUE_PDF, {
       connection,
@@ -79,6 +122,11 @@ export class BullJobQueue implements JobQueue {
         removeOnFail: { age: 86_400, count: 200 },
       },
     });
+    // BullMQ re-emits a connection failure on the Queue; with no listener it
+    // prints the raw error object to stderr via `QueueBase.emit`. Routing it
+    // through the shared reporter keeps every Redis failure structured and
+    // deduped, and attaching the listener is itself what stops the fallback.
+    this.queue.on('error', (error) => onError?.('queue', error));
   }
 
   async enqueue(payload: JobPayload, opts?: JobsOptions): Promise<string> {
@@ -119,6 +167,10 @@ export class BullJobQueue implements JobQueue {
       completed: counts.completed ?? 0,
       failed: counts.failed ?? 0,
     };
+  }
+
+  async workerCount(): Promise<number> {
+    return this.queue.getWorkersCount();
   }
 
   async close(): Promise<void> {
