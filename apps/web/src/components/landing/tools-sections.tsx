@@ -9,9 +9,9 @@ export function PopularToolsSection() {
   const tools = popularTools();
 
   return (
-    <section className="border-b border-border/60 bg-muted/10 py-16 sm:py-20">
+    <section className="border-b border-border/60 bg-muted/10 py-16 sm:py-20 dark:bg-[oklch(0.04_0_0)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end" data-reveal>
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Core Utility Fleet
@@ -32,7 +32,7 @@ export function PopularToolsSection() {
           </a>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" data-reveal data-reveal-delay="100">
           {tools.map((tool) => (
             <ToolCard key={tool.slug} tool={tool} compact />
           ))}
@@ -92,7 +92,7 @@ export function AllToolsSection() {
   return (
     <section id="all-tools" className="border-b border-border/60 bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between" data-reveal>
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Complete Catalog

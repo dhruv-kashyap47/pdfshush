@@ -79,36 +79,38 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  /* True black canvas — not near-black, actual black for premium depth */
+  --background: oklch(0 0 0);
+  --foreground: oklch(0.97 0 0);
+  /* Cards sit one visible step above the black ground */
+  --card: oklch(0.11 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.13 0 0);
+  --popover-foreground: oklch(0.97 0 0);
   --primary: oklch(0.7 0.17 152);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.09 0 0);
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.62 0 0);
+  --accent: oklch(0.18 0 0);
+  --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.7 0.17 152);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.11 0 0);
+  --sidebar-foreground: oklch(0.97 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-primary-foreground: oklch(0.97 0 0);
+  --sidebar-accent: oklch(0.18 0 0);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.556 0 0);
 }
 
@@ -150,73 +152,190 @@
   }
 }
 
-/* Smooth scrolling for the entire page */
+/* ─── Smooth scroll ──────────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
 }
 
-/* Logo carousel animation */
+/* ─── Logo carousel ──────────────────────────────────────────────────────── */
 @keyframes logo-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-144rem); /* 12 items * 12rem = 144rem */
-  }
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-144rem); }
 }
+.animate-logo-scroll { animation: logo-scroll 30s linear infinite; }
+.animate-logo-scroll:hover { animation-play-state: paused; }
 
-.animate-logo-scroll {
-  animation: logo-scroll 30s linear infinite;
-}
-
-.animate-logo-scroll:hover {
-  animation-play-state: paused;
-}
-
-/* Minimalist refined micro-animations for landing and interactive UI */
+/* ─── Legacy convenience classes (kept for existing usage) ──────────────── */
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-
 @keyframes pulseGently {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.65;
-    transform: scale(0.92);
-  }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.65; transform: scale(0.92); }
+}
+.animate-fade-in-up    { animation: fadeInUp 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in       { animation: fadeIn 200ms ease-out both; }
+.animate-pulse-gently  { animation: pulseGently 2.4s ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREMIUM ANIMATION SYSTEM
+   All motion: transform + opacity only. Hardware-accelerated.
+   Every rule has a prefers-reduced-motion fallback at the bottom.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Scroll-Reveal (IntersectionObserver → data-revealed) ─────────────
+   Elements start invisible + shifted down 28 px.
+   Once the observer adds `data-revealed`, they transition to full opacity + 0
+   offset. Delays are set inline via style.transitionDelay by use-reveal.ts.   */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+[data-reveal][data-revealed] {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Variant: slide-in from the left */
+[data-reveal="left"] {
+  transform: translateX(-32px);
+}
+[data-reveal="left"][data-revealed] {
+  transform: translateX(0);
+}
+/* Variant: scale up from slightly smaller */
+[data-reveal="scale"] {
+  transform: scale(0.94);
+}
+[data-reveal="scale"][data-revealed] {
+  transform: scale(1);
 }
 
-.animate-fade-in-up {
-  animation: fadeInUp 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+/* ── 2. Hero section entrance stagger ───────────────────────────────────── */
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-stagger-1 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both; }
+.hero-stagger-2 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both; }
+.hero-stagger-3 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.30s both; }
+.hero-stagger-4 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.42s both; }
+.hero-stagger-5 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.54s both; }
+
+/* ── 3. Floating sparkle — logo sparkle ambient drift ───────────────────── */
+@keyframes floatSpark {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33%       { transform: translateY(-4px) rotate(6deg); }
+  66%       { transform: translateY(2px) rotate(-4deg); }
+}
+.animate-float-spark { animation: floatSpark 5s ease-in-out infinite; }
+
+/* ── 4. Shimmer line — hero accent underline ────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--primary) 0%,
+    oklch(0.85 0.15 152) 40%,
+    var(--primary) 70%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3.5s linear infinite;
 }
 
-.animate-fade-in {
-  animation: fadeIn 200ms ease-out both;
+/* ── 5. Ambient dot grid pulse (hero background texture) ────────────────── */
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.55; }
+}
+.hero-dot-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle,
+    oklch(0 0 0 / 12%) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+  animation: dotPulse 6s ease-in-out infinite;
+}
+.dark .hero-dot-grid {
+  background-image: radial-gradient(
+    circle,
+    oklch(1 0 0 / 8%) 1px,
+    transparent 1px
+  );
 }
 
-.animate-pulse-gently {
-  animation: pulseGently 2.4s ease-in-out infinite;
+/* ── 6. Ambient line sweep — section divider accent ─────────────────────── */
+@keyframes lineSweep {
+  0%   { transform: scaleX(0); opacity: 0; }
+  40%  { opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0.6; }
+}
+.animate-line-sweep {
+  transform-origin: left center;
+  animation: lineSweep 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
 }
 
+/* ── 7. Card hover lift (supplements existing Tailwind hover) ───────────── */
+.card-lift {
+  transition:
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+.card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 8%);
+}
+.dark .card-lift:hover {
+  box-shadow: 0 8px 32px oklch(0 0 0 / 55%);
+}
+
+/* ── 8. Number counter bounce ───────────────────────────────────────────── */
+@keyframes countBounce {
+  0%   { transform: scale(0.8); opacity: 0; }
+  60%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-count-bounce { animation: countBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* ── 9. Emerald glow ring (primary CTA button) ──────────────────────────── */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.7 0.17 152 / 0%); }
+  50%       { box-shadow: 0 0 0 6px oklch(0.7 0.17 152 / 18%); }
+}
+.btn-glow { animation: glowPulse 2.8s ease-in-out infinite; }
+
+/* ── 10. Section background alternation for depth in dark mode ──────────── */
+/* Applied via Tailwind classes in components; these helpers supplement them  */
+.dark .section-alt {
+  background-color: oklch(0.07 0 0);
+}
+.dark .section-base {
+  background-color: oklch(0 0 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDUCED MOTION — full fallback
+   All moving things freeze gracefully; content remains visible.
+   ═══════════════════════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
@@ -224,5 +343,10 @@ html {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  /* Ensure scroll-reveal elements are visible even without animation */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
-

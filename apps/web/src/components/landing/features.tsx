@@ -70,10 +70,10 @@ const COMPARISON_ROWS = [
 
 export function FeaturesSection() {
   return (
-    <section className="border-b border-border/60 bg-muted/15 py-16 sm:py-24">
+    <section className="border-b border-border/60 bg-muted/15 py-16 sm:py-24 dark:bg-[oklch(0.05_0_0)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Intro */}
-        <div className="max-w-3xl">
+        <div className="max-w-3xl" data-reveal>
           <Badge variant="secondary" className="rounded-md font-mono text-[11px] uppercase tracking-wider">
             Architecture Blueprint
           </Badge>
@@ -88,10 +88,15 @@ export function FeaturesSection() {
 
         {/* 6 Technical Pillars Grid */}
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {ARCHITECTURE_PILLARS.map((pillar) => {
+          {ARCHITECTURE_PILLARS.map((pillar, i) => {
             const Icon = pillar.icon;
             return (
-              <Card key={pillar.title} className="border-border/80 bg-card shadow-2xs transition-all hover:border-border">
+              <Card
+                key={pillar.title}
+                className="card-lift border-border/80 bg-card shadow-2xs"
+                data-reveal
+                data-reveal-delay={i * 70}
+              >
                 <CardContent className="p-6">
                   <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Icon className="h-5 w-5" />
@@ -105,7 +110,7 @@ export function FeaturesSection() {
         </div>
 
         {/* Side-by-Side Comparison Matrix */}
-        <div className="mt-14 overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs">
+        <div className="mt-14 overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs" data-reveal data-reveal-delay="100">
           <div className="border-b border-border/60 bg-muted/30 px-6 py-4">
             <h3 className="text-sm font-semibold text-foreground">
               Technical Comparison: Traditional Cloud Tools vs. PDFShush

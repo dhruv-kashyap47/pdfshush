@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Clock, LogOut, Menu, Search, User } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { ModeToggle } from '@/components/mode-toggle';
@@ -95,13 +95,14 @@ export function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const recent = useRecent();
   // Surfaces a failed sign-in once and strips the query, so a refresh does not
   // re-toast a message the user already read.
   useAuthRedirectNotice();
 
   // Close the mega panel on route change or Escape.
-  useEffect(() => setMegaOpen(false), [navigate]);
+  useEffect(() => setMegaOpen(false), [location.pathname, location.search, location.hash]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMegaOpen(false);

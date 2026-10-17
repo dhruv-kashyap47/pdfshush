@@ -4,11 +4,12 @@ interface LogoProps {
 
 export function Logo({ className }: LogoProps) {
   return (
-    <span className={`flex items-center ${className ?? ''}`}>
+    <span className={`flex items-center select-none ${className ?? ''}`}>
       <img
         src="/pdfshush-wordmark.svg"
-        alt=""
-        className="h-8 w-auto mix-blend-multiply dark:mix-blend-screen dark:invert"
+        alt="pdfshush"
+        className="h-8 w-auto dark:invert"
+        draggable={false}
       />
     </span>
   );

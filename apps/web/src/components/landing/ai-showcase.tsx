@@ -140,7 +140,7 @@ export function AiShowcase() {
     <section id="ai-studio" className="border-b border-border/60 bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="max-w-3xl">
+        <div className="max-w-3xl" data-reveal>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="rounded-md font-mono text-[11px] uppercase tracking-wider">
               Document Intelligence Layer
@@ -155,7 +155,13 @@ export function AiShowcase() {
         </div>
 
         {/* Studio Tab Bar */}
-        <div className="mt-10 flex flex-wrap gap-2 border-b border-border/80 pb-3" role="tablist" aria-label="AI capabilities">
+        <div
+          className="mt-10 flex flex-wrap gap-2 border-b border-border/80 pb-3"
+          role="tablist"
+          aria-label="AI capabilities"
+          data-reveal
+          data-reveal-delay="80"
+        >
           {MODES.map((mode, index) => {
             const isActive = index === activeTab;
             return (
@@ -185,9 +191,9 @@ export function AiShowcase() {
         </div>
 
         {/* Interactive Studio Console */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-stretch">
+        <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-stretch" data-reveal data-reveal-delay="160">
           {/* Left Column: Simulated Document Canvas */}
-          <div className="flex flex-col rounded-xl border border-border/80 bg-muted/15 p-5 lg:col-span-6">
+          <div className="flex flex-col rounded-xl border border-border/80 bg-muted/15 p-5 lg:col-span-6 dark:bg-card/60">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <FileText className="h-4 w-4 text-primary" />

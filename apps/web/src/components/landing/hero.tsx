@@ -53,10 +53,21 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative border-b border-border/60 bg-gradient-to-b from-background via-background to-muted/20 pb-16 pt-12 sm:pb-24 sm:pt-20">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <section className="relative overflow-hidden border-b border-border/60 bg-background pb-16 pt-12 sm:pb-24 sm:pt-20">
+      {/* Ambient dot-grid texture — pulses gently in both modes */}
+      <div className="hero-dot-grid" aria-hidden="true" />
+
+      {/* Subtle radial glow — emerald in dark, barely visible in light */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      >
+        <div className="h-[500px] w-[900px] rounded-full bg-primary/5 blur-[120px] dark:bg-primary/8" />
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Architectural status badge */}
-        <div className="mb-6 flex flex-wrap items-center gap-2.5">
+        <div className="hero-stagger-1 mb-6 flex flex-wrap items-center gap-2.5">
           <Badge
             variant="outline"
             className="gap-1.5 rounded-full border-border/80 bg-background/80 px-3 py-1 font-mono text-[11px] font-medium tracking-tight backdrop-blur-sm"
@@ -76,17 +87,21 @@ export function HeroSection() {
         {/* Headline block */}
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12 lg:items-start">
           <div className="lg:col-span-7">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.08]">
+            <h1 className="hero-stagger-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.08]">
               Private PDF tools and local document intelligence.
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="hero-stagger-3 mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
               Question, edit, merge and redact documents directly in your browser. Our AI model
               analyzes text and cites every source page, while your file never leaves this machine.
             </p>
 
             {/* Instant Action Bar */}
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button size="lg" className="h-11 rounded-md px-5 text-sm font-semibold shadow-xs" asChild>
+            <div className="hero-stagger-4 mt-8 flex flex-wrap items-center gap-3">
+              <Button
+                size="lg"
+                className="btn-glow h-11 rounded-md px-5 text-sm font-semibold shadow-xs"
+                asChild
+              >
                 <Link to="/tools/chat-with-pdf">
                   <Bot className="mr-2 h-4 w-4" />
                   Talk to a PDF
@@ -107,7 +122,7 @@ export function HeroSection() {
             </div>
 
             {/* Quick access chips */}
-            <div className="mt-6 flex flex-wrap items-center gap-2 pt-2 text-xs text-muted-foreground">
+            <div className="hero-stagger-5 mt-6 flex flex-wrap items-center gap-2 pt-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Quick utility launch:</span>
               {QUICK_CORE_TOOLS.map((item) => (
                 <Link
@@ -122,7 +137,7 @@ export function HeroSection() {
           </div>
 
           {/* Right Column: Direct Drop & Command Interface */}
-          <div className="lg:col-span-5">
+          <div className="hero-stagger-3 lg:col-span-5">
             <div
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
@@ -131,7 +146,7 @@ export function HeroSection() {
               className={`relative overflow-hidden rounded-xl border bg-card p-6 shadow-xs transition-all ${
                 dragActive
                   ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
-                  : 'border-border/80 hover:border-border'
+                  : 'border-border/80 hover:border-border dark:hover:border-border/60'
               }`}
             >
               <input
@@ -291,45 +306,28 @@ export function HeroSection() {
 
         {/* 4 Architectural Pillars / Telemetry Bar */}
         <div className="mt-14 grid grid-cols-2 gap-3 border-t border-border/70 pt-8 sm:grid-cols-4 sm:gap-6">
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-foreground">
-              <Cpu className="h-4 w-4 text-primary" />
-              <span>100% Client-Side</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              PDFium WebAssembly parses and renders files in sandboxed Web Workers.
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-foreground">
-              <Lock className="h-4 w-4 text-primary" />
-              <span>Private BYOK</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Bring your own API key. Keys remain in browser IndexedDB and never leave this device.
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-foreground">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              <span>Verifiable Output</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Redactions destroy underlying pixels and strip the text layer with automated verification.
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-foreground">
-              <Zap className="h-4 w-4 text-primary" />
-              <span>Zero Toll Gates</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              No artificial page limits, watermarks or mandatory sign-ups for browser processing.
-            </p>
-          </div>
+          {[
+            { icon: Cpu, label: '100% Client-Side', desc: 'PDFium WebAssembly parses and renders files in sandboxed Web Workers.' },
+            { icon: Lock, label: 'Private BYOK', desc: 'Bring your own API key. Keys remain in browser IndexedDB and never leave this device.' },
+            { icon: CheckCircle2, label: 'Verifiable Output', desc: 'Redactions destroy underlying pixels and strip the text layer with automated verification.' },
+            { icon: Zap, label: 'Zero Toll Gates', desc: 'No artificial page limits, watermarks or mandatory sign-ups for browser processing.' },
+          ].map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.label}
+                data-reveal
+                data-reveal-delay={i * 80}
+                className="space-y-1"
+              >
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-foreground">
+                  <Icon className="h-4 w-4 text-primary" />
+                  <span>{item.label}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{item.desc}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

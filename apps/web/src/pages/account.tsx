@@ -131,6 +131,7 @@ export function AccountPage() {
   if (!account) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+        <h1 className="sr-only">Account</h1>
         <Card>
           <CardHeader>
             <CardTitle>Accounts are optional</CardTitle>
@@ -168,6 +169,7 @@ export function AccountPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-12 sm:px-6">
+      <h1 className="sr-only">Account</h1>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-3">
