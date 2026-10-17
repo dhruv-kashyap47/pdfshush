@@ -3,6 +3,8 @@ dist/
 build/
 coverage/
 .vite/
+# A store directory created when pnpm is run inside the repo; runtime cache, not source.
+.pnpm-store/
 *.tsbuildinfo
 .env
 .env.local
