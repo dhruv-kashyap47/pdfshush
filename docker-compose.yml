@@ -26,6 +26,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    # Backstop for the broker's own 256 MB `maxmemory`: `noeviction` means Redis
+    # starts refusing writes once it is full, and this makes sure a bug that
+    # ignores that cannot page the host instead.
+    mem_limit: 512m
+    cpus: "1"
     restart: unless-stopped
 
   api:
@@ -59,6 +64,11 @@ services:
       # (localhost is a trustworthy origin), so the secure default holds locally.
       # Set SESSION_COOKIE_SECURE=false only if a browser refuses the cookie.
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      # Trusted proxy hops in front of the API (M1, §24.2). Empty = trust none,
+      # which is right when the API is reached directly; behind a load balancer
+      # set it to the hop count, or every client collapses onto the proxy's quota
+      # identity (the API logs a boot warning if this is left empty in production).
+      TRUST_PROXY: ${TRUST_PROXY:-}
       # Managed AI (Phase 5). The four strings are safe to pass empty: `ai.enabled`
       # is decided by a truthy model *and* key, so a deployment with neither boots
       # BYOK-only, exactly as before. The budget numbers are deliberately NOT
@@ -84,6 +94,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # The API produces jobs and sweeps TTLs; PDF work happens only in the worker
+    # (`EMBEDDED_WORKER: "false"`), so its own footprint is small and a tight
+    # ceiling is honest. One CPU is enough for an I/O-bound JSON/files surface.
+    mem_limit: 1g
+    cpus: "1"
     restart: unless-stopped
 
   worker:
@@ -127,6 +142,16 @@ services:
       retries: 3
     # The hardening gate kills this container mid-job on purpose; the volume and
     # the queue must survive it.
+    #
+    # H3: bound what the queue can consume. Admission control (`estimate()`)
+    # rejects a job whose working set exceeds `LIMITS.job.maxWorkingSetBytes`,
+    # and each child heap is capped by `--max-old-space-size`; this ceiling is
+    # the last line, so a document that under-estimates itself (or two at once)
+    # is OOM-killed by the kernel instead of starving the host. Arithmetic:
+    # `WORKER_CONCURRENCY` 2 x a 2 GB heap cap is 4 GB, plus the parent host and
+    # pdf.js's off-heap buffers, so 5 GB leaves a little room and no more.
+    mem_limit: 5g
+    cpus: "2"
     restart: unless-stopped
 
 volumes:
