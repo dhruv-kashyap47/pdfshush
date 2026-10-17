@@ -78,7 +78,7 @@ function PlannedNotice({ tool }: { tool: ToolDef }) {
           <div className="flex-1">
             <h2 className="font-semibold">In development</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              <strong>{tool.name}</strong> is on the roadmap but not wired up yet — this page is
+              <strong>{tool.name}</strong> is on the roadmap but not wired up yet; this page is
               already its permanent home, so nothing needs to change when it ships. The tools
               below are fully working today, and they run on the same engine this one will use.
             </p>
@@ -86,7 +86,7 @@ function PlannedNotice({ tool }: { tool: ToolDef }) {
               <Button
                 size="sm"
                 onClick={() =>
-                  toast.success('We will not email you — we have no account system yet. Check back soon!')
+                  toast.success('We will not email you: we have no account system yet. Check back soon!')
                 }
               >
                 <Sparkles className="mr-1.5 h-3.5 w-3.5" />

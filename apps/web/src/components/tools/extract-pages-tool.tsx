@@ -72,7 +72,7 @@ export function ExtractPagesTool() {
     const doc = outcome.result.documents[0];
     if (!doc) return;
     if (doc.encrypted) {
-      toast.error('That PDF is password protected — unlock it first.');
+      toast.error('That PDF is password protected: unlock it first.');
       return;
     }
     // Second capacity pass: the byte check above cannot see the page count, and
@@ -178,7 +178,7 @@ export function ExtractPagesTool() {
             <Label htmlFor="extract-range">Pages to extract</Label>
             <Input
               id="extract-range"
-              placeholder={`e.g. 1-3, 7 — or leave empty for all ${pageCount}`}
+              placeholder={`e.g. 1-3, 7 (or leave empty for all ${pageCount})`}
               value={rangeText}
               onChange={(event) => {
                 setRangeText(event.target.value);

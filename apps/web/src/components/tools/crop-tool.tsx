@@ -136,7 +136,7 @@ export function CropTool() {
           setPageCount(0);
           setMargins(DEFAULT_MARGINS);
         }}
-        footerNote="The crop hides what is outside the rectangle — it never re-renders, so text stays vector."
+        footerNote="The crop hides what is outside the rectangle; it never re-renders, so text stays vector."
       />
     );
   }
@@ -162,7 +162,7 @@ export function CropTool() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="rounded-xl border border-border bg-card p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-sm font-medium">Preview — page 1 of {pageCount}</p>
+              <p className="text-sm font-medium">Preview: page 1 of {pageCount}</p>
               <span className="text-xs text-muted-foreground">
                 {Math.round(pageSize.width)} × {Math.round(pageSize.height)} pt
               </span>

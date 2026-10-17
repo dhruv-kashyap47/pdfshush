@@ -32,7 +32,7 @@ export function AlternateMixTool() {
       return;
     }
     if (incoming.length > 2) {
-      toast.error('Alternate & Mix takes exactly two PDFs — extra files were ignored.');
+      toast.error('Alternate & Mix takes exactly two PDFs: extra files were ignored.');
     }
     const picked = incoming.slice(0, 2);
     const verdict = checkClientCapacity({
@@ -52,7 +52,7 @@ export function AlternateMixTool() {
     }
     const docs = outcome.result.documents;
     if (docs.some((doc) => doc.encrypted)) {
-      toast.error('One of those PDFs is password protected — unlock it first.');
+      toast.error('One of those PDFs is password protected: unlock it first.');
       return;
     }
     // Second capacity pass: mixing copies every page of both files, so the cap has
@@ -157,7 +157,7 @@ export function AlternateMixTool() {
                   <span className="font-semibold">{index === 0 ? 'A' : 'B'}</span>{' '}
                   <span className="text-muted-foreground">·</span> {shortName(file.name, 34)}
                   {counts[index] !== undefined && (
-                    <span className="text-xs text-muted-foreground"> — {counts[index]} pages</span>
+                    <span className="text-xs text-muted-foreground"> ({counts[index]} pages)</span>
                   )}
                 </p>
               ))}
@@ -188,7 +188,7 @@ export function AlternateMixTool() {
             {pattern && (
               <p className="text-xs text-muted-foreground">
                 Pattern: <span className="font-medium text-foreground">{pattern}</span>
-                {countA !== countB && ' — the shorter file runs out and the longer one finishes alone.'}
+                {countA !== countB && ' (the shorter file runs out and the longer one finishes alone)'}
               </p>
             )}
           </div>
@@ -206,7 +206,7 @@ export function AlternateMixTool() {
           </div>
           {!ready && files.length < 2 && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Add a second PDF — mixing interleaves exactly two documents.
+              Add a second PDF; mixing interleaves exactly two documents.
             </p>
           )}
         </div>

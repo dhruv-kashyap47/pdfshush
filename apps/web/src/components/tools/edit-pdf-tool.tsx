@@ -55,8 +55,8 @@ const RASTER_SCALE = Math.min(2, (globalThis.devicePixelRatio ?? 1) * 1.5);
  *
  * `min(scale, 2)` is not a memory bound on its own: a poster or CAD drawing
  * page is 2000+ pt wide, so at 200% zoom on a hi-dpi screen the naive
- * calculation asks for 8000 × 11000 = 88 megapixels — 350 MB for a single
- * page, which is a tab crash, not a slow render. Budget the *area* and derive
+ * calculation asks for 8000 × 11000 = 88 megapixels (about 350 MB for a single
+ * page), which is a tab crash, not a slow render. Budget the *area* and derive
  * the width from it. (Lesson borrowed from the GenOffice donor, which caps the
  * same way with `sqrt(MAX_PX / (w * h))`.)
  */

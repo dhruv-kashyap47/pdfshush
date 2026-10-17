@@ -207,7 +207,7 @@ export function AiSettingsCard({
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-              Stored in this browser only — never sent to PDFShush.
+              Stored in this browser only; never sent to PDFShush.
             </p>
             <div className="flex items-center gap-2">
               {onForget ? (

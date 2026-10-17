@@ -1,8 +1,8 @@
 /**
  * Dev-only harness: the real managed-AI API on a port, with no Redis and no Mongo.
  *
- * The browser E2E needs the *actual* HTTP surface — `/api/tools` advertising the
- * trial, then `/api/ai/chat` streaming from a provider — but it must not need a
+ * The browser E2E needs the *actual* HTTP surface (/api/tools advertising the
+ * trial, then /api/ai/chat streaming from a provider), but it must not need a
  * docker stack. This boots the shipped `createApp` with the same in-memory
  * counters the API's own tests use; the routing, the request schema, the budget,
  * the SSE framing and the provider adapter are all production code. The only
@@ -13,7 +13,7 @@
  *
  * Everything is configured from the environment (`AI_MANAGED_*`, `PORT`,
  * `WORK_DIR`, `PEPPER`), so the script decides which provider the trial points
- * at — in the E2E, the local mock.
+ * at (in the E2E, the local mock).
  */
 
 import type { Server } from 'node:http';

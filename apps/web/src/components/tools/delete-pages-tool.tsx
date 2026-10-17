@@ -109,7 +109,7 @@ export function DeletePagesTool() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
               <span className="font-medium text-foreground">{tiles.length.toLocaleString()}</span>{' '}
-              page{tiles.length === 1 ? '' : 's'} — click the pages you want to remove.
+              page{tiles.length === 1 ? '' : 's'}: click the pages you want to remove.
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -177,7 +177,7 @@ export function DeletePagesTool() {
                 </>
               ) : (
                 <>
-                  <span className="font-medium text-foreground">{tiles.length}</span> pages loaded —
+                  <span className="font-medium text-foreground">{tiles.length}</span> pages loaded;
                   none marked yet
                 </>
               )}

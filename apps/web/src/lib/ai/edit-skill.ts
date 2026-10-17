@@ -6,7 +6,7 @@
  * and re-anchored on its own primitives:
  *
  *  - The model never sees or edits bytes. It reads text runs, then calls edit
- *    tools that append to a *pending plan* — the same "propose, review, apply"
+ *    tools that append to a *pending plan*: the same "propose, review, apply"
  *    discipline as smart redaction.
  *  - Everything the model proposes lands in one of three engine inputs:
  *    `edit` (overlay objects: marks, text), `organize` (page order + rotation)
@@ -35,7 +35,7 @@ import { jobPool } from '@/lib/job-pool';
 import type { AiDocument } from './pdf-session';
 
 /**
- * 1-based page numbers 1..count — the identity page order.
+ * 1-based page numbers 1..count: the identity page order.
  *
  * Deliberately local rather than `identityRefs` from pdf-core: that function
  * lives in `ops/compose.ts`, whose top-level `pdf-lib` import would otherwise be
@@ -70,7 +70,7 @@ export type AiEditKind =
  * One queued change, as the review UI shows it. Additive changes (markup,
  * replace, erase, insert) each own the overlay objects they added, so they can
  * be discarded individually; whole-document changes (page order, rotation,
- * stamp) are exclusive — the newest supersedes the previous one.
+ * stamp) are exclusive; the newest supersedes the previous one.
  */
 export interface AiEditEntry {
   id: string;
@@ -96,7 +96,7 @@ export interface AiEditEntry {
  * position, and the original text is genuinely gone (not just hidden). The
  * whiteout and the replacement text are kept as `fallbackIds` and are applied by
  * the engine only when the rewrite is impossible or does not survive
- * re-extraction — never painted over a rewrite that worked.
+ * re-extraction; never painted over a rewrite that worked.
  */
 export interface AiInPlaceIntent {
   id: string;
@@ -161,7 +161,7 @@ export const emptyEditPlan = (): AiEditPlan => ({
 
 const pageLabel = (index: number): string => `[page ${index + 1}]`;
 
-/** `#rgb`/`#rrggbb` or undefined — anything the engine would reject is dropped. */
+/** `#rgb`/`#rrggbb` or undefined: anything the engine would reject is dropped. */
 function hexColor(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -183,7 +183,7 @@ function asString(value: unknown): string {
 
 /**
  * Indices of runs whose text contains `needle` (case-insensitive). Substring,
- * not whole-run, so "Invoice 42" finds a run reading "Invoice 42 — Paid".
+ * not whole-run, so "Invoice 42" finds a run reading "Invoice 42 - Paid".
  */
 function matchingRuns(runs: TextRun[], needle: string): number[] {
   const want = needle.trim().toLowerCase();
@@ -237,7 +237,7 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
 
   /**
    * Record one *additive* change (markup/replace/erase/insert). It owns the
-   * objects it added, so its review card can be discarded on its own — undoing
+   * objects it added, so its review card can be discarded on its own, undoing
    * exactly those objects and nothing else.
    */
   const pushEntry = (entry: Omit<AiEditEntry, 'id'>, undo: () => void): void => {
@@ -1104,7 +1104,7 @@ export function editPlanIsEmpty(plan: AiEditPlan): boolean {
  * An intent's `fallbackIds` point at objects the plan already holds (the whiteout
  * and, for a replace, the drawn text). Those objects are removed from the
  * overlay list because `text-edit` applies them itself, and only for a rewrite
- * that demoted — passing them as ordinary overlays would paint the fallback over
+ * that demoted; passing them as ordinary overlays would paint the fallback over
  * a rewrite that worked.
  */
 export function planTextEdits(plan: AiEditPlan): { edits: TextEdit[]; overlays: EditorObject[] } {
@@ -1144,7 +1144,7 @@ export function planPageRefs(plan: AiEditPlan, pageCount: number): PageRef[] | n
  * Run the plan through the engine: text rewrites and overlay objects, then page
  * order/rotation, then header/footer. Each step consumes the previous step's
  * output bytes, and every job validates its own input and re-parses its own
- * output — so a plan the model got wrong fails a step, loudly, instead of
+ * output; a plan the model got wrong fails a step, loudly, instead of
  * producing a bad download.
  *
  * Replacements go through `text-edit`, which rewrites the document's own run in

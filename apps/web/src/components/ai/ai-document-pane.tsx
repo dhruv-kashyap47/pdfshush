@@ -6,7 +6,7 @@
  * one page per render, so a legible preview costs one page of work rather than
  * one document's worth. Overlay boxes are stored in display-space points and
  * positioned as percentages of the page, so they stay correct at any render
- * scale — exactly the contract the redaction tool uses.
+ * scale: exactly the contract the redaction tool uses.
  */
 
 import { ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
@@ -36,7 +36,7 @@ interface AiDocumentPaneProps {
   markers?: OverlayMarker[];
   /** Pages with a queued change anywhere in the document. */
   changedPages?: number[];
-  /** Pages the latest answer cited — marked with a dot on the rail. */
+  /** Pages the latest answer cited, marked with a dot on the rail. */
   cited?: number[];
   /** A page render is in flight. */
   loading?: boolean;

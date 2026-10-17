@@ -3,7 +3,7 @@
  *
  * One IndexedDB record holds both halves of the AI state: the BYOK settings
  * (provider, model, key) and the chosen mode. The key deliberately does *not*
- * sit in localStorage any more — that is a flat string map any script on the
+ * sit in localStorage any more; that is a flat string map any script on the
  * origin (an extension, a sibling tab, a "clear site data" sweep) enumerates by
  * name, and it is the store a review flags first. IndexedDB keeps the same
  * origin boundary but holds a structured record with an explicit delete, and it
@@ -12,7 +12,7 @@
  * Honest scope: neither store encrypts, and any script running in this origin
  * can read either. The guarantees that matter are enforced elsewhere and are
  * not weakened by the move:
- *  - the key never leaves the device (see ./transport — the request goes
+ *  - the key never leaves the device (see ./transport: the request goes
  *    straight to the provider),
  *  - it is never a job payload, a URL, a log line, or part of the recent-files
  *    record,
@@ -66,7 +66,7 @@ export function aiState(): AiState {
 
 /**
  * Adopt (and persist) a change. Settings are sanitized here, so nothing invalid
- * — or unexpected — can reach the store through this path.
+ * (or unexpected) can reach the store through this path.
  */
 export function setAiState(patch: { settings?: AiSettings; mode?: AiMode }): AiState {
   snapshot = {
@@ -86,7 +86,7 @@ export function setAiState(patch: { settings?: AiSettings; mode?: AiMode }): AiS
  *
  * Single-flight on purpose. Two components mount in the same tick (and React's
  * dev-mode double mount makes that the norm), and the second read would
- * otherwise run *between* the first one's legacy diff and its write — find an
+ * otherwise run between the first one's legacy diff and its write, find an
  * empty store and an already-cleared localStorage, and hand back defaults,
  * silently dropping the user's key from the session. One hydration, shared.
  */
@@ -116,8 +116,8 @@ async function hydrate(): Promise<AiState> {
 }
 
 /**
- * Erase the stored AI configuration entirely — key, provider, and the mode
- * choice — and return to defaults. Deliberately a delete rather than a write of
+ * Erase the stored AI configuration entirely (key, provider, and mode choice)
+ * and return to defaults. Deliberately a delete rather than a write of
  * empty fields: nothing is left on disk to recover.
  */
 export async function forgetAiKey(): Promise<AiState> {

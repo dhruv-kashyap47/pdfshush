@@ -89,7 +89,7 @@ export function StampTool({ mode }: { mode: Mode }) {
     const doc = outcome.result.documents[0];
     if (!doc) return;
     if (doc.encrypted) {
-      toast.error('That PDF is password protected — unlock it first.');
+      toast.error('That PDF is password protected: unlock it first.');
       return;
     }
     // Second capacity pass: the byte check above cannot see the page count, and
@@ -161,7 +161,7 @@ export function StampTool({ mode }: { mode: Mode }) {
           setHeaderText('');
           setFooterText(mode === 'numbers' ? 'Page {n} of {N}' : '');
         }}
-        footerNote="Text is drawn as real vector type — still selectable and searchable."
+        footerNote="Text is drawn as real vector type, still selectable and searchable."
       />
     );
   }
@@ -205,7 +205,7 @@ export function StampTool({ mode }: { mode: Mode }) {
                 <Label htmlFor="header-text">Header text</Label>
                 <Input
                   id="header-text"
-                  placeholder="Quarterly report — confidential"
+                  placeholder="Quarterly report (confidential)"
                   value={headerText}
                   onChange={(event) => setHeaderText(event.target.value)}
                 />

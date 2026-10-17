@@ -129,7 +129,7 @@ export function RotateTool() {
                   {' '}· <span className="font-medium text-foreground">{turned}</span> rotated
                 </>
               )}{' '}
-              — use the arrows on each page, or rotate everything at once.
+              : use the arrows on each page, or rotate everything at once.
             </p>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" disabled={running} onClick={() => turnAll(-90)} aria-label="Rotate all pages left">

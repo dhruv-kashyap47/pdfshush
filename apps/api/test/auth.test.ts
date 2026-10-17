@@ -581,7 +581,7 @@ describe('auth routes', () => {
     const { url, memory } = await harness({ withAuth: true });
     // PKCE and nonce are generated inside /start, so the stub cannot know them in
     // advance. Read the real transaction back, then make the stub demand exactly
-    // what /start produced — the binding is still exercised end to end.
+    // what /start produced: the binding is still exercised end to end.
     expectedVerifier = null;
 
     const start = await fetch(url('/api/auth/google/start?returnTo=/tools/merge'), {

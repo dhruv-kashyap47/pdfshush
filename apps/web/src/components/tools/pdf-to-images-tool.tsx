@@ -28,9 +28,9 @@ import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const WIDTH_OPTIONS = [
-  { value: '960', label: '960 px — small, for web' },
-  { value: '1600', label: '1600 px — medium (recommended)' },
-  { value: '2560', label: '2560 px — print quality' },
+  { value: '960', label: '960 px (small, for web)' },
+  { value: '1600', label: '1600 px (medium, recommended)' },
+  { value: '2560', label: '2560 px (print quality)' },
 ];
 
 const MAX_PREVIEW_TILES = 24;
@@ -98,7 +98,7 @@ export function PdfToImagesTool() {
     const doc = outcome.result.documents[0];
     if (!doc) return;
     if (doc.encrypted) {
-      toast.error('That PDF is password protected — unlock it first.');
+      toast.error('That PDF is password protected: unlock it first.');
       return;
     }
 
@@ -195,7 +195,7 @@ export function PdfToImagesTool() {
           }}
           footerNote={
             result.images.length > slice.length
-              ? `Showing the first ${slice.length} of ${result.images.length} images — the ZIP contains every page.`
+              ? `Showing the first ${slice.length} of ${result.images.length} images; the ZIP contains every page.`
               : 'Individual downloads below; the ZIP bundles all of them.'
           }
         >
@@ -231,7 +231,7 @@ export function PdfToImagesTool() {
           )}
         </ResultPanel>
         <p className="text-xs text-muted-foreground">
-          Tip: JPG is smaller and lossy; PNG is lossless — pick PNG for text-heavy pages.
+          Tip: JPG is smaller and lossy; PNG is lossless. Pick PNG for text-heavy pages.
         </p>
       </div>
     );
@@ -278,7 +278,7 @@ export function PdfToImagesTool() {
               <Label htmlFor="pages-range">Pages</Label>
               <Input
                 id="pages-range"
-                placeholder={`All ${pageCount} pages — or e.g. 1-3, 7`}
+                placeholder={`All ${pageCount} pages (or e.g. 1-3, 7)`}
                 value={rangeText}
                 onChange={(event) => {
                   setRangeText(event.target.value);

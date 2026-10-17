@@ -1,5 +1,5 @@
 /**
- * Redact PDF — mark areas, review, and rebuild the document without them.
+ * Redact PDF: mark areas, review, and rebuild the document without them.
  *
  * Review happens on a legible render (not a 160px thumbnail), because a
  * redaction you cannot aim is a redaction you cannot trust. Regions are stored in
@@ -221,7 +221,7 @@ export function RedactTool() {
   const findSensitive = async () => {
     if (finding || running || files.length === 0) return;
     if (!aiUsable) {
-      // No usable path yet — open the settings form instead of failing silently.
+      // No usable path yet: open the settings form instead of failing silently.
       setShowSettings(true);
       return;
     }
@@ -325,7 +325,7 @@ export function RedactTool() {
           setInfo(null);
           setRegions({});
         }}
-        footerNote={`Verified: the output was reopened and checked — no text layer, annotations, attachments or metadata remain, and every page is a single image. ${marked.toLocaleString()} pixels were destroyed.`}
+        footerNote={`Verified: the output was reopened and checked; no text layer, annotations, attachments or metadata remain, and every page is a single image. ${marked.toLocaleString()} pixels were destroyed.`}
       />
     );
   }
@@ -351,7 +351,7 @@ export function RedactTool() {
             <p className="mt-1 text-muted-foreground">
               Drag on a page to mark an area. Redaction <strong>rebuilds every page as an
               image</strong>, so text selection, search, links, form fields, accessibility and
-              vector quality are lost. The original text is not merely covered — it is not in the
+              vector quality are lost. The original text is not merely covered; it is not in the
               file.
             </p>
           </div>

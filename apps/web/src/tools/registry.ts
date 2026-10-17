@@ -180,7 +180,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       tool('edit-pdf', 'Edit PDF', 'Add text, images, shapes and annotations directly on the page.', 'edit-sign', PenTool, 'green'),
       tool('fill-sign', 'Fill & Sign', 'Fill forms and sign documents with a drawn or typed signature.', 'edit-sign', Signature, 'amber'),
       tool('create-forms', 'Create Forms', 'Turn any PDF into a fillable form with text fields and checkboxes.', 'edit-sign', Highlighter, 'amber'),
-      tool('delete-pages', 'Delete Pages', 'Remove pages you do not need — drag to select, done.', 'edit-sign', Trash2, 'rose'),
+      tool('delete-pages', 'Delete Pages', 'Remove pages you do not need: drag to select and remove.', 'edit-sign', Trash2, 'rose'),
     ],
   },
   {
@@ -194,10 +194,10 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     id: 'security',
     label: 'Security',
     tools: [
-      tool('redact-pdf', 'Redact PDF', 'Permanently destroy content — the pages are rebuilt without it.', 'security', Eraser, 'rose'),
+      tool('redact-pdf', 'Redact PDF', 'Permanently destroy content so pages are rebuilt without it.', 'security', Eraser, 'rose'),
   tool('protect-pdf', 'Protect PDF', 'Encrypt with a password so only the holder can open it.', 'security', Lock, 'blue'),
       tool('unlock-pdf', 'Unlock PDF', 'Remove a password from a PDF you own.', 'security', Unlock, 'blue'),
-      tool('watermark', 'Watermark', 'Stamp text or an image over every page — tiled or centered.', 'security', Droplets, 'cyan'),
+      tool('watermark', 'Watermark', 'Stamp text or an image over every page, tiled or centered.', 'security', Droplets, 'cyan'),
       tool('flatten-pdf', 'Flatten PDF', 'Fuse form fields and annotations into static page content.', 'security', Eraser, 'violet'),
     ],
   },
@@ -208,7 +208,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       tool('pdf-to-word', 'PDF to Word', 'Convert PDF to an editable .docx file.', 'convert-from', FileText, 'blue'),
       tool('pdf-to-excel', 'PDF to Excel', 'Extract tables from a PDF into a spreadsheet.', 'convert-from', FileSpreadsheet, 'green'),
       tool('pdf-to-ppt', 'PDF to PowerPoint', 'Turn each page into an editable slide deck.', 'convert-from', Presentation, 'orange'),
-      tool('pdf-to-jpg', 'PDF to JPG', 'Render every page as an image — JPG or PNG.', 'convert-from', Image, 'amber'),
+      tool('pdf-to-jpg', 'PDF to JPG', 'Render every page as an image (JPG or PNG).', 'convert-from', Image, 'amber'),
       tool('pdf-to-text', 'PDF to Text', 'Strip a PDF down to plain text.', 'convert-from', FileText, 'violet'),
     ],
   },
@@ -226,8 +226,8 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     label: 'AI',
     tools: [
       tool('summarize-pdf', 'Summarize PDF', 'Get a grounded summary with page citations, using your own AI key.', 'ai', Sparkles, 'violet'),
-      tool('chat-with-pdf', 'Chat with PDF', 'Ask questions and get answers cited from the pages — key stays in your browser.', 'ai', MessageSquare, 'cyan'),
-      tool('edit-pdf-with-ai', 'Edit PDF with AI', 'Describe the change in words — highlight, rewrite or move pages — then review and apply.', 'ai', Wand2, 'green'),
+      tool('chat-with-pdf', 'Chat with PDF', 'Ask questions and get answers cited from the pages. Your key stays in your browser.', 'ai', MessageSquare, 'cyan'),
+      tool('edit-pdf-with-ai', 'Edit PDF with AI', 'Describe changes in natural language, then review and apply.', 'ai', Wand2, 'green'),
     ],
   },
   {

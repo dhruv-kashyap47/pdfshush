@@ -21,9 +21,9 @@ import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const N_OPTIONS: { value: NupCount; label: string; detail: string }[] = [
-  { value: 2, label: '2-up', detail: '1 × 2 — readable at a glance' },
-  { value: 4, label: '4-up', detail: '2 × 2 — the print standard' },
-  { value: 8, label: '8-up', detail: '4 × 2 — compact overviews' },
+  { value: 2, label: '2-up', detail: '1 × 2 (readable at a glance)' },
+  { value: 4, label: '4-up', detail: '2 × 2 (the print standard)' },
+  { value: 8, label: '8-up', detail: '4 × 2 (compact overviews)' },
 ];
 
 const SHEET_OPTIONS: { value: NupSheet; label: string }[] = [
@@ -70,7 +70,7 @@ export function NUpTool() {
     const doc = outcome.result.documents[0];
     if (!doc) return;
     if (doc.encrypted) {
-      toast.error('That PDF is password protected — unlock it first.');
+      toast.error('That PDF is password protected: unlock it first.');
       return;
     }
     // Second capacity pass: the byte check above cannot see the page count, and

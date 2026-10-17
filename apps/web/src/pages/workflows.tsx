@@ -233,7 +233,7 @@ export function WorkflowsPage() {
           Chain tools together and run them on a file in one pass.
           {usingServer
             ? ' Saved to your account.'
-            : ' Saved in this browser — sign in to sync them across devices.'}
+            : ' Saved in this browser; sign in to sync them across devices.'}
         </p>
       </div>
 
@@ -260,7 +260,7 @@ export function WorkflowsPage() {
             <Label>Steps</Label>
             {draft.steps.length === 0 && (
               <p className="rounded-md border border-dashed border-border/70 px-3 py-6 text-center text-sm text-muted-foreground">
-                No steps yet — add a tool below.
+                No steps yet: add a tool below.
               </p>
             )}
             <ol className="space-y-2">

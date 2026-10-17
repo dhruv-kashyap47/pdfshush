@@ -1,5 +1,5 @@
 /**
- * The AI workspace — the shell every AI tool shares.
+ * The AI workspace: the shell every AI tool shares.
  *
  * Two panes: the document on the left (one legible page, with pending changes
  * drawn on it) and the assistant on the right (streaming answers, an activity
@@ -63,7 +63,7 @@ interface VariantCopy {
 const COPY: Record<AiToolVariant, VariantCopy> = {
   summarize: {
     title: 'Summarize any PDF in seconds',
-    blurb: 'A grounded summary with page citations — every claim points at the page it came from.',
+    blurb: 'A grounded summary with page citations; every claim points at the page it came from.',
     bullets: ['Read straight from the page text', 'Citations you can click', 'Your key stays in this browser'],
     placeholder: 'Ask a follow-up about this document…',
   },
@@ -278,7 +278,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
 
   /**
    * Pages with a queued change. The overlay markers only cover the page on
-   * screen, so this is what tells the page rail — and the user — that a change
+   * screen, so this is what tells the page rail, and the user, that a change
    * is waiting somewhere else in the document.
    */
   const changedPages: number[] = useMemo(() => {
@@ -384,7 +384,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
             onFiles={pick}
             multiple={false}
             hint="one PDF to work on"
-            note="Parsed on this device — no file is ever uploaded"
+            note="Parsed on this device; no file is ever uploaded"
           />
         </div>
 

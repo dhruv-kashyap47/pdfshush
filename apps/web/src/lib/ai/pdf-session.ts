@@ -3,7 +3,7 @@
  *
  * The `text-runs` job already produces display-space text runs for the editor;
  * the AI layer reuses it once per upload and caches both a plain-text blob and
- * the run geometry per page. Nothing here talks to a model — it is the read side
+ * the run geometry per page. Nothing here talks to a model; it is the read side
  * the skills draw on. The edit tool additionally reads page sizes (`inspect`) so
  * the model can place new text in real coordinates.
  */

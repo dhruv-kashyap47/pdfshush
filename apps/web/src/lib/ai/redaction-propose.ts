@@ -3,7 +3,7 @@
  *
  * The model only *selects* which text runs look sensitive; geometry stays in
  * pdf-core, and the existing rasterizing `redact` job is the only thing that
- * destroys anything. Nothing here writes to the document — the output is a list
+ * destroys anything. Nothing here writes to the document; the output is a list
  * of rectangles for the user to review.
  *
  * The model is handed a bounded, numbered list of runs (`P<page>#<run>\ttext`)
@@ -134,7 +134,7 @@ export function parseSensitivePairs(content: string): [number, number][] {
 
 /**
  * Ask the configured provider which runs are sensitive. Never throws for a
- * provider/answer problem — that comes back as `error` with no regions.
+ * provider/answer problem: that comes back as `error` with no regions.
  */
 export async function proposeSensitiveRegions(
   runsPerPage: TextRun[][],

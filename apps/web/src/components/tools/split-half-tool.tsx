@@ -132,7 +132,7 @@ export function SplitHalfTool() {
               >
                 <Columns2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <span>
-                  <span className="block text-sm font-medium">Vertical — left / right</span>
+                  <span className="block text-sm font-medium">Vertical (left / right)</span>
                   <span className="block text-xs text-muted-foreground">
                     Produces one PDF of left halves and one of right halves.
                   </span>
@@ -150,7 +150,7 @@ export function SplitHalfTool() {
               >
                 <Rows2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <span>
-                  <span className="block text-sm font-medium">Horizontal — top / bottom</span>
+                  <span className="block text-sm font-medium">Horizontal (top / bottom)</span>
                   <span className="block text-xs text-muted-foreground">
                     Produces one PDF of top halves and one of bottom halves.
                   </span>

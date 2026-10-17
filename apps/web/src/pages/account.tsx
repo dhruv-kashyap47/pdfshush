@@ -193,7 +193,7 @@ export function AccountPage() {
           <CardTitle className="text-base">Privacy</CardTitle>
           <CardDescription>
             Documents are never uploaded to keep history. Only the tool name, file name, page count
-            and time are stored — and only if you turn this on.
+            and time are stored, and only if you turn this on.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

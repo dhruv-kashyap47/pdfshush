@@ -1,62 +1,147 @@
-import { Gauge, Github, Lock, Puzzle, Rocket, Users } from 'lucide-react';
+import { Check, Cpu, Eye, HardDrive, Lock, ShieldCheck, Zap, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
-const FEATURES = [
+const ARCHITECTURE_PILLARS = [
+  {
+    icon: HardDrive,
+    title: 'Zero remote file transfers',
+    body: 'Files are read directly into memory inside this browser tab via dedicated Web Workers. No network uploads occur for client tools: your private legal and financial documents remain strictly on your machine.',
+  },
+  {
+    icon: Zap,
+    title: 'No hourly task limits or paywalls',
+    body: 'Traditional SaaS editors cap free usage at 3 tasks per hour to protect their server budgets. Because PDFShush computes on your local hardware, the only ceiling is your device memory.',
+  },
   {
     icon: Lock,
-    title: 'Files never leave your device',
-    body: 'Parsing and rendering run inside this browser tab, in a Web Worker. There is no upload endpoint for these tools — privacy is enforced by architecture, not by a policy page.',
+    title: 'Private BYOK key architecture',
+    body: 'Bring your own OpenAI, Anthropic, or Gemini API keys. Keys reside in browser IndexedDB, never touch an intermediate proxy, and can be purged from storage with a single click.',
   },
   {
-    icon: Gauge,
-    title: 'No limits, no queue',
-    body: 'Sejda caps anonymous users at 3 tasks per hour and 200 pages. We process locally, so the only real ceiling is your machine — and we tell you the number up front.',
+    icon: Cpu,
+    title: 'Engineered for high-volume jobs',
+    body: 'Memory-bounded worker threads transfer ArrayBuffers without deep duplication. Multi-hundred-page operations complete smoothly without locking the main user interface.',
   },
   {
-    icon: Users,
-    title: 'Works without an account',
-    body: 'Open a tool, drop a file, get your result. Sign-in only becomes useful when you want saved workflows, API keys and team history — never as a toll gate.',
+    icon: ShieldCheck,
+    title: 'Verifiable destructive redaction',
+    body: 'Redactions are not cosmetic black rectangles. Every page is rebuilt as a sanitized raster image, stripping text layers, hidden metadata and attachments with automated post-render verification.',
   },
   {
-    icon: Rocket,
-    title: 'Fast by construction',
-    body: 'A bounded worker pool keeps CPU busy without freezing the UI. Output buffers are transferred, not copied, so multi-hundred-page jobs stay snappy.',
+    icon: Eye,
+    title: 'AGPL-3.0 open source auditability',
+    body: 'Privacy claims are worthless without verifiable code. Our entire frontend and core engine are open source and self-hostable. Anyone can audit the network traffic and inspect the build.',
+  },
+];
+
+const COMPARISON_ROWS = [
+  {
+    feature: 'File Uploads to Server',
+    traditional: 'Required for every action',
+    pdfshush: 'Zero uploads (runs locally)',
+    pdfshushOk: true,
   },
   {
-    icon: Puzzle,
-    title: 'One engine everywhere',
-    body: 'The same TypeScript PDF engine runs in your browser today and on the server tomorrow — so features land identically in both, with one test suite.',
+    feature: 'Free Task Quota',
+    traditional: 'Capped (e.g. 3 tasks / hour)',
+    pdfshush: 'Unlimited client-side tasks',
+    pdfshushOk: true,
   },
   {
-    icon: Github,
-    title: 'Open source, AGPL-3.0',
-    body: 'The entire product is inspectable and self-hostable. If it ever stops being private the way it claims, you can read the code and prove it either way.',
+    feature: 'AI Key Storage',
+    traditional: 'Stored on vendor database',
+    pdfshush: 'Local browser IndexedDB only',
+    pdfshushOk: true,
+  },
+  {
+    feature: 'Source Code Auditability',
+    traditional: 'Proprietary black box',
+    pdfshush: '100% AGPL-3.0 Open Source',
+    pdfshushOk: true,
+  },
+  {
+    feature: 'Account Requirement',
+    traditional: 'Mandatory for most exports',
+    pdfshush: 'Never required for local tools',
+    pdfshushOk: true,
   },
 ];
 
 export function FeaturesSection() {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mb-8 max-w-2xl">
-        <h2 className="text-xl font-bold sm:text-2xl">Why PDFShush</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Most online PDF tools ask you to trust a server you cannot see. We removed the server from
-          the equation.
-        </p>
-      </div>
+    <section className="border-b border-border/60 bg-muted/15 py-16 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Section Intro */}
+        <div className="max-w-3xl">
+          <Badge variant="secondary" className="rounded-md font-mono text-[11px] uppercase tracking-wider">
+            Architecture Blueprint
+          </Badge>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Why client-side execution matters.
+          </h2>
+          <p className="mt-3 text-base text-muted-foreground sm:text-lg">
+            Most online PDF tools ask you to upload confidential contracts, tax returns and records to
+            remote servers you cannot inspect. We eliminated the server from the loop.
+          </p>
+        </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map((feature) => (
-          <Card key={feature.title} className="border-border/70 bg-card">
-            <CardContent className="p-5">
-              <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <feature.icon className="h-[18px] w-[18px]" />
-              </span>
-              <h3 className="font-semibold">{feature.title}</h3>
-              <p className="mt-1.5 text-sm text-muted-foreground">{feature.body}</p>
-            </CardContent>
-          </Card>
-        ))}
+        {/* 6 Technical Pillars Grid */}
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {ARCHITECTURE_PILLARS.map((pillar) => {
+            const Icon = pillar.icon;
+            return (
+              <Card key={pillar.title} className="border-border/80 bg-card shadow-2xs transition-all hover:border-border">
+                <CardContent className="p-6">
+                  <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-base font-semibold text-foreground">{pillar.title}</h3>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{pillar.body}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Side-by-Side Comparison Matrix */}
+        <div className="mt-14 overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs">
+          <div className="border-b border-border/60 bg-muted/30 px-6 py-4">
+            <h3 className="text-sm font-semibold text-foreground">
+              Technical Comparison: Traditional Cloud Tools vs. PDFShush
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-border/60 bg-muted/10 font-semibold text-foreground">
+                <tr>
+                  <th className="px-6 py-3.5">Capability / Policy</th>
+                  <th className="px-6 py-3.5 text-muted-foreground">Standard Online PDF Services</th>
+                  <th className="px-6 py-3.5 font-bold text-primary">PDFShush Architecture</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {COMPARISON_ROWS.map((row) => (
+                  <tr key={row.feature} className="transition-colors hover:bg-muted/10">
+                    <td className="px-6 py-3.5 font-medium text-foreground">{row.feature}</td>
+                    <td className="px-6 py-3.5 text-muted-foreground">
+                      <span className="flex items-center gap-1.5 text-destructive/90">
+                        <X className="h-3.5 w-3.5" />
+                        {row.traditional}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3.5 font-medium text-foreground">
+                      <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                        <Check className="h-3.5 w-3.5" />
+                        {row.pdfshush}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
   );

@@ -958,7 +958,7 @@ function FormWidget({
         onChange={(event) => onChange(widget.name, event.target.value)}
         data-testid="editor-form-select"
       >
-        <option value="">—</option>
+        <option value="">Select an option</option>
         {(widget.options ?? []).map((option) => (
           <option key={option} value={option}>
             {option}

@@ -4,54 +4,64 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
 
 const FAQS = [
   {
-    q: 'Is PDFShush really free?',
-    a: 'Yes. Every tool is free with no task quotas, no watermarks and no account requirement. Paid plans will exist later for API volume, teams and workflows — the browser tools stay free.',
+    q: 'Is PDFShush completely free to use?',
+    a: 'Yes. Every browser-based tool is free with zero task quotas, zero watermarks and no account requirements. Optional paid plans will exist in the future for server-side API volume and team collaboration, but local browser tools remain free forever.',
   },
   {
-    q: 'Do my files get uploaded anywhere?',
-    a: 'No. For the local tools, files are read into a Web Worker inside this tab and the output is assembled in memory. There is no upload request in the network tab. Server-assisted processing (OCR, large conversions) will be explicit and opt-in when it ships.',
+    q: 'How can I verify that my files are not being uploaded?',
+    a: 'You can verify this in real time using your browser DevTools: open the Network tab, drop any PDF into a tool like Merge or Redact, and execute the job. You will see zero outbound file upload requests. All parsing, rendering and output assembly happen strictly in WebAssembly memory within your browser tab.',
   },
   {
-    q: 'What are the actual limits?',
-    a: 'Because processing happens on your machine, the ceilings are memory, not quotas: 100 MB per file, 250 MB combined, and 500 pages per run in-browser. We check before starting and refuse cleanly instead of crashing the tab.',
+    q: 'What are the practical file size and page limits?',
+    a: 'Because processing runs on your local machine, the limits are governed by hardware memory rather than artificial paywalls. Our client capacity guard approves runs up to 100 MB per file, 250 MB combined, and up to 500 pages per job. If a document exceeds safe tab limits, we fail gracefully rather than crashing your session.',
   },
   {
-    q: 'How is this different from other online PDF editors?',
-    a: 'Two ways: locality (your document is not parked on someone’s server while you work) and scope (this is a full catalog — merge, split, edit, sign, convert, security, workflows, API and an MCP server for AI agents, built as one open-source product).',
+    q: 'How does BYOK (Bring Your Own Key) work for the AI features?',
+    a: 'When you use AI features like Chat or Natural Language Edit, you can connect your own API key from OpenAI, Anthropic, or Google Gemini. Your key is stored solely in local browser IndexedDB. Requests communicate directly from your browser to the provider endpoint without routing through any PDFShush intermediate server.',
   },
   {
-    q: 'Why open source under AGPL-3.0?',
-    a: 'Privacy claims are only as good as the code behind them. AGPL lets anyone audit, fork and self-host the whole stack — including the server components as they land. The license also protects the project from being closed-sourced by a third party.',
+    q: 'Why is PDFShush open source under the AGPL-3.0 license?',
+    a: 'Privacy claims cannot be taken on faith; they must be backed by inspectable source code. The AGPL-3.0 license guarantees that anyone can inspect, audit, fork and self-host the complete stack. It also ensures the codebase cannot be closed-sourced by third parties.',
   },
   {
-    q: 'Can I use it without JavaScript?',
-    a: 'No — local processing requires JavaScript and Web Workers. That is the trade that removes the server. If your environment blocks scripting, you would need a desktop PDF app instead.',
+    q: 'Can I use PDFShush in offline environments?',
+    a: 'Once the application assets and WebAssembly worker modules are loaded into your browser cache, core tools like Merge, Split, Reorder, Delete Pages and Local Redaction can function completely offline without an active internet connection.',
   },
 ];
 
 export function FaqSection() {
   return (
-    <section className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <div className="mb-6 text-center">
-        <h2 className="text-xl font-bold sm:text-2xl">Questions, answered</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The things people ask before trusting a PDF tool with real documents.
-        </p>
-      </div>
+    <section className="border-b border-border/60 bg-background py-16 sm:py-24">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+        <div className="mb-10 text-center">
+          <Badge variant="secondary" className="rounded-md font-mono text-[11px] uppercase tracking-wider">
+            Clear Answers
+          </Badge>
+          <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Frequently asked questions
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Clear technical details on privacy, limits, AI keys and licensing.
+          </p>
+        </div>
 
-      <Accordion type="single" collapsible className="w-full">
-        {FAQS.map((faq, index) => (
-          <AccordionItem key={faq.q} value={`faq-${index}`}>
-            <AccordionTrigger className="text-left text-base hover:no-underline">
-              {faq.q}
-            </AccordionTrigger>
-            <AccordionContent className="text-sm text-muted-foreground">{faq.a}</AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
+        <Accordion type="single" collapsible className="w-full divide-y divide-border/60">
+          {FAQS.map((faq, index) => (
+            <AccordionItem key={faq.q} value={`faq-${index}`} className="border-b-0 py-1">
+              <AccordionTrigger className="text-left text-sm font-semibold text-foreground hover:no-underline sm:text-base">
+                {faq.q}
+              </AccordionTrigger>
+              <AccordionContent className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                {faq.a}
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
     </section>
   );
 }

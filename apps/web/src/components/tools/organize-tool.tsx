@@ -122,7 +122,7 @@ export function OrganizeTool() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
               <span className="font-medium text-foreground">{tiles.length.toLocaleString()}</span>{' '}
-              page{tiles.length === 1 ? '' : 's'} — drag to reorder, delete or duplicate below.
+              page{tiles.length === 1 ? '' : 's'}: drag to reorder, delete or duplicate below.
               {files.length > 1 && ' Multi-file order: document by document.'}
             </p>
             <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ export function OrganizeTool() {
             <p className="text-sm text-muted-foreground">
               Output: <span className="font-medium text-foreground">{tiles.length} pages</span>
               {tiles.length > LIMITS.client.maxPages && (
-                <span className="text-destructive"> — over the {LIMITS.client.maxPages} page limit</span>
+                <span className="text-destructive"> (over the {LIMITS.client.maxPages} page limit)</span>
               )}
             </p>
             <Button size="lg" disabled={running || tiles.length === 0} onClick={() => void runOrganize()}>

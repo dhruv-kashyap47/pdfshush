@@ -3,7 +3,7 @@
  *
  * The API key never leaves the device: the tab talks to the provider directly
  * (see ./transport). Where the settings live, how they are validated, and how
- * the key is kept out of everything else is ./storage's job — this module is the
+ * the key is kept out of everything else is ./storage's job; this module is the
  * synchronous face the components use.
  */
 
@@ -64,8 +64,8 @@ export function providerUsable(settings: AiSettings, id: AiProviderId): boolean 
  * before it is shown or logged.
  *
  * The implementation lives in `@pdfshush/ai-provider` because it is pure,
- * dependency-free logic that both runtimes need — the browser (BYOK) and the
- * API's managed gateway — and because a package is where it can be unit-tested
+ * dependency-free logic that both runtimes need (the browser BYOK and the
+ * API's managed gateway) and because a package is where it can be unit-tested
  * (`apps/web` has no runner of its own). Re-exported here so the existing
  * `./settings` import site keeps working.
  */

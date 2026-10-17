@@ -55,7 +55,7 @@ export function SplitByPagesTool() {
     const doc = outcome.result.documents[0];
     if (!doc) return;
     if (doc.encrypted) {
-      toast.error('That PDF is password protected — unlock it first.');
+      toast.error('That PDF is password protected: unlock it first.');
       return;
     }
     // Second capacity pass: the byte check above cannot see the page count, and
@@ -153,7 +153,7 @@ export function SplitByPagesTool() {
                     {' '}·{' '}
                     {partCount > MAX_PARTS ? (
                       <span className="text-destructive">
-                        {partCount} parts — over the {MAX_PARTS} limit, raise the chunk size
+                        {partCount} parts (over the {MAX_PARTS} limit; raise the chunk size)
                       </span>
                     ) : (
                       <>will produce {partCount} file{partCount === 1 ? '' : 's'}</>

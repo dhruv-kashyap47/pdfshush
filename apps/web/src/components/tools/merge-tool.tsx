@@ -74,7 +74,7 @@ export function MergeTool() {
       setEntries((prev) =>
         prev.map((entry) =>
           entry.status === 'loading'
-            ? { ...entry, status: 'error' as const, error: 'Reading was interrupted — re-add the file' }
+            ? { ...entry, status: 'error' as const, error: 'Reading was interrupted; re-add the file' }
             : entry,
         ),
       );
@@ -90,7 +90,7 @@ export function MergeTool() {
         const doc = outcome.result.documents[index];
         if (!doc) return { ...entry, status: 'error' as const, error: 'Could not read file' };
         if (doc.encrypted) {
-          return { ...entry, status: 'error' as const, error: 'Password protected — not supported yet' };
+          return { ...entry, status: 'error' as const, error: 'Password protected (not supported yet)' };
         }
         return { ...entry, status: 'ok' as const, pageCount: doc.pageCount };
       }),
@@ -184,7 +184,7 @@ export function MergeTool() {
 
       {entries.length > 1 && mergeRunner.state.status !== 'running' && (
         <p className="text-xs text-muted-foreground">
-          Drag files to set the order — pages are concatenated top to bottom.
+          Drag files to set the order; pages are concatenated top to bottom.
         </p>
       )}
 

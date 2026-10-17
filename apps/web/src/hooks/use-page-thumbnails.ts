@@ -106,7 +106,7 @@ export function usePageThumbnails() {
       const encrypted = inspected.result.documents.find((doc) => doc.encrypted);
       if (encrypted) {
         setPreparing(false);
-        toast.error(`"${encrypted.name}" is password protected — remove it or unlock it first.`);
+        toast.error(`"${encrypted.name}" is password protected: remove it or unlock it first.`);
         return false;
       }
 

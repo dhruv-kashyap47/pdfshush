@@ -30,7 +30,7 @@ export function FileDropzone({
   multiple = true,
   disabled,
   hint,
-  note = 'Processed on this device — never uploaded',
+  note = 'Processed on this device; never uploaded',
 }: FileDropzoneProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +90,7 @@ export function FileDropzone({
             {dragOver ? 'Drop to add' : 'Choose PDF files'}
           </span>
           <span className="text-sm text-muted-foreground">
-            or drag and drop them here — {multiple ? 'multiple files supported' : 'one file'} · max 100 MB each
+            or drag and drop them here: {multiple ? 'multiple files supported' : 'one file'} · max 100 MB each
           </span>
           {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
           <span className="text-xs font-medium text-primary">{note}</span>

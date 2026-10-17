@@ -3,7 +3,7 @@
  *
  * Both PDF skills are instructed to cite the pages they used as `[page N]`.
  * Answers are therefore stored as plain text (exactly what the model said), and
- * this module is the only place that interprets those markers — the chat renders
+ * this module is the only place that interprets those markers; the chat renders
  * each one as a chip that jumps the preview pane to that page.
  */
 
@@ -11,7 +11,7 @@ export type AnswerSegment =
   | { kind: 'text'; text: string }
   | { kind: 'citation'; text: string; pages: number[] };
 
-/** `[page 3]`, `[pages 2, 5]`, `[pages 4-6]` — case-insensitive, tolerant of spaces. */
+/** `[page 3]`, `[pages 2, 5]`, `[pages 4-6]` (case-insensitive, tolerant of spaces). */
 const CITATION = /\[\s*pages?\s+([0-9][0-9\s,\u2013-]*)\]/gi;
 
 /** Longest run of pages a single `4-6` range will expand to (a typo guard, not a limit). */
