@@ -1,3 +1,7 @@
+/**
+ * `public-hygiene: fixture` — the key-shaped strings below are synthetic and
+ * exist only to prove the sanitizer masks them; none is a real credential.
+ */
 import { describe, expect, it } from 'vitest'
 import { sanitizeAgentPayload } from '../src'
 

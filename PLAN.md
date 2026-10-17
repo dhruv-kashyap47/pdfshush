@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-16
+**Last updated:** 2026-10-17
 
 ---
 
@@ -26,7 +26,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
 | **T — In-place text editing** | PDFium genuine rewrite of existing text objects (`SetCharcodes`/`SetText`), multi-object line matching, verification-driven pdf-lib overlay fallback | ✅ **engine + job shipped, browser-verified (2026-10-14)** · charcode resolver + multi-object matching landed · full smoke green — see §22 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ✅ **shipped (2026-10-16): BYOK summarize/chat/edit-with-AI, smart redaction + leakage gate, managed client + server budgets, in-place AI rewrites, IndexedDB key store, managed browser E2E** — see §23 |
-| **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ⬜ |
+| **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | 🔄 **opened 2026-10-16**; P6.9 hardening interlude ✅ **done 2026-10-17** (H1–H3 + M1–M3 closed; H4 = operator action) — see §24.4 |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
 **Redaction sub-phases** (detail in §20):
@@ -54,7 +54,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 and the Phase 1-5 security review + `redactSecrets` hardening (§24).
 **18 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
 `edit-pdf-with-ai` under a new **AI** category) · 8 runnable server-side ·
-**837/837 unit** (189 engine · 132 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
+**862/862 unit** (189 engine · 157 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
 smoke, API up so only the workflow-run steps skip) · **8/8 focused text-edit E2E** · **18/18 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
@@ -67,8 +67,9 @@ mode with per-subject budgets on the server (off unless a key is set), the P5 le
 key in IndexedDB behind `sanitizeAiSettings` with a one-click delete (§23)** · main chunk 0 pdf-lib /
 0 pdf.js / 0 pdfium, now enforced by `pnpm test:bundle` (PDFium is a lazy 4.6 MB asset fetched on first
 text edit).
-**Next: P6 (e-sign / public REST API / MCP) — opened 2026-10-16, plan in §24.4; it starts with the
-P6.9 hardening interlude for the four open Highs in §24.5**; R2 stays deferred
+**Next: P6 (e-sign / public REST API / MCP) — opened 2026-10-16, plan in §24.4. Its opening
+P6.9 hardening interlude is *done* (2026-10-17): all four Highs' code work plus M1–M3 closed; H4
+(rotate the on-disk credentials) is the one remaining operator action**; R2 stays deferred
 until R1 is proven in production, and P4.4 triggers stay gated.
 Repo public:
 `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
@@ -513,6 +514,25 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-17 — P6.9 hardening interlude: the §24 Highs and Mediums are closed.** See §24.2/§24.4.
+
+  **H1** — the job child's environment is now an **allowlist** (`apps/api/src/worker/child-env.ts`),
+  handed to BullMQ through `workerForkOptions.env`, so `MONGODB_PASSWORD`, `GOOGLE_CLIENT_SECRET`,
+  `AI_MANAGED_API_KEY` and `PEPPER` no longer reach it (the embedded dev worker was the exposed case).
+  Per-job filesystem scoping is **accepted by design** and recorded: the processor needs
+  `node_modules`, so Node's permission model cannot apply. **H2** — a parent-side kill watchdog
+  (`apps/api/src/jobs/children.ts`) kills a child past `JOB_HARD_LIMIT_MS`; a cooperative timer could
+  not interrupt a hung synchronous parser. **H3** — `estimate()` is now admission control
+  (`jobs/runner.ts` rejects over `LIMITS.job.maxWorkingSetBytes`), each child heap is capped, and every
+  container carries `mem_limit`/`cpus` (`docker-compose.yml`: worker 5g/2, api 1g/1, redis 512m/1).
+  **M1** — a production boot warning when no proxy hop is trusted (`http/trust-proxy.ts`). **M2** —
+  uploads are sniffed for `%PDF-` from the flowing stream, not a second file handle. **M3** —
+  `QuotaService.reserveUpload`/`settleUpload` reserve the ceiling before streaming and settle to the
+  real byte count. **H4 stays open as an operator action:** rotate the on-disk Atlas password and Google
+  client secret. Counts: **862/862 unit** (189 engine · 157 API · 364 provider · 152 agent). Also fixed
+  a stray `.pnpm-store/` that a commit had swept into the repo (now gitignored) and tidied the root
+  `dev` script to start web and API together.
+
 - **2026-10-16 — P1–P5 security review, `redactSecrets` hardened, and P6 opened.** See §24.
 
   A read-only review of everything shipped through P5 — server (sessions/CSRF, uploads + path safety,
@@ -945,9 +965,9 @@ never actually wired, and a stream with no error listener.*
 
 ```bash
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
-pnpm dev              # http://localhost:5173 (browser app only)
+pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all five packages
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (837 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (862 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
@@ -971,13 +991,16 @@ job's inputs — which is why the killed job may legitimately settle as `failed`
 accepts either outcome, because the claim being tested is "the queue recovers".
 
 **Next move:** **R1 has shipped** — secure redaction is live as `redact-pdf` (§20), verified on
-the exported artifact, with the browser E2E asserting the downloaded bytes. The next work is
-**not** R2: native text-level redaction is deliberately deferred until R1 is proven in production
-(§20.3), and its candidates still need the audit described there. The open threads meanwhile are
-**P4.4** (automated triggers — gated on SSRF/scheduling design, §18.5) and **R2 / P6**; **P5 (AI) has
-shipped and its honest gaps are closed** — BYOK summarize/chat/edit-with-AI, smart redaction with its
-blocking leakage gate, an opt-in managed mode, AI replacements that rewrite the document's own text,
-the key in IndexedDB with a one-click delete, and a managed-mode browser E2E (§23, §23.7). Then append
+the exported artifact, with the browser E2E asserting the downloaded bytes. R2 (native text-level
+redaction) stays deliberately deferred until R1 is proven in production (§20.3), and **P4.4**
+(automated triggers) stays gated on the SSRF/scheduling design (§18.5). **P5 (AI) has shipped and its
+honest gaps are closed** (§23). **P6 is open and its P6.9 hardening interlude is done (2026-10-17):**
+the §24 Highs' code work and every Medium are closed, with the child filesystem scope accepted by
+design and **H4 (rotate the on-disk credentials) left as the one operator action**. The **next
+build step is P6.0, the e-sign / public-API / MCP decision record** (§24.4), then P6.1 e-sign.
+One live gate limitation: `test:api` and `test:hardening` need a running Redis + Docker stack, so
+the Redis-backed watchdog and the container caps are unit-proven and compose-validated, not yet
+fired against a live daemon. Then append
 a changelog entry and tick §1. Before every
 push run the **pre-push
 grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM blocks, cloud
@@ -2218,7 +2241,7 @@ A read-only review of everything shipped through P5, split by trust boundary: (a
 sessions/CSRF, uploads + path safety, the sandboxed worker, quota accounting, the managed-AI
 gateway; (b) the client — the BYOK key path, custom-endpoint handling, the agent loop's bounds, and
 the DOM/code-execution sinks. Plus the pre-push grep from §9 over every tracked file (secret patterns,
-machine-path markers, dangerous sinks). **No files were changed to review them; the two fixes below are
+machine-path markers, dangerous sinks). **No files were changed to review them; the fixes below are
 the review's output.**
 
 ### 24.2 Findings
@@ -2226,8 +2249,10 @@ the review's output.**
 **No Critical.** But a second, wider pass over `apps/api/src` found **four High**, three Medium and a
 handful of Low — all *resource-isolation and secret-hygiene* gaps, **not** auth bypasses. Every auth,
 ownership, CSRF and path control held, and the pipeline is functionally sound and end-to-end ready;
-what is **not** yet true is "hardened for an internet-facing deployment". The Highs are **open** and
-scheduled in §24.5.
+what was **not** yet true was "hardened for an internet-facing deployment". **The four Highs and all
+three Mediums were closed in the P6.9 hardening interlude (§24.4); H4 remains an operator action
+(rotate the on-disk credentials).** The one sub-item left open by design — scoping a child to its own
+`jobs/<id>` directory — is called out under H1 and in the accepted-by-design list below.
 
 Two defects were found and **fixed** during the review (one Medium, one Low) — the same class, one
 client and one server:
@@ -2249,38 +2274,62 @@ client and one server:
   so the API reuses one implementation), proven by a test that stubs a key-echoing `401` and asserts
   the key never appears in the stream while the redaction marker does.
 
-**Open High findings (not fixed — scheduled in §24.5):**
+**High findings (closed in P6.9; one sub-item accepted by design):**
 
-- **H1 — the server "sandbox" is a process boundary, not a security sandbox.** `worker/host.ts:53-61`
-  hands BullMQ a processor path; BullMQ `fork()`s it with **no** env restriction and **no** rlimits.
-  In the dedicated `worker` container that is contained by least privilege (no Mongo/Google/AI secrets,
-  non-root user — see `docker-compose.yml`), but the **embedded dev worker** (`server.ts:78`) runs inside
-  the API process, so its child inherits `MONGODB_PASSWORD`, `GOOGLE_CLIENT_SECRET`, `AI_MANAGED_API_KEY`
-  and `PEPPER` — and either way the child can read every tenant's `jobs/<id>` directory, not just its own.
-- **H2 — job timeouts are cooperative; a hung synchronous parser is never killed.** `withJobLimits`
-  (`pdf-core/src/job.ts:153-196`) is an `AbortController` + timer and cannot interrupt synchronous CPU
-  work. The browser pool can terminate its worker; the server path has no equivalent — BullMQ's
-  `maxStalledCount` re-queues a stalled job, it does not kill the child. A crafted PDF can pin a core.
-- **H3 — no admission control or memory ceiling on PDF jobs.** `estimate()` exists on every job
-  definition but is **never called** by `apps/api/src` (verified by grep), 500 MB × 50 files is accepted,
-  and `docker-compose.yml` sets **no** `mem_limit`/`deploy.resources` on `api` or `worker`. Combined with
-  H1/H2, a few crafted documents can exhaust worker memory or CPU. This is the one that actually makes
-  H1/H2 exploitable as a denial of service.
-- **H4 — live credentials sit in the local working tree.** The project-root `.env` holds a real MongoDB
-  Atlas connection string and a Google OAuth client secret, and `client_secret_*.json` is beside it.
-  Both are **correctly gitignored and untracked** (verified with `git ls-files`), and the pre-push grep is
-  clean — so this is not a leak into the repo, it is on-disk hygiene. **Action: if those values are
-  production credentials, rotate them.** No code change is involved.
+- **H1 — the server "sandbox" was a process boundary, not a security sandbox.** `worker/host.ts`
+  handed BullMQ a processor path; BullMQ `fork()`s it. In the dedicated `worker` container that is
+  contained by least privilege, but the **embedded dev worker** (`server.ts`) runs inside the API
+  process, so its child **inherited `MONGODB_PASSWORD`, `GOOGLE_CLIENT_SECRET`, `AI_MANAGED_API_KEY`
+  and `PEPPER`**. **Fixed:** the child's environment is now an **allowlist**
+  (`worker/child-env.ts`) — `WORK_DIR`, `NODE_ENV`, the resource-ceiling knobs, and a fixed set of
+  authority-free OS/locale variables (`PATH`, `PATHEXT`, `TEMP`, `SystemRoot`, `HOME`, `LANG`, …) —
+  spread into BullMQ's `workerForkOptions.env` (BullMQ 6.3.11 accepts the option and spreads it last in
+  `fork()`), proven by `test/worker-child-env.test.ts`, which asserts no known secret is present.
+  **Accepted by design: the child's filesystem is still the whole work volume, not one `jobs/<id>`.**
+  The processor `require`s its dependencies from `node_modules` (built with `--packages=external`), so
+  Node's permission model cannot be applied without breaking it, and a real per-job FS scope means
+  reimplementing BullMQ's sandbox runner. In the shipped posture the child only ever reads the one
+  `jobs/<id>` path it is handed and writes that job's result; the cross-tenant read is a residual risk
+  recorded here, not a hidden one.
+- **H2 — job timeouts are cooperative; a hung synchronous parser was never killed.** `withJobLimits`
+  (`pdf-core/src/job.ts`) is an `AbortController` + timer and cannot interrupt synchronous CPU work.
+  **Fixed:** a **parent-side** kill watchdog. The child publishes its pid (`jobs/children.ts`); the
+  host runs `startChildWatchdog`, and `killExpiredChildren` kills any child past `JOB_HARD_LIMIT_MS`
+  (default `LIMITS.job.maxTimeoutMs + 5min`). It is guarded by a `stateView.isActive` check so a
+  re-queued job keeps its child. Proven by `test/children.test.ts`.
+- **H3 — there was no admission control or memory ceiling on PDF jobs.** `estimate()` existed on every
+  job definition but was never called, and `docker-compose.yml` set no `mem_limit`/`cpus`. **Fixed on
+  both axes.** *Admission:* `jobs/runner.ts` calls `definition.estimate(input, pageCountHint)` and
+  rejects a job over `LIMITS.job.maxWorkingSetBytes` (1536 MB, overridable with
+  `MAX_JOB_WORKING_SET_BYTES`) with `JOB_ERROR_CODES.tooLarge`; the ceiling travels into the child's
+  allowlisted env (it can no longer read config) and becomes the processor's `readByteLimit`. *Ceiling:*
+  each child heap is capped (`WORKER_CHILD_MAX_OLD_SPACE_MB`, default 2048) via `--max-old-space-size`,
+  and the containers carry `mem_limit`/`cpus` — `worker` 5g/2 (2 × 2 GB heap cap plus pdf.js off-heap
+  buffers), `api` 1g/1, `redis` 512m/1. Proven by a `runner.test.ts` case and `docker compose config`.
+- **H4 — live credentials sit in the local working tree (operator action, not code).** The project-root
+  `.env` holds a real MongoDB Atlas connection string and a Google OAuth client secret, and
+  `client_secret_*.json` sits beside it. Both are **correctly gitignored and untracked** (verified with
+  `git ls-files`), and the pre-push grep is clean — so this is not a leak into the repo, it is on-disk
+  hygiene. **Action: if those values are production credentials, rotate them and move to a secrets
+  manager.** No code change is involved, which is why this stays open.
 
-**Medium (open):** a shared proxy IP collapses the anonymous quota, the AI daily budget *and* the AI
-concurrency slot into one bucket when `TRUST_PROXY` is unset behind a proxy (`app.ts:431`) — fair-use
-DoS, not impersonation; uploads are extension-checked with **no** PDF magic-byte sniff
-(`uploads.ts:153`); and the byte quota is a read-`precheck` → stream → `consume`, so N concurrent
-uploads each write up to the cap before any is charged (transient disk amplification, cleaned up on
-rejection).
+**Medium (all closed in P6.9):** a shared proxy IP collapsed the anonymous quota, the AI daily budget
+*and* the AI concurrency slot into one bucket when `TRUST_PROXY` was unset behind a proxy — **M1:** the
+server cannot tell "behind a proxy" from "not" at runtime, so it now logs a **boot warning** in
+production when no hop is trusted (`http/trust-proxy.ts`, `test/trust-proxy.test.ts`), leaving the
+operator to set `TRUST_PROXY`; uploads were extension-checked with no magic-byte sniff — **M2:**
+`uploads.ts` now sniffs `%PDF-` **from the already-flowing stream** (a second file handle caused
+`EPERM ... rmdir` on Windows); and the byte quota was a read-`precheck` → stream → `consume`, so N
+concurrent uploads each wrote up to the cap before any was charged — **M3:** `QuotaService` gained
+`reserveUpload`/`settleUpload`, so `maxUploadBytes` is reserved before streaming and settled to the
+real total (refunded on failure).
 
 Accepted / by-design (recorded, not "fixed"):
 
+- **The job child sees the whole work volume, not one job.** See H1: the processor needs
+  `node_modules`, so the filesystem cannot be scoped with Node's permission model without breaking
+  `--packages=external`. The child is handed exactly one `jobs/<id>` path and reads nothing else; the
+  residual cross-tenant read is accepted and tracked here rather than silently skipped.
 - **BYOK key is stored unencrypted in IndexedDB** (§23.7.1). Honest: IndexedDB does not encrypt and
   any same-origin script can read it. It is out of `localStorage`'s name-enumerable surface, erasable
   by one call, and never sent to our server, logged, or put in a URL.
@@ -2311,24 +2360,34 @@ argv with no shell.
 
 ### 24.4 P6 — E-sign / public REST API / MCP: opening plan
 
-P1–P5 pass every gate and are **functionally** end to end ready, so P6 can open. But §24 found four open
-Highs, so this plan opens with a short hardening interlude and sequences the identity-sensitive API and
-the agent-facing MCP server last — they are precisely the surfaces that make H1–H3 reachable at scale.
+P1–P5 pass every gate and are **functionally** end to end ready, so P6 can open. §24 found four Highs,
+so the plan opened with a short hardening interlude (now **done** — see P6.9) before the
+identity-sensitive API and the agent-facing MCP server, which are precisely the surfaces that make
+H1–H3 reachable at scale.
 
 **Functional gate met 2026-10-16:** 837/837 unit · 101/101 + 8/8 + 18/18 + 11/11 browser E2E ·
-bundle boundary holds · pre-push grep clean · §24 review: **no Critical, four High open**.
+bundle boundary holds · pre-push grep clean · §24 review: **no Critical, four High open** (all now
+closed — see the P6.9 status below and §24.2).
 
 - **P6.0 — Decision record (first, nothing built before it).** Signature form (draw/type/upload),
   what an "audit trail" actually attests to and what it does **not** (no eIDAS/ESIGN certification
   claim), where signature artifacts are stored, the API-key model (hashing at rest, scopes, rotation),
   and the MCP transport(s) — all written down like §18.1/§20.3.
 - **P6.9 — Hardening interlude: close the §24 Highs.** Do this **before** P6.2/P6.3. H1 — stop the child
-  inheriting the API's secrets (never embed the worker in the API process, or spawn it explicitly with a
-  minimal `env`) and scope each child to its own `jobs/<id>`; H2 — a **parent-side** kill watchdog, not a
-  cooperative timer; H3 — call `estimate()` as admission control and put `mem_limit`/`cpus` on the
-  containers; H4 — rotate the on-disk credentials; plus M1–M3. **Gate:** a hung or oversized job is killed
-  and the queue stays healthy; memory is bounded under a parallel flood; a child cannot read a sibling
-  job's directory. Extends P3's hardening gate (§11) from "survives a crash" to "survives abuse".
+  inheriting the API's secrets and scope each child to its own `jobs/<id>`; H2 — a **parent-side** kill
+  watchdog, not a cooperative timer; H3 — call `estimate()` as admission control and put
+  `mem_limit`/`cpus` on the containers; H4 — rotate the on-disk credentials; plus M1–M3. **Gate:** a hung
+  or oversized job is killed and the queue stays healthy; memory is bounded under a parallel flood; a
+  child holds no secret. Extends P3's hardening gate (§11) from "survives a crash" to "survives abuse".
+
+  **Status — done 2026-10-17 (five commits `f0f3bda`…`4d59d7f` plus M1/M3 and the container caps):**
+  H1 env allowlist (`worker/child-env.ts`), H2 parent-side kill watchdog (`jobs/children.ts`), H3
+  admission control + heap cap + `mem_limit`/`cpus`, M1 boot warning (`http/trust-proxy.ts`), M2
+  `%PDF-` stream sniff (`uploads.ts`), M3 reserve-then-settle (`quota/quota.ts`). **Amended gate:** a
+  child cannot read a *sibling's* directory is **not** claimed — the filesystem scope is accepted
+  by design (§24.2, H1) because the processor needs `node_modules`. **H4 stays open as an operator
+  action** (rotate the Atlas password and Google client secret). Unit **862/862** now; the live
+  Redis/Docker leg of the gate (`test:api`, `test:hardening`) still needs a running stack.
 - **P6.1 — E-sign.** `szimek/signature_pad` (MIT, §2) for capture, its `toSVG()` → pdf-lib
   `drawSvgPath` for vector output, placement/fill through the P2 editor, ordered recipients, and an
   append-only audit record (document hash, signer identity, timestamps). **Gate:** a signature
@@ -2352,13 +2411,13 @@ redaction (not before R1 is proven in production, §20.3). P6 does not depend on
 
 | ID | Sev | Finding | Fix | Phase |
 | --- | --- | --- | --- | --- |
-| H1 | High | `fork()` "sandbox" inherits env + full filesystem | explicit child spawn with a minimal `env`; per-job FS scope | P6.9 |
-| H2 | High | timeout is cooperative; no hard kill of a hung parser | parent-side kill watchdog | P6.9 |
-| H3 | High | no admission control; no container memory/CPU cap | call `estimate()`; set `mem_limit`/`cpus` | P6.9 |
-| H4 | High | live credentials on disk (gitignored, untracked) | rotate; move to a secrets manager | ops, now |
-| M1 | Med | a proxy IP collapses quota + AI budget + AI concurrency | set `TRUST_PROXY`, or key quota on a nonce | P6.9 |
-| M2 | Med | uploads are extension-checked only | sniff `%PDF-` before enqueue | P6.9 |
-| M3 | Med | parallel uploads bypass the byte quota until `consume` | reserve bytes before streaming | P6.9 |
+| H1 | High | `fork()` "sandbox" inherits env + full filesystem | child env is now an **allowlist** (`child-env.ts`); **per-job FS scope accepted by design** (§24.2) | P6.9 — done |
+| H2 | High | timeout is cooperative; no hard kill of a hung parser | parent-side kill watchdog (`jobs/children.ts`) | P6.9 — done |
+| H3 | High | no admission control; no container memory/CPU cap | `estimate()` admission control + heap cap + `mem_limit`/`cpus` | P6.9 — done |
+| H4 | High | live credentials on disk (gitignored, untracked) | rotate; move to a secrets manager | ops — **still open** |
+| M1 | Med | a proxy IP collapses quota + AI budget + AI concurrency | boot warning when production trusts no hop (`http/trust-proxy.ts`) | P6.9 — done |
+| M2 | Med | uploads are extension-checked only | sniff `%PDF-` from the upload stream before enqueue | P6.9 — done |
+| M3 | Med | parallel uploads bypass the byte quota until `consume` | `reserveUpload`/`settleUpload` before streaming | P6.9 — done |
 | L1 | Low | `POST /api/auth/logout` not CSRF-checked | add the token check or document the Lax reliance | P7 |
 | L2 | Low | `/api/ai/chat` cross-site can burn a victim IP's trial | require the CSRF header when a cookie is present | P7 |
 | L3 | Low | oversized JSON body → 500, not 413 | map `entity.too.large` in `errorHandler` | P7 |
@@ -2370,8 +2429,8 @@ redaction (not before R1 is proven in production, §20.3). P6 does not depend on
 | L9 | Low | `AccountStore.ownsJob` is dead code | delete it, or use it as the record | P7 |
 | — | Low | **fixed in this review:** `redactSecrets` gaps (client) and the raw managed-gateway error (server) | §24.2 | done |
 
-**Recommended order:** P6.0 decision record → **P6.9 hardening** → P6.1 e-sign → P6.2 public API → P6.3
-MCP. P6.1 touches only the P2 editor, so it can run in parallel with P6.9 if that is preferable; P6.2 and
-P6.3 should not precede it.
+**Order:** **P6.9 hardening — done 2026-10-17** → P6.0 decision record (next) → P6.1 e-sign → P6.2
+public API → P6.3 MCP. P6.1 touches only the P2 editor, so it can run in parallel with the decision
+record; P6.2 and P6.3 should not precede it.
 
 
