@@ -71,7 +71,7 @@ function PlannedNotice({ tool }: { tool: ToolDef }) {
   return (
     <div className="space-y-6">
       <Card className="border-dashed">
-        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-start">
+        <CardContent className="flex flex-col gap-4 px-6 pb-6 pt-0 sm:flex-row sm:items-start">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
             <Clock className="h-5 w-5" />
           </span>

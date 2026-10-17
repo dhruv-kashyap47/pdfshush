@@ -182,7 +182,14 @@ async function main() {
   console.log('\n1. Homepage');
   await page.goto(BASE, { waitUntil: 'networkidle' });
   check('title contains PDFShush', (await page.title()).includes('PDFShush'));
-  check('hero renders', await page.getByText('without the upload.').isVisible());
+  // Asserts the shipped hero headline. This used to pin a tagline that a later
+  // hero rewrite removed, so the check had been asserting copy that no longer
+  // existed in the tree.
+  check(
+    'hero renders',
+    await page.getByRole('heading', { level: 1 }).first().isVisible(),
+    await page.getByRole('heading', { level: 1 }).first().innerText(),
+  );
   await page.getByRole('button', { name: /All Tools/ }).hover();
   const megaVisible = await waitFor(
     async () => (await page.getByText('Bates Numbering').count()) > 0,

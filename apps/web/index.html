@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#00b96b" />
+    <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
 
     <title>PDFShush: Free, private PDF tools that run in your browser</title>
     <meta
@@ -11,6 +12,27 @@
       content="Merge, organize, convert and edit PDF files without limits. Your files never leave your device; every tool runs locally in your browser. Free forever, no sign-up."
     />
     <meta name="robots" content="index, follow" />
+
+    <!--
+      Theme is applied before first paint, so the correct hero plate and surface
+      tokens are on screen in the very first frame. Without this the page paints
+      in light mode and then swaps when React mounts, which is visible as a flash
+      on every load and on every reload. Mirrors ThemeProvider's storage key.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('pdfshush-theme');
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.add(dark ? 'dark' : 'light');
+        } catch (error) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="PDFShush" />

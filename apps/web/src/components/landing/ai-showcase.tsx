@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Bot, FileText, Sparkles } from 'lucide-react';
+import { ArrowRight, Bot, CheckCircle2, FileText, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -127,13 +127,31 @@ const MODES: ShowcaseMode[] = [
 export function AiShowcase() {
   const [activeTab, setActiveTab] = useState(0);
   const [activePromptIndex, setActivePromptIndex] = useState(0);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const currentMode = MODES[activeTab] ?? MODES[0]!;
   const currentPrompt = currentMode.prompts[activePromptIndex] ?? currentMode.prompts[0]!;
+  // One key drives both panels, so the preview and the assistant always
+  // swap in as a single gesture.
+  const swapKey = `${currentMode.id}:${activePromptIndex}`;
 
   const handleSelectTab = (index: number) => {
     setActiveTab(index);
     setActivePromptIndex(0);
+  };
+
+  // Roving-tabindex keyboard model for the tablist (arrow keys, Home, End).
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const last = MODES.length - 1;
+    let next: number | null = null;
+    if (event.key === 'ArrowRight') next = index === last ? 0 : index + 1;
+    else if (event.key === 'ArrowLeft') next = index === 0 ? last : index - 1;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = last;
+    if (next === null) return;
+    event.preventDefault();
+    handleSelectTab(next);
+    tabRefs.current[next]?.focus();
   };
 
   return (
@@ -141,12 +159,7 @@ export function AiShowcase() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="max-w-3xl" data-reveal>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-md font-mono text-[11px] uppercase tracking-wider">
-              Document Intelligence Layer
-            </Badge>
-          </div>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             AI grounded in the page, not hallucinated from memory.
           </h2>
           <p className="mt-3 text-base text-muted-foreground sm:text-lg">
@@ -167,20 +180,27 @@ export function AiShowcase() {
             return (
               <button
                 key={mode.id}
+                ref={(node) => {
+                  tabRefs.current[index] = node;
+                }}
+                id={`ai-tab-${mode.id}`}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                aria-controls="ai-studio-panel"
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => handleSelectTab(index)}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
                 className={`relative flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold tracking-tight transition-all sm:text-sm ${
                   isActive
-                    ? 'bg-foreground text-background shadow-xs'
+                    ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                 }`}
               >
                 <span>{mode.label}</span>
                 <span
                   className={`hidden rounded px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wide md:inline-block ${
-                    isActive ? 'bg-background/20 text-background' : 'bg-muted text-muted-foreground'
+                    isActive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
                   }`}
                 >
                   {mode.badge}
@@ -191,9 +211,21 @@ export function AiShowcase() {
         </div>
 
         {/* Interactive Studio Console */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-stretch" data-reveal data-reveal-delay="160">
+        <div
+          id="ai-studio-panel"
+          role="tabpanel"
+          aria-labelledby={`ai-tab-${currentMode.id}`}
+          className="mt-8 grid gap-6 lg:grid-cols-12 lg:items-stretch"
+          data-reveal
+          data-reveal-delay="160"
+        >
           {/* Left Column: Simulated Document Canvas */}
-          <div className="flex flex-col rounded-xl border border-border/80 bg-muted/15 p-5 lg:col-span-6 dark:bg-card/60">
+          {/* min-h values are the measured worst case across all tabs and prompts
+              at each breakpoint, so switching never reflows the section. */}
+          <div
+            key={`doc:${swapKey}`}
+            className="showcase-swap flex min-h-[717px] flex-col rounded-xl border border-border/80 bg-muted/15 p-4 sm:min-h-[570px] sm:p-5 lg:col-span-6 lg:min-h-[634px] xl:min-h-[570px] dark:bg-card/60"
+          >
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <FileText className="h-4 w-4 text-primary" />
@@ -202,50 +234,63 @@ export function AiShowcase() {
               <span className="font-mono text-[11px] text-muted-foreground">{currentMode.docPage}</span>
             </div>
 
-            {/* Document Page Simulation */}
-            <div className="mt-4 flex-1 rounded-lg border border-border/80 bg-card p-6 shadow-xs">
-              <div className="border-b border-border/40 pb-3">
-                <p className="font-mono text-[11px] font-semibold tracking-wider text-muted-foreground">
+            {/* Document page — rendered as real paper, like a desktop PDF viewer */}
+            <article className="doc-page flex flex-1 flex-col rounded-md px-6 py-7 sm:px-8 sm:py-8">
+              <header className="pb-3.5">
+                <h3 className="doc-body text-[11px] font-semibold uppercase tracking-[0.14em]">
                   {currentMode.docTitle}
+                </h3>
+                <p className="doc-body doc-ink-soft mt-1 text-[11.5px] italic">
+                  {currentMode.docSub}
                 </p>
-                <p className="text-xs text-muted-foreground">{currentMode.docSub}</p>
-              </div>
-
-              <div className="mt-5 space-y-3 font-serif text-xs leading-relaxed text-foreground/80">
-                <p>
-                  1. <span className="font-sans font-semibold">Scope of Work:</span> Northstar Systems shall deliver
+              </header>
+              <div className="doc-body doc-ruled min-h-[13.5rem] flex-1 space-y-4 pt-4 text-[13px] leading-[1.75] sm:text-[13.5px]">
+                <p className="doc-clause">
+                  <span className="doc-clause-title">1. Scope of Work:</span> Northstar Systems shall deliver
                   enterprise document intelligence infrastructure under the terms outlined herein.
                 </p>
-                <p>
-                  2. <span className="font-sans font-semibold">Security Standards:</span> All file processing must adhere
+                <p className="doc-clause">
+                  <span className="doc-clause-title">2. Security Standards:</span> All file processing must adhere
                   to local client-side execution boundaries without transferring unencrypted payload data to remote hosts.
                 </p>
 
-                {/* Highlighted active target text */}
-                <div className="relative my-3 rounded border border-emerald-500/40 bg-emerald-500/10 p-3 font-sans text-xs text-foreground transition-all">
-                  <div className="mb-1 flex items-center justify-between font-mono text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
-                    <span>ACTIVE TARGET TEXT</span>
-                    <span>{currentPrompt.citation}</span>
+                {/* Active target text run */}
+                <div className="doc-highlight rounded-r-[3px]">
+                  <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                    <span className="doc-highlight-tag font-sans text-[9.5px] font-semibold uppercase tracking-[0.12em]">
+                      Active target text
+                    </span>
+                    <span className="doc-highlight-tag shrink-0 font-mono text-[10px] font-medium">
+                      {currentPrompt.citation}
+                    </span>
                   </div>
-                  <p className="font-serif leading-normal font-medium">{currentPrompt.highlightText}</p>
+                  <p className="min-h-[3.4rem]">{currentPrompt.highlightText}</p>
                 </div>
 
-                <p>
-                  3. <span className="font-sans font-semibold">General Provisions:</span> This agreement supersedes all
+                <p className="doc-clause">
+                  <span className="doc-clause-title">3. General Provisions:</span> This agreement supersedes all
                   prior informal quotations and shall bind respective successors and assigns.
                 </p>
               </div>
 
-              <div className="mt-6 flex items-center justify-between border-t border-border/40 pt-3 text-[10px] text-muted-foreground">
-                <span>VERIFIED RUN GEOMETRY</span>
-                <span className="font-mono">COORDS: X:72 Y:240 W:468 H:36</span>
-              </div>
-            </div>
+              <footer className="doc-verify mt-5 flex flex-col gap-1 pt-3 font-sans text-[9.5px] uppercase tracking-[0.1em] sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="doc-verify-icon h-3.5 w-3.5" />
+                  Verified run geometry
+                </span>
+                <span className="font-mono text-[10px] normal-case tracking-normal">
+                  COORDS: X:72 Y:240 W:468 H:36
+                </span>
+              </footer>
+            </article>
           </div>
 
           {/* Right Column: AI Assistant Controller */}
-          <div className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-6 lg:col-span-6">
-            <div>
+          <div
+            key={`assistant:${swapKey}`}
+            className="showcase-swap flex min-h-[575px] flex-col rounded-xl border border-border/80 bg-card p-6 sm:min-h-[515px] lg:col-span-6"
+          >
+            <div className="flex flex-1 flex-col">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -289,8 +334,9 @@ export function AiShowcase() {
                 </div>
               </div>
 
-              {/* Answer display box */}
-              <div className="mt-6 rounded-lg border border-border/80 bg-muted/25 p-4">
+              {/* Answer display box. It absorbs the panel's spare height so the
+                  CTA can pin to the bottom without a void opening above it. */}
+              <div className="mt-6 flex flex-1 flex-col rounded-lg border border-border/80 bg-muted/25 p-4">
                 <div className="flex items-center justify-between text-xs font-semibold text-foreground">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5 text-primary" /> Grounded Result
@@ -299,7 +345,7 @@ export function AiShowcase() {
                     {currentPrompt.citation}
                   </span>
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-foreground/90">
+                <p className="mt-2 min-h-[4.5rem] text-xs leading-relaxed text-foreground/90">
                   {currentPrompt.answer}
                 </p>
               </div>

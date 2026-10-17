@@ -50,11 +50,12 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-16 after the P5 AI port (§23), the gap-closing pass (§23.7),
-and the Phase 1-5 security review + `redactSecrets` hardening (§24).
+**Current gate:** re-measured 2026-10-17 after the cinematic Greek hero plate (§8, top entry) and a
+desktop-only hero grade pass; the P5 AI port (§23), the gap-closing pass (§23.7), and the
+Phase 1-5 security review + `redactSecrets` hardening (§24) all still hold.
 **18 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
 `edit-pdf-with-ai` under a new **AI** category) · 8 runnable server-side ·
-**862/862 unit** (189 engine · 157 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
+**881/881 unit** (189 engine · 176 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
 smoke, API up so only the workflow-run steps skip) · **8/8 focused text-edit E2E** · **18/18 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
@@ -513,6 +514,38 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-17 — cinematic Greek hero plate, and a desktop-only grade pass over it.**
+
+  **The backdrop.** The hero now carries a decorative Greek plate (`greek-day` / `greek-night`, plus
+  `-sm` variants for the 1080w `srcSet`). Both live in the DOM and the theme picks one — `block
+  dark:hidden` / `hidden dark:block` — so a theme switch is a pure class swap, never a reload or a
+  flash. Two stacked veils grade it: `.hero-backdrop-wash` (a 100deg text-side veil that keeps a
+  calm ground under the copy, lifted off the top by a vertical mask so the sky stays photographic
+  rather than milky) and `.hero-backdrop-scrim` (the top/bottom dissolves plus the warm-gold or
+  moonlight radial). The light wash is deliberately **neutral white** — tinting it yellow is what
+  turns a golden-hour photograph into a beige wash; the warmth has to come from the plate. A
+  first-frame `prefers-color-scheme` rule paints the matching plate before React mounts, gated on
+  the absence of *both* theme classes so it cannot fight the utilities once `ThemeProvider` has run.
+
+  **The desktop pass.** Two changes, and only two, scoped to `@media (min-width: 1024px)`: the plate
+  gains brightness and richness in **both** themes (`saturate/brightness` 0.94/1.02 → 1.06/1.08 by
+  day, 0.97/0.95 → 1.08/1.04 by night), and the text-side wash thins past the copy column (light
+  63/44/22% → 54/33/14% at the mid-to-far stops) while the stops directly under the headline barely
+  move, so contrast is preserved. The bottom dissolve, previously a 58% white haze from 64% and a
+  58% black fade from 62% hitting full background at 82%, is now a **subtle breath at the foot**:
+  transparent to 64/62%, 18% at 84%, page background only at 98%. Phone and tablet keep the base and
+  `max-width: 639px` values **byte-for-byte** — the desktop block is a later, mutually exclusive
+  query, and the top dissolves and both radial grades are copied verbatim so nothing else moved.
+
+  **Verification.** Confirmed in real Edge against the dev server at 1440×900 in both themes: the
+  computed `filter` / `background-image` on the plate, wash and scrim are the new values, and at
+  390×844 they are still the *original* phone values (so mobile is provably unchanged, not merely
+  un-looked-at). Also added `tests/sweep.mjs` (`pnpm test:sweep`) — a responsive sweep across six
+  breakpoints × both themes reporting horizontal overflow, unrevealed reveal-blocks, and size/contrast
+  outliers; it is a diagnostic, **not** a gate. Gates: **881/881 unit** (189 engine · 176 API ·
+  364 provider · 152 agent) · `pnpm typecheck` ✅ all five packages · pre-push secret/PII/dangerous-sink
+  grep clean, with `.env` and the Google client-secret JSON confirmed untracked **and** gitignored.
 
 - **2026-10-17 — Redis resilience, diagnostics, and PDFShush wordmark integration.** Redis queue/quota
   connections now use bounded exponential backoff with jitter, credential-redacted targets, deduplicated
@@ -984,6 +1017,7 @@ pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
 pnpm test:e2e:ai-managed # managed trial through the real API routes, in-memory counters (11 checks)
 pnpm test:bundle      # after `pnpm build`: entry chunk must carry no PDF engine
+pnpm test:sweep       # responsive sweep (not a gate): overflow, reveal + size/contrast outliers
 pnpm build            # production build (web + api bundles)
 pnpm stack:up         # docker compose up -d --build (redis + api + worker)
 pnpm stack:down       # docker compose down

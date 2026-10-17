@@ -97,7 +97,7 @@ export function FeaturesSection() {
                 data-reveal
                 data-reveal-delay={i * 70}
               >
-                <CardContent className="p-6">
+                <CardContent className="px-6 pb-6 pt-0">
                   <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <Icon className="h-5 w-5" />
                   </div>

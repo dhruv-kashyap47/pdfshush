@@ -331,7 +331,9 @@ export function AiChat({
 
             <div className={cn('min-w-0 flex-1', message.role === 'user' && 'flex justify-end')}>
               {message.role === 'user' ? (
-                <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+                // Neutral, not the primary fill: the page's primary action is
+                // Apply, and a saturated bubble here would out-shout it.
+                <div className="max-w-[85%] rounded-2xl rounded-tr-sm border border-border bg-muted px-3.5 py-2 text-sm text-foreground">
                   {message.text}
                 </div>
               ) : (

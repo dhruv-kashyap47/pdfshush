@@ -5,6 +5,7 @@
 
 @theme inline {
   --font-sans: var(--font-inter);
+  --font-serif: var(--font-doc);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -44,8 +45,15 @@
 
 :root {
   --font-inter: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Document face for the PDF preview: a print serif, no webfont request. */
+  --font-doc: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
+    "Times New Roman", Times, serif;
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  color-scheme: light;
+  /* The page is a warm-neutral off-white, not paper-white. Cards sit at pure
+     white, so an elevated surface reads as a step up instead of relying on a
+     border to separate it. */
+  --background: oklch(0.9865 0.0018 92);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -53,15 +61,15 @@
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.62 0.17 152);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.9665 0.0025 92);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.9665 0.0025 92);
+  --muted-foreground: oklch(0.508 0 0);
+  --accent: oklch(0.961 0.003 92);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.914 0.002 92);
+  --input: oklch(0.914 0.002 92);
   --ring: oklch(0.62 0.17 152);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -80,6 +88,7 @@
 
 .dark {
   /* True black canvas — not near-black, actual black for premium depth */
+  color-scheme: dark;
   --background: oklch(0 0 0);
   --foreground: oklch(0.97 0 0);
   /* Cards sit one visible step above the black ground */
@@ -157,35 +166,12 @@ html {
   scroll-behavior: smooth;
 }
 
-/* ─── Logo carousel ──────────────────────────────────────────────────────── */
-@keyframes logo-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-144rem); }
-}
-.animate-logo-scroll { animation: logo-scroll 30s linear infinite; }
-.animate-logo-scroll:hover { animation-play-state: paused; }
-
-/* ─── Legacy convenience classes (kept for existing usage) ──────────────── */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes pulseGently {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.65; transform: scale(0.92); }
-}
-.animate-fade-in-up    { animation: fadeInUp 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.animate-fade-in       { animation: fadeIn 200ms ease-out both; }
-.animate-pulse-gently  { animation: pulseGently 2.4s ease-in-out infinite; }
-
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM ANIMATION SYSTEM
    All motion: transform + opacity only. Hardware-accelerated.
    Every rule has a prefers-reduced-motion fallback at the bottom.
+   Nothing here loops forever on its own — motion is a response to an
+   interaction, never ambient traffic.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── 1. Scroll-Reveal (IntersectionObserver → data-revealed) ─────────────
@@ -230,70 +216,383 @@ html {
 .hero-stagger-4 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.42s both; }
 .hero-stagger-5 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.54s both; }
 
-/* ── 3. Floating sparkle — logo sparkle ambient drift ───────────────────── */
-@keyframes floatSpark {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  33%       { transform: translateY(-4px) rotate(6deg); }
-  66%       { transform: translateY(2px) rotate(-4deg); }
-}
-.animate-float-spark { animation: floatSpark 5s ease-in-out infinite; }
-
-/* ── 4. Shimmer line — hero accent underline ────────────────────────────── */
-@keyframes shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--primary) 0%,
-    oklch(0.85 0.15 152) 40%,
-    var(--primary) 70%
-  );
-  background-size: 200% auto;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: shimmer 3.5s linear infinite;
-}
-
-/* ── 5. Ambient dot grid pulse (hero background texture) ────────────────── */
-@keyframes dotPulse {
-  0%, 100% { opacity: 0.35; }
-  50%       { opacity: 0.55; }
-}
-.hero-dot-grid {
+/* ── 2b. Cinematic hero artwork (Greek backdrop) ────────────────────────── */
+/* Two decorative plates: the theme decides which one paints. Both live in the
+   DOM so switching themes is a pure class swap — never a reload or a flash. */
+.hero-backdrop {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   pointer-events: none;
-  background-image: radial-gradient(
-    circle,
-    oklch(0 0 0 / 12%) 1px,
-    transparent 1px
-  );
-  background-size: 28px 28px;
-  animation: dotPulse 6s ease-in-out infinite;
+  background-color: var(--background);
 }
-.dark .hero-dot-grid {
-  background-image: radial-gradient(
-    circle,
-    oklch(1 0 0 / 8%) 1px,
-    transparent 1px
+.hero-backdrop-image {
+  position: absolute;
+  /* Slightly oversized so the softening filter never bleeds at the edges. */
+  inset: -2px;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+  /* Focal point: the harbour light stays in frame from phone to desktop. */
+  object-position: 80% 30%;
+}
+.hero-backdrop-image--day {
+  /* A touch of depth-of-field: the plate reads as atmosphere, not a pasted photo. */
+  filter: blur(1.6px) saturate(0.94) brightness(1.02);
+  object-position: 84% 36%;
+}
+.hero-backdrop-image--night {
+  filter: blur(1.4px) saturate(0.97) brightness(0.95) contrast(1.03);
+  object-position: 80% 24%;
+}
+@media (min-width: 640px) {
+  .hero-backdrop-image--day {
+    object-position: 70% 42%;
+  }
+  .hero-backdrop-image--night {
+    object-position: 72% 34%;
+  }
+}
+@media (min-width: 1024px) {
+  .hero-backdrop-image--day {
+    object-position: 63% 46%;
+  }
+  .hero-backdrop-image--night {
+    object-position: 65% 40%;
+  }
+}
+/* On phones the hero is much taller than the plate, so the artwork becomes an
+   atmospheric band at full native scale instead of a zoomed-in slice. */
+@media (max-width: 639px) {
+  .hero-backdrop {
+    bottom: auto;
+    height: min(78svh, 40rem);
+  }
+}
+/* First frame, before React applies the stored theme class: follow the OS so
+   the matching plate is already on screen (no duplicated theme state). Gated on
+   the absence of *both* class names — once ThemeProvider has run, html always
+   carries `light` or `dark` and these rules must not fight the utilities. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark) .hero-backdrop-image--day {
+    display: none;
+  }
+  :root:not(.light):not(.dark) .hero-backdrop-image--night {
+    display: block;
+  }
+}
+
+/* Theme-specific directional grades. Two stacked veils, in this order:
+   1. the text-side wash — a 100deg gradient that keeps a calm ground under the
+      copy; a vertical mask lifts it off the top of the frame so the sky,
+      sunlight and moonlight stay photographic instead of milky,
+   2. the scrim — top and bottom dissolves (the plate bleeds into the page, and
+      under the translucent header) plus the colour grade that keeps the artwork
+      cinematic rather than photographic.
+
+   The light wash is deliberately *neutral* white, not warm: tinting it yellow
+   is what turns a golden-hour photograph into a beige wash. The warmth has to
+   come from the plate. */
+.hero-backdrop-wash {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    100deg,
+    oklch(1 0 0 / 80%) 0%,
+    oklch(1 0 0 / 74%) 26%,
+    oklch(1 0 0 / 63%) 44%,
+    oklch(1 0 0 / 44%) 57%,
+    oklch(1 0 0 / 22%) 69%,
+    oklch(1 0 0 / 6%) 81%,
+    oklch(1 0 0 / 0%) 93%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    oklch(0 0 0 / 42%) 0%,
+    oklch(0 0 0 / 62%) 18%,
+    oklch(0 0 0 / 88%) 36%,
+    oklch(0 0 0 / 100%) 52%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    oklch(0 0 0 / 42%) 0%,
+    oklch(0 0 0 / 62%) 18%,
+    oklch(0 0 0 / 88%) 36%,
+    oklch(0 0 0 / 100%) 52%
+  );
+}
+.dark .hero-backdrop-wash {
+  background-image: linear-gradient(
+    100deg,
+    oklch(0.1 0.018 255 / 93%) 0%,
+    oklch(0.1 0.018 255 / 89%) 30%,
+    oklch(0.09 0.018 255 / 77%) 50%,
+    oklch(0.075 0.016 255 / 57%) 62%,
+    oklch(0.065 0.014 255 / 31%) 74%,
+    oklch(0.06 0.012 255 / 10%) 86%,
+    oklch(0.06 0.012 255 / 0%) 96%
   );
 }
 
-/* ── 6. Ambient line sweep — section divider accent ─────────────────────── */
-@keyframes lineSweep {
-  0%   { transform: scaleX(0); opacity: 0; }
-  40%  { opacity: 1; }
-  100% { transform: scaleX(1); opacity: 0.6; }
+.hero-backdrop-scrim {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      to bottom,
+      oklch(0.99 0.006 90 / 22%) 0%,
+      oklch(0.99 0.006 90 / 7%) 14%,
+      oklch(0.995 0.005 90 / 0%) 32%,
+      oklch(0.995 0.005 90 / 0%) 40%,
+      oklch(0.99 0.006 90 / 58%) 64%,
+      var(--background) 82%
+    ),
+    radial-gradient(
+      120% 80% at 78% 34%,
+      oklch(0.97 0.05 85 / 22%) 0%,
+      oklch(0.97 0.05 85 / 0%) 58%
+    );
 }
-.animate-line-sweep {
-  transform-origin: left center;
-  animation: lineSweep 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+.dark .hero-backdrop-scrim {
+  background-image:
+    linear-gradient(
+      to bottom,
+      oklch(0.12 0.02 258 / 44%) 0%,
+      oklch(0.1 0.02 258 / 14%) 14%,
+      oklch(0 0 0 / 0%) 32%,
+      oklch(0 0 0 / 0%) 38%,
+      oklch(0 0 0 / 58%) 62%,
+      var(--background) 82%
+    ),
+    radial-gradient(
+      70% 55% at 82% 17%,
+      oklch(0.78 0.04 240 / 16%) 0%,
+      oklch(0.78 0.04 240 / 0%) 62%
+    );
+}
+/* Desktop refinement (≥1024px only — phone and tablet keep the values above):
+   1. the plate gains brightness and richness in both themes,
+   2. the text-side wash thins out past the copy column so more of the artwork
+      reads through, while the stops under the copy stay nearly as strong,
+   3. the bottom dissolve shrinks to a subtle breath at the very foot of the
+      hero instead of a heavy haze. */
+@media (min-width: 1024px) {
+  .hero-backdrop-image--day {
+    filter: blur(1.6px) saturate(1.06) brightness(1.08);
+  }
+  .hero-backdrop-image--night {
+    filter: blur(1.4px) saturate(1.08) brightness(1.04) contrast(1.04);
+  }
+  .hero-backdrop-wash {
+    background-image: linear-gradient(
+      100deg,
+      oklch(1 0 0 / 78%) 0%,
+      oklch(1 0 0 / 70%) 26%,
+      oklch(1 0 0 / 54%) 44%,
+      oklch(1 0 0 / 33%) 57%,
+      oklch(1 0 0 / 14%) 69%,
+      oklch(1 0 0 / 4%) 81%,
+      oklch(1 0 0 / 0%) 93%
+    );
+  }
+  .dark .hero-backdrop-wash {
+    background-image: linear-gradient(
+      100deg,
+      oklch(0.1 0.018 255 / 90%) 0%,
+      oklch(0.1 0.018 255 / 85%) 30%,
+      oklch(0.09 0.018 255 / 66%) 50%,
+      oklch(0.075 0.016 255 / 43%) 62%,
+      oklch(0.065 0.014 255 / 19%) 74%,
+      oklch(0.06 0.012 255 / 6%) 86%,
+      oklch(0.06 0.012 255 / 0%) 96%
+    );
+  }
+  .hero-backdrop-scrim {
+    background-image:
+      linear-gradient(
+        to bottom,
+        oklch(0.99 0.006 90 / 22%) 0%,
+        oklch(0.99 0.006 90 / 7%) 14%,
+        oklch(0.995 0.005 90 / 0%) 32%,
+        oklch(0.995 0.005 90 / 0%) 64%,
+        oklch(0.99 0.006 90 / 18%) 84%,
+        var(--background) 98%
+      ),
+      radial-gradient(
+        120% 80% at 78% 34%,
+        oklch(0.97 0.05 85 / 22%) 0%,
+        oklch(0.97 0.05 85 / 0%) 58%
+      );
+  }
+  .dark .hero-backdrop-scrim {
+    background-image:
+      linear-gradient(
+        to bottom,
+        oklch(0.12 0.02 258 / 44%) 0%,
+        oklch(0.1 0.02 258 / 14%) 14%,
+        oklch(0 0 0 / 0%) 32%,
+        oklch(0 0 0 / 0%) 62%,
+        oklch(0 0 0 / 18%) 84%,
+        var(--background) 98%
+      ),
+      radial-gradient(
+        70% 55% at 82% 17%,
+        oklch(0.78 0.04 240 / 16%) 0%,
+        oklch(0.78 0.04 240 / 0%) 62%
+      );
+  }
+}
+/* Phones: the copy runs full-bleed, so a diagonal text-side wash no longer
+   matches the layout. It turns vertical instead — a calm veil at the top that
+   the headline sits on — and the scrim keeps only the job of dissolving the
+   band into the page below. */
+@media (max-width: 639px) {
+  .hero-backdrop-image--day {
+    object-position: 78% 40%;
+  }
+  .hero-backdrop-image--night {
+    object-position: 70% 40%;
+  }
+  .hero-backdrop-wash {
+    background-image: linear-gradient(
+      to bottom,
+      oklch(1 0 0 / 50%) 0%,
+      oklch(1 0 0 / 42%) 18%,
+      oklch(1 0 0 / 21%) 34%,
+      oklch(1 0 0 / 5%) 48%,
+      oklch(1 0 0 / 0%) 60%
+    );
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .dark .hero-backdrop-wash {
+    background-image: linear-gradient(
+      to bottom,
+      oklch(0.1 0.018 255 / 70%) 0%,
+      oklch(0.095 0.018 255 / 62%) 18%,
+      oklch(0.085 0.016 255 / 40%) 36%,
+      oklch(0.07 0.014 255 / 14%) 52%,
+      oklch(0.05 0.01 255 / 0%) 66%
+    );
+  }
+  .hero-backdrop-scrim {
+    background-image:
+      linear-gradient(
+        to bottom,
+        oklch(1 0 0 / 0%) 0%,
+        oklch(1 0 0 / 0%) 46%,
+        oklch(1 0 0 / 34%) 64%,
+        oklch(1 0 0 / 84%) 80%,
+        var(--background) 94%
+      ),
+      radial-gradient(
+        120% 80% at 84% 34%,
+        oklch(0.97 0.05 85 / 20%) 0%,
+        oklch(0.97 0.05 85 / 0%) 60%
+      );
+  }
+  .dark .hero-backdrop-scrim {
+    background-image:
+      linear-gradient(
+        to bottom,
+        oklch(0 0 0 / 0%) 0%,
+        oklch(0 0 0 / 0%) 42%,
+        oklch(0 0 0 / 38%) 62%,
+        oklch(0 0 0 / 86%) 80%,
+        var(--background) 94%
+      ),
+      radial-gradient(
+        70% 55% at 84% 20%,
+        oklch(0.78 0.04 240 / 14%) 0%,
+        oklch(0.78 0.04 240 / 0%) 62%
+      );
+  }
 }
 
-/* ── 7. Card hover lift (supplements existing Tailwind hover) ───────────── */
+/* ── 2c. Document preview: real paper in both themes ────────────────────── */
+/* Application chrome stays dark; the simulated page is paper, exactly like a
+   desktop PDF viewer renders it. */
+.doc-page {
+  --doc-paper: oklch(0.998 0.003 95);
+  --doc-paper-edge: oklch(0.958 0.006 92);
+  --doc-ink: oklch(0.25 0.012 265);
+  --doc-ink-soft: oklch(0.46 0.012 265);
+  --doc-rule: oklch(0.25 0.012 265 / 12%);
+  --doc-mark: oklch(0.5 0.15 152);
+  --doc-mark-wash: oklch(0.62 0.17 152 / 11%);
+  position: relative;
+  color: var(--doc-ink);
+  background-image: linear-gradient(180deg, var(--doc-paper) 0%, var(--doc-paper-edge) 100%);
+  box-shadow:
+    0 24px 48px -32px oklch(0 0 0 / 38%),
+    0 2px 6px -4px oklch(0 0 0 / 20%);
+}
+.dark .doc-page {
+  --doc-paper: oklch(0.915 0.005 95);
+  --doc-paper-edge: oklch(0.878 0.007 92);
+  --doc-ink: oklch(0.21 0.012 265);
+  --doc-ink-soft: oklch(0.42 0.012 265);
+  --doc-rule: oklch(0.21 0.012 265 / 14%);
+  --doc-mark: oklch(0.44 0.14 152);
+  --doc-mark-wash: oklch(0.55 0.16 152 / 15%);
+  box-shadow:
+    0 28px 60px -34px oklch(0 0 0 / 85%),
+    0 2px 8px -6px oklch(0 0 0 / 55%);
+}
+.doc-body {
+  font-family: var(--font-doc);
+  font-kerning: normal;
+  color: var(--doc-ink);
+  text-wrap: pretty;
+}
+.doc-ruled {
+  border-top: 1px solid var(--doc-rule);
+}
+.doc-ink-soft {
+  color: var(--doc-ink-soft);
+}
+/* Numbered clauses hang their numeral in the margin, like a printed contract. */
+.doc-clause {
+  padding-left: 1.5rem;
+  text-indent: -1.5rem;
+}
+.doc-clause-title {
+  font-weight: 600;
+}
+/* Active text run: the editor highlight sits exactly on the document's text
+   edge and carries a crisp marker for the verified coordinates. */
+.doc-highlight {
+  border-left: 2px solid var(--doc-mark);
+  background-color: var(--doc-mark-wash);
+  padding: 0.5rem 0.75rem 0.6rem calc(1.5rem - 2px);
+}
+.doc-highlight-tag {
+  color: var(--doc-mark);
+}
+.doc-verify {
+  border-top: 1px solid var(--doc-rule);
+  color: var(--doc-ink-soft);
+}
+.doc-verify-icon {
+  color: var(--doc-mark);
+}
+
+/* ── 2d. Feature-tab swap: preview + assistant panel travel in together ──── */
+@keyframes showcaseSwap {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.showcase-swap {
+  animation: showcaseSwap 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── 3. Card hover lift (supplements existing Tailwind hover) ───────────── */
 .card-lift {
   transition:
     transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
@@ -306,30 +605,6 @@ html {
 }
 .dark .card-lift:hover {
   box-shadow: 0 8px 32px oklch(0 0 0 / 55%);
-}
-
-/* ── 8. Number counter bounce ───────────────────────────────────────────── */
-@keyframes countBounce {
-  0%   { transform: scale(0.8); opacity: 0; }
-  60%  { transform: scale(1.06); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-.animate-count-bounce { animation: countBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-
-/* ── 9. Emerald glow ring (primary CTA button) ──────────────────────────── */
-@keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 0 0 oklch(0.7 0.17 152 / 0%); }
-  50%       { box-shadow: 0 0 0 6px oklch(0.7 0.17 152 / 18%); }
-}
-.btn-glow { animation: glowPulse 2.8s ease-in-out infinite; }
-
-/* ── 10. Section background alternation for depth in dark mode ──────────── */
-/* Applied via Tailwind classes in components; these helpers supplement them  */
-.dark .section-alt {
-  background-color: oklch(0.07 0 0);
-}
-.dark .section-base {
-  background-color: oklch(0 0 0);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

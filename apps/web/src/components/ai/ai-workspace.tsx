@@ -443,10 +443,16 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setShowSettings((open) => !open)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => setShowSettings((open) => !open)}
+          >
             <Settings2 className="mr-1.5 h-4 w-4" /> AI settings
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={reset}>
+          <Button type="button" variant="ghost" size="sm" className="h-9" onClick={reset}>
             <RotateCcw className="mr-1.5 h-4 w-4" /> New file
           </Button>
         </div>

@@ -143,7 +143,7 @@ export function AllToolsSection() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   isSelected
-                    ? 'bg-foreground text-background shadow-xs'
+                    ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
                     : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                 }`}
               >

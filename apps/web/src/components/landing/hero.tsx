@@ -2,7 +2,6 @@ import { useState, useRef } from 'react';
 import { ArrowRight, Bot, CheckCircle2, Cpu, FileText, Lock, Sparkles, Upload, Wand2, ShieldCheck, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { formatBytes } from '@/lib/format';
 
 const QUICK_AI_ACTIONS = [
@@ -53,44 +52,45 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative overflow-hidden border-b border-border/60 bg-background pb-16 pt-12 sm:pb-24 sm:pt-20">
-      {/* Ambient dot-grid texture — pulses gently in both modes */}
-      <div className="hero-dot-grid" aria-hidden="true" />
-
-      {/* Subtle radial glow — emerald in dark, barely visible in light */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 flex items-center justify-center"
-      >
-        <div className="h-[500px] w-[900px] rounded-full bg-primary/5 blur-[120px] dark:bg-primary/8" />
+    // Top padding clears the sticky h-16 header, so the first line of copy is
+    // never tucked underneath it on a phone.
+    <section className="relative overflow-hidden border-b border-border/60 bg-background pb-16 pt-[4.75rem] sm:pb-24 sm:pt-20">
+      {/* Cinematic Greek plates — purely decorative, theme decides which paints.
+          Both live in the DOM so switching themes is a pure class swap. */}
+      <div className="hero-backdrop" aria-hidden="true">
+        <img
+          src="/hero/greek-day.webp"
+          srcSet="/hero/greek-day-sm.webp 1080w, /hero/greek-day.webp 1572w"
+          sizes="100vw"
+          alt=""
+          draggable={false}
+          decoding="async"
+          className="hero-backdrop-image hero-backdrop-image--day block dark:hidden"
+        />
+        <img
+          src="/hero/greek-night.webp"
+          srcSet="/hero/greek-night-sm.webp 1080w, /hero/greek-night.webp 1572w"
+          sizes="100vw"
+          alt=""
+          draggable={false}
+          decoding="async"
+          className="hero-backdrop-image hero-backdrop-image--night hidden dark:block"
+        />
+        <div className="hero-backdrop-wash" />
+        <div className="hero-backdrop-scrim" />
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Architectural status badge */}
-        <div className="hero-stagger-1 mb-6 flex flex-wrap items-center gap-2.5">
-          <Badge
-            variant="outline"
-            className="gap-1.5 rounded-full border-border/80 bg-background/80 px-3 py-1 font-mono text-[11px] font-medium tracking-tight backdrop-blur-sm"
-          >
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse-gently" />
-            <span>LOCAL RUNTIME</span>
-            <span className="text-muted-foreground/60">·</span>
-            <span className="text-muted-foreground">ZERO UPLOADS</span>
-            <span className="text-muted-foreground/60">·</span>
-            <span className="text-muted-foreground">AGPL-3.0</span>
-          </Badge>
-          <span className="hidden text-xs text-muted-foreground sm:inline-block">
-            All operations execute inside this browser tab via Web Workers.
-          </span>
-        </div>
-
         {/* Headline block */}
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12 lg:items-start">
           <div className="lg:col-span-7">
+            <p className="hero-stagger-1 mb-6 text-xs text-foreground/80 sm:text-[13px]">
+              All operations execute inside this browser tab via Web Workers.
+            </p>
             <h1 className="hero-stagger-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.08]">
               Private PDF tools and local document intelligence.
             </h1>
-            <p className="hero-stagger-3 mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="hero-stagger-3 mt-5 max-w-2xl text-base leading-relaxed text-foreground/80 sm:text-lg">
               Question, edit, merge and redact documents directly in your browser. Our AI model
               analyzes text and cites every source page, while your file never leaves this machine.
             </p>
@@ -99,7 +99,7 @@ export function HeroSection() {
             <div className="hero-stagger-4 mt-8 flex flex-wrap items-center gap-3">
               <Button
                 size="lg"
-                className="btn-glow h-11 rounded-md px-5 text-sm font-semibold shadow-xs"
+                className="h-11 rounded-md px-5 text-sm font-semibold shadow-sm"
                 asChild
               >
                 <Link to="/tools/chat-with-pdf">
@@ -114,7 +114,9 @@ export function HeroSection() {
                   Edit with AI
                 </Link>
               </Button>
-              <Button size="lg" variant="ghost" className="h-11 rounded-md px-4 text-sm text-muted-foreground" asChild>
+              <Button size="lg" variant="ghost" className="hidden h-11 rounded-md px-4 text-sm text-muted-foreground sm:inline-flex" asChild>
+                {/* Hidden on phones: it wraps onto a line of its own, and Merge is
+                    already one tap away in the quick-launch row beneath it. */}
                 <Link to="/tools/merge-pdf">
                   Merge files
                 </Link>
@@ -128,7 +130,7 @@ export function HeroSection() {
                 <Link
                   key={item.slug}
                   to={`/tools/${item.slug}`}
-                  className="rounded-md border border-border/70 bg-card px-2.5 py-1 text-xs font-medium text-foreground/90 transition-colors hover:border-primary/50 hover:bg-accent"
+                  className="rounded-md border border-border/70 bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground/90 backdrop-blur-sm transition-colors hover:border-primary/50 hover:bg-background"
                 >
                   {item.name}
                 </Link>
@@ -143,10 +145,13 @@ export function HeroSection() {
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`relative overflow-hidden rounded-xl border bg-card p-6 shadow-xs transition-all ${
+              // Translucent + blurred rather than a solid card: over a
+              // photographic backdrop an opaque panel reads as a hole cut in the
+              // picture rather than part of the same composition.
+              className={`relative overflow-hidden rounded-xl border bg-background/82 p-6 shadow-lg shadow-black/5 backdrop-blur-xl transition-all dark:bg-card/55 dark:shadow-black/40 ${
                 dragActive
-                  ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
-                  : 'border-border/80 hover:border-border dark:hover:border-border/60'
+                  ? 'border-primary ring-2 ring-primary/20 bg-background/90 dark:bg-card/70'
+                  : 'border-border/80 hover:border-foreground/20'
               }`}
             >
               <input
@@ -160,11 +165,13 @@ export function HeroSection() {
 
               {!stagedFile ? (
                 <div>
-                  <div className="flex items-center justify-between">
+                  {/* Stacks on a phone: side by side at 375px both strings wrap
+                      to two lines and the header reads as broken. */}
+                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Immediate Workspace Launch
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                       <Lock className="h-3 w-3" /> In-Memory Only
                     </span>
                   </div>
@@ -201,7 +208,7 @@ export function HeroSection() {
                           <Link
                             key={item.slug}
                             to={`/tools/${item.slug}`}
-                            className="group flex items-start gap-2.5 rounded-lg border border-border/60 bg-background/50 p-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+                            className="group flex items-start gap-2.5 rounded-lg border border-border/60 bg-background/45 p-2.5 text-left backdrop-blur-sm transition-colors hover:border-primary/40 hover:bg-background/80 dark:bg-background/45"
                           >
                             <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
                               <Icon className="h-3.5 w-3.5" />

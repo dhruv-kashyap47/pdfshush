@@ -77,10 +77,12 @@ export function FileDropzone({
             setDragOver(false);
             accept(event.dataTransfer.files);
           }}
-          className={`flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-14 text-center transition-colors ${
+          // Centred and height-capped on purpose: stretched to the full tool frame the
+          // empty target read as a large empty box rather than as an action.
+          className={`mx-auto flex w-full max-w-xl flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-11 text-center transition-colors ${
             dragOver
               ? 'border-primary bg-primary/5'
-              : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40'
+              : 'border-border bg-muted/40 hover:border-primary/60 hover:bg-muted/70'
           } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
         >
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">

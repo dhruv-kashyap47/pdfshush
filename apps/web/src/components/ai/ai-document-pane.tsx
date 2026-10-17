@@ -76,7 +76,7 @@ export function AiDocumentPane({
             aria-label="Previous page"
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -88,7 +88,7 @@ export function AiDocumentPane({
             aria-label="Next page"
             disabled={page >= pageCount}
             onClick={() => onPageChange(page + 1)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -105,7 +105,7 @@ export function AiDocumentPane({
               aria-label={`Show page ${number}`}
               aria-current={number === page ? 'page' : undefined}
               className={cn(
-                'relative flex h-7 w-full items-center justify-center rounded-md text-xs tabular-nums transition-colors',
+                'relative flex h-8 w-full items-center justify-center rounded-md text-xs tabular-nums transition-colors',
                 number === page
                   ? 'bg-primary font-medium text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground',

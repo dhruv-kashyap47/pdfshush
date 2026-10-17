@@ -215,7 +215,16 @@ export function AiSettingsCard({
                   <Trash2 className="mr-1.5 h-4 w-4" /> Forget key
                 </Button>
               ) : null}
-              <Button type="button" onClick={save} disabled={!dirty} data-testid="ai-save-settings">
+              {/* A disabled save must not keep the primary treatment: at 50% opacity a
+                  saturated green button still reads as the page's main action.
+                  It steps down to a neutral surface instead. */}
+              <Button
+                type="button"
+                variant={dirty ? 'default' : 'secondary'}
+                onClick={save}
+                disabled={!dirty}
+                data-testid="ai-save-settings"
+              >
                 {dirty ? null : <Check className="mr-1.5 h-4 w-4" />}
                 {dirty ? 'Save settings' : ready ? 'Saved' : 'Nothing to save'}
               </Button>

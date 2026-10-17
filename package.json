@@ -19,6 +19,7 @@
     "test:e2e:ai": "node tests/e2e/ai.mjs",
     "test:e2e:ai-managed": "node tests/e2e/ai-managed.mjs",
     "test:bundle": "node tests/bundle-boundary.mjs",
+    "test:sweep": "node tests/sweep.mjs",
     "test:api": "node tests/api/smoke.mjs",
     "test:hardening": "node tests/api/hardening.mjs",
     "stack:up": "docker compose up -d --build",
