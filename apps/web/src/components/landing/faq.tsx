@@ -4,7 +4,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
 
 const FAQS = [
   {
@@ -35,27 +34,25 @@ const FAQS = [
 
 export function FaqSection() {
   return (
-    <section className="border-b border-border/60 bg-background py-16 sm:py-24">
+    <section id="faq" className="bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
-        <div className="mb-10 text-center">
-          <Badge variant="secondary" className="rounded-md font-mono text-[11px] uppercase tracking-wider">
-            Clear Answers
-          </Badge>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+        <div className="mb-10" data-reveal>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             Frequently asked questions
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Clear technical details on privacy, limits, AI keys and licensing.
+          <p className="mt-2 text-base text-foreground">
+            Straight answers on privacy, limits, AI keys and licensing.
           </p>
         </div>
 
-        <Accordion type="single" collapsible className="w-full divide-y divide-border/60">
+        {/* Items are separated by tone on hover and by space, not rules. */}
+        <Accordion type="single" collapsible className="w-full">
           {FAQS.map((faq, index) => (
-            <AccordionItem key={faq.q} value={`faq-${index}`} className="border-b-0 py-1">
-              <AccordionTrigger className="text-left text-sm font-semibold text-foreground hover:no-underline sm:text-base">
+            <AccordionItem key={faq.q} value={`faq-${index}`} className="border-b-0">
+              <AccordionTrigger className="rounded-lg px-4 text-left text-[15px] font-semibold text-foreground hover:bg-muted/40 hover:no-underline sm:text-base">
                 {faq.q}
               </AccordionTrigger>
-              <AccordionContent className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              <AccordionContent className="max-w-[620px] px-4 pb-4 pt-1 text-base leading-relaxed text-foreground">
                 {faq.a}
               </AccordionContent>
             </AccordionItem>

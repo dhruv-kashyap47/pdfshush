@@ -9,26 +9,24 @@ export function PopularToolsSection() {
   const tools = popularTools();
 
   return (
-    <section className="border-b border-border/60 bg-muted/10 py-16 sm:py-20 dark:bg-[oklch(0.04_0_0)]">
+    <section className="bg-muted/10 py-16 sm:py-24 dark:bg-[oklch(0.04_0_0)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end" data-reveal>
+        <div className="mb-10 flex flex-col justify-between gap-4 sm:flex-row sm:items-end" data-reveal>
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Core Utility Fleet
-            </span>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Most-used daily tools
             </h2>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              High-frequency operations executed entirely inside your browser tab without upload queues.
+            <p className="mt-2 text-base text-foreground sm:text-lg">
+              The jobs people run every day: edit, compress, split and merge, all
+              executed inside this browser tab.
             </p>
           </div>
           <a
             href="#all-tools"
-            className="inline-flex items-center text-xs font-semibold text-primary transition-colors hover:text-primary/80"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:text-primary/80"
           >
-            Browse all 40+ tools
-            <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            Browse all {ALL_TOOLS.length} tools
+            <ArrowRight className="h-4 w-4" />
           </a>
         </div>
 
@@ -90,19 +88,16 @@ export function AllToolsSection() {
   }, [search, activeTab]);
 
   return (
-    <section id="all-tools" className="border-b border-border/60 bg-background py-16 sm:py-24">
+    <section id="all-tools" className="bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between" data-reveal>
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Complete Catalog
-            </span>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Every tool has a permanent home
             </h2>
-            <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-              Search and filter our complete catalog of 40+ client-side tools. Live tools run
-              immediately; roadmap tools preserve stable links and specifications.
+            <p className="mt-2 max-w-2xl text-base text-foreground sm:text-lg">
+              {ALL_TOOLS.length} tools, one steady catalog. Live tools run immediately;
+              roadmap tools keep stable links and specifications.
             </p>
           </div>
 
@@ -114,7 +109,7 @@ export function AllToolsSection() {
               placeholder="Search by name or task..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-10 pl-9 pr-8 text-sm"
+              className="h-10 pl-9 pr-8 text-sm shadow-none"
               aria-label="Search tools"
             />
             {search && (
@@ -130,8 +125,8 @@ export function AllToolsSection() {
           </div>
         </div>
 
-        {/* Category Tabs */}
-        <div className="mb-8 flex flex-wrap gap-2 border-b border-border/60 pb-3" role="tablist">
+        {/* Category filter tabs */}
+        <div className="mb-8 flex flex-wrap gap-2" role="tablist">
           {CATEGORY_TABS.map((tab) => {
             const isSelected = activeTab === tab.id;
             return (
@@ -141,10 +136,10 @@ export function AllToolsSection() {
                 role="tab"
                 aria-selected={isSelected}
                 onClick={() => setActiveTab(tab.id)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
                   isSelected
-                    ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
-                    : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    ? 'bg-foreground text-background'
+                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
                 }`}
               >
                 {tab.label}
@@ -153,13 +148,13 @@ export function AllToolsSection() {
           })}
         </div>
 
-        {/* Tools Display */}
+        {/* Tools display */}
         {filteredTools.length > 0 ? (
           <div>
             {search.trim() || activeTab !== 'all' ? (
               <div>
-                <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Found {filteredTools.length} tool{filteredTools.length === 1 ? '' : 's'}
+                <p className="mb-4 text-base text-muted-foreground">
+                  {filteredTools.length} tool{filteredTools.length === 1 ? '' : 's'} match
                 </p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {filteredTools.map((tool) => (
@@ -171,12 +166,9 @@ export function AllToolsSection() {
               <div className="space-y-10">
                 {TOOL_CATEGORIES.map((category) => (
                   <div key={category.id} id={category.id}>
-                    <div className="mb-3.5 flex items-center gap-3">
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        {category.label}
-                      </h3>
-                      <span className="h-px flex-1 bg-border/60" />
-                      <span className="font-mono text-xs text-muted-foreground">
+                    <div className="mb-4 flex items-baseline justify-between gap-3">
+                      <h3 className="text-[15px] font-semibold text-foreground">{category.label}</h3>
+                      <span className="text-sm tabular-nums text-muted-foreground">
                         {category.tools.length}
                       </span>
                     </div>
@@ -191,13 +183,13 @@ export function AllToolsSection() {
             )}
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-border/80 p-12 text-center">
-            <p className="text-sm font-medium text-foreground">No matching tools found for "{search}"</p>
-            <p className="mt-1 text-xs text-muted-foreground">Try searching for keywords like merge, ocr, split, sign, or redact.</p>
+          <div className="rounded-xl bg-muted/40 p-12 text-center">
+            <p className="text-sm font-medium text-foreground">No matching tools for "{search}"</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">Try keywords like merge, ocr, split, sign, or redact.</p>
             <Button
               variant="outline"
               size="sm"
-              className="mt-4"
+              className="mt-4 shadow-none"
               onClick={() => {
                 setSearch('');
                 setActiveTab('all');

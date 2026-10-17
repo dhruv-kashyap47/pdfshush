@@ -131,7 +131,7 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md"> {/* taste-skill-ignore: one sticky bar; the top border is its chrome */}
       <div
         ref={wrapperRef}
         className="relative mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-4 sm:px-6 lg:px-8"
@@ -212,7 +212,7 @@ export function SiteHeader() {
         {/* All Tools mega panel */}
         {megaOpen && (
           <div
-            className="absolute left-0 right-0 top-16 z-50 border-b border-border/60 bg-background shadow-xl shadow-black/5"
+            className="absolute left-0 right-0 top-16 z-50 border-b border-border/60 bg-background shadow-xl shadow-black/5" /* taste-skill-ignore: real overlay menu */
             onMouseEnter={scheduleOpen}
           >
             <div className="mx-auto max-h-[72vh] max-w-7xl overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
@@ -236,7 +236,7 @@ function MegaMenu({
     <div className="grid grid-cols-2 gap-x-8 gap-y-7 md:grid-cols-3 xl:grid-cols-4">
       {recent.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent</p>
+          <p className="mb-2 text-[13px] font-medium text-muted-foreground">Recent</p>
           <ul className="space-y-0.5">
             {recent.slice(0, 5).map((entry) => (
               <li key={entry.id}>
@@ -259,7 +259,7 @@ function MegaMenu({
 
       {TOOL_CATEGORIES.map((category) => (
         <div key={category.id}>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-[13px] font-medium text-muted-foreground">
             {category.label}
           </p>
           <ul className="space-y-0.5">
@@ -302,7 +302,7 @@ function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) 
       <div className="space-y-6 px-4 pb-8">
         {recent.length > 0 && (
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">
               Recent
             </p>
             <ul className="space-y-0.5">
@@ -324,7 +324,7 @@ function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) 
 
         {TOOL_CATEGORIES.map((category) => (
           <div key={category.id}>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">
               {category.label}
             </p>
             <ul className="space-y-0.5">

@@ -53,6 +53,8 @@
   /* The page is a warm-neutral off-white, not paper-white. Cards sit at pure
      white, so an elevated surface reads as a step up instead of relying on a
      border to separate it. */
+  /* The muted ink still reads at ≥5:1 in both themes: it is the voice for
+     secondary notes, metas and captions, never for running paragraphs. */
   --background: oklch(0.9865 0.0018 92);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -64,7 +66,7 @@
   --secondary: oklch(0.9665 0.0025 92);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.9665 0.0025 92);
-  --muted-foreground: oklch(0.508 0 0);
+  --muted-foreground: oklch(0.46 0 0);
   --accent: oklch(0.961 0.003 92);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -101,7 +103,7 @@
   --secondary: oklch(0.18 0 0);
   --secondary-foreground: oklch(0.97 0 0);
   --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.62 0 0);
+  --muted-foreground: oklch(0.67 0 0);
   --accent: oklch(0.18 0 0);
   --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.704 0.191 22.216);
@@ -374,8 +376,10 @@ html {
    1. the plate gains brightness and richness in both themes,
    2. the text-side wash thins out past the copy column so more of the artwork
       reads through, while the stops under the copy stay nearly as strong,
-   3. the bottom dissolve shrinks to a subtle breath at the very foot of the
-      hero instead of a heavy haze. */
+   3. the bottom dissolve starts mid-section instead of hugging the very foot
+      of the hero: the four footnote claims sit on the busiest part of the
+      plate, and without dissolving them into page background the grey copy
+      fights the lamps and moored boats. */
 @media (min-width: 1024px) {
   .hero-backdrop-image--day {
     filter: blur(1.6px) saturate(1.06) brightness(1.08);
@@ -386,12 +390,12 @@ html {
   .hero-backdrop-wash {
     background-image: linear-gradient(
       100deg,
-      oklch(1 0 0 / 78%) 0%,
-      oklch(1 0 0 / 70%) 26%,
-      oklch(1 0 0 / 54%) 44%,
-      oklch(1 0 0 / 33%) 57%,
-      oklch(1 0 0 / 14%) 69%,
-      oklch(1 0 0 / 4%) 81%,
+      oklch(1 0 0 / 72%) 0%,
+      oklch(1 0 0 / 64%) 26%,
+      oklch(1 0 0 / 36%) 44%,
+      oklch(1 0 0 / 20%) 57%,
+      oklch(1 0 0 / 7%) 69%,
+      oklch(1 0 0 / 1%) 81%,
       oklch(1 0 0 / 0%) 93%
     );
   }
@@ -414,9 +418,10 @@ html {
         oklch(0.99 0.006 90 / 22%) 0%,
         oklch(0.99 0.006 90 / 7%) 14%,
         oklch(0.995 0.005 90 / 0%) 32%,
-        oklch(0.995 0.005 90 / 0%) 64%,
-        oklch(0.99 0.006 90 / 18%) 84%,
-        var(--background) 98%
+        oklch(0.995 0.005 90 / 0%) 60%,
+        oklch(0.99 0.006 90 / 34%) 68%,
+        oklch(0.99 0.006 90 / 76%) 82%,
+        var(--background) 94%
       ),
       radial-gradient(
         120% 80% at 78% 34%,
@@ -431,9 +436,10 @@ html {
         oklch(0.12 0.02 258 / 44%) 0%,
         oklch(0.1 0.02 258 / 14%) 14%,
         oklch(0 0 0 / 0%) 32%,
-        oklch(0 0 0 / 0%) 62%,
-        oklch(0 0 0 / 18%) 84%,
-        var(--background) 98%
+        oklch(0 0 0 / 0%) 60%,
+        oklch(0 0 0 / 36%) 68%,
+        oklch(0 0 0 / 78%) 82%,
+        var(--background) 94%
       ),
       radial-gradient(
         70% 55% at 82% 17%,
@@ -575,6 +581,17 @@ html {
 }
 .doc-verify-icon {
   color: var(--doc-mark);
+}
+
+/* ── 2c-b. Document band: the photograph settles once on entry. One gentle,
+      one-time move (no loop) — the "moving picture" for the page. ────────── */
+@keyframes bandSettle {
+  from { transform: scale(1.05); }
+  to   { transform: scale(1); }
+}
+.band-photo {
+  animation: bandSettle 18s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  will-change: transform;
 }
 
 /* ── 2d. Feature-tab swap: preview + assistant panel travel in together ──── */

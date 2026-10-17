@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-17
+**Last updated:** 2026-10-18
 
 ---
 
@@ -77,6 +77,9 @@ text edit).
 P6.9 hardening interlude is *done* (2026-10-17): all four Highs' code work plus M1–M3 closed; H4
 (rotate the on-disk credentials) is the one remaining operator action**; R2 stays deferred
 until R1 is proven in production, and P4.4 triggers stay gated.
+*(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
+rooted-tree silent-loop pair (§8 top entry), gated by typecheck, a fresh production build, the
+881-test unit run and targeted browser inspection, not a new measurement of the E2E counts above.
 Repo public:
 `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
 (see §9 tooling).
@@ -519,6 +522,16 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-18 — the editorial band became a stem-plate poster, and the prose visual became a rooted-tree silent loop with a one-click access gate.** See `apps/web/src/components/landing/document-band.tsx`, `features.tsx` (`DocumentLoopVideo`), and `public/brand/`.
+
+  **The band (`document-band.tsx`).** The Library of Congress reading-room photograph (and its caption + Highsmith credit) were replaced by the brand `stem-2.png` plate (1854×848, pure-#000 canvas), served from `public/brand/stem-2.png`. The image is now a direct child of the section and paints full-bleed — `object-cover` over fixed strip heights (320/440/500 px) with `objectPosition: 50% 46%` — so the dot peaks run past the frame edges while the blue folder and wordmark hold dead centre at 390/1440/2560; `fullBleed` was asserted equal to the viewport at rest, and the 0.20 band-photo settle still plays over it (it is clipped by the section's `overflow-hidden`, black into black, so the motion is invisible as a crop). Because the plate's own background *is* that black, the section paints `bg-black` in **both** themes; the old photo scrim is gone (it no longer has a job) and no credit line is needed for a brand asset. The statement sits centred in the void below the strip: "The tools stay powerful. The document stays yours." plus a support line ("Every merge, convert, redact and sign runs locally…"), written without em dashes per the project copy rule, with `text-balance` on both lines. The footer's "Photographs:" attribution paragraph was deleted (both photos left the UI), and the now-orphaned `public/archives/` directory was removed. Existing tokens and systems were reused (type scale, `data-reveal`, `.band-photo`).
+
+  **The second visual (`features.tsx`).** The probate photograph + visible caption + Archives New Zealand attribution became `DocumentLoopVideo`: a silent, control-free loop of the pindown tree (H.264/avc1 720×1280, ~2.6 MB, moov first, 10.0 s — verified by parsing the MP4 boxes, not by trust) at the figure's **pre-existing** `aspect-[3/4] rounded-lg` frame, `objectPosition: 50% 40%`, so section proportions, crop and rounded corners are unchanged and both canopy and roots survive the crop. Because the loop's frame is a pure-black still for most of its second half, the figure reads as one leaf with the band above it in both themes. Delivery is measured, not eager: `preload="metadata"` fetches only the header, an IntersectionObserver arms `play()` ~240 px before arrival and pauses only when the frame fully leaves (thresholds `[0, 0.2]` — edge hysteresis, no stutter at the viewport boundary), and a second effect re-asserts the `muted` DOM property because React writes the attribute too late for Safari. A poster frame (`pindown-tree-poster.jpg`, captured from the actual video at t≈8.2 s via the browser so it matches the crop exactly) paints instantly with zero layout shift and doubles as the still of record when motion is withheld or playback fails.
+
+  **"The video won't play."** Diagnosed with real evidence on the dev server: in a normal browser context the loop self-starts fully buffered, with zero errors — but under `prefers-reduced-motion: reduce` the component intentionally refused to autoplay (correct per the accessibility brief), and a browser that denies even muted autoplay produced a silently swallowed `play()` rejection: in both cases the visitor held a frozen frame with **no visible way to start it**. The figure now shows a small one-click play disc (bottom-centre, on the black base, hairline ring, aria-labelled) **exactly** when playback is withheld — reduced motion, denied autoplay, or a failed start — and the disc disappears once the loop runs; on ordinary browsers nothing extra renders at all. Reduced motion is respected by not forcing motion on anyone; it no longer means "content withheld".
+
+  **Verification.** `pnpm typecheck` ✅ all five packages · **881/881 unit** (189 engine · 176 API · 364 provider · 152 agent — the count held) · `pnpm build` ✅ (chunk notes unchanged, pre-existing) · §9 pre-push secret/PII/dangerous-sink grep **clean** over every changed file · `.env` and the Google client-secret JSON confirmed still gitignored and untracked · no stray helper scripts left in the repo. Browser-verified in Playwright Chromium: full-bleed at rest on 390/768/1440/2560 × light/dark; band copy machine-checked dash-free; video advancing in real time (`muted: true`, `readyState 4`, buffered `0→10 s`), paused at 0 under reduce, recovery via the visible control; junctions against the catalog and "Why it runs" section reviewed; only the pre-existing `{" "}` whitespace-node errors from the comparison table appear in the console (untouched code — `feature` §tables are out of this change's scope).
 
 - **2026-10-17 — cinematic Greek hero plate, and a desktop-only grade pass over it.**
 

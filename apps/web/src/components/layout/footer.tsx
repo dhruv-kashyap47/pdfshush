@@ -27,7 +27,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border/60 bg-muted/30">
+    <footer className="bg-muted/30 dark:bg-[oklch(0.03_0_0)]">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
@@ -89,7 +89,7 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-col gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col gap-3 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} PDFShush · AGPL-3.0 licensed · Not affiliated with Sejda</p>
           <p className="flex items-center gap-4">
             <span className="transition-colors hover:text-foreground">Privacy (soon)</span>

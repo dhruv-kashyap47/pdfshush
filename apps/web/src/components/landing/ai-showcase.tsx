@@ -2,12 +2,10 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bot, CheckCircle2, FileText, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 
 interface ShowcaseMode {
   id: string;
   label: string;
-  badge: string;
   title: string;
   headline: string;
   description: string;
@@ -22,8 +20,7 @@ interface ShowcaseMode {
 const MODES: ShowcaseMode[] = [
   {
     id: 'chat',
-    label: 'Chat & Grounded Q&A',
-    badge: 'Verifiable Citations',
+    label: 'Chat with a page',
     title: 'Ask questions directly to your PDF',
     headline: 'Answers with exact page citations and zero hallucinations.',
     description:
@@ -56,8 +53,7 @@ const MODES: ShowcaseMode[] = [
   },
   {
     id: 'edit',
-    label: 'Natural Language Edit',
-    badge: 'Propose · Review · Apply',
+    label: 'Natural language edit',
     title: 'Describe edits in plain language',
     headline: 'Review every proposed modification before applying.',
     description:
@@ -90,8 +86,7 @@ const MODES: ShowcaseMode[] = [
   },
   {
     id: 'redact',
-    label: 'Smart Destructive Redaction',
-    badge: 'Verified Pixel Destruct',
+    label: 'Destructive redaction',
     title: 'Permanently destroy sensitive data',
     headline: 'Automatic PII detection with verified pixel sanitization.',
     description:
@@ -155,21 +150,22 @@ export function AiShowcase() {
   };
 
   return (
-    <section id="ai-studio" className="border-b border-border/60 bg-background py-16 sm:py-24">
+    <section id="ai-studio" className="bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
+        {/* Section header */}
         <div className="max-w-3xl" data-reveal>
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            AI grounded in the page, not hallucinated from memory.
+            AI that cites the page.
           </h2>
-          <p className="mt-3 text-base text-muted-foreground sm:text-lg">
-            Experience our local AI workflows. Every fact maps back to verified coordinates on the source page.
+          <p className="mt-3 text-base text-foreground sm:text-lg">
+            Chat, edit and redact run against the document itself. Every answer carries its
+            source page; your API key stays in this tab.
           </p>
         </div>
 
-        {/* Studio Tab Bar */}
+        {/* Mode tabs */}
         <div
-          className="mt-10 flex flex-wrap gap-2 border-b border-border/80 pb-3"
+          className="mt-8 flex flex-wrap gap-2"
           role="tablist"
           aria-label="AI capabilities"
           data-reveal
@@ -191,26 +187,21 @@ export function AiShowcase() {
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => handleSelectTab(index)}
                 onKeyDown={(event) => handleTabKeyDown(event, index)}
-                className={`relative flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold tracking-tight transition-all sm:text-sm ${
+                className={`rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-colors sm:text-sm ${
                   isActive
-                    ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
+                    ? 'bg-foreground text-background'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                 }`}
               >
-                <span>{mode.label}</span>
-                <span
-                  className={`hidden rounded px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wide md:inline-block ${
-                    isActive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {mode.badge}
-                </span>
+                {mode.label}
               </button>
             );
           })}
         </div>
 
-        {/* Interactive Studio Console */}
+        {/* Interactive studio console — the product's own interface, shown
+            rendered: document viewport left, assistant right. data-ui marks
+            this as an interface fragment, so its chrome is not page decoration. */}
         <div
           id="ai-studio-panel"
           role="tabpanel"
@@ -219,19 +210,20 @@ export function AiShowcase() {
           data-reveal
           data-reveal-delay="160"
         >
-          {/* Left Column: Simulated Document Canvas */}
+          {/* Left column: simulated document viewport */}
           {/* min-h values are the measured worst case across all tabs and prompts
               at each breakpoint, so switching never reflows the section. */}
           <div
             key={`doc:${swapKey}`}
-            className="showcase-swap flex min-h-[717px] flex-col rounded-xl border border-border/80 bg-muted/15 p-4 sm:min-h-[570px] sm:p-5 lg:col-span-6 lg:min-h-[634px] xl:min-h-[570px] dark:bg-card/60"
+            data-ui
+            className="showcase-swap flex min-h-[717px] flex-col rounded-xl bg-muted/25 p-4 sm:min-h-[570px] sm:p-5 lg:col-span-6 lg:min-h-[634px] xl:min-h-[570px] dark:bg-muted/30"
           >
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <div className="flex items-center justify-between pb-3">
+              <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
                 <FileText className="h-4 w-4 text-primary" />
                 <span>sample-contract.pdf</span>
               </div>
-              <span className="font-mono text-[11px] text-muted-foreground">{currentMode.docPage}</span>
+              <span className="text-xs tabular-nums text-muted-foreground">{currentMode.docPage}</span>
             </div>
 
             {/* Document page — rendered as real paper, like a desktop PDF viewer */}
@@ -257,10 +249,10 @@ export function AiShowcase() {
                 {/* Active target text run */}
                 <div className="doc-highlight rounded-r-[3px]">
                   <div className="mb-1.5 flex items-baseline justify-between gap-3">
-                    <span className="doc-highlight-tag font-sans text-[9.5px] font-semibold uppercase tracking-[0.12em]">
+                    <span className="doc-highlight-tag text-[10px] font-semibold uppercase tracking-[0.12em]">
                       Active target text
                     </span>
-                    <span className="doc-highlight-tag shrink-0 font-mono text-[10px] font-medium">
+                    <span className="doc-highlight-tag shrink-0 text-[11px] font-medium tabular-nums">
                       {currentPrompt.citation}
                     </span>
                   </div>
@@ -273,22 +265,23 @@ export function AiShowcase() {
                 </p>
               </div>
 
-              <footer className="doc-verify mt-5 flex flex-col gap-1 pt-3 font-sans text-[9.5px] uppercase tracking-[0.1em] sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <footer className="doc-verify mt-5 flex flex-col gap-1 pt-3 text-[10px] uppercase tracking-[0.1em] sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="doc-verify-icon h-3.5 w-3.5" />
                   Verified run geometry
                 </span>
-                <span className="font-mono text-[10px] normal-case tracking-normal">
+                <span className="text-[10.5px] tabular-nums normal-case tracking-normal">
                   COORDS: X:72 Y:240 W:468 H:36
                 </span>
               </footer>
             </article>
           </div>
 
-          {/* Right Column: AI Assistant Controller */}
+          {/* Right column: assistant controller */}
           <div
             key={`assistant:${swapKey}`}
-            className="showcase-swap flex min-h-[575px] flex-col rounded-xl border border-border/80 bg-card p-6 sm:min-h-[515px] lg:col-span-6"
+            data-ui
+            className="showcase-swap flex min-h-[575px] flex-col rounded-xl bg-card p-6 sm:min-h-[515px] lg:col-span-6"
           >
             <div className="flex flex-1 flex-col">
               <div className="flex items-center justify-between">
@@ -297,19 +290,17 @@ export function AiShowcase() {
                     <Bot className="h-4 w-4" />
                   </span>
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground">Interactive Intelligence Assistant</h3>
-                    <p className="text-[11px] text-muted-foreground">Local model session · BYOK or managed trial</p>
+                    <h3 className="text-[15px] font-semibold text-foreground">Interactive Intelligence Assistant</h3>
+                    <p className="text-[12.5px] text-muted-foreground">Local model session · BYOK or managed trial</p>
                   </div>
                 </div>
-                <Badge variant="outline" className="border-emerald-500/40 text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                   Ready
-                </Badge>
+                </span>
               </div>
 
               <div className="mt-6">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Select a test query:
-                </p>
+                <p className="text-[13px] font-medium text-muted-foreground">Try one of these questions:</p>
                 <div className="mt-2.5 space-y-2">
                   {currentMode.prompts.map((item, idx) => {
                     const isSelected = idx === activePromptIndex;
@@ -318,14 +309,14 @@ export function AiShowcase() {
                         key={item.label}
                         type="button"
                         onClick={() => setActivePromptIndex(idx)}
-                        className={`flex w-full items-start justify-between rounded-lg border p-3 text-left text-xs transition-all ${
+                        className={`flex w-full items-start justify-between gap-3 rounded-lg p-3.5 text-left text-[13px] transition-colors ${
                           isSelected
-                            ? 'border-primary bg-primary/5 font-medium text-foreground ring-1 ring-primary/20'
-                            : 'border-border/60 bg-muted/20 text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground'
+                            ? 'bg-primary/10 font-medium text-foreground'
+                            : 'bg-muted/25 text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                         }`}
                       >
-                        <span className="pr-2">{item.label}</span>
-                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                        <span>{item.label}</span>
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/80">
                           {item.citation}
                         </span>
                       </button>
@@ -336,27 +327,33 @@ export function AiShowcase() {
 
               {/* Answer display box. It absorbs the panel's spare height so the
                   CTA can pin to the bottom without a void opening above it. */}
-              <div className="mt-6 flex flex-1 flex-col rounded-lg border border-border/80 bg-muted/25 p-4">
-                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+              <div className="mt-6 flex flex-1 flex-col rounded-lg bg-primary/5 p-4">
+                <div className="flex items-center justify-between text-[13px] font-semibold text-foreground">
                   <span className="flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Grounded Result
+                    <Sparkles className="h-3.5 w-3.5 text-primary" /> Answer
                   </span>
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
+                  <span className="text-[11px] tabular-nums font-medium text-primary">
                     {currentPrompt.citation}
                   </span>
                 </div>
-                <p className="mt-2 min-h-[4.5rem] text-xs leading-relaxed text-foreground/90">
+                <p className="mt-2 min-h-[4.5rem] text-sm leading-relaxed text-foreground/90">
                   {currentPrompt.answer}
+                </p>
+                {/* Pin a quiet status line to the pane's floor: the absorbed
+                    spare height then reads as a message bubble with deliberate
+                    room, not an unloaded panel. */}
+                <p className="mt-auto pt-3 text-[11.5px] text-muted-foreground">
+                  Local session · nothing leaves this tab.
                 </p>
               </div>
             </div>
 
-            {/* Bottom link to actual tool */}
-            <div className="mt-6 flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-muted-foreground">
+            {/* Bottom link to the real tool */}
+            <div className="mt-6 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[13px] text-muted-foreground">
                 Private in-browser execution with zero uploaded documents.
               </p>
-              <Button size="sm" asChild>
+              <Button size="sm" className="shadow-none" asChild>
                 <Link to={`/tools/${currentMode.slug}`}>
                   {currentMode.ctaText}
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5" />

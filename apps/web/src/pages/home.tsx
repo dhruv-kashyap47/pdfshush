@@ -1,4 +1,5 @@
 import { CtaSection } from '@/components/landing/cta';
+import { DocumentBand } from '@/components/landing/document-band';
 import { FaqSection } from '@/components/landing/faq';
 import { FeaturesSection } from '@/components/landing/features';
 import { HeroSection } from '@/components/landing/hero';
@@ -16,6 +17,7 @@ export function HomePage() {
       <AiShowcase />
       <PopularToolsSection />
       <AllToolsSection />
+      <DocumentBand />
       <FeaturesSection />
       <FaqSection />
       <CtaSection />

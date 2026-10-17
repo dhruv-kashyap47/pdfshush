@@ -1,45 +1,51 @@
-import { ArrowRight, Bot, Lock, Merge } from 'lucide-react';
+import { ArrowRight, Bot, Merge } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 export function CtaSection() {
   return (
-    <section className="bg-muted/15 py-16 sm:py-24">
+    <section className="bg-muted/15 py-16 sm:py-24 dark:bg-[oklch(0.05_0_0)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card px-6 py-12 text-center shadow-xs sm:px-12 sm:py-16">
+        {/* The designed close: one field of the accent colour, one action, */}
+        {/* and the copied DevTools proof as the supporting line. */}
+        <div className="rounded-2xl bg-primary px-6 py-14 text-center sm:px-12 sm:py-20" data-reveal>
           <div className="mx-auto max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/30 px-3 py-1 text-xs font-mono text-muted-foreground">
-              <Lock className="h-3.5 w-3.5 text-primary" />
-              <span>PRIVATE BY ARCHITECTURE</span>
-            </div>
-
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Start working on your PDFs with complete confidence.
+            <h2 className="text-3xl font-bold tracking-tight text-primary-foreground sm:text-4xl">
+              Open a PDF. Nothing leaves this tab.
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
-              Try your most sensitive documents in PDFShush. Every byte remains in this browser tab;
-              inspect your browser's DevTools Network panel at any time to verify.
+            <p className="mt-3 text-base leading-relaxed text-primary-foreground/90 sm:text-lg">
+              Try your most sensitive documents. Every byte is processed in your browser; open
+              DevTools at any time and watch nothing being sent.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button size="lg" className="h-11 px-6 text-sm font-semibold shadow-xs" asChild>
+              <Button
+                size="lg"
+                className="h-11 bg-background px-6 text-sm font-semibold text-foreground shadow-none hover:bg-background/90"
+                asChild
+              >
                 <Link to="/tools/merge-pdf">
                   <Merge className="mr-2 h-4 w-4" />
                   Open Merge Tool
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="h-11 px-6 text-sm font-medium" asChild>
+              <Button
+                size="lg"
+                className="h-11 px-4 text-sm font-medium text-primary-foreground shadow-none hover:bg-primary/85"
+                asChild
+              >
                 <Link to="/tools/chat-with-pdf">
-                  <Bot className="mr-2 h-4 w-4 text-primary" />
+                  <Bot className="mr-2 h-4 w-4" />
                   Chat with a PDF
                 </Link>
               </Button>
-              <Button size="lg" variant="ghost" className="h-11 px-4 text-sm text-muted-foreground" asChild>
-                <a href="#all-tools">
-                  Explore full catalog
-                </a>
-              </Button>
+              <a
+                href="#all-tools"
+                className="text-sm font-medium text-primary-foreground/90 underline-offset-4 transition-opacity hover:underline hover:opacity-100"
+              >
+                Browse the catalog
+              </a>
             </div>
           </div>
         </div>
