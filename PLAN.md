@@ -86,6 +86,9 @@ deferred until R1 is proven in production, and P4.4 triggers stay gated.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
 rooted-tree silent-loop pair (§8 top entry), gated by typecheck, a fresh production build, the
 881-test unit run and targeted browser inspection, not a new measurement of the E2E counts above.
+*(2026-10-18 addendum 2:)* the landing hero and AI band were replaced by the premium rework with the
+anime.js motion system, gated by typecheck, the 897-test unit run, a fresh build and a screenshot
+harness (§8's newest entry); the throwaway harness was deleted and never committed.
 Repo public:
 `github.com/dhruv-kashyap47/pdfshush` — **run the pre-push secret/PII grep before every push**
 (see §9 tooling).
@@ -529,6 +532,25 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-18 — Landing premium rework + frontend bug sweep shipped.** The homepage is now the
+  product's pitch: headline *PDF tools. Smarter document intelligence.* with a privacy-first sub,
+  two CTAs (**Talk to a PDF**, **Edit with AI**), and an 8-chip **"Jump straight to a tool"** grid
+  (merge/split/compress/edit/convert/organize/sign/protect — every chip routes to a real tool page;
+  the two not-yet-built ones carry an honest `soon` badge). The AI band is an **interactive mock
+  console** (Chat with a page / Natural language edit / Destructive redaction): example questions are
+  live buttons, the document panel highlights/strikes/burns in sync with the assistant, edit mode has
+  apply/discard/revert states with tracked-change rendering and a stamp slam, redact mode has a scan
+  sweep plus a "peek destroyed data then re-burn" beat. Introduced a motion module
+  (`apps/web/src/lib/motion.ts` + `useMotionScope`, **anime.js v4.5.0**): hero intro, chip cascade,
+  demo states, all transform/opacity only, parked and paused on unmount (StrictMode-safe), fully
+  collapsed under `prefers-reduced-motion`. Verified with typecheck, the 897-test unit suite,
+  production build, and a throwaway Playwright harness (desktop light/dark + mobile, every demo
+  state) whose only console errors were the pre-existing `/api/*` probe 502s on `vite preview`.
+  A follow-up bug sweep (branch `fix/frontend-sweep`) closed: scroll-gated entrance observers now
+  disarm on unmount (`onEnterViewport` returns a disconnect fn), the edit tool's nudge-coalescer
+  timer is cleared on unmount, and em dashes were rewritten into punctuation in all user-facing copy
+  (buttons, toollets, status chips, signature descriptions) — comments and numeric ranges untouched.
 
 - **2026-10-18 — P6.1 Fill & Sign shipped (capture → store → place → export → audit sidecar).**
   E-sign slice one is code and green.
