@@ -460,7 +460,7 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
             {mode === 'insert' ? 'Add your signature' : 'Create a signature'}
           </DialogTitle>
           <DialogDescription>
-            Draw or type it once. It stays on this device — nothing is uploaded.
+            Draw or type it once. It stays on this device; nothing is uploaded.
           </DialogDescription>
         </div>
 
