@@ -244,6 +244,9 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const lastNudgeAt = useRef(0);
   const nudgeTxOpen = useRef(false);
   const nudgeCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => {
+    if (nudgeCloseTimer.current !== undefined) clearTimeout(nudgeCloseTimer.current);
+  }, []);
   zoomRef.current = zoom;
   toolRef.current = tool;
   rastersRef.current = rasters;

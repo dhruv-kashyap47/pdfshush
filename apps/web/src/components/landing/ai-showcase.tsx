@@ -492,11 +492,12 @@ export function AiShowcase() {
     // Pre-paint gate: the console is below the fold on load, so hiding it
     // here can never flash; the IO below then reveals it exactly once.
     el.style.opacity = '0';
-    onEnterViewport(el, () => {
+    const disarm = onEnterViewport(el, () => {
       const tl = timelineUI({ defaults: { ease: EASE.out } });
       tl.add(el, { opacity: [0, 1], y: [26, 0], duration: 720 });
       motion.park(tl);
     });
+    return disarm;
   }, [reducedMotion, motion]);
 
   /* ── Interactions ─────────────────────────────────────────────────────── */

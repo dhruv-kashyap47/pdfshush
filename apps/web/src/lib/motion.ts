@@ -101,10 +101,10 @@ export function staggerUI(
  * Falls back to immediately (next frame) when the API is missing. The
  * observer disconnects itself once fired — no long-lived listener remains.
  */
-export function onEnterViewport(el: Element, play: () => void): void {
+export function onEnterViewport(el: Element, play: () => void): () => void {
   if (typeof IntersectionObserver === 'undefined') {
-    requestAnimationFrame(play);
-    return;
+    const handle = requestAnimationFrame(play);
+    return () => cancelAnimationFrame(handle);
   }
   const observer = new IntersectionObserver(
     (entries) => {
@@ -121,4 +121,7 @@ export function onEnterViewport(el: Element, play: () => void): void {
     { threshold: 0.15, rootMargin: '0px 0px -60px 0px' },
   );
   observer.observe(el);
+  // Unmounting while below the fold must still disconnect: otherwise the
+  // observer pins the element and its closure in memory until GC.
+  return () => observer.disconnect();
 }
