@@ -26,8 +26,10 @@ pdf-redaction-master/
 pdfcraft-main/
 
 # Agent skill installs: local tooling for the coding session, not product code.
+# .taste-skill/ holds that skill's captures (window JPGs, critiques, report.json).
 .agents/
 .claude/
+.taste-skill/
 skills-lock.json
 # Test inputs are ignored so a session cannot sweep up junk, but the image fixture
 # is committed: it is the only PDF here that exercises pdf.js's scratch-canvas
@@ -40,6 +42,17 @@ tests/e2e/fixtures/*
 # Server work directory (uploads + results): runtime state, never committed.
 .work/
 apps/api/.work/
+
+# Raw design sources for already-published brand/hero assets. The served copies
+# are committed under apps/web/public/brand/ and apps/web/public/hero/ (93a05dd),
+# and the pindown video and the stem plate hash-match their published twins
+# exactly. What lives here is the originals: the stock downloads (the pindown.io
+# video, the Library of Congress reading-room and Archives New Zealand probate
+# photographs with their credits.json) and the PNG origins of the webp plates.
+# Third-party raw media stays out of git until its licence terms are recorded in
+# licenses/.
+assets/
+logo/
 
 # Downloaded OAuth client credentials from Google Cloud Console. The filename
 # itself encodes the client id and the body contains the client secret; neither
