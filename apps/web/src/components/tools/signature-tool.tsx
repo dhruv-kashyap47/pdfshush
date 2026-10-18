@@ -64,7 +64,7 @@ export function SignatureTool() {
           <h2 className="text-base font-semibold tracking-tight">Your signatures</h2>
           <p className="text-sm text-muted-foreground">
             Draw or type once, then place it from any signing session on this device. Saved copies
-            live in this browser only — {assets.length} / {SIGNATURE_STORE_MAX} used.
+            live in this browser only: {assets.length} / {SIGNATURE_STORE_MAX} used.
           </p>
         </div>
         <Button
@@ -89,7 +89,7 @@ export function SignatureTool() {
             </span>
             <p className="flex-1 text-sm text-muted-foreground">
               Nothing saved yet. Create a signature and it is ready in every Fill &amp; Sign
-              session from this device — nothing is uploaded, ever.
+              session from this device, and nothing is uploaded, ever.
             </p>
             <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
               Draw one now
@@ -141,7 +141,7 @@ export function SignatureTool() {
         <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
         <p>
           Saved signatures stay in this browser (IndexedDB). Placing one on a document marks its
-          export with an honest audit note — digests and placements, never a certification claim.
+          export with an honest audit note (digests and placements, never a certification claim).
           Start a signature session in{' '}
           <Link to="/tools/fill-sign" className="font-medium text-primary hover:underline">
             Fill &amp; Sign

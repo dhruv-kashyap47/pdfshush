@@ -101,12 +101,12 @@ const MODES: Mode[] = [
     label: 'Chat with a page',
     icon: MessageSquare,
     blurb:
-      'Ask anything about the file — the answer quotes the exact page it came from. Best when a fact is buried in a long contract.',
+      'Ask anything about the file, and the answer quotes the exact page it came from. Best when a fact is buried in a long contract.',
     consoleTitle: 'Conversation console',
     questionsLabel: 'Click an example question:',
     slug: 'chat-with-pdf',
     cta: 'Launch Chat with PDF',
-    toolNote: 'Free, in-browser, nothing uploaded — answers cite their page.',
+    toolNote: 'Free, in-browser, nothing uploaded: answers cite their page.',
     doc: {
       file: 'sample-contract.pdf',
       title: 'ENTERPRISE SERVICE AGREEMENT',
@@ -142,7 +142,7 @@ const MODES: Mode[] = [
         label: 'Are audit logs kept?',
         thinking: 'Checking the records-retention section…',
         answer:
-          'Yes — audit records and administrative logs are kept in encrypted cold storage for at least twelve (12) months.',
+          'Yes. Audit records and administrative logs are kept in encrypted cold storage for at least twelve (12) months.',
         citation: '[p. 19]',
         highlight:
           'Audit records and administrative activity logs are retained in encrypted cold storage for a statutory minimum of twelve (12) months.',
@@ -159,7 +159,7 @@ const MODES: Mode[] = [
     questionsLabel: 'Describe the change, then approve it:',
     slug: 'edit-pdf-with-ai',
     cta: 'Launch AI Editor',
-    toolNote: 'Free, in-browser — every change waits for your approval.',
+    toolNote: 'Free, in-browser: every change waits for your approval.',
     doc: {
       file: 'sample-nda.pdf',
       title: 'MUTUAL NON-DISCLOSURE AGREEMENT',
@@ -175,7 +175,7 @@ const MODES: Mode[] = [
     prompts: [
       {
         label: 'Make governing law Delaware',
-        thinking: 'Planning the edit — locating the clause…',
+        thinking: 'Planning the edit: locating the clause…',
         answer:
           'Found the governing-law clause. Plan: replace “State of New York” with “State of Delaware”. Nothing is written until you approve.',
         citation: '[p. 3]',
@@ -185,7 +185,7 @@ const MODES: Mode[] = [
       },
       {
         label: 'Highlight the expiry dates',
-        thinking: 'Planning the edit — searching date patterns…',
+        thinking: 'Planning the edit: searching date patterns…',
         answer:
           'One expiry clause on this page. Plan: amber-highlight “five (5) years from the Effective Date”.',
         citation: '[p. 3]',
@@ -195,7 +195,7 @@ const MODES: Mode[] = [
       },
       {
         label: 'Stamp the header confidential',
-        thinking: 'Planning the edit — drafting the stamp…',
+        thinking: 'Planning the edit: drafting the stamp…',
         answer:
           'Plan: insert a vector header “CONFIDENTIAL · INTERNAL USE ONLY” on every page of the document. Reversible until approved.',
         citation: '[all 6 pages]',
@@ -209,12 +209,12 @@ const MODES: Mode[] = [
     label: 'Destructive redaction',
     icon: Eraser,
     blurb:
-      'Finds private data — tax IDs, bank details — and burns it out of the page bitmap, so the text is gone, not hidden. Best before sharing a file.',
+      'Finds private data (tax IDs, bank details) and burns it out of the page bitmap, so the text is gone, not hidden. Best before sharing a file.',
     consoleTitle: 'Sanitisation console',
     questionsLabel: 'Run the local detector on this page:',
     slug: 'redact-pdf',
     cta: 'Launch Redaction Tool',
-    toolNote: 'Free, in-browser — deletion is burned in, then provable.',
+    toolNote: 'Free, in-browser: deletion is burned in, then provable.',
     doc: {
       file: 'sample-invoice.pdf',
       title: 'VENDOR INVOICE & PAYMENT DIRECTIVE',
@@ -653,7 +653,7 @@ export function AiShowcase() {
           {/* Orientation for the demo: a working mock, not a screenshot. */}
           <p className="mt-3 text-base text-foreground sm:text-lg">
             Pick a capability, click an example, and watch the document react. This console
-            is a live mock of the real tools — same engine, same privacy: your key and your
+            is a live mock of the real tools, same engine, same privacy: your key and your
             file stay in this tab.
           </p>
         </div>
@@ -931,7 +931,7 @@ export function AiShowcase() {
                       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-emerald-500/10 px-3 py-2">
                         <span className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-700 dark:text-emerald-400">
                           <Check className="h-3.5 w-3.5" />
-                          Applied in the mock — real edits run in the editor.
+                          Applied in the mock; real edits run in the editor.
                         </span>
                         <button
                           type="button"
@@ -946,7 +946,7 @@ export function AiShowcase() {
                       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-3 py-2">
                         <span className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
                           <X className="h-3.5 w-3.5" />
-                          Discarded — the document is untouched.
+                          Discarded: the document is untouched.
                         </span>
                         <button
                           type="button"
