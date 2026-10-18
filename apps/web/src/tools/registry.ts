@@ -118,6 +118,8 @@ const LIVE = new Set([
   // Phase 6 (e-sign, PLAN.md §25): same editor engine, signature mode first.
   'fill-sign',
   'signature',
+  // Phase 6 (public API, PLAN.md §25.3): the docs page + key management.
+  'api',
 ]);
 
 /**

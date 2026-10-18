@@ -36,6 +36,31 @@ export const LIMITS = {
     maxUploadBytes: 500 * MB,
     /** Files are hard-deleted this long after a job finishes. */
     fileTtlMs: 60 * 60 * 1000,
+    /**
+     * Public REST API tier (PLAN.md §25.3, decision D6). Quota is measured
+     * against the *key*, with the account as a ceiling over all of its keys.
+     * Anonymous numbers above stay untouched: an API key is deliberately a
+     * reduced-cost machine quota, not an upgrade to anonymous limits.
+     */
+    api: {
+      /** Per-key burst rate, submissions per minute. */
+      tasksPerMinute: 30,
+      /** Per-key daily task budget. */
+      tasksPerDay: 500,
+      /** Per-key daily upload allowance. */
+      bytesPerDay: 5 * 1024 * MB,
+      /** Account-level ceilings, shared by every key on the account. */
+      accountTasksPerDay: 2_000,
+      accountBytesPerDay: 10 * 1024 * MB,
+      /** How many API keys one account may hold. */
+      maxKeysPerAccount: 10,
+      /**
+       * Largest file accepted *inline* as base64 in a JSON job body (D7).
+       * Agents pass payloads through context, not just the wire, so inline is a
+       * convenience path; anything larger rides the multipart form.
+       */
+      maxInlineFileBytes: 10 * MB,
+    },
   },
   job: {
     defaultTimeoutMs: 120_000,

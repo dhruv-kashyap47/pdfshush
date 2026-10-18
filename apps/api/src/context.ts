@@ -20,6 +20,7 @@ import type { JobQueue } from './jobs/queue.js';
 import type { QuotaCounter } from './quota/quota.js';
 import type { AuthStore } from './auth/store.js';
 import type { AccountStore } from './account/store.js';
+import type { ApiKeyStore } from './keys/store.js';
 import type { GoogleOidc } from './auth/google.js';
 import type { RedisConnectionHealth } from './jobs/redis.js';
 
@@ -27,6 +28,8 @@ import type { RedisConnectionHealth } from './jobs/redis.js';
 export interface AuthServices {
   store: AuthStore;
   account: AccountStore;
+  /** Public-API bearer keys (PLAN.md §25.3). Same store of record as sessions. */
+  keys: ApiKeyStore;
   oidc: GoogleOidc;
   close(): Promise<void>;
 }
@@ -114,6 +117,7 @@ export function createContext(overrides: ContextOverrides): ApiContext {
     ...overrides.config,
     quota: { ...base.quota, ...(overrides.config?.quota ?? {}) },
     auth: { ...base.auth, ...(overrides.config?.auth ?? {}) },
+    apikey: { ...base.apikey, ...(overrides.config?.apikey ?? {}) },
   } as ApiConfig;
 
   return {

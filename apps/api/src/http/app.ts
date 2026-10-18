@@ -19,14 +19,15 @@ import {
   MongoTopologyClosedError,
 } from 'mongodb';
 import { ZodError } from 'zod';
+import type { AiProviderId } from '@pdfshush/ai-provider';
 import { ApiContext, jobToken, newJobId } from '../context.js';
 import { registerAuthRoutes, SESSION_COOKIE } from '../auth/routes.js';
 import { registerAccountRoutes } from '../account/routes.js';
 import { AiBudgetService, AiConcurrencyGuard } from '../ai/budget.js';
 import { registerAiRoutes } from '../ai/routes.js';
-import type { AiProviderId } from '@pdfshush/ai-provider';
 import { subjectId, tokensMatch } from '../quota/quota.js';
-import { receiveUpload, InvalidUploadError, BadMultipartError, PDF_SIGNATURE } from './uploads.js';
+import { UnsafePathError, safeJobId } from '../files/paths.js';
+import { requestCancel } from '../jobs/cancel.js';
 import { UploadTooLargeError } from '../files/store.js';
 import {
   createJobSchema,
@@ -35,8 +36,11 @@ import {
   SERVER_SLUGS,
   type JobPayload,
 } from '../jobs/payload.js';
-import { UnsafePathError, safeJobId } from '../files/paths.js';
-import { requestCancel } from '../jobs/cancel.js';
+import { receiveUpload, InvalidUploadError, BadMultipartError, PDF_SIGNATURE } from './uploads.js';
+import { parseOptionsField } from './options.js';
+import { sendResultFile } from './result-stream.js';
+import { registerV1Routes } from './v1/routes.js';
+import { registerApiKeyRoutes } from '../account/api-keys.js';
 
 /**
  * Bounds the queue/work-dir reads behind `/api/health`. A disconnected BullMQ
@@ -125,6 +129,45 @@ export function createApp(context: ApiContext): Express {
     ...(context.auth ? { auth: context.auth.store, account: context.auth.account } : {}),
     jobs: { queue: context.queue },
     logger: context.logger,
+  });
+
+  // API-key management lives with the rest of the dashboard surface: session
+  // + CSRF, and keys are minted only for the signed-in account itself.
+  registerApiKeyRoutes(app, {
+    enabled: Boolean(context.auth),
+    ...(context.auth ? { auth: context.auth.store, keys: context.auth.keys } : {}),
+    maxKeysPerAccount: context.config.apikey.maxKeysPerAccount,
+    logger: context.logger,
+  });
+
+  // The public REST API (§25.3). A key cannot exist without an account, so
+  // the surface self-reports 503 wherever accounts are disabled -- mounting
+  // it unconditionally is what keeps the book `<stem>/api/v1` a single,
+  // always-at-the-same-place front door.
+  registerV1Routes(app, {
+    enabled: Boolean(context.auth),
+    ...(context.auth ? { keys: context.auth.keys, account: context.auth.account } : {}),
+    queue: context.queue,
+    store: context.store,
+    logger: context.logger,
+    pepper: context.pepper,
+    counters: context.counters,
+    maxUploadBytes: context.config.quota.maxUploadBytes,
+    retentionMs: context.config.retentionMs,
+    limits: {
+      key: {
+        tasksPerMinute: context.config.apikey.tasksPerMinute,
+        tasksPerDay: context.config.apikey.tasksPerDay,
+        bytesPerDay: context.config.apikey.bytesPerDay,
+        readsPerMinute: context.config.apikey.readsPerMinute,
+        maxInlineFileBytes: context.config.apikey.maxInlineFileBytes,
+      },
+      account: {
+        tasksPerDay: context.config.apikey.accountTasksPerDay,
+        bytesPerDay: context.config.apikey.accountBytesPerDay,
+      },
+      maxKeysPerAccount: context.config.apikey.maxKeysPerAccount,
+    },
   });
 
   /**
@@ -345,10 +388,6 @@ export function createApp(context: ApiContext): Express {
       response.status(404).json({ error: 'Result not found', code: JOB_ERROR_CODES.resultNotFound });
       return;
     }
-    // The janitor may delete a job's files the moment its TTL passes -- including
-    // while this very download is starting. Without this check the read stream
-    // errors with no listener attached and the socket is reset instead of the
-    // caller getting a clean 404.
     const onDisk = await context.store.statResult(auth.jobId, file.name);
     if (!onDisk) {
       response.status(404).json({
@@ -357,23 +396,14 @@ export function createApp(context: ApiContext): Express {
       });
       return;
     }
-    response.setHeader('Content-Type', contentTypeFor(file.name));
-    response.setHeader('Content-Length', String(onDisk.bytes));
-    // RFC 6266: the name goes in a quoted-string, and a safe basename cannot
-    // contain the characters that would need escaping.
-    response.setHeader('Content-Disposition', `attachment; filename="${file.name}"`);
-    const stream = context.store.openResult(auth.jobId, file.name);
-    stream.on('error', (error: unknown) => {
-      if (!response.headersSent) {
-        response
-          .status(500)
-          .json({ error: 'Result could not be read', code: JOB_ERROR_CODES.internal });
-        return;
-      }
-      context.logger.error({ jobId: auth.jobId, error: String(error) }, 'result stream failed');
-      response.destroy();
+    sendResultFile({
+      response,
+      store: context.store,
+      logger: context.logger,
+      jobId: auth.jobId,
+      name: file.name,
+      bytes: onDisk.bytes,
     });
-    stream.pipe(response);
   });
 
   app.delete('/api/jobs/:id', async (request: Request, response: Response) => {
@@ -483,45 +513,6 @@ function subjectFor(request: Request, context: ApiContext): string {
   return subjectId(ip, context.pepper);
 }
 
-/**
- * Result content type from the stored name. Not every job produces a PDF:
- * `inspect` returns `<slug>-result.json`, and labelling that `application/pdf`
- * makes strict clients (and every browser extension) choke on a valid download.
- */
-const CONTENT_TYPES: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.json': 'application/json; charset=utf-8',
-  '.zip': 'application/zip',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.txt': 'text/plain; charset=utf-8',
-  '.csv': 'text/csv; charset=utf-8',
-  '.html': 'text/html; charset=utf-8',
-};
-
-function contentTypeFor(name: string): string {
-  const dot = name.lastIndexOf('.');
-  const extension = dot > 0 ? name.slice(dot).toLowerCase() : '';
-  return CONTENT_TYPES[extension] ?? 'application/octet-stream';
-}
-
-function parseOptionsField(raw: string | undefined): { value?: Record<string, unknown>; error?: string } {
-  if (!raw) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    // Silently dropping the options ran the job with defaults instead -- a
-    // truncation produced "No pages selected" rather than a diagnosable 400.
-    return { error: 'The "options" field is not valid JSON (it may be too large)' };
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { error: 'The "options" field must be a JSON object' };
-  }
-  return { value: parsed as Record<string, unknown> };
-}
-
 function errorHandler(context: ApiContext) {
   return (error: unknown, request: Request, response: Response, _next: NextFunction): void => {
     if (error instanceof UploadTooLargeError) {
@@ -539,6 +530,24 @@ function errorHandler(context: ApiContext) {
     }
     if (error instanceof UnsafePathError) {
       response.status(400).json({ error: 'Malformed path', code: JOB_ERROR_CODES.validation });
+      return;
+    }
+    // Inline JSON bodies from `/api/v1` are parsed by the body parser, so a
+    // malformed or oversized one arrives here rather than at a route. The
+    // parser's own `type` field is what these branches key on, because the
+    // error class alone does not distinguish them.
+    const parseFailure = (error as { type?: string }).type;
+    if (parseFailure === 'entity.parse.failed') {
+      response
+        .status(400)
+        .json({ error: 'The request body is not valid JSON.', code: JOB_ERROR_CODES.validation });
+      return;
+    }
+    if (parseFailure === 'entity.too.large') {
+      response.status(413).json({
+        error: 'The request body exceeds the size ceiling.',
+        code: JOB_ERROR_CODES.tooLarge,
+      });
       return;
     }
     if (error instanceof ZodError) {

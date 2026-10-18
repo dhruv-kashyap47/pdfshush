@@ -221,12 +221,15 @@ export class AccountStore {
    * sweep actually happened rather than assume it.
    */
   async deleteAccountData(accountId: string): Promise<Record<string, number>> {
-    const [sessions, preferences, history, workflows, jobOwners, accounts] = await Promise.all([
+    const [sessions, preferences, history, workflows, jobOwners, apiKeys, accounts] = await Promise.all([
       this.collections.sessions.deleteMany({ accountId }),
       this.collections.preferences.deleteMany({ _id: accountId }),
       this.collections.history.deleteMany({ accountId }),
       this.collections.workflows.deleteMany({ accountId }),
       this.collections.jobOwners.deleteMany({ accountId }),
+      // Keys die with the account: a bearer credential must not outlive
+      // the identity it belongs to.
+      this.collections.apiKeys.deleteMany({ accountId }),
       this.collections.accounts.deleteOne({ _id: accountId }),
     ]);
     return {
@@ -235,6 +238,7 @@ export class AccountStore {
       history: history.deletedCount,
       workflows: workflows.deletedCount,
       jobOwners: jobOwners.deletedCount,
+      apiKeys: apiKeys.deletedCount,
       accounts: accounts.deletedCount,
     };
   }

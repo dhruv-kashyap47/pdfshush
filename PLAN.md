@@ -50,16 +50,16 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-18 with **P6.1 Fill & Sign code shipped** (§8 first entry) —
+**Current gate:** re-measured 2026-10-18 with **P6.2 Public REST API shipped** (§8 first entry) —
 the P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
-hardening (§24), and the P6.9 hardening interlude (§24.2) all still hold.
-**20 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
-`edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1)
-· 8 runnable server-side ·
-**897/897 unit** (189 engine · 176 API · 364 provider · 152 agent · **16 web** — the web app's own
-first unit suite covers the signature trim math and validation) · **101/101 browser E2E** (full
-smoke — re-measured 2026-10-17 with the API, Redis and a worker all up, so the workflow-run steps
-now **execute** instead of skipping; see §8's second entry) · **8/8 focused text-edit E2E** ·
+hardening (§24), the P6.9 hardening interlude (§24.2) and P6.1 Fill & Sign (§25.2) all still hold.
+**21 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
+`edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
+`api` under Automate from P6.2)
+· 8 server-runnable slugs over `/api/v1` ·
+**912/912 unit** (189 engine · **191 API** · 364 provider · 152 agent · **16 web** — the web app's own
+unit suite covers the signature trim math and validation) · browser E2E: full
+smoke (re-run 2026-10-18 error-free, incl. the comparison-table fix) · **8/8 focused text-edit E2E** ·
 **17/17 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock; re-measured — 17, not
 the 18 previously recorded, all passing, so the drift came from the §23.6 AI-workspace consolidation
@@ -67,7 +67,8 @@ rather than a lost assertion, but treat 18 as a contract worth confirming) · **
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
 **17/17 sign E2E** (P6.1: dialog draw/save/adopt/place, export, audit note read back as JSON,
 manage page; `tests/e2e/sign.mjs`) ·
-21/21 API integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
+**41 API smoke sections incl. the new §6 v1 flow** (section 6 in either mode: 503-when-disabled or
+the full key→submit→poll→download→revoke walk on the real stack, 2026-10-18) · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
 **genuine in-place text editing shipped end to end (§22; AI replacements now use it too, §23.7.2)** ·
@@ -79,8 +80,9 @@ export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
 0 pdf.js / 0 pdfium / 0 `signature_pad` / 0 Caveat, enforced by the extended `pnpm test:bundle`
 (PDFium is a lazy 4.6 MB asset fetched on first text edit; `signature_pad` + the bundled Caveat
 faces ride the 33 kB lazy signature-pad dialog chunk).
-**Next: P6.2 public REST API (§25.3) — P6.0 and P6.1 are done** (P6.1 code 2026-10-18: capture →
-store → place → export → audit sidecar, all unit + E2E green); P6.2 → P6.3 MCP → P6.4 hardening per
+**Next: P6.3 MCP server (§25.4) — P6.0, P6.1 and P6.2 are done** (P6.2 code 2026-10-18: keys,
+`/api/v1`, per-key quota, OpenAPI + docs page, D8 redact — all unit + real-stack E2E green);
+P6.3 → P6.4 hardening per
 §25.6. R2 stays
 deferred until R1 is proven in production, and P4.4 triggers stay gated.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
@@ -532,6 +534,67 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-18 — P6.2 Public REST API shipped (`/api/v1`): server-runnable slugs over keys, with
+  the same pipeline underneath.**
+
+  **Keys (`apps/api/src/keys/store.ts` + `apiKeys` collection).** `pshk_` + 32 random bytes
+  base64url (43 chars); the stored `_id` is the SHA-256 of the full token, so a Mongo leak yields
+  nothing usable and lookup is one indexed `findOne`. Only a 16-char display `prefix` is kept —
+  the raw token exists solely in the creation response. Scopes `jobs:write` / `jobs:read` /
+  `results:read` (no AI scope, D5), validated strictly at mint (unknown names are a 400, not a
+  silent all-scope default). Revoke is a mark, not a delete; invalid and revoked keys answer an
+  identical 401 so revocation leaks nothing. Key mint/revoke/erasure: management routes in
+  `apps/api/src/account/api-keys.ts` (session + CSRF like every account route; cap via
+  `API_MAX_KEYS_PER_ACCOUNT`, 409 at the limit), and `deleteAccountData` now removes keys with
+  the account so erasure §18.3 leaves no live bearer credential behind.
+
+  **v1 surface (`apps/api/src/http/v1/`).** `GET /tools` (catalog of `SERVER_SLUGS`, labels from
+  the engine's `NODE_JOBS`, the documented limits), `POST /jobs` (inline JSON with base64 files
+  capped 10 MB/file for agent contexts, or the same streaming multipart as the anonymous route;
+  both share `receiveUpload`/`writeInput` admission control), `GET /jobs/:id`, `GET /jobs/:id/result`
+  (one file streams verbatim; several return a JSON listing with per-file URLs), plus
+  `/result/files/:name` and a public `GET /openapi.json` (no key material; lists shapes and limits
+  even where accounts are off, while every other route answers 503 `auth_disabled`). Submission
+  walks the same reserve→prepare→settle walk as the anonymous route; the job directory is removed
+  and reservations released on every failure path (refund base switches at the settle point so an
+  enqueue failure rates the real bytes, not the ceiling). Quota is per key (`apikey:<keyId>` in
+  the counter namespace) with the account as a second service whose minute bound can never trip —
+  isolation is structural: a spent key cannot pre-pay the account ceiling for its siblings. Job
+  ownership is recorded to the account (survives key rotation); `x-job-token` remains the fallback
+  for the accepted-but-unrecorded window. Reads get a per-key poll ceiling (`API_READS_PER_MINUTE`,
+  240) that fails open on a counter outage. Shared helpers were extracted for both front doors:
+  `http/options.ts` (`parseOptionsField`) and `http/result-stream.ts` (`contentTypeFor` +
+  `sendResultFile`, with the janitor-race error handling).
+
+  **OpenAPI + docs page.** The spec is generated from the same zod schemas the route validates
+  (`z.toJSONSchema`, 2020-12), with a schema-parity gate pinning catalog slugs ≡ `SERVER_SLUGS` ≡
+  `NODE_JOBS` keys. The web `/tools/api` page (`components/tools/api-tool.tsx`, now **live** in the
+  registry) renders the flow, scopes, quota tier and curl examples straight from the deployed spec,
+  so it can only promise slugs this deployment actually runs. The account page gained an
+  API-keys panel (`components/account/api-keys.tsx`): create with name, the one-time reveal dialog
+  with copy, prefix-only listing with scopes + last-used, and revoke with confirm; deployments
+  without accounts show a quiet "not enabled here" notice.
+
+  **D8 / L6 closed.** The logger redact list now strips `apiKey`, `x-job-token`, `cookie` (and the
+  `x-api-key`/`x-job-token` headers) alongside the original password/token/authorization set.
+
+  **Config.** New `apikey` section (`API_KEY_TASKS_PER_MINUTE/DAY`, `API_KEY_BYTES_PER_DAY`,
+  `API_ACCOUNT_TASKS_PER_DAY/BYTES`, `API_MAX_KEYS_PER_ACCOUNT`, `API_MAX_INLINE_FILE_BYTES`,
+  `API_READS_PER_MINUTE`) defaulting to the D5 tier in `LIMITS.server.api`.
+
+  **Gates.** New `apps/api/test/v1.test.ts`: authn matrix (missing/garbage/revoked → one verdict
+  shape), scope matrix (`insufficient_scope` per endpoint), cross-account closure, per-key
+  isolation with the account ceiling closing both keys, read throttle (small configured windows,
+  no waiting out a minute), inline admission (magic bytes, inline cap, bad base64, wrong slug,
+  duplicate-name dedupe), anonymous-`/api/jobs`-unchanged, catalog + spec parity, and management
+  routes (token shown once, CSRF, cap, ownership-filtered revoke) — **191/191 API** (176+15) and
+  **912/912 unit** total. Real-stack (Docker + Redis + worker + Mongo): smoke section 6 verifies
+  seed→mint→catalog→inline submit→poll→download→revoke→invalid-verdict plus the read-only-key
+  403; hardening gate and browser E2E (smoke, sign 17/17, text-edit, AI, managed-AI) all green.
+  Hardening also flushed out a pre-existing landing-page whitespace-node console error — the
+  comparison-table JSX comments now sit *outside* `<thead>`/`<tbody>`, and the smoke e2e runs
+  error-free. `pnpm typecheck` ✅ · build ✅ (chunk notes unchanged) · `pnpm test:bundle` ✅.
 
 - **2026-10-18 — Landing premium rework + frontend bug sweep shipped.** The homepage is now the
   product's pitch: headline *PDF tools. Smarter document intelligence.* with a privacy-first sub,
@@ -1187,30 +1250,36 @@ Docker Desktop's CLI is **not on the session PATH** by default — a per-user in
 `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin\docker.exe` (no shell expands `$env`).
 Either prepend that directory or set `$env:DOCKER_BIN` (the gate script honours `DOCKER_BIN`).
 Run the gate with short
-TTLs so the janitor sweep is observable inside the run:
-`$env:FILE_TTL_MS=20000; $env:JANITOR_INTERVAL_MS=5000; docker compose up -d` then
+TTLs so the janitor sweep is observable inside the run — **the test process must wear the same
+TTL the stack wears**, or its wait budget under-runs the container's window (the gate itself also
+refuses to run unless `/api/health` reports `retentionMs <= 120000`):
+`$env:FILE_TTL_MS=120000; $env:JANITOR_INTERVAL_MS=10000; docker compose up -d --build` then
 `node tests/api/hardening.mjs`. With a TTL that short the janitor can also delete a *queued*
 job's inputs — which is why the killed job may legitimately settle as `failed`; the gate
-accepts either outcome, because the claim being tested is "the queue recovers".
+accepts either outcome, because the claim being tested is "the queue recovers". Note also that
+back-to-back quota-consuming runs (smoke → hardening) leave the anonymous day counters partially
+spent — `docker compose restart redis` resets them. *(2026-10-18 addendum: Docker's server **is**
+on PATH now — `docker compose up -d --build` works directly from the session.)*
 
-**Next move:** **R1 has shipped** — secure redaction is live as `redact-pdf` (§20), verified on
+**Next move:** **P6.2, the public REST API, has shipped** (`/api/v1` §8 top entry, §25.3 with its
+six gates met): `pshk_` keys minted on the account page (SHA-256 at rest, SHA-shown-once), per-key
++ per-account tier from D5, inline-JSON or multipart submission into the same pipeline, OpenAPI
+spec from the payload zod, the `/tools/api` docs page live, and D8 redact (§24.5's L6 closed).
+**The next build step is P6.3, the MCP server over v1** (`@pdfshush/mcp`, §25.4 — donor code in
+`genoffice-main/packages/cli/src/mcp/`, Apache-2.0, read-first), then P6.4 hardening for the new
+surface. R1 has shipped — secure redaction is live as `redact-pdf` (§20), verified on
 the exported artifact, with the browser E2E asserting the downloaded bytes. R2 (native text-level
 redaction) stays deliberately deferred until R1 is proven in production (§20.3), and **P4.4**
-(automated triggers) stays gated on the SSRF/scheduling design (§18.5). **P5 (AI) has shipped and its
-honest gaps are closed** (§23). **P6 is open and its P6.9 hardening interlude is done (2026-10-17):**
-the §24 Highs' code work and every Medium are closed, the child filesystem scope is accepted by
-design, and the last High — H4's on-disk credentials — closed 2026-10-18 (§24.2's H4 entry: dead
-values replaced with a verified-live pair, the stray client JSON deleted, Atlas Network Access
-allowlisted). **P6.0 and P6.1 are done (2026-10-18)** — the decision record (§25.1) and the Fill &
-Sign slice's code with all gates green (§8 top entry). The **next build step is P6.2, the public
-REST API** (`/api/v1`, §25.3), then P6.3 MCP over it.
+(automated triggers) stays gated on the SSRF/scheduling design (§18.5).
 One live gate limitation: `test:api` and `test:hardening` need a running Redis + Docker stack. **Since the worker-loader fix
-(§8) this is no longer hypothetical**: the compose `redis` service publishes nothing to the host
-(`ports:` is deliberately absent — api/worker reach it over the compose network), so to run the
-API and a worker on the host you need a *separate* Redis published on 6379, e.g.
-`docker run -d -p 6379:6379 redis:7-alpine`. Then `pnpm --filter @pdfshush/api worker`, and
+(§8) this is no longer hypothetical**: bring up the compose with `docker compose up -d --build` and
 `/api/health` should report `"status":"ok"` with a non-zero `workers.count` before trusting any
-server-side E2E. Then append
+server-side E2E. The smoke's **section 6** exercises `/api/v1`: without accounts enabled it
+asserts the `503 auth_disabled` stance + public spec; with `PSH_SMOKE_MONGODB_URI` (and optional
+`PSH_SMOKE_MONGODB_DB`) set to the stack's own Mongo it seeds an account + session exactly the way
+the AuthStore would (SHA-256 `_id`s — no Google round trip, no test back door in the app) and walks
+key → catalog → inline submit → poll → download → revoke → invalid-verdict on the real stack
+(verified 2026-10-18 against Docker + Redis + worker + Atlas). Then append
 a changelog entry and tick §1. Before every
 push run the **pre-push
 grep** over tracked/changed files: (1) secret-key patterns (API keys, PEM blocks, cloud
@@ -2651,15 +2720,15 @@ redaction (not before R1 is proven in production, §20.3). P6 does not depend on
 | L3 | Low | oversized JSON body → 500, not 413 | map `entity.too.large` in `errorHandler` | P7 |
 | L4 | Low | unbounded `options` record (nested depth/keys) | bound structurally in `payloadSchema` | P7 |
 | L5 | Low | `text/html` entry in the result content-type map | drop it (no job emits `.html`) | P7 |
-| L6 | Low | logger redaction omits `cookie`/`apiKey`/`x-job-token` | extend the redact list | P7 |
+| L6 | ✅ **closed 2026-10-18 (P6.2)** | logger redaction omits `cookie`/`apiKey`/`x-job-token` | extend the redact list | ~~P7~~ done in P6.2 (§25.3) |
 | L7 | Low | AI budget reserves output tokens only | reserve an input estimate too | P7 |
 | L8 | Low | AI concurrency guard is per-process | note for multi-instance, or move to Redis | P7 |
 | L9 | Low | `AccountStore.ownsJob` is dead code | delete it, or use it as the record | P7 |
 | — | Low | **fixed in this review:** `redactSecrets` gaps (client) and the raw managed-gateway error (server) | §24.2 | done |
 
 **Order:** **P6.9 hardening — done 2026-10-17** · **P6.0 decision record — done 2026-10-18**
-(§25.1) → **P6.1 e-sign — done 2026-10-18** → P6.2 public API → P6.3 MCP. P6.1 does not depend on
-P6.2/P6.3; the record preceded everything (it has). Next is P6.2.
+(§25.1) → **P6.1 e-sign — done 2026-10-18** → **P6.2 public API — done 2026-10-18** (§25.3) →
+P6.3 MCP. Next is **P6.3**.
 
 ---
 
@@ -2857,6 +2926,37 @@ control (P6.9), quotas and janitor.
 | schema parity | `GET /tools` slugs == server-runnable job slugs, pinned like `JOB_SLUGS` |
 | E2E | real stack (Redis + worker) end-to-end: create key → submit → poll → download; against the hardened pipeline, not a mock |
 
+**Shipped 2026-10-18 — all six gates met.** The changed-versus-planned notes that matter for the
+next session:
+
+- **Keys:** `pshk_<43 base64url chars>`; stored `_id` = SHA-256 of the token (indexed lookup, no
+  scan). `keys/store.ts` owns token minting/scoping; the `apiKeys` collection rides the auth Mongo
+  db (`auth/mongo.ts`), management routes are `account/api-keys.ts` (session + CSRF), and account
+  erasure deletes keys too.
+- **Quota shape:** two `QuotaService` instances — per key
+  (`apikey:<keyId>`, 30/min · 500/day · 5 GB/day) and per account
+  (`apikeyacct:<accountId>`, 2,000/day · 10 GB/day, minute bound unreachable) — with a
+  two-stage reservation and the refund base switching at the settle point (ceiling before the
+  settle, real bytes after). The worker payload carries the same opaque `subjectId` shape the
+  anonymous path uses; no key/account id ever enters Redis.
+- **Workers note:** v1 carries no `/delete` (cancel stays a browser/x-job-token capability —
+  bearer-key cancellation is a P6.4 question, not a P6.2 one).
+- **Inline JSON:** `POST /jobs` accepts `{slug, password?, options?, files:[{name, data(base64)}]}`
+  cap 10 MB/file (D7) with the PDF magic check applied before any disk write; multipart keeps the
+  streaming anonymous path untouched.
+- **Spec:** `z.toJSONSchema` (2020-12) at request time from `http/v1/schemas.ts` — the same zod the
+  route validates; parity pinned in `test/v1.test.ts` (catalog ≡ `SERVER_SLUGS` ≡ `NODE_JOBS`).
+- **Docs page:** `/tools/api` (registry-flipped to live) renders catalog/scopes/quota/curl from the
+  deployed spec; the account page gained the API-keys panel (`components/account/api-keys.tsx`)
+  with the one-time token reveal.
+- **Real-stack verdicts:** smoke §6 ran the full key flow on Docker (Redis + worker + Atlas, auth
+  enabled) — 202 accepted from inline JSON, real worker completion, byte-exact download, read-only
+  key refused 403, revoked key refusing with the identical invalid-verdict. The harness seeds its
+  account + session directly into Mongo (`PSH_SMOKE_MONGODB_URI`) so no Google round trip and no
+  test back door in the app are needed.
+- **D8/L6:** redact list extended (also covers `req.headers.cookie` wholesale). L6 closed ahead of
+  P7 as planned.
+
 ### 25.4 P6.3 — PDFShush MCP server (`@pdfshush/mcp`, local stdio)
 
 **Scope:** a small standalone package (`apps/mcp`) the user runs locally via npx/config; it
@@ -2897,8 +2997,8 @@ torture suite; expected to be short because P6.2/P6.3 reuse hardened paths.
 2. **P6.1 — done 2026-10-18** (code shipped, gates green; §8 top entry. Raster export ships; the
    vector path remains behind the §25.2 flag until its round-trip test is written — revisit within
    P6.4's window or drop it explicitly rather than leaving it silently open).
-3. **P6.2** → **P6.3** (P6.3 depends on P6.2's endpoints and the D5/D6 key model; do not
-   interleave them — one clean API surface first).
+3. **P6.2 — done 2026-10-18** (code shipped, all six §25.3 gates met, §8 top entry) →
+   **P6.3** (depends on P6.2's endpoints and the D5/D6 key model — now in place).
 4. **P6.4** last, folding findings into P7.
 
 **Expected surface after P6:** `fill-sign` + `signature` live (18→20 live tools — **this part is

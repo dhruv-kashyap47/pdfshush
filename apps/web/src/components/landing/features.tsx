@@ -198,14 +198,15 @@ export function FeaturesSection() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-border/60 bg-muted/10 font-semibold text-foreground"> {/* taste-skill-ignore: real table */}
+              {/* taste-skill-ignore: real table */}
+              <thead className="border-b border-border/60 bg-muted/10 font-semibold text-foreground">
                 <tr>
                   <th className="px-6 py-3.5">Capability</th>
                   <th className="px-6 py-3.5 font-normal text-muted-foreground">Standard online PDF services</th>
                   <th className="px-6 py-3.5 font-bold text-primary">PDFShush</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60"> {/* taste-skill-ignore: real table */}
+              <tbody className="divide-y divide-border/60">
                 {COMPARISON_ROWS.map((row) => (
                   <tr key={row.feature} className="transition-colors hover:bg-muted/10">
                     <td className="px-6 py-3.5 font-medium text-foreground">{row.feature}</td>

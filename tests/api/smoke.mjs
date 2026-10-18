@@ -9,11 +9,18 @@
  *
  *   docker compose up -d --build
  *   node tests/api/smoke.mjs
+ *
+ * With accounts configured and `PSH_SMOKE_MONGODB_URI` set to the stack's own
+ * Mongo URI, section 6 additionally walks the public `/api/v1` surface end to
+ * end: it seeds an account + session directly into Mongo (the only auth truth
+ * that needs no Google round trip), mints a key through the real dashboard
+ * route, then submits, polls, downloads and revokes through the key.
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
 
 const BASE = process.env.API_BASE_URL ?? 'http://localhost:8080';
 
@@ -222,9 +229,179 @@ async function main() {
   check('finished job directories are accounted for', after.workDir.jobDirs >= 1, `${after.workDir.jobDirs} dirs`);
   check('outputs are on disk, not in Redis', after.workDir.bytes > 0, `${after.workDir.bytes}B on disk`);
 
+  console.log('\n6. Public REST API (/api/v1)');
+  await checkPublicApi();
+
   await rm(work, { recursive: true, force: true });
   console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
   process.exit(failures === 0 ? 0 : 1);
+}
+
+/**
+ * Section 6: the public key surface, against the real stack.
+ *
+ * Keys belong to accounts, and a session is the only thing that may mint one.
+ * Rather than inventing a signing back door for tests, the harness writes the
+ * account + session it needs straight into the same Mongo the stack uses --
+ * nothing about the HTTP surface is bypassed: the key is still minted through
+ * the CSRF-checked dashboard route.
+ */
+async function checkPublicApi() {
+  const authProbe = await fetch(`${BASE}/api/account/api-keys`);
+  if (authProbe.status === 503) {
+    check(
+      'v1 self-reports as disabled where accounts are off',
+      (await fetch(`${BASE}/api/v1/tools`)).status === 503,
+    );
+    check(
+      'the OpenAPI spec stays readable without keys',
+      (await fetch(`${BASE}/api/v1/openapi.json`)).status === 200,
+    );
+    return;
+  }
+  const mongoUri = process.env.PSH_SMOKE_MONGODB_URI;
+  if (!mongoUri) {
+    console.log(
+      '  [SKIP] accounts are enabled; set PSH_SMOKE_MONGODB_URI (and optional PSH_SMOKE_MONGODB_DB) to exercise key → submit → poll → download end to end.',
+    );
+    return;
+  }
+
+  const { MongoClient } = await import('mongodb');
+  const client = new MongoClient(mongoUri);
+  try {
+    await client.connect();
+    const db = client.db(process.env.PSH_SMOKE_MONGODB_DB ?? 'pdfshush');
+    let account = await db.collection('accounts').findOne({ _id: 'smoke-v1-account' });
+    if (!account) {
+      const now = new Date();
+      await db.collection('accounts').insertOne({
+        _id: 'smoke-v1-account',
+        googleSub: 'smoke-v1-subject',
+        email: 'smoke@example.com',
+        emailVerified: true,
+        name: 'Smoke v1',
+        picture: null,
+        createdAt: now,
+        lastLoginAt: now,
+      });
+      account = await db.collection('accounts').findOne({ _id: 'smoke-v1-account' });
+    }
+    check('smoke account exists in the auth store of record', Boolean(account));
+
+    // Session tokens are stored as SHA-256, same rule the AuthStore follows.
+    const sessionToken = randomBytes(32).toString('hex');
+    const stamp = new Date();
+    await db.collection('sessions').insertOne({
+      _id: createHash('sha256').update(sessionToken).digest('hex'),
+      accountId: account._id,
+      createdAt: stamp,
+      expiresAt: new Date(stamp.getTime() + 3_600_000),
+    });
+    const authHeaders = {
+      cookie: `pdfshush_session=${sessionToken}; pdfshush_csrf=smoke-csrf`,
+      'x-csrf-token': 'smoke-csrf',
+    };
+
+    const mint = await fetch(`${BASE}/api/account/api-keys`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'smoke-e2e',
+        scopes: ['jobs:write', 'jobs:read', 'results:read'],
+      }),
+    });
+    check('dashboard mints a key', mint.status === 201, `status ${mint.status}`);
+    const minted = await mint.json().catch(() => ({}));
+    const key = minted.token;
+    check('key uses the pshk_ scheme', typeof key === 'string' && key.startsWith('pshk_'));
+
+    // Public spec first, then the authenticated flow.
+    check('spec is public', (await fetch(`${BASE}/api/v1/openapi.json`)).status === 200);
+    check('v1 without a key is refused', (await fetch(`${BASE}/api/v1/tools`)).status === 401);
+
+    const authed = { 'x-api-key': key };
+    const tools = await fetch(`${BASE}/api/v1/tools`, { headers: authed }).then((r) => r.json());
+    check(
+      'catalog answers over the key and names runnable slugs',
+      Array.isArray(tools.tools) && tools.tools.length > 0,
+      `${tools.tools?.length} slugs`,
+    );
+
+    // Inline JSON: no multipart, straight into the same queue the web uses.
+    const submitted = await fetch(`${BASE}/api/v1/jobs`, {
+      method: 'POST',
+      headers: { ...authed, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'merge',
+        files: [
+          { name: 'a.pdf', data: buildPdf(2, 'api').toString('base64') },
+          { name: 'b.pdf', data: buildPdf(1, 'api').toString('base64') },
+        ],
+      }),
+    });
+    check('inline JSON submission accepted', submitted.status === 202, `status ${submitted.status}`);
+    const { jobId: v1JobId, statusUrl } = await submitted.json().catch(() => ({}));
+    check('job id + statusUrl issued', Boolean(v1JobId) && statusUrl === `/api/v1/jobs/${v1JobId}`);
+
+    let v1State = {};
+    for (let i = 0; i < 120; i += 1) {
+      v1State = await fetch(`${BASE}/api/v1/jobs/${v1JobId}`, { headers: authed }).then((r) =>
+        r.json(),
+      );
+      if (v1State.status === 'completed' || v1State.status === 'failed') break;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    check(
+      'v1 job completes through the real worker',
+      v1State.status === 'completed',
+      JSON.stringify(v1State.error ?? ''),
+    );
+    check('merge produced one output', v1State.files?.length === 1);
+    check('page count travelled (2+1)', v1State.pageCount === 3);
+
+    const download = await fetch(`${BASE}/api/v1/jobs/${v1JobId}/result`, { headers: authed });
+    const bytes = Buffer.from(await download.arrayBuffer());
+    check('v1 result downloads as a PDF', bytes.subarray(0, 5).toString() === '%PDF-', `${bytes.length}B`);
+    check('v1 downloaded PDF really has the merged pages', countPages(bytes) === 3);
+
+    // A read-only key must not be able to spend quota it does not carry.
+    const reader = await fetch(`${BASE}/api/account/api-keys`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'smoke-reader', scopes: ['jobs:read'] }),
+    });
+    const readerBody = await reader.json().catch(() => ({}));
+    check(
+      'read-only key cannot submit',
+      (
+        await fetch(`${BASE}/api/v1/jobs`, {
+          method: 'POST',
+          headers: {
+            'x-api-key': readerBody.token ?? '',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            slug: 'inspect',
+            files: [{ name: 'a.pdf', data: buildPdf(1, 'api').toString('base64') }],
+          }),
+        })
+      ).status === 403,
+    );
+
+    // Revoke, then the byte-identical invalid verdict.
+    const revoke = await fetch(`${BASE}/api/account/api-keys/${minted.key.id}`, {
+      method: 'DELETE',
+      headers: authHeaders,
+    });
+    check('revoke answers 204', revoke.status === 204);
+    check(
+      'revoked key is refused exactly like a never-seen one',
+      (await fetch(`${BASE}/api/v1/tools`, { headers: authed })).status === 401,
+    );
+  } finally {
+    await client.close().catch(() => undefined);
+  }
 }
 
 main().catch((error) => {

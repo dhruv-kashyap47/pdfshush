@@ -15,7 +15,26 @@ export function createLogger(config: { logLevel: string; isProduction?: boolean 
     // a log shipper can parse it.
     ...(config.isProduction ? {} : { transport: undefined }),
     redact: {
-      paths: ['password', '*.password', 'token', '*.token', 'req.headers.authorization'],
+      // Every credential the surface can carry: session/job/request tokens, the
+      // public-API bearer key (D8), and the cookie header -- cookies rename
+      // themselves ("pdfshush_session=…"), so the header is redacted wholesale
+      // rather than per-cookie.
+      paths: [
+        'password',
+        '*.password',
+        'token',
+        '*.token',
+        'apiKey',
+        '*.apiKey',
+        'x-job-token',
+        '*.x-job-token',
+        'cookie',
+        '*.cookie',
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers["x-api-key"]',
+        'req.headers["x-job-token"]',
+      ],
       remove: true,
     },
     base: { service: 'pdfshush-api' },

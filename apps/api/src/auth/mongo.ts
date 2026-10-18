@@ -19,6 +19,7 @@ export const PREFERENCES = 'preferences';
 export const HISTORY = 'history';
 export const WORKFLOWS = 'workflows';
 export const JOB_OWNERS = 'jobOwners';
+export const API_KEYS = 'apiKeys';
 
 export interface AccountDoc {
   /** Mongo's own id. */
@@ -68,6 +69,7 @@ export interface AuthCollections {
   history: Collection<HistoryDoc>;
   workflows: Collection<WorkflowDoc>;
   jobOwners: Collection<JobOwnerDoc>;
+  apiKeys: Collection<ApiKeyDoc>;
 }
 
 /** One document per account. `_id` is the account id. */
@@ -117,6 +119,21 @@ export interface JobOwnerDoc {
   slug: string;
   createdAt: Date;
   expiresAt: Date;
+}
+
+/**
+ * One document per public-API key. `_id` is the SHA-256 of the full token --
+ * see `keys/store.ts` for why the raw token is never stored.
+ */
+export interface ApiKeyDoc {
+  _id: string;
+  accountId: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  createdAt: Date;
+  lastUsedAt?: Date;
+  revokedAt?: Date;
 }
 
 export interface AuthDb extends AuthCollections {
@@ -169,6 +186,7 @@ export async function createAuthDb(options: CreateAuthDbOptions): Promise<AuthDb
     history: db.collection<HistoryDoc>(HISTORY),
     workflows: db.collection<WorkflowDoc>(WORKFLOWS),
     jobOwners: db.collection<JobOwnerDoc>(JOB_OWNERS),
+    apiKeys: db.collection<ApiKeyDoc>(API_KEYS),
   };
 
   await Promise.all([
@@ -184,6 +202,9 @@ export async function createAuthDb(options: CreateAuthDbOptions): Promise<AuthDb
     collections.workflows.createIndex({ accountId: 1, updatedAt: -1 }),
     collections.jobOwners.createIndex({ accountId: 1, createdAt: -1 }),
     collections.jobOwners.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    // apiKeys is keyed by its own `_id` (the token hash); this index is only the
+    // dashboard listing pattern.
+    collections.apiKeys.createIndex({ accountId: 1, createdAt: -1 }),
   ]);
 
   return {

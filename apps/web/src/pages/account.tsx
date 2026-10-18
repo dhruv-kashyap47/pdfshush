@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { ApiKeysPanel } from '@/components/account/api-keys';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/api';
 import { downloadBytes } from '@/lib/download';
@@ -137,7 +138,7 @@ export function AccountPage() {
             <CardTitle>Accounts are optional</CardTitle>
             <CardDescription>
               Every tool works without signing in. An account only adds saved workflows, history
-              that follows you between devices, and (later) API keys.
+              that follows you between devices, and API keys for programmatic access.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -254,6 +255,8 @@ export function AccountPage() {
           )}
         </CardContent>
       </Card>
+
+      <ApiKeysPanel />
 
       <Card className="border-destructive/40">
         <CardHeader>

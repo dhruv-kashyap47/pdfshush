@@ -13,6 +13,7 @@ import { GoogleOidc } from './google.js';
 import { createAuthDb } from './mongo.js';
 import { AuthStore } from './store.js';
 import { AccountStore } from '../account/store.js';
+import { ApiKeyStore } from '../keys/store.js';
 
 /**
  * The auth downgrade logs this message verbatim, so it must read as a
@@ -90,6 +91,7 @@ export async function setupAuth(config: ApiConfig, logger: Logger): Promise<Auth
   return {
     store: new AuthStore(db),
     account: new AccountStore(db),
+    keys: new ApiKeyStore(db),
     oidc: new GoogleOidc({
       clientId: auth.googleClientId,
       clientSecret: auth.googleClientSecret,

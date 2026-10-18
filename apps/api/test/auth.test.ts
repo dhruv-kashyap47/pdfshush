@@ -22,6 +22,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { GoogleOidc, GoogleOidcError, codeChallengeFor } from '../src/auth/google.js';
 import { AUTH_TRANSACTION_TTL_MS, AuthStore } from '../src/auth/store.js';
 import { AccountStore } from '../src/account/store.js';
+import { ApiKeyStore } from '../src/keys/store.js';
 import { SESSION_COOKIE, safeReturnTo } from '../src/auth/routes.js';
 import type { AccountDoc, AuthCollections, AuthTransactionDoc, SessionDoc } from '../src/auth/mongo.js';
 import { createApp } from '../src/http/app.js';
@@ -526,6 +527,7 @@ async function harness(options: { withAuth: boolean; cookieSecure?: boolean }) {
           auth: {
             store: memory.store,
             account: new AccountStore(memory.collections),
+            keys: new ApiKeyStore(memory.collections),
             oidc: oidc(),
             close: async () => {},
           },

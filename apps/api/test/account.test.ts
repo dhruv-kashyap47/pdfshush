@@ -22,6 +22,7 @@ import {
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthStore } from '../src/auth/store.js';
 import { AccountStore, MAX_WORKFLOWS } from '../src/account/store.js';
+import { ApiKeyStore } from '../src/keys/store.js';
 import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE } from '../src/auth/routes.js';
 import type { AuthCollections } from '../src/auth/mongo.js';
 import { createApp } from '../src/http/app.js';
@@ -166,8 +167,14 @@ function memoryDb() {
     history: collection(),
     workflows: collection(),
     jobOwners: collection(),
+    apiKeys: collection(),
   } as unknown as AuthCollections;
-  return { collections, auth: new AuthStore(collections), account: new AccountStore(collections) };
+  return {
+    collections,
+    auth: new AuthStore(collections),
+    account: new AccountStore(collections),
+    keys: new ApiKeyStore(collections),
+  };
 }
 
 /* ------------------------------------------------------------- harness ---- */
@@ -216,7 +223,13 @@ async function harness(options: { rateLimitPerMinute?: number } = {}) {
           : {}),
       },
     } as never,
-    auth: { store: db.auth, account: db.account, oidc: {} as never, close: async () => {} },
+    auth: {
+      store: db.auth,
+      account: db.account,
+      keys: db.keys,
+      oidc: {} as never,
+      close: async () => {},
+    },
   });
 
   const app = createApp(context);

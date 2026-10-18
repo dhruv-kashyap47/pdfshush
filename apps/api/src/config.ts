@@ -75,6 +75,21 @@ const schema = z.object({
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional(),
 
   /**
+   * Public API tier overrides (PLAN.md §25.3 D6). Unset means
+   * "use LIMITS.server.api". Quota is measured per key, with the account
+   * values as the ceiling over every key of that account.
+   */
+  API_KEY_TASKS_PER_MINUTE: z.coerce.number().int().positive().optional(),
+  API_KEY_TASKS_PER_DAY: z.coerce.number().int().positive().optional(),
+  API_KEY_BYTES_PER_DAY: z.coerce.number().int().positive().optional(),
+  API_ACCOUNT_TASKS_PER_DAY: z.coerce.number().int().positive().optional(),
+  API_ACCOUNT_BYTES_PER_DAY: z.coerce.number().int().positive().optional(),
+  API_MAX_KEYS_PER_ACCOUNT: z.coerce.number().int().positive().optional(),
+  API_MAX_INLINE_FILE_BYTES: z.coerce.number().int().positive().optional(),
+  /** Per-key ceiling on status/result reads per minute (poll loops). */
+  API_READS_PER_MINUTE: z.coerce.number().int().positive().optional(),
+
+  /**
    * Largest working set `estimate()` may report for one job before the worker
    * refuses it. Unset means "use LIMITS.job.maxWorkingSetBytes". Raise it
    * together with MAX_UPLOAD_BYTES: a bigger input cap means bigger estimates.
@@ -171,6 +186,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       tasksPerMinute: raw.QUOTA_TASKS_PER_MINUTE ?? LIMITS.server.anonymousTasksPerMinute,
       maxUploadBytes: raw.MAX_UPLOAD_BYTES ?? LIMITS.server.maxUploadBytes,
       bytesPerDay: LIMITS.server.anonymousBytesPerDay,
+    },
+    /**
+     * Limits for the public REST API. Present whether or not accounts are
+     * enabled -- the numbers are deployment policy, and the v1 surface reports
+     * them even where keys cannot exist yet.
+     */
+    apikey: {
+      tasksPerMinute: raw.API_KEY_TASKS_PER_MINUTE ?? LIMITS.server.api.tasksPerMinute,
+      tasksPerDay: raw.API_KEY_TASKS_PER_DAY ?? LIMITS.server.api.tasksPerDay,
+      bytesPerDay: raw.API_KEY_BYTES_PER_DAY ?? LIMITS.server.api.bytesPerDay,
+      accountTasksPerDay: raw.API_ACCOUNT_TASKS_PER_DAY ?? LIMITS.server.api.accountTasksPerDay,
+      accountBytesPerDay: raw.API_ACCOUNT_BYTES_PER_DAY ?? LIMITS.server.api.accountBytesPerDay,
+      maxKeysPerAccount: raw.API_MAX_KEYS_PER_ACCOUNT ?? LIMITS.server.api.maxKeysPerAccount,
+      maxInlineFileBytes: raw.API_MAX_INLINE_FILE_BYTES ?? LIMITS.server.api.maxInlineFileBytes,
+      readsPerMinute: raw.API_READS_PER_MINUTE ?? 240,
     },
     retentionMs: raw.FILE_TTL_MS ?? LIMITS.server.fileTtlMs,
     janitorIntervalMs: raw.JANITOR_INTERVAL_MS ?? 5 * 60_000,
