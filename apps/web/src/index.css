@@ -207,16 +207,15 @@ html {
   transform: scale(1);
 }
 
-/* ── 2. Hero section entrance stagger ───────────────────────────────────── */
-@keyframes heroFadeUp {
-  from { opacity: 0; transform: translateY(22px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* ── 2. Hero + interactive-demo movement ──────────────────────────────────
+   The choreography itself is driven by anime.js (see lib/motion.ts); CSS
+   owns only the pre-paint hidden state so the first frame after render is
+   already the hidden one — no flash, then anime reveals. Reduced motion:
+   the gate class is never applied (computed in the component), and the
+   fallback block below forces visibility anyway. */
+.motion-gate {
+  opacity: 0;
 }
-.hero-stagger-1 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both; }
-.hero-stagger-2 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both; }
-.hero-stagger-3 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.30s both; }
-.hero-stagger-4 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.42s both; }
-.hero-stagger-5 { animation: heroFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.54s both; }
 
 /* ── 2b. Cinematic hero artwork (Greek backdrop) ────────────────────────── */
 /* Two decorative plates: the theme decides which one paints. Both live in the
@@ -527,6 +526,7 @@ html {
   --doc-mark: oklch(0.5 0.15 152);
   --doc-mark-wash: oklch(0.62 0.17 152 / 11%);
   position: relative;
+  overflow: hidden; /* clips the scan-line sweep and the rotated stamp */
   color: var(--doc-ink);
   background-image: linear-gradient(180deg, var(--doc-paper) 0%, var(--doc-paper-edge) 100%);
   box-shadow:
@@ -582,6 +582,120 @@ html {
 .doc-verify-icon {
   color: var(--doc-mark);
 }
+
+/* ── 2c-c. Interactive demo primitives (anime.js drives all motion) ─────── */
+
+/* Flash overlay inside the active target run: cited-answer → document link.
+   anime controls its opacity; the base is invisible. */
+.doc-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: var(--doc-mark);
+  opacity: 0;
+}
+
+/* Tracked-change primitives for the natural-language edit demo. The dashed
+   underline flags the planned run before anything is applied. */
+.doc-proposed {
+  border-bottom: 1.5px dashed var(--doc-mark);
+  padding-bottom: 1px;
+}
+/* The applied delta: what the model inserted, read like a tracked change. */
+.applied-delta {
+  display: inline-block;
+  font-weight: 600;
+  background-color: var(--doc-mark-wash);
+  padding: 0 2px;
+  border-radius: 2px;
+  color: var(--doc-mark);
+}
+/* Marker wash for "highlight" edits, like a real highlighter pen. */
+.applied-mark {
+  display: inline-block;
+  background-color: oklch(0.83 0.17 92 / 42%);
+  padding: 0 2px;
+  border-radius: 2px;
+  color: var(--doc-ink);
+}
+/* Strike line drawn over the replaced phrase (scaleX animated by anime). */
+.strike-line {
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 52%;
+  height: 1.5px;
+  background-color: currentColor;
+  opacity: 0.7;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* Burned redaction box: covers the original value (scaleX animated by anime,
+   left origin), so a "peek" can reveal what got destroyed underneath. */
+.redact-box {
+  position: absolute;
+  inset: -1px -3px;
+  border-radius: 2px;
+  background-color: oklch(0.16 0 0);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.dark .redact-box {
+  background-color: oklch(0.09 0 0);
+}
+
+/* PII scan line: one pass over the paper while the engine "reads". */
+.scan-line {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  height: 2.75rem;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    to bottom,
+    oklch(0 0 0 / 0%),
+    oklch(0.577 0.245 27 / 12%) 44%,
+    oklch(0.577 0.245 27 / 20%) 56%,
+    oklch(0 0 0 / 0%)
+  );
+}
+
+/* Header stamp, slammed in by the "insert stamp" edit. Red ink on paper —
+   the paper is light in both themes, so one red works everywhere. */
+.stamp-chip {
+  display: inline-block;
+  color: oklch(0.577 0.2 27);
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-family: var(--font-doc);
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+/* Assistant "thinking" dots. The only ambient loop the demo owns — the global
+   reduced-motion fallback nullifies it (dots settle at base opacity). */
+@keyframes thinkingDot {
+  0%, 72%, 100% { opacity: 0.3; transform: translateY(0); }
+  36% { opacity: 1; transform: translateY(-2px); }
+}
+.thinking-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background-color: currentColor;
+  opacity: 0.3;
+  animation: thinkingDot 1.15s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.thinking-dot:nth-child(2) { animation-delay: 140ms; }
+.thinking-dot:nth-child(3) { animation-delay: 280ms; }
+
 
 /* ── 2c-b. Document band: the photograph settles once on entry. One gentle,
       one-time move (no loop) — the "moving picture" for the page. ────────── */
@@ -640,5 +754,11 @@ html {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
+  }
+  /* Same guarantee for the anime.js gates: if JS was ever cut short, content
+     must not stay hidden. */
+  .motion-gate {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
