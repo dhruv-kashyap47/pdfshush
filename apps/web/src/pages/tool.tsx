@@ -18,6 +18,7 @@ import { RedactTool } from '@/components/tools/redact-tool';
 import { SplitByPagesTool } from '@/components/tools/split-by-pages-tool';
 import { SplitHalfTool } from '@/components/tools/split-half-tool';
 import { HeaderFooterTool, PageNumbersTool } from '@/components/tools/stamp-tool';
+import { SignatureTool } from '@/components/tools/signature-tool';
 import { SummarizePdfTool } from '@/components/tools/summarize-pdf-tool';
 import { ToolFrame } from '@/components/tools/tool-frame';
 import { ToolCard } from '@/components/landing/tool-card';
@@ -47,6 +48,8 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'summarize-pdf': SummarizePdfTool,
   'chat-with-pdf': ChatWithPdfTool,
   'edit-pdf-with-ai': EditPdfWithAiTool,
+  'fill-sign': () => <EditPdfTool variant="fill-sign" />,
+  signature: SignatureTool,
 };
 
 export function ToolPage() {

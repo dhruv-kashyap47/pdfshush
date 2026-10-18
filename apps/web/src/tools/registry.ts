@@ -115,6 +115,9 @@ const LIVE = new Set([
   'summarize-pdf',
   'chat-with-pdf',
   'edit-pdf-with-ai',
+  // Phase 6 (e-sign, PLAN.md §25): same editor engine, signature mode first.
+  'fill-sign',
+  'signature',
 ]);
 
 /**

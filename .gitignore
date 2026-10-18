@@ -50,9 +50,10 @@ apps/api/.work/
 # video, the Library of Congress reading-room and Archives New Zealand probate
 # photographs with their credits.json) and the PNG origins of the webp plates.
 # Third-party raw media stays out of git until its licence terms are recorded in
-# licenses/.
-assets/
-logo/
+# licenses/. Root-anchored so app-source font assets (apps/web/src/assets/,
+# whose licence terms ARE recorded in licenses/) still ship in git.
+/assets/
+/logo/
 
 # Downloaded OAuth client credentials from Google Cloud Console. The filename
 # itself encodes the client id and the body contains the client secret; neither

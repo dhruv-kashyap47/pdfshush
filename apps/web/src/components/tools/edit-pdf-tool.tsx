@@ -15,7 +15,16 @@
  *   provably the document the user sees, and nothing is silently dropped.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { toast } from 'sonner';
 import {
   JobAbortedError,
@@ -39,12 +48,34 @@ import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
 import { ResultPanel } from '@/components/tools/result-panel';
 import { useJobRunner } from '@/hooks/use-job-runner';
+import { Button } from '@/components/ui/button';
+import {
+  buildAuditSidecar,
+  sidecarFileNameFor,
+  type AuditPlacement,
+} from '@/lib/audit-sidecar';
 import { checkClientCapacity } from '@/lib/client-capacity';
-import { downloadBytes } from '@/lib/download';
+import { downloadBlob, downloadBytes } from '@/lib/download';
 import { readAsInputFiles } from '@/lib/files';
 import { useEditorDoc } from '@/lib/editor-state';
 import { jobPool } from '@/lib/job-pool';
+import {
+  SIGNATURE_LABEL_MAX_CHARS,
+  sanitizeSignatureLabel,
+} from '@/lib/signature-assets';
 import { recordRecent } from '@/tools/recent';
+import type { SignatureCapture } from '@/components/signature/signature-pad-dialog';
+
+/**
+ * The signature pad is a lazy chunk (`signature_pad` + Caveat faces ride it);
+ * this module itself stays in the main bundle.
+ */
+const SignaturePadDialog = lazy(
+  () =>
+    import('@/components/signature/signature-pad-dialog').then((m) => ({
+      default: m.SignaturePadDialog,
+    })),
+);
 
 type DocInfo = InspectOutput['documents'][number];
 
@@ -63,6 +94,8 @@ const RASTER_SCALE = Math.min(2, (globalThis.devicePixelRatio ?? 1) * 1.5);
 const MAX_RASTER_PIXELS = 12_000_000;
 /** Cap inserted images so a phone photo doesn't take over the page. */
 const MAX_IMAGE_WIDTH_PT = 300;
+/** A placed signature reads as a signature, not a stamp: cap it nearer ~2". */
+const SIGNATURE_WIDTH_PT = 150;
 /** Pages whose text runs are warmed in the background as the editor opens. */
 const WARM_RUN_PAGES = 10;
 /** Pages whose rasters are fetched immediately; the rest lazy-load on scroll. */
@@ -120,6 +153,7 @@ function isAbort(error: unknown): boolean {
 interface PageBinding {
   onSeedReplace: (run: TextRun) => void;
   onImageRequested: (point: { x: number; y: number }) => void;
+  onSignatureRequested: (point: { x: number; y: number }) => void;
   onVisible: () => void;
   onHidden: () => void;
 }
@@ -176,12 +210,16 @@ function usePageBuckets<T extends { pageIndex: number }>(items: readonly T[]): M
   }, [items]);
 }
 
-export function EditPdfTool() {
+export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sign' } = {}) {
+  // Fill & Sign is the same editor wearing its signing hat: signature mode
+  // opens first, the save action exports with an audit note, and the copy
+  // speaks honestly about what signing attests to (D1).
+  const isSign = variant === 'fill-sign';
   const [files, setFiles] = useState<File[]>([]);
   const [info, setInfo] = useState<DocInfo | null>(null);
   const [stage, setStage] = useState<'idle' | 'preparing' | 'editing'>('idle');
   const editor = useEditorDoc();
-  const [tool, setTool] = useState<EditorTool>('select');
+  const [tool, setTool] = useState<EditorTool>(isSign ? 'signature' : 'select');
   const [zoom, setZoom] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -221,6 +259,19 @@ export function EditPdfTool() {
   const runsInflight = useRef(new Set<number>());
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pendingImageRef = useRef<{ pageIndex: number; x: number; y: number } | null>(null);
+
+  /* ------------------------------------------------ fill & sign (P6.1) */
+
+  /** Where the signature insertion lands: set when the pad opens. */
+  const pendingSignatureRef = useRef<{ pageIndex: number; x: number; y: number } | null>(null);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  /** D2 signer label: optional, sanitized at save time, never a secret. */
+  const [signerLabel, setSignerLabel] = useState('');
+  /** Render kind/method of the latest placed signature, for the audit note. */
+  const lastSignatureMethodRef = useRef<'drawn' | 'typed'>('drawn');
+  /** The produced sidecar, offered as a second download on the result panel. */
+  const [auditNote, setAuditNote] = useState<{ fileName: string; json: string } | null>(null);
+  const [auditNoteError, setAuditNoteError] = useState<string | null>(null);
 
   /**
    * Incremented every time the source document changes. Page-index-keyed caches
@@ -511,6 +562,12 @@ export function EditPdfTool() {
     setZoom(1);
     zoomTouchedRef.current = false;
     savedDocRef.current = null;
+    pendingSignatureRef.current = null;
+    setSignatureDialogOpen(false);
+    setSignerLabel('');
+    lastSignatureMethodRef.current = 'drawn';
+    setAuditNote(null);
+    setAuditNoteError(null);
     // Without this, the next document would inherit the previous one's objects
     // (and their page indexes).
     editor.reset();
@@ -930,6 +987,49 @@ export function EditPdfTool() {
     }
   };
 
+  /* --------------------------------------------------- insert signature */
+
+  const onSignatureRequested = useCallback((pageIndex: number, point: { x: number; y: number }) => {
+    pendingSignatureRef.current = { pageIndex, ...point };
+    setSignatureDialogOpen(true);
+  }, []);
+
+  /**
+   * The pad's "Use signature" verdict: place it where the user first clicked,
+   * sized like a real signature stroke (never wider than ~2 inches of paper).
+   * Aspect comes from the trimmed PNG, so placement matches what they saw.
+   */
+  const onSignatureChosen = useCallback(
+    async (capture: SignatureCapture) => {
+      const pending = pendingSignatureRef.current;
+      if (!pending) return;
+      const page = infoRef.current?.pages.find((candidate) => candidate.index === pending.pageIndex);
+      const pageWidthPt = page?.displayWidthPt ?? page?.widthPt ?? 612;
+      const width = Math.min(SIGNATURE_WIDTH_PT, Math.max(24, Math.round(capture.width)));
+      const height = Math.max(20, Math.round(width * (capture.height / Math.max(1, capture.width))));
+      const clamped = { ...pending };
+      // The click seeds the top-left; keep the placement on the page.
+      // Clamping reuses the same bounds rule the engine validates with.
+      clamped.x = Math.min(clamped.x, Math.max(0, pageWidthPt - width));
+      clamped.y = Math.max(0, clamped.y);
+      lastSignatureMethodRef.current = capture.method;
+      const object: EditorObject = {
+        id: newObjectId(),
+        kind: 'image',
+        pageIndex: pending.pageIndex,
+        x: Math.round(clamped.x),
+        y: Math.round(clamped.y),
+        width,
+        height,
+        data: new Uint8Array(await capture.png.arrayBuffer()),
+        mimeType: 'image/png',
+      };
+      pendingSignatureRef.current = null;
+      createObject(object);
+    },
+    [createObject],
+  );
+
   /* --------------------------------------------------------------- save */
 
   const onSave = useCallback(async () => {
@@ -975,7 +1075,15 @@ export function EditPdfTool() {
     const objects = snapshot.objects.filter((object) => !linked.has(object.id));
     const outcome = await editRunner.run(
       await readAsInputFiles([file]),
-      { edits, objects, formValues: snapshot.formValues },
+      {
+        edits,
+        objects,
+        formValues: snapshot.formValues,
+        // Fill & Sign says what happened; the default "-edited" would lie.
+        outputName: isSign
+          ? `${file.name.replace(/\.pdf$/i, '')}-signed`
+          : undefined,
+      },
       { timeoutMs: timeoutForPageCount(infoRef.current?.pageCount ?? 1) },
     );
     if (!outcome.ok) {
@@ -996,17 +1104,55 @@ export function EditPdfTool() {
     if (fileRef.current === file && infoRef.current !== null) {
       savedDocRef.current = snapshot;
     }
+    if (isSign) {
+      // D2: the audit sidecar is produced here, entirely on the device, and
+      // fails closed -- no digests means no note, with a visible reason.
+      const sourceDigestSeed = await file.arrayBuffer();
+      const placements: AuditPlacement[] = [];
+      for (const object of snapshot.objects) {
+        if (object.kind !== 'image') continue;
+        placements.push({
+          pageIndex: object.pageIndex,
+          x: object.x,
+          y: object.y,
+          width: object.width,
+          height: object.height,
+        });
+      }
+      const built = await buildAuditSidecar({
+        sourceName: file.name,
+        sourceBytes: sourceDigestSeed,
+        outputName: outcome.result.name,
+        outputBytes: outcome.result.data,
+        renderKind: 'raster',
+        method: lastSignatureMethodRef.current,
+        label: sanitizeSignatureLabel(signerLabel),
+        placements,
+      });
+      if ('sidecar' in built) {
+        setAuditNote({
+          fileName: sidecarFileNameFor(outcome.result.name),
+          json: JSON.stringify(built.sidecar, null, 2),
+        });
+        setAuditNoteError(null);
+      } else {
+        setAuditNote(null);
+        setAuditNoteError(built.error);
+      }
+    }
     void recordRecent({
-      toolSlug: 'edit-pdf',
-      toolName: 'Edit PDF',
+      toolSlug: isSign ? 'fill-sign' : 'edit-pdf',
+      toolName: isSign ? 'Fill & Sign' : 'Edit PDF',
       fileName: outcome.result.name,
       pageCount: outcome.result.pageCount,
       sizeBytes: outcome.result.data.byteLength,
     });
-  }, [editor, editRunner]);
+  }, [editor, editRunner, isSign, signerLabel]);
 
   const continueEditing = useCallback(() => {
     editRunner.reset();
+    setAuditNote(null);
+    setAuditNoteError(null);
     setStage('editing');
   }, [editRunner.reset]);
 
@@ -1151,12 +1297,14 @@ export function EditPdfTool() {
       map.set(page.index, {
         onSeedReplace: (run: TextRun) => seedReplace(page.index, run),
         onImageRequested: (point: { x: number; y: number }) => onImageRequested(page.index, point),
+        onSignatureRequested: (point: { x: number; y: number }) =>
+          onSignatureRequested(page.index, point),
         onVisible: () => void ensureRaster(page.index),
         onHidden: () => releaseDistantRasters(page.index),
       });
     }
     return map;
-  }, [info, seedReplace, onImageRequested, ensureRaster, releaseDistantRasters]);
+  }, [info, seedReplace, onImageRequested, onSignatureRequested, ensureRaster, releaseDistantRasters]);
 
   if (editState.status === 'done') {
     const { result } = editState;
@@ -1173,9 +1321,36 @@ export function EditPdfTool() {
           <>
             Saved, re-parsed and verified ({result.pageCount} page
             {result.pageCount === 1 ? '' : 's'}) before this download was enabled.
+            {isSign && ' The audit note is a local record: it never certifies identity, and it'
+              + ' is not our server acknowledging anything.'}
           </>
         }
-      />
+      >
+        {isSign && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="download-audit-note"
+              disabled={!auditNote}
+              onClick={() => {
+                if (!auditNote) return;
+                downloadBlob(
+                  new Blob([auditNote.json], { type: 'application/json' }),
+                  auditNote.fileName,
+                );
+              }}
+            >
+              {auditNote ? 'Download audit note (JSON)' : 'Audit note unavailable'}
+            </Button>
+            {auditNoteError && (
+              <span className="text-xs text-muted-foreground" data-testid="audit-note-error">
+                {auditNoteError}
+              </span>
+            )}
+          </div>
+        )}
+      </ResultPanel>
     );
   }
 
@@ -1185,7 +1360,7 @@ export function EditPdfTool() {
         files={files}
         onFiles={(next) => void handleFiles(next)}
         disabled={stage === 'preparing'}
-        hint="one PDF to edit"
+        hint={isSign ? 'one PDF to sign' : 'one PDF to edit'}
         multiple={false}
       />
 
@@ -1208,11 +1383,34 @@ export function EditPdfTool() {
             onDelete={deleteSelected}
             onSave={() => void onSave()}
             saving={saving}
+            saveLabel={isSign ? 'Sign & export' : undefined}
             canReorder={canReorder}
             canSendBack={canSendBack}
             onReorder={(direction) => transformSelected(direction)}
             showSave
           />
+
+          {isSign && (
+            <div
+              className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/60 bg-secondary/50 px-4 py-2 dark:border-white/5"
+              data-testid="signer-strip"
+            >
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                Signer name for the audit note (optional)
+                <input
+                  type="text"
+                  value={signerLabel}
+                  maxLength={SIGNATURE_LABEL_MAX_CHARS}
+                  onChange={(event) => setSignerLabel(event.target.value)}
+                  data-testid="signer-label-input"
+                  className="h-8 w-56 rounded-full bg-background px-3 text-sm text-foreground ring-1 ring-black/10 outline-none transition-shadow duration-300 focus:ring-2 focus:ring-primary/70 dark:ring-white/15"
+                />
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                The note records digests and placements honestly; it does not certify identity.
+              </span>
+            </div>
+          )}
 
           <div
             ref={scrollRef}
@@ -1249,6 +1447,7 @@ export function EditPdfTool() {
                   onCreate={createObject}
                   onSeedReplace={binding.onSeedReplace}
                   onImageRequested={binding.onImageRequested}
+                  onSignatureRequested={binding.onSignatureRequested}
                   onVisible={binding.onVisible}
                   onHidden={binding.onHidden}
                   onMoveLive={moveLive}
@@ -1280,6 +1479,17 @@ export function EditPdfTool() {
         tabIndex={-1}
         onChange={(event) => void onImageFile(event)}
       />
+
+      {signatureDialogOpen && (
+        <Suspense fallback={null}>
+          <SignaturePadDialog
+            open
+            onOpenChange={setSignatureDialogOpen}
+            mode="insert"
+            onUse={(capture) => void onSignatureChosen(capture)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

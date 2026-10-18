@@ -14,6 +14,7 @@ import {
   Loader2,
   Minus,
   MousePointer2,
+  PenLine,
   Redo2,
   Save,
   SendToBack,
@@ -32,6 +33,7 @@ export type EditorTool =
   | 'select'
   | 'text'
   | 'image'
+  | 'signature'
   | 'highlight'
   | 'strikeout'
   | 'underline'
@@ -52,7 +54,10 @@ const EDIT_TOOLS: ToolButton[] = [
   { id: 'text', label: 'Add or edit text (T)', Icon: Type },
 ];
 
-const INSERT_TOOLS: ToolButton[] = [{ id: 'image', label: 'Insert image (I)', Icon: ImagePlus }];
+const INSERT_TOOLS: ToolButton[] = [
+  { id: 'image', label: 'Insert image (I)', Icon: ImagePlus },
+  { id: 'signature', label: 'Insert signature', Icon: PenLine },
+];
 
 const ANNOTATE_TOOLS: ToolButton[] = [
   { id: 'highlight', label: 'Highlight (H)', Icon: Highlighter },
@@ -93,6 +98,8 @@ export interface EditorToolbarProps {
   onReorder?: (direction: 'forward' | 'backward') => void;
   /** Show the save button (hidden until the document is loaded). */
   showSave: boolean;
+  /** Label variation for the save action (Fill & Sign says "Sign & export"). */
+  saveLabel?: string;
 }
 
 function ToolButtonView({
@@ -154,6 +161,7 @@ export function EditorToolbar({
   canSendBack = false,
   onReorder,
   showSave,
+  saveLabel = 'Save changes',
 }: EditorToolbarProps) {
   // Relative steps: the editor also opens at a fit-width zoom that is not one
   // of the presets, so +/- walk the preset list from wherever we actually are.
@@ -361,7 +369,7 @@ export function EditorToolbar({
               onClick={onSave}
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              {saving ? 'Saving…' : 'Save changes'}
+              {saving ? 'Saving…' : saveLabel}
             </Button>
           </>
         )}

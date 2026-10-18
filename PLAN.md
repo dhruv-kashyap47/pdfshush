@@ -26,7 +26,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
 | **T — In-place text editing** | PDFium genuine rewrite of existing text objects (`SetCharcodes`/`SetText`), multi-object line matching, verification-driven pdf-lib overlay fallback | ✅ **engine + job shipped, browser-verified (2026-10-14)** · charcode resolver + multi-object matching landed · full smoke green — see §22 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ✅ **shipped (2026-10-16): BYOK summarize/chat/edit-with-AI, smart redaction + leakage gate, managed client + server budgets, in-place AI rewrites, IndexedDB key store, managed browser E2E** — see §23 |
-| **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | 🔄 **opened 2026-10-16**; P6.9 hardening interlude ✅ **done 2026-10-17** (H1–H3 + M1–M3 closed; H4 = operator action) — see §24.4 |
+| **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | 🔄 **opened 2026-10-16**; P6.0 decision record ✅ **done 2026-10-18** (§25.1, D1–D8); P6.9 hardening interlude ✅ **done 2026-10-17** (H1–H3 + M1–M3 closed; H4 = operator action); detailed plan written **2026-10-18** (§25): signatures local-only, Fill & Sign first, MCP = local stdio over the public API — see §24.4 + §25 |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
 **Redaction sub-phases** (detail in §20):
@@ -50,13 +50,14 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-17 after the cinematic Greek hero plate, a desktop-only hero
-grade pass, and the **Windows worker-loader fix** (§8, second entry) — the first run in which the
-browser suite actually reached its server-side workflow steps; the P5 AI port (§23), the gap-closing
-pass (§23.7), and the Phase 1-5 security review + `redactSecrets` hardening (§24) all still hold.
-**18 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
-`edit-pdf-with-ai` under a new **AI** category) · 8 runnable server-side ·
-**881/881 unit** (189 engine · 176 API · 364 provider · 152 agent) · **101/101 browser E2E** (full
+**Current gate:** re-measured 2026-10-18 with **P6.1 Fill & Sign code shipped** (§8 first entry) —
+the P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
+hardening (§24), and the P6.9 hardening interlude (§24.2) all still hold.
+**20 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
+`edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1)
+· 8 runnable server-side ·
+**897/897 unit** (189 engine · 176 API · 364 provider · 152 agent · **16 web** — the web app's own
+first unit suite covers the signature trim math and validation) · **101/101 browser E2E** (full
 smoke — re-measured 2026-10-17 with the API, Redis and a worker all up, so the workflow-run steps
 now **execute** instead of skipping; see §8's second entry) · **8/8 focused text-edit E2E** ·
 **17/17 AI E2E**
@@ -64,18 +65,23 @@ now **execute** instead of skipping; see §8's second entry) · **8/8 focused te
 the 18 previously recorded, all passing, so the drift came from the §23.6 AI-workspace consolidation
 rather than a lost assertion, but treat 18 as a contract worth confirming) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
+**17/17 sign E2E** (P6.1: dialog draw/save/adopt/place, export, audit note read back as JSON,
+manage page; `tests/e2e/sign.mjs`) ·
 21/21 API integration · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
 **genuine in-place text editing shipped end to end (§22; AI replacements now use it too, §23.7.2)** ·
 **AI: BYOK summarize/chat/edit-with-AI + smart redaction proposals in the browser, an opt-in managed
 mode with per-subject budgets on the server (off unless a key is set), the P5 leakage gate green, the
-key in IndexedDB behind `sanitizeAiSettings` with a one-click delete (§23)** · main chunk 0 pdf-lib /
-0 pdf.js / 0 pdfium, now enforced by `pnpm test:bundle` (PDFium is a lazy 4.6 MB asset fetched on first
-text edit).
-**Next: P6 (e-sign / public REST API / MCP) — opened 2026-10-16, plan in §24.4. Its opening
-P6.9 hardening interlude is *done* (2026-10-17): all four Highs' code work plus M1–M3 closed; H4
-(the on-disk credentials) closed the next day as an operator action (§24.2's H4 entry)**; R2 stays
+key in IndexedDB behind `sanitizeAiSettings` with a one-click delete (§23)** · **P6.1 Fill & Sign
+shipped (§25.2): drawn/typed capture, device-only signature assets, editor placement, `edit`-job
+export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
+0 pdf.js / 0 pdfium / 0 `signature_pad` / 0 Caveat, enforced by the extended `pnpm test:bundle`
+(PDFium is a lazy 4.6 MB asset fetched on first text edit; `signature_pad` + the bundled Caveat
+faces ride the 33 kB lazy signature-pad dialog chunk).
+**Next: P6.2 public REST API (§25.3) — P6.0 and P6.1 are done** (P6.1 code 2026-10-18: capture →
+store → place → export → audit sidecar, all unit + E2E green); P6.2 → P6.3 MCP → P6.4 hardening per
+§25.6. R2 stays
 deferred until R1 is proven in production, and P4.4 triggers stay gated.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
 rooted-tree silent-loop pair (§8 top entry), gated by typecheck, a fresh production build, the
@@ -107,7 +113,8 @@ Do not relitigate these without a strong reason; each was researched and chosen.
   zero deps, ~6 kB gzip). Variable-width Bézier smoothing is the hard part of a signature
   pad; its `toSVG()` also unlocks **vector** signatures through pdf-lib's `drawSvgPath`.
   Raster output feeds the existing `EditImageObject` pipeline unchanged. Requires a
-  NOTICE attribution. Full design notes: session plan file `p6-sign-signature-pad.md`.
+  NOTICE attribution. Full design notes: §25 (the original session plan file
+  `p6-sign-signature-pad.md` is gone from disk; §25 supersedes it).
 - **Engine:** maintained pdf-lib fork **`@cantoo/pdf-lib`** (upstream stale since 2021) +
   **`pdfjs-dist` v6** (rendering) + `fflate` (zip). Server tools later: Ghostscript, qpdf,
   LibreOffice, OCRmyPDF, Tesseract.js.
@@ -522,6 +529,74 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-18 — P6.1 Fill & Sign shipped (capture → store → place → export → audit sidecar).**
+  E-sign slice one is code and green.
+
+  **Capture (`components/signature/signature-pad-dialog.tsx`, lazy chunk).** `signature_pad@5.1.4`
+  (zero-dep, §2) drives Draw; Type renders the bundled **Caveat** variable subsets (latin 75 kB +
+  latin-ext 29 kB, woff2, SIL OFL 1.1 text in `licenses/caveat-SIL-OFL-1.1.txt`) onto the same
+  canvas through `FontFace` with bundled URLs, not hotlinks; a font failure disables
+  the Type tab visibly (D4) rather than falling back to a serif. The core preview is paper-white in
+  **both** themes (ink here = ink on the page). DPR discipline per the README (canvas = CSS × ratio,
+  scaled context, `fromData` redraw on resize); a stable **callback-ref epoch** re-runs the pad
+  wiring when the canvas attaches — Radix portals + the lazy boundary can commit this component's
+  effects one commit before the canvas exists, which under a plain `useRef` wired the pad to a null
+  element forever (found via an injected-stroke probe, fixed and captured in §25.2's log). Undo =
+  drop the last `toData()` group → `fromData(rest)`; trim is the in-repo ~30-line alpha scan
+  (`computeInkBounds`) applied before every capture, so placed signatures carry no dead margins.
+  Saved assets live in a new `signatures` IndexedDB store (**DB v3**, same connection-owner file)
+  capped at 5 assets / 200 KB PNG (D3): at-cap is a *visible* refusal, never a silent evict; stroke
+  data is pinned into our own `strokesSchema: 1` shape (minimum fields, versioned), never stored
+  wholesale. Adopting a saved asset shows its stored PNG over a blanked pad — what you adopt is
+  exactly what you place.
+
+  **Placement + export.** The editor toolbar gains a Signature tool (PenLine) and the page routes
+  clicks through `onSignatureRequested` → dialog → `EditImageObject` (PNG embed, capped at
+  `SIGNATURE_WIDTH_PT` = 150 pt, click-seeded top-left like image insert). `fill-sign` is the edit
+  editor in its signing hat (`variant="fill-sign"`: signature tool pre-selected, "Sign & export"
+  save, optional signer-name strip for the D2 label, export named `<stem>-signed.pdf` via the edit
+  job's `outputName`), and `signature` is a small asset-manager page (`components/tools/
+  signature-tool.tsx`): create/review/delete, no upload path by design (an imported bitmap is just
+  an image, which Edit already places).
+
+  **Audit sidecar (§25.1 D2, `lib/audit-sidecar.ts`).** `pdfshush.audit-trail/1` JSON with
+  source/output SHA-256 (SubtleCrypto, secure-context only), render kind, method, sanitized label,
+  placements, client timestamp — plus an in-schema `attestation.certified: false` note so the
+  artifact itself states what it does not attest to (D1). **Fail-closed:** when digests are
+  impossible no sidecar is written at all and the result panel says why; there is no digest-less
+  degraded form. The note rides the ResultPanel as a second download (`<stem>-audit.json`).
+
+  **Tests/gates.** Web app's first unit suite (`apps/web` + vitest, root `pnpm test` aggregates via
+  `--if-present`): 16 tests over trim math, label sanitizer (including astral-plane code points)
+  and record validation; caps pinned by test (5 / 200 KB / schema 1) — changing one is now a
+  §25.1 decision, not a tweak. New `tests/e2e/sign.mjs` (`pnpm test:e2e:sign`): 17/17 — dialog
+  draw/save/adopt/place against a real worker, `-signed.pdf` export asserted as `%PDF`, and the
+  audit note downloaded and parsed back (schema, label, one placement, 64-hex digests,
+  `certified:false`). `pnpm test:bundle` extended and green: main chunk carries 0 pdf-lib / pdf.js /
+  pdfium / `signature_pad` / Caveat; the pad ships as a **33 kB (10 kB gzip) lazy dialog chunk**;
+  the Caveat woff2 files ride it. Gates re-measured: `pnpm typecheck` ✅ · **897/897 unit**
+  (189 engine · 176 API · 364 provider · 152 agent · 16 web) · **101/101 + 8/8 + 17/17 + 11/11 +
+  17/17** browser E2E · production build ✅ with the chunk notes unchanged (pre-existing).
+
+  **Deliberately deferred to later in P6.1/P6.4:** the vector path (`toSVG()` → `drawSvgPath`)
+  stays behind the §25.2 flag until its round-trip test exists (raster is the shipped path);
+  smoke.mjs gains a fill-sign section only if the dedicated suite ever retires.
+
+- **2026-10-18 — P6 planned in detail and P6.0 (decision record) completed; no code written.** The
+  lost session file `p6-sign-signature-pad.md` was superseded by new §25 (§2's `szimek/signature_pad`
+  decision stands; `signature_pad@5.1.4` pinned). Four decisions recorded from the author: signature
+  assets **local-only** (IndexedDB, no sync), e-sign slice one = **Fill & Sign only**
+  (`sign-workflow` routed to its own later gate), bundled **Caveat** (OFL) for the Type tab, and an
+  **API-tuned quota tier** for public keys (500 tasks/day · 30/min · 5 GB/day per key, 2,000/day ·
+  10 GB/day account ceiling; anonymous policy untouched). Technical calls recorded in §25.1 D1–D8:
+  no eIDAS/ESIGN claims, `<stem>-audit.json` sidecar fail-closed on SubtleCrypto digest unavailability,
+  `x-api-key`-only v1 with `pshk_` keys SHA-256 at rest and `jobs:write`/`jobs:read`/`results:read`
+  scopes (no AI scope), MCP inline transfer capped at 10 MB per file with an https-only base URL, and
+  D8's invariant that `apiKey`/`cookie`/`x-job-token` join the logger redact list as soon as P6.2
+  lands (closes §24.5 L6 early). Status board, §24.5 order and §25.6 updated: **P6.0 done,
+  P6.1 unblocked; next is P6.1 code** (pad dialog → editor placement → export), with its gates
+  already specified in §25.2.
 
 - **2026-10-18 — accounts went live by diagnosing an Atlas TLS refusal; the last §24 High (H4) closed as an operator action.** A deployment where every `/api/auth/*` and `/api/account/*` route answered 503 `auth_disabled` was not an env-var gap: compose passed all `MONGODB_*` / `GOOGLE_*` values into the container correctly, but `setupAuth` **downgraded to anonymous-only** because the Atlas handshake aborted with `tlsv1 alert internal error` (server alert 80). The probe that settled it: all three shards failed identically on both OpenSSL (Node) and schannel (curl), across TLS 1.2-only / 1.3-only / every ALPN variant, while `cloud.mongodb.com:443` and TLS on other non-443 ports (Gmail SMTP/IMAP) handshook fine — isolating the failure to Atlas's server-side access gate and matching the Community-documented signature for a missing Network Access entry. The operator added the machine's IP in Atlas; boot then logged `accounts enabled` and `/api/auth/google/start` returned a 302 to `accounts.google.com` carrying PKCE (`S256`), `state` and `nonce` — sign-in verified to the consent URL, not through an interactive consent round trip.
 
@@ -1071,8 +1146,9 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all five packages
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent (862 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web (897 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
+pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
 pnpm test:e2e:ai-managed # managed trial through the real API routes, in-memory counters (11 checks)
@@ -1103,8 +1179,9 @@ honest gaps are closed** (§23). **P6 is open and its P6.9 hardening interlude i
 the §24 Highs' code work and every Medium are closed, the child filesystem scope is accepted by
 design, and the last High — H4's on-disk credentials — closed 2026-10-18 (§24.2's H4 entry: dead
 values replaced with a verified-live pair, the stray client JSON deleted, Atlas Network Access
-allowlisted). The **next build step is P6.0, the e-sign / public-API / MCP decision record**
-(§24.4), then P6.1 e-sign.
+allowlisted). **P6.0 and P6.1 are done (2026-10-18)** — the decision record (§25.1) and the Fill &
+Sign slice's code with all gates green (§8 top entry). The **next build step is P6.2, the public
+REST API** (`/api/v1`, §25.3), then P6.3 MCP over it.
 One live gate limitation: `test:api` and `test:hardening` need a running Redis + Docker stack. **Since the worker-loader fix
 (§8) this is no longer hypothetical**: the compose `redis` service publishes nothing to the host
 (`ports:` is deliberately absent — api/worker reach it over the compose network), so to run the
@@ -2558,8 +2635,253 @@ redaction (not before R1 is proven in production, §20.3). P6 does not depend on
 | L9 | Low | `AccountStore.ownsJob` is dead code | delete it, or use it as the record | P7 |
 | — | Low | **fixed in this review:** `redactSecrets` gaps (client) and the raw managed-gateway error (server) | §24.2 | done |
 
-**Order:** **P6.9 hardening — done 2026-10-17** → P6.0 decision record (next) → P6.1 e-sign → P6.2
-public API → P6.3 MCP. P6.1 touches only the P2 editor, so it can run in parallel with the decision
-record; P6.2 and P6.3 should not precede it.
+**Order:** **P6.9 hardening — done 2026-10-17** · **P6.0 decision record — done 2026-10-18**
+(§25.1) → **P6.1 e-sign — done 2026-10-18** → P6.2 public API → P6.3 MCP. P6.1 does not depend on
+P6.2/P6.3; the record preceded everything (it has). Next is P6.2.
+
+---
+
+## 25. P6 detailed plan — e-sign / public API / MCP (written 2026-10-18)
+
+Plan for the four open P6 sub-phases (P6.9 is done, §24.4). This section supersedes the lost
+session file `p6-sign-signature-pad.md`; the `szimek/signature_pad` decision itself was locked
+2026-10-08 in §2 and is unchanged.
+
+### 25.0 Decisions locked 2026-10-18 (author-confirmed)
+
+1. **Signature assets are local-only (IndexedDB).** A saved signature (strokes or rendered
+   PNG) never leaves the device in slice one; no account sync, no server copy. Deletion is a
+   delete in the object store. Account sync may arrive later under the P4.2 sync boundary with
+   its own review — do not pre-build it.
+2. **E-sign slice one = Fill & Sign only.** Draw/type a signature, place it in the P2 editor,
+   export a signed PDF with an honest audit note. Ordered recipients, routing and a server-side
+   signature session model (`sign-workflow`) are **deferred to their own gate** — they need the
+   public API/db layer and a much larger trust surface; do not smuggle them into P6.1.
+3. **MCP transport = local stdio talking to the public REST API.** The server runs on the user's
+   machine (`@pdfshush/mcp` bin) and calls `/api/v1` with the user's own API key; the key lives in
+   their env/MCP client config, never on our servers. One execution path (P6.2's bounded workers).
+
+**Pinned version:** `signature_pad@5.1.4` (MIT, zero runtime deps, SLSA provenance, TS 5.9
+compatible; module + UMD exports). NOTICE attribution required in `licenses/`.
+
+### 25.1 P6.0 — Decision record (completed 2026-10-18)
+
+Written with the author. Items D2, D3, D4 and D6 carry the author's answers (§25.0 + this
+session); the rest are technical calls recorded so nobody re-derives them. Per the
+§18.1/§20.3 pattern:
+**the record is the P6.0 deliverable — no code was built in this phase, by design.** Exits:
+P6.0 done 2026-10-18; nothing in §25 relitigates without a strong reason.
+
+- **D1 — What Fill & Sign attests to, and what it does not.** The flow produces an
+  *ordinary electronic signature* someone chose to draw/type themselves. It does **not**
+  certify identity, meet eIDAS advanced/qualified levels or ESIGN evidentiary standards, and
+  we never claim so — not in UI copy, docs, or the audit note. The sidecar is *evidence the
+  signer owns*, tamper-*evident* (a digest the signer can recompute), not tamper-*proof*,
+  and it is not our infrastructure: PDFShush stores nothing (D3), so nothing can independently
+  vouch for the signer. UI copy must say "keep the audit file together with the signed PDF".
+- **D2 — The audit sidecar (author-confirmed: JSON sidecar, produced locally).** A
+  `<output-stem>-audit.json` offered as a second download beside the signed PDF. Draft schema
+  `pdfshush.audit-trail/1`: `source` (pre-signing digest + filename), `output` (post-export
+  digest + filename), `signed` (`method: "drawn" | "typed"`, optional signer label, per-page
+  placement rects, render kind raster/vector), `time` (ISO 8601 + `timeSource: "client"` — the
+  clock is the browser's, stated in-band), `engine` (app version, engine, library version).
+  Facts worth writing down: digests are SHA-256 via `SubtleCrypto`, which needs a secure
+  context — if the context can't digest, the sidecar is **not** produced at all (fail-closed,
+  with a visible message), never a digest-less sidecar. The signer label is sanitized: trimmed,
+  ≤ 80 chars, control characters stripped; it is not a secret field. The sidecar contains
+  filenames and stays on the user's disk — it is the P4.2 principle applied honestly: nothing
+  uploads, so there is nothing to suppress.
+- **D3 — Signature assets: local-only IndexedDB (author-confirmed).** New object store
+  `signatures` in the existing client DB: `{ id, createdAt, label?, method, strokes?, png
+  (Blob), width, height }` — `strokes` kept so a drawn signature can be re-rendered and later
+  re-exported as vectors. Cap **5 assets** and **~200 KB per PNG**; deletion is per-asset with
+  a confirm. The record shape is versioned (`strokesSchema: 1`) because it mirrors
+  `signature_pad`'s `toData()` format, which the library may change across majors — mirror and
+  version, never store library internals wholesale. **No account sync, no server copy** in any
+  slice until a reviewed decision says otherwise (§25.0 #1).
+- **D4 — Typed-signature font: bundle one OFL font (author-confirmed), chosen = Caveat**
+  (Pablo Impallari, SIL OFL 1.1 — casual pen look, wide latin incl. diacritics coverage, single
+  variable woff2 in the tens of kB in the lazy dialog chunk). License copy lands in
+  `licenses/` with attribution. The font is a *preview and raster source* only — typed
+  signatures are rendered to canvas (D3/§25.2), so no font embedding ever reaches the PDF and
+  the export pipeline is identical for drawn and typed. Fallback stack `cursive`; if the
+  bundled font fails to load, the Type tab disables with a visible message (fail-visible).
+- **D5 — Public API v1 auth and key model.** Header: **`x-api-key` only** — no
+  `Authorization: Bearer` scheme in v1, so API auth can never be confused with the browser
+  cookie session in shared middleware. Key format `pshk_<48 base62>` (~285 bits), shown
+  **once** at creation, stored as a SHA-256 digest + last-4 display fragment + name + scopes +
+  create/last-used/revoked timestamps, owned by an account. V1 scopes: `jobs:write`,
+  `jobs:read`, `results:read` (new keys get all three; per-key scope selection is a later
+  addition — record the field now, enforce it now, expose choice later). **No AI scope in
+  v1.** Revocation takes effect immediately (next request 403s); rotation = create new, revoke
+  old, delete the old row after a grace window the operator chooses.
+- **D6 — API quota tier (author-confirmed: API-tuned).** Per key: **500 tasks/day ·
+  30 tasks/min · 5 GB/day**. Account ceiling (sum of its keys, daily + bytes only:
+  **2,000 tasks/day · 10 GB/day**) so N keys cannot multiply past it. Anonymous tools keep
+  §4's P3 policy untouched. Numbers live in the API limits config as the single source and
+  appear verbatim on the `/tools/api` page; revisit after the first month of real keys.
+- **D7 — MCP file transfer policy.** Tool inputs are `{name, base64}` inline, capped at
+  **10 MB per file** — deliberately tighter than the 100 MB API multipart limit because MCP
+  payloads flow through the agent's context, not just the wire; larger files are explicitly
+  told to go via the REST multipart path with curl. Outputs return as `{files:
+  [{name, base64}]}` mirroring the API's result shape. `PDFSHUSH_API_URL` is validated
+  https-only at startup (the ported `urlErrorOutcome` guard); the package touches **no**
+  filesystem and no other origin.
+- **D8 — Security invariants that land with P6.2/P6.3 (not deferred to P7).** `apiKey`,
+  `cookie` and `x-job-token` join the logger redact list the moment keys exist (this closes
+  §24.5 L6 early); keys never ride URLs or query strings; per-key rate limits key on keyId,
+  never IP (M1); API-submitted uploads pass the M2 `%PDF-` sniff unchanged; tool-schema parity
+  is pinned in CI (§25.4), not asserted by hand.
+
+**Explicitly not decided here:** pricing/tiers, teams/orgs, per-key scope selection UI,
+R2 redaction (§20.3 gate) and P4.4 triggers (§18.5 gate) — all stay out of P6.
+
+### 25.2 P6.1 — Fill & Sign (e-sign slice one)
+
+**Scope:** capture → save/reuse → place → export, all client-side; the file never uploads.
+New live slug: `fill-sign` (the `signature` editors-slug is the asset manager; ships in the same
+slice as a small dedicated page).
+
+**Capture — `components/tools/signature-pad-dialog.tsx`** (lazy chunk):
+- Two tabs: **Draw** and **Type**. Draw is `new SignaturePad(canvas, { penColor, minWidth,
+  maxWidth, velocityFilterWeight })` on a fixed max-size canvas.
+- **DPI/resize discipline (from the README's tips, will bite otherwise):** canvas must be sized
+  `offsetWidth × devicePixelRatio` (min ratio 1) with a `scale(ratio)` on the 2D context, and a
+  resize handler must `signaturePad.clear()` or `redraw()` — a cleared-but-not-redrawn canvas
+  makes `isEmpty()` lie. Test the dialog at both 1× and 2× DPR in E2E.
+- **Undo / clear:** undo = drop the last point-group from `toData()` then `fromData(rest)`
+  (the library's own jsfiddle pattern); `isEmpty()` gates the confirm button; `clear()` before
+  re-draw.
+- **Trim:** implement a ~30-line in-repo trim (scan transparent margins of the canvas) instead
+  of adding `trim-canvas` as a dependency; it is the same math and keeps the dep tree flat.
+  Trim before persisting *and* before export, or placed signatures carry giant dead margins
+  and resist placement.
+- **Type tab:** text → rendered onto the *same* canvas with the bundled handwriting font, so
+  typed and drawn share one export pipeline (canvas → PNG bytes / stroke data).
+- **Reusable asset:** dialog offers save; store picker lists previously saved signatures.
+  Cap the store (proposal: 5 assets, ~200 KB PNG each + strokes JSON; strokes kept so a saved
+  signature can be re-rendered and, later, re-exported as vectors). Delete per asset.
+
+**Placement — P2 editor integration:**
+- A "Signature" mode in the editor toolbar (and the `fill-sign` tool body lands the file
+  straight in the editor with that mode pre-selected, plus a short "how signing works" panel).
+- Click (or click-drag) on a page inserts an image object from the stored PNG at that spot;
+  move/resize via the existing editor object handling; everything rides the snapshot
+  undo/redo stack exactly like an image insert.
+
+**Export — engine:**
+- **Raster path (default, ships first):** the existing `edit` job unchanged — the PNG is just
+  another embedded image object; export validation gate applies as it already does.
+- **Vector path (feature-flagged, gated on tests):** `toSVG()` → parse the filled `<path>`
+  segments → `@cantoo/pdf-lib` `drawSvgPath`, one path per stroke at export scale. Vector only
+  for *freshly drawn* strokes (strokes JSON present), never for re-saving a raster asset as
+  vectors (it would bake a raster under the path). If the round-trip test shows drift, ship
+  raster and keep the flag off — do not hold the slice hostage to vector fidelity.
+- **Audit note (D2):** a local `<stem>-audit.json` sidecar — source digest, output digest,
+  timestamp (client clock, stated in-band), optional sanitized label, placements. Never
+  informational PDF metadata. The UI copy says exactly what this is and is not (D1). No key
+  material, no signature *image* in the note.
+
+**Tests/gates:**
+| Gate | How |
+| --- | --- |
+| signature round-trips + re-extracts | export → re-open → embedded image found on the target page at the placed rect |
+| vector proven | flag-on test: stroke path operators present in the content stream; off: flag stays off |
+| tamper detectable | digest-before-signing stored → flip a byte in the exported file → digest mismatch test |
+| no key material | grep-level + code review; no field in the audit note accepts secrets |
+| unit | trim math, store CRUD + cap, undo/clear semantics, sanitizer for the label text |
+| browser E2E | open dialog, *inject stroke data via `fromData()`* (synthetic pointer events on a smooth-Bezier canvas are flaky — save pointer-path driving for one happy-path check), place with a fixed click point, export, `%PDF` assert; typed tab; asset delete |
+| bundle | `pnpm test:bundle` extended: `signature_pad` must sit in the lazy dialog chunk, and reach neither the main chunk beyond that nor the worker |
+
+**Also:** NOTICE attribution in `licenses/`; registry flips `fill-sign` (+ `signature`) to live;
+smoke suite gains the fill-sign section.
+
+> **Shipped 2026-10-18 (see §8 top entry for the full record):** everything in the Capture,
+> Placement, Export(raster) and Audit-note bullets plus the unit / browser E2E / bundle gates —
+> trim math, store CRUD + cap, sanitizer (unit), real-stroke browser E2E (`tests/e2e/sign.mjs`,
+> 17/17), `test:bundle` extended (0 pad modules in main; pad + Caveat in the 33 kB lazy chunk).
+> **Still open:** the *vector proven* and *tamper detectable* rows (raster path shipped; the flag
+> stays off until both rows land) and the smoke.mjs section (the dedicated suite covers the slice;
+> retire-or-fold decision rides with P6.4).
+
+### 25.3 P6.2 — Public REST API (`/api/v1`)
+
+**Scope:** programmatic access to the server-runnable slugs over the P3 job contract. No new
+execution path: the API keys submit into the *same* BullMQ pipeline with the same admission
+control (P6.9), quotas and janitor.
+
+- **Transport/router:** `apps/api/src/http/v1/` mounted in `app.ts`; `x-api-key` header only
+  (D5); JSON request bodies + the existing multipart for large uploads.
+- **Endpoints:** `GET /api/v1/tools` (catalog: slugs the API can run, each with its payload
+  schema), `POST /api/v1/jobs` (`{slug, options, files?}` → `{jobId, statusUrl}`),
+  `GET /api/v1/jobs/:id` (status/poll TTL), `GET /api/v1/jobs/:id/result`.
+- **Key model (D5):** keys belong to an account; a key's quota is measured against the
+  *key*, with the account ceiling from D6. Anonymous quotas and the P4 policy stay untouched.
+- **Rate limiting:** per-key Redis counters (keyId, never bare IP — the M1 trust-proxy finding
+  makes IP keyed limits meaningless behind a proxy), then the shared P3 quota path.
+- **OpenAPI spec + `/tools/api` page:** spec generated from the payload zod schemas (the same
+  schema the job `validate` uses — one source of truth); the `api` tool page renders catalog +
+  curl examples and the key-management link. Docs must not claim slugs the API cannot run.
+- **UI:** account dashboard API-keys page — create (shown once, with copy), list with
+  last-used, revoke. Everything server-rendered-agnostic SPA like the rest of the app.
+
+**Tests/gates:**
+| Gate | How |
+| --- | --- |
+| authn/authz matrix | missing, garbage, expired, revoked, wrong-scope, right-scope; every verdict asserted |
+| anonymous unchanged | the existing anonymous tool/job suites stay green untouched |
+| per-key isolation | two keys, one account: key A's usage never counts against key B |
+| throttle | per-key limit trips on the documented numbers (suite waits out the window first — §7 gotcha) |
+| schema parity | `GET /tools` slugs == server-runnable job slugs, pinned like `JOB_SLUGS` |
+| E2E | real stack (Redis + worker) end-to-end: create key → submit → poll → download; against the hardened pipeline, not a mock |
+
+### 25.4 P6.3 — PDFShush MCP server (`@pdfshush/mcp`, local stdio)
+
+**Scope:** a small standalone package (`apps/mcp`) the user runs locally via npx/config; it
+speaks stdio (modelcontextprotocol/sdk) and calls `/api/v1` with the user's own key.
+
+- **Config:** env `PDFSHUSH_API_URL` + `PDFSHUSH_API_KEY`; the `mcp` tool page documents the
+  Claude/other-client snippet. The server is stateless; nothing is stored on disk.
+- **Tool surface:** one MCP tool per **server-runnable** slug, generated from the same zod
+  payload schemas as P6.2's spec (so spec, tool page, and MCP share one source). File inputs =
+  `{name, base64}` capped at the D7 limit (10 MB — agents pass payloads through context, not
+  just the wire); outputs = `{files:[{name, base64}]}`. Plus `pdfshush://tools` resource + a
+  guide resource per slug (the GenOffice `genoffice://guide/*` pattern).
+- **Design donor — read first, Apache-2.0, already local:**
+  `genoffice-main/packages/cli/src/mcp/` — `tools.ts` (`toolShape`, param/inline-json kinds),
+  `remote.ts` (`materializeInputs`, `attachOutputs`, `urlErrorOutcome`), `server.ts`
+  (`INSTRUCTIONS` / `remoteInstructions`). Adapt the shapes, attribute in `licenses/`;
+  `urlErrorOutcome` is the SSRF guard for the configured base URL — keep an equivalent
+  (https-only base, no path escape) when porting.
+- **Parity + no-escape gates (from §24.4):**
+  | Gate | How |
+  | --- | --- |
+  | tool-schema parity | generated MCP tool list pinned to the server-runnable slug set in a unit test (drift fails CI) |
+  | bounded execution | every call lands in the same BullMQ worker/limits path — the MCP package ships no engine, imports no pdf-core job implementation |
+  | no fs/network escape | the package touches the configured base URL only; https enforced; unit test hits a wrong-URL case and asserts the refusal |
+  | stdio E2E | drive the bin over a spawned child with a fake-API harness: list tools → call one → get files back |
+
+### 25.5 P6.4 — hardening pass for the new surface
+
+Key-abuse cases (stolen key = reduced-quota anonymous-equivalent abuse model, scope
+enforcement, rotation drill), signing-abuse review (audit-note tampering, pad memory), SSRF
+review of anything that fetches URLs (MCP base URL, any future URL-fetch tool), and the
+M2-style stream sniff for API-submitted multipart. Findings feed §24.5's backlog and P7's
+torture suite; expected to be short because P6.2/P6.3 reuse hardened paths.
+
+### 25.6 Order
+
+1. **P6.0 — done 2026-10-18** (§25.1: the record is written; D1–D8 stand).
+2. **P6.1 — done 2026-10-18** (code shipped, gates green; §8 top entry. Raster export ships; the
+   vector path remains behind the §25.2 flag until its round-trip test is written — revisit within
+   P6.4's window or drop it explicitly rather than leaving it silently open).
+3. **P6.2** → **P6.3** (P6.3 depends on P6.2's endpoints and the D5/D6 key model; do not
+   interleave them — one clean API surface first).
+4. **P6.4** last, folding findings into P7.
+
+**Expected surface after P6:** `fill-sign` + `signature` live (18→20 live tools — **this part is
+already true**; `api` and `mcp` pages flip to real docs), one new package (`apps/mcp`), one new
+router (`v1`), one new IndexedDB store (**shipped**, `signatures` at DB v3), signature_pad as the
+slice's only new runtime dep (**shipped**).
 
 

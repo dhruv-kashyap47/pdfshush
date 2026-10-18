@@ -48,6 +48,8 @@ export interface EditorPageProps {
   onCreate: (object: EditorObject) => void;
   onSeedReplace: (run: TextRun) => void;
   onImageRequested: (point: { x: number; y: number }) => void;
+  /** Signature tool: opens the pad dialog anchored at the click. */
+  onSignatureRequested: (point: { x: number; y: number }) => void;
   /** Fired when the page scrolls near the viewport (lazy raster load). */
   onVisible?: () => void;
   /** Fired when the page is far outside the viewport: release its bitmap. */
@@ -462,6 +464,10 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     }
     if (p.tool === 'image') {
       p.onImageRequested(point);
+      return;
+    }
+    if (p.tool === 'signature') {
+      p.onSignatureRequested(point);
       return;
     }
     if (p.tool === 'text') {

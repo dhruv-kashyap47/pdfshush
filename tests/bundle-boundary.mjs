@@ -70,6 +70,38 @@ async function main() {
   );
   for (const source of bundled.slice(0, 5)) console.log(`         e.g. ${source}`);
 
+  // P6.1 (PLAN.md §25.2): signature_pad and the bundled Caveat faces ride the
+  // lazy signature-pad dialog chunk only. The main chunk must not pay for the
+  // pad, and no chunk but the dialog (and the worker, for its own reasons)
+  // may carry the engines.
+  const padSources = sources.filter((source) => /signature_pad|caveat/i.test(source));
+  check(
+    'main chunk carries no signature pad or Caveat font',
+    padSources.length === 0,
+    padSources.length === 0 ? '0 pad modules' : `${padSources.length} pad modules`,
+  );
+  for (const source of padSources.slice(0, 5)) console.log(`         e.g. ${source}`);
+  // The pad should exist somewhere: find the chunk that bundled it.
+  const allAssets = await readdir(path.join(DIST, 'assets'));
+  const chunks = allAssets.filter((name) => /^.*\.js$/.test(name));
+  const padChunks = [];
+  for (const name of chunks) {
+    try {
+      const map = JSON.parse(await readFile(path.join(DIST, 'assets', `${name}.map`), 'utf8'));
+      const hits = (map.sources ?? []).filter((source) => /signature_pad|caveat/i.test(source));
+      if (hits.length > 0 && name !== entry) {
+        padChunks.push(`${name} (${hits.length} modules)`);
+      }
+    } catch {
+      // no map for this chunk; skip
+    }
+  }
+  check(
+    'the signature pad ships in a lazy chunk',
+    padChunks.length > 0,
+    padChunks.join(', ') || 'not found in any chunk (is it code-split?)',
+  );
+
   // The engines should exist *somewhere* in the worker chunks; if they vanished
   // entirely the check above would pass for the wrong reason.
   const assets = await readdir(path.join(DIST, 'assets'));

@@ -13,10 +13,11 @@
  */
 
 export const DB_NAME = 'pdfshush';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const RECENT_STORE = 'recent';
 export const WORKFLOW_STORE = 'workflows';
+export const SIGNATURE_STORE = 'signatures';
 
 function upgrade(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains(RECENT_STORE)) {
@@ -27,6 +28,11 @@ function upgrade(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains(WORKFLOW_STORE)) {
     const store = db.createObjectStore(WORKFLOW_STORE, { keyPath: 'id' });
     store.createIndex('updatedAt', 'updatedAt');
+  }
+  if (!db.objectStoreNames.contains(SIGNATURE_STORE)) {
+    const store = db.createObjectStore(SIGNATURE_STORE, { keyPath: 'id' });
+    // Newest-first reads (the saved-signature strip) and the cap trim both use it.
+    store.createIndex('createdAt', 'createdAt');
   }
 }
 
