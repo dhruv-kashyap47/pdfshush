@@ -1,8 +1,30 @@
-import { useState, useRef } from 'react';
-import { ArrowRight, Bot, CheckCircle2, Cpu, FileText, Lock, Sparkles, Upload, Wand2, ShieldCheck, Zap } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  Cpu,
+  FileText,
+  Image,
+  LayoutGrid,
+  Lock,
+  Merge,
+  Minimize2,
+  PenTool,
+  Scissors,
+  ShieldCheck,
+  Signature,
+  Sparkles,
+  Upload,
+  Wand2,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/format';
+import { EASE, DUR, staggerUI, timelineUI, prefersReducedMotion } from '@/lib/motion';
+import { useMotionScope } from '@/hooks/use-motion';
 
 /* Definitions are written to survive a 390px phone's half-panel chip on one
    line: a truncated promise ("Permanent destructive sanititi...") reads worse
@@ -14,18 +36,94 @@ const QUICK_AI_ACTIONS = [
   { slug: 'redact-pdf', name: 'Redact PII', desc: 'Erased for good' },
 ] as const;
 
-const QUICK_CORE_TOOLS = [
-  { slug: 'edit-pdf', name: 'Edit PDF' },
-  { slug: 'merge-pdf', name: 'Merge PDFs' },
-  { slug: 'organize-pdf', name: 'Organize' },
-  { slug: 'compress-pdf', name: 'Compress' },
-] as const;
+/* The eight jobs people open this site for. Every entry is a real route under
+   /tools — two of them (Compress, Protect) are still on the roadmap and say
+   so with the same "soon" badge the catalog uses, so the grid never lies
+   about what runs today. Descriptions stay short so a chip never wraps its
+   promise mid-sentence on a phone. */
+interface ToolShortcut {
+  slug: string;
+  label: string;
+  desc: string;
+  icon: LucideIcon;
+  /** Accent family mirrored from the tool registry (tool-card palette). */
+  accent: 'green' | 'blue' | 'amber' | 'orange';
+  soon?: boolean;
+}
+
+const HERO_TOOLS: ToolShortcut[] = [
+  { slug: 'merge-pdf', label: 'Merge PDF', desc: 'Combine files in any order', icon: Merge, accent: 'green' },
+  { slug: 'split-by-pages', label: 'Split PDF', desc: 'Cut into page ranges', icon: Scissors, accent: 'blue' },
+  { slug: 'compress-pdf', label: 'Compress PDF', desc: 'Smaller file, sharp text', icon: Minimize2, accent: 'orange', soon: true },
+  { slug: 'edit-pdf', label: 'Edit PDF', desc: 'Type right on the page', icon: PenTool, accent: 'green' },
+  { slug: 'pdf-to-jpg', label: 'Convert PDF', desc: 'Export pages as images', icon: Image, accent: 'amber' },
+  { slug: 'organize-pdf', label: 'Organize Pages', desc: 'Drag to reorder pages', icon: LayoutGrid, accent: 'blue' },
+  { slug: 'fill-sign', label: 'Sign PDF', desc: 'Draw or type a signature', icon: Signature, accent: 'amber' },
+  { slug: 'protect-pdf', label: 'Protect PDF', desc: 'Add an open password', icon: Lock, accent: 'blue', soon: true },
+];
+
+/* Icon tiles mirror the accents the registry already assigns these tools, so
+   a "Merge PDF" chip and its catalog card read as the same product. */
+const ACCENT_TILE: Record<ToolShortcut['accent'], string> = {
+  green: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  blue: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+  amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  orange: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+};
+
+const ACCENT_TILE_RING: Record<ToolShortcut['accent'], string> = {
+  green: 'group-hover:ring-emerald-500/30',
+  blue: 'group-hover:ring-sky-500/30',
+  amber: 'group-hover:ring-amber-500/30',
+  orange: 'group-hover:ring-orange-500/30',
+};
 
 export function HeroSection() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [stagedFile, setStagedFile] = useState<{ name: string; size: number } | null>(null);
+
+  /* Hero choreography lives here: one anime timeline for the headline, sub,
+     CTAs, tool grid and console. Under reduced motion the gate class never
+     renders, so the section is fully visible with zero animation. */
+  const reducedMotion = prefersReducedMotion();
+  const copyRef = useRef<HTMLDivElement>(null);
+  const consoleRef = useRef<HTMLDivElement>(null);
+  const motion = useMotionScope();
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    const copy = copyRef.current;
+    if (!copy) return;
+
+    const headline = copy.querySelector('[data-motion="headline"]');
+    const subhead = copy.querySelector('[data-motion="subhead"]');
+    const actions = copy.querySelector('[data-motion="actions"]');
+    const toolGrid = copy.querySelector('[data-motion="tools"]');
+    const chips = copy.querySelectorAll<HTMLElement>('[data-tool-chip]');
+    // The console entrance targets the card itself (the wrapper stays
+    // positionable by the grid).
+    const consoleCard = consoleRef.current?.querySelector('div') ?? null;
+
+    const tl = timelineUI({ defaults: { ease: EASE.out, duration: DUR.slow } });
+    if (headline) tl.add(headline, { opacity: [0, 1], y: [22, 0] }, 0);
+    if (subhead) tl.add(subhead, { opacity: [0, 1], y: [18, 0], duration: DUR.base }, 130);
+    if (actions) tl.add(actions, { opacity: [0, 1], y: [16, 0], duration: DUR.base }, 260);
+    if (toolGrid) tl.add(toolGrid, { opacity: [0, 1], y: [14, 0], duration: DUR.base }, 380);
+    // Chips stay transform-free (Tailwind's hover lift owns their transform
+    // afterwards), so their entrance is an opacity wave only.
+    if (chips.length) {
+      tl.add(chips, { opacity: [0, 1], duration: 460, delay: staggerUI(30) }, 430);
+    }
+    if (consoleCard) tl.add(consoleCard, { opacity: [0, 1], y: [26, 0], duration: 820 }, 320);
+
+    motion.park(tl);
+    return undefined;
+    // copyRef/consoleRef are stable refs; the motion scope is a stable
+    // registry object, so this runs once per mount (and re-runs cleanly on
+    // StrictMode's double mount because the scope cancels everything).
+  }, [reducedMotion, motion]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -53,6 +151,8 @@ export function HeroSection() {
       setStagedFile({ name: file.name, size: file.size });
     }
   };
+
+  const gate = reducedMotion ? '' : 'motion-gate';
 
   return (
     // Top padding clears the sticky h-16 header, so the first line of copy is
@@ -86,19 +186,27 @@ export function HeroSection() {
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Headline block */}
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12 lg:items-start">
-          <div className="lg:col-span-7">
-            <h1 className="hero-stagger-2 text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.05]">
-              Private PDF tools.
+          <div ref={copyRef} className="lg:col-span-7">
+            {/* New headline: what it is, then why it is different. Two lines
+                max, no hidden meaning. The privacy promise moves to the sub. */}
+            <h1 data-motion="headline" className={`text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.05] ${gate}`}>
+              PDF tools.
               <br />
-              Files stay home.
+              Smarter document intelligence.
             </h1>
-            <p className="hero-stagger-3 mt-6 max-w-2xl text-base leading-relaxed text-foreground sm:text-lg">
+            {/* Privacy-first messaging stays: it is the reason to trust the
+                buttons above it. */}
+            <p
+              data-motion="subhead"
+              className={`mt-6 max-w-2xl text-base leading-relaxed text-foreground sm:text-lg ${gate}`}
+            >
               Question, edit, merge and redact documents right in this tab. Every job runs in
               local Web Workers; answers cite the exact page.
             </p>
 
-            {/* Instant Action Bar */}
-            <div className="hero-stagger-4 mt-8 flex flex-wrap items-center gap-3">
+            {/* Instant action bar — the two AI entry points, nothing else.
+                The merge CTA retired into the tool grid below. */}
+            <div data-motion="actions" className={`mt-8 flex flex-wrap items-center gap-3 ${gate}`}>
               <Button size="lg" className="h-11 rounded-md px-5 text-sm font-semibold shadow-none" asChild>
                 <Link to="/tools/chat-with-pdf">
                   <Bot className="mr-2 h-4 w-4" />
@@ -112,25 +220,50 @@ export function HeroSection() {
                   Edit with AI
                 </Link>
               </Button>
-              <Button size="lg" variant="ghost" className="inline-flex h-11 rounded-md px-4 text-sm text-muted-foreground shadow-none" asChild>
-                <Link to="/tools/merge-pdf">
-                  Merge files
-                </Link>
-              </Button>
             </div>
 
-            {/* Quick access chips */}
-            <div className="hero-stagger-5 mt-7 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Start directly:</span>
-              {QUICK_CORE_TOOLS.map((item) => (
-                <Link
-                  key={item.slug}
-                  to={`/tools/${item.slug}`}
-                  className="rounded-md bg-background/75 px-3 py-1.5 text-sm font-medium text-foreground/90 transition-colors hover:bg-background"
-                >
-                  {item.name}
-                </Link>
-              ))}
+            {/* Jump-straight-in tool grid (replaces the plain "Start directly"
+                chips). Chips are opacity-only in anime so the CSS hover lift
+                owns their transform after the intro. */}
+            <div data-motion="tools" className={`mt-10 ${gate}`}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Jump straight to a tool
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {HERO_TOOLS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.slug}
+                      to={`/tools/${item.slug}`}
+                      data-tool-chip
+                      className="group rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-background/55 dark:hover:border-primary/45"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ring-transparent transition-shadow duration-200 ${ACCENT_TILE[item.accent]} ${ACCENT_TILE_RING[item.accent]}`}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <p className="whitespace-nowrap text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
+                          {item.label}
+                        </p>
+                      </div>
+                      {/* The promise, below the tool, in readable italics; the
+                          "soon" badge rides this row so it never forces the
+                          label to wrap. */}
+                      <p className="mt-1.5 text-[11px] italic leading-snug text-muted-foreground">
+                        {item.desc}
+                        {item.soon && (
+                          <span className="ml-1.5 inline-block -translate-y-px rounded-full bg-muted px-1.5 text-[9px] font-semibold not-italic uppercase tracking-wide text-muted-foreground">
+                            soon
+                          </span>
+                        )}
+                      </p>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -139,13 +272,13 @@ export function HeroSection() {
               blurred rather than a solid card: over a photographic backdrop an
               opaque panel reads as a hole cut in the picture rather than part of
               the same composition. */}
-          <div className="hero-stagger-3 lg:col-span-5" data-ui>
+          <div ref={consoleRef} data-motion="console" className="lg:col-span-5" data-ui>
             <div
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`relative overflow-hidden rounded-xl border bg-background/82 p-6 backdrop-blur-xl transition-colors dark:bg-card/55 ${
+              className={`relative overflow-hidden rounded-xl border bg-background/82 p-6 backdrop-blur-xl transition-colors dark:bg-card/55 ${gate} ${
                 dragActive
                   ? 'border-primary ring-2 ring-primary/20 bg-background/90 dark:bg-card/70'
                   : 'border-transparent hover:border-foreground/20'
@@ -298,7 +431,8 @@ export function HeroSection() {
         </div>
 
         {/* Four plain spec entries — sentence case, no icons on top of cards,
-            no rules; reads as a quiet footnote strip under the photograph. */}
+            no rules; reads as a quiet footnote strip under the photograph.
+            Their reveal stays on the CSS/IO system (use-reveal). */}
         <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 sm:gap-x-10">
           {[
             { icon: Cpu, label: 'All client-side', desc: 'PDFium and pdf.js render and rebuild files inside sandboxed Web Workers.' },
