@@ -75,8 +75,8 @@ key in IndexedDB behind `sanitizeAiSettings` with a one-click delete (§23)** ·
 text edit).
 **Next: P6 (e-sign / public REST API / MCP) — opened 2026-10-16, plan in §24.4. Its opening
 P6.9 hardening interlude is *done* (2026-10-17): all four Highs' code work plus M1–M3 closed; H4
-(rotate the on-disk credentials) is the one remaining operator action**; R2 stays deferred
-until R1 is proven in production, and P4.4 triggers stay gated.
+(the on-disk credentials) closed the next day as an operator action (§24.2's H4 entry)**; R2 stays
+deferred until R1 is proven in production, and P4.4 triggers stay gated.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
 rooted-tree silent-loop pair (§8 top entry), gated by typecheck, a fresh production build, the
 881-test unit run and targeted browser inspection, not a new measurement of the E2E counts above.
@@ -522,6 +522,12 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-18 — accounts went live by diagnosing an Atlas TLS refusal; the last §24 High (H4) closed as an operator action.** A deployment where every `/api/auth/*` and `/api/account/*` route answered 503 `auth_disabled` was not an env-var gap: compose passed all `MONGODB_*` / `GOOGLE_*` values into the container correctly, but `setupAuth` **downgraded to anonymous-only** because the Atlas handshake aborted with `tlsv1 alert internal error` (server alert 80). The probe that settled it: all three shards failed identically on both OpenSSL (Node) and schannel (curl), across TLS 1.2-only / 1.3-only / every ALPN variant, while `cloud.mongodb.com:443` and TLS on other non-443 ports (Gmail SMTP/IMAP) handshook fine — isolating the failure to Atlas's server-side access gate and matching the Community-documented signature for a missing Network Access entry. The operator added the machine's IP in Atlas; boot then logged `accounts enabled` and `/api/auth/google/start` returned a 302 to `accounts.google.com` carrying PKCE (`S256`), `state` and `nonce` — sign-in verified to the consent URL, not through an interactive consent round trip.
+
+  **Code change (`apps/api/src/auth/setup.ts` + `.env.example`).** `createAuthDb` failures are swallowed by design (§18.2: accounts must never gate the anonymous tools), so an operator ever only saw the downgraded boot log — and for this failure mode a raw OpenSSL string instead of a diagnosis: the alert is *server-side*, and for Atlas it means the Network Access list. Connection failures are now re-wrapped in that diagnosis (matched on `tlsv1 alert internal error | ssl alert number 80`; every other failure passes through untouched), the original error stays attached as `cause`, and `.env.example` documents the symptom under the Mongo block. `pnpm --filter @pdfshush/api typecheck` ✅; wording-only change, so the **881-test unit suite is untouched**.
+
+  **Credential verification (no code).** The `.env` `GOOGLE_CLIENT_SECRET` was dead — the token endpoint returned `invalid_client` for it while the downloaded `client_secret_*.json`'s secret was accepted (`invalid_grant` on a probe code) — and the one "client not found" verdict on the `.env` id reduced byte-for-byte to the probe's regex capturing a trailing CR from Windows line endings, not a file defect. The live secret was rewritten into `.env` (single-line regex replace, value never displayed), confirmed by re-probe, and the now-redundant JSON deleted so the values live only in the gitignored `.env` (`.gitignore:9`, verified via `git check-ignore` + `git ls-files`). §9's pre-push secret/PII/dangerous-sink grep ran over tracked files: secret-pattern hits are only the labelled redaction-test fixtures that pre-date this change, and the sink hits are the two in-file-documented exceptions (`redis.eval` on constant scripts, `hardening.mjs`'s fixed-argv `execFileSync`) — **no new hits from this change**. **H4's residue — a fresh-secret rotation and a secrets manager — remains standing deploy-time hygiene (§24.2).**
 
 - **2026-10-18 — the editorial band became a stem-plate poster, and the prose visual became a rooted-tree silent loop with a one-click access gate.** See `apps/web/src/components/landing/document-band.tsx`, `features.tsx` (`DocumentLoopVideo`), and `public/brand/`.
 
@@ -1092,9 +1098,11 @@ the exported artifact, with the browser E2E asserting the downloaded bytes. R2 (
 redaction) stays deliberately deferred until R1 is proven in production (§20.3), and **P4.4**
 (automated triggers) stays gated on the SSRF/scheduling design (§18.5). **P5 (AI) has shipped and its
 honest gaps are closed** (§23). **P6 is open and its P6.9 hardening interlude is done (2026-10-17):**
-the §24 Highs' code work and every Medium are closed, with the child filesystem scope accepted by
-design and **H4 (rotate the on-disk credentials) left as the one operator action**. The **next
-build step is P6.0, the e-sign / public-API / MCP decision record** (§24.4), then P6.1 e-sign.
+the §24 Highs' code work and every Medium are closed, the child filesystem scope is accepted by
+design, and the last High — H4's on-disk credentials — closed 2026-10-18 (§24.2's H4 entry: dead
+values replaced with a verified-live pair, the stray client JSON deleted, Atlas Network Access
+allowlisted). The **next build step is P6.0, the e-sign / public-API / MCP decision record**
+(§24.4), then P6.1 e-sign.
 One live gate limitation: `test:api` and `test:hardening` need a running Redis + Docker stack. **Since the worker-loader fix
 (§8) this is no longer hypothetical**: the compose `redis` service publishes nothing to the host
 (`ports:` is deliberately absent — api/worker reach it over the compose network), so to run the
@@ -2419,6 +2427,18 @@ client and one server:
   hygiene. **Action: if those values are production credentials, rotate them and move to a secrets
   manager.** No code change is involved, which is why this stays open.
 
+  **Closed 2026-10-18 (operator action, verified — method in §8's same-day entry).** The `.env`
+  Google secret was found **dead** against the live token endpoint while the downloaded
+  `client_secret_*.json` held the accepted one, so deleting that JSON outright would have removed
+  the only valid credentials from the machine. The live pair was rewritten into `.env` and
+  re-probed as accepting (the `.env` client id was fine: the one "client not found" error reduced
+  byte-for-byte to the probe's regex capturing a trailing CR from Windows line endings, not a file
+  defect); the stray JSON was then deleted so the values once again live only in the gitignored
+  `.env`; and the Mongo Atlas **Network Access** entry for the machine's IP was added — that
+  refusal was the actual root cause of a deployment where every auth route answered 503
+  `auth_disabled` (§8). A fresh-secret rotation and a secrets manager remain standing deploy-time
+  hygiene.
+
 **Medium (all closed in P6.9):** a shared proxy IP collapsed the anonymous quota, the AI daily budget
 *and* the AI concurrency slot into one bucket when `TRUST_PROXY` was unset behind a proxy — **M1:** the
 server cannot tell "behind a proxy" from "not" at runtime, so it now logs a **boot warning** in
@@ -2491,9 +2511,10 @@ closed — see the P6.9 status below and §24.2).
   admission control + heap cap + `mem_limit`/`cpus`, M1 boot warning (`http/trust-proxy.ts`), M2
   `%PDF-` stream sniff (`uploads.ts`), M3 reserve-then-settle (`quota/quota.ts`). **Amended gate:** a
   child cannot read a *sibling's* directory is **not** claimed — the filesystem scope is accepted
-  by design (§24.2, H1) because the processor needs `node_modules`. **H4 stays open as an operator
-  action** (rotate the Atlas password and Google client secret). Unit **862/862** now; the live
-  Redis/Docker leg of the gate (`test:api`, `test:hardening`) still needs a running stack.
+  by design (§24.2, H1) because the processor needs `node_modules`. **H4 closed 2026-10-18** (§24.2's
+  H4 entry); a fresh-secret rotation and a secrets manager remain deploy-time hygiene. Unit
+  **862/862** now; the live Redis/Docker leg of the gate (`test:api`, `test:hardening`) still needs
+  a running stack.
 - **P6.1 — E-sign.** `szimek/signature_pad` (MIT, §2) for capture, its `toSVG()` → pdf-lib
   `drawSvgPath` for vector output, placement/fill through the P2 editor, ordered recipients, and an
   append-only audit record (document hash, signer identity, timestamps). **Gate:** a signature
@@ -2520,7 +2541,7 @@ redaction (not before R1 is proven in production, §20.3). P6 does not depend on
 | H1 | High | `fork()` "sandbox" inherits env + full filesystem | child env is now an **allowlist** (`child-env.ts`); **per-job FS scope accepted by design** (§24.2) | P6.9 — done |
 | H2 | High | timeout is cooperative; no hard kill of a hung parser | parent-side kill watchdog (`jobs/children.ts`) | P6.9 — done |
 | H3 | High | no admission control; no container memory/CPU cap | `estimate()` admission control + heap cap + `mem_limit`/`cpus` | P6.9 — done |
-| H4 | High | live credentials on disk (gitignored, untracked) | rotate; move to a secrets manager | ops — **still open** |
+| H4 | High | live credentials on disk (gitignored, untracked) | dead values replaced with the verified-live pair; stray client JSON deleted; secrets manager at deploy | ops — **done 2026-10-18** |
 | M1 | Med | a proxy IP collapses quota + AI budget + AI concurrency | boot warning when production trusts no hop (`http/trust-proxy.ts`) | P6.9 — done |
 | M2 | Med | uploads are extension-checked only | sniff `%PDF-` from the upload stream before enqueue | P6.9 — done |
 | M3 | Med | parallel uploads bypass the byte quota until `consume` | `reserveUpload`/`settleUpload` before streaming | P6.9 — done |

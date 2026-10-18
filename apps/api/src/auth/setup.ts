@@ -14,6 +14,33 @@ import { createAuthDb } from './mongo.js';
 import { AuthStore } from './store.js';
 import { AccountStore } from '../account/store.js';
 
+/**
+ * The auth downgrade logs this message verbatim, so it must read as a
+ * diagnosis, not a stack trace. Most failures (bad URI, auth failure, timeout)
+ * describe themselves; the one that does not is TLS:
+ *
+ * MongoDB aborts the handshake with "tlsv1 alert internal error" (alert 80) --
+ * a *server-side* alert, which is why the wording is so unhelpful. For Atlas
+ * clusters this almost always means the server refuses to talk to this
+ * machine: its public IP is missing from the project's Network Access list.
+ * Not a cipher, TLS-version or certificate problem -- those fail later, and
+ * differently -- and reproducible from any client TLS stack, which is what
+ * makes the cause sing.
+ */
+function describeAuthDbFailure(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (/tlsv1 alert internal error|ssl alert number 80/i.test(detail)) {
+    return (
+      'MongoDB aborted the TLS handshake (server alert 80). With Atlas this almost always means ' +
+      "this machine's public IP is not on the cluster's Network Access list: add it at " +
+      'cloud.mongodb.com -> Network Access (or 0.0.0.0/0 for a development machine with a ' +
+      `roaming IP) and restart this process. All other tools keep working anonymous. ` +
+      `Underlying error: ${detail}`
+    );
+  }
+  return detail;
+}
+
 export async function setupAuth(config: ApiConfig, logger: Logger): Promise<AuthServices | undefined> {
   const { auth } = config;
   if (!auth.enabled) return undefined;
@@ -26,6 +53,11 @@ export async function setupAuth(config: ApiConfig, logger: Logger): Promise<Auth
     dbName: auth.mongoDb,
     username: auth.mongoUsername,
     password: auth.mongoPassword,
+  }).catch((error: unknown) => {
+    // The server.ts catch logs this message's text; point it at today's most
+    // common Atlas misconfiguration rather than an OpenSSL library string. The
+    // original error stays attached as `cause` for anyone debugging further.
+    throw new Error(describeAuthDbFailure(error), { cause: error });
   });
 
   logger.info(
