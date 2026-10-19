@@ -10,7 +10,7 @@ export function DocumentBand() {
   return (
     <section aria-label="Private document processing" className="overflow-hidden bg-black">
       <img
-        src="/brand/stem-2.png"
+        src="/brand/stem-3.png"
         width={1854}
         height={848}
         alt="The PDFShush mark: a blue folder with its wordmark, held between two halftone peaks drawn in white dots on black"
