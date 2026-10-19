@@ -120,6 +120,8 @@ const LIVE = new Set([
   'signature',
   // Phase 6 (public API, PLAN.md §25.3): the docs page + key management.
   'api',
+  // Phase 6 (MCP, PLAN.md §25.4): the stdio server docs page.
+  'mcp',
 ]);
 
 /**

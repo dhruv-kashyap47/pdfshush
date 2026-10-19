@@ -1,0 +1,35 @@
+{
+  "name": "@pdfshush/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PDFShush MCP server: local stdio bridge that drives the public /api/v1 REST API with the user's own API key. Ships no PDF engine -- every tool call lands in the same server pipeline.",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "main": "./src/bin.ts",
+  "types": "./src/bin.ts",
+  "exports": {
+    ".": "./src/bin.ts"
+  },
+  "bin": {
+    "pdfshush-mcp": "./dist/bin.js"
+  },
+  "scripts": {
+    "dev": "tsx src/bin.ts",
+    "build": "esbuild src/bin.ts --bundle --platform=node --target=node24 --format=esm --banner:js=\"#!/usr/bin/env node\" --outfile=dist/bin.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm build && vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@pdfshush/api-contracts": "workspace:*",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

@@ -20,9 +20,11 @@ RUN corepack enable && corepack prepare pnpm@11.15.0 --activate
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY apps/mcp/package.json apps/mcp/package.json
 COPY packages/pdf-core/package.json packages/pdf-core/package.json
 COPY packages/ai-agent/package.json packages/ai-agent/package.json
 COPY packages/ai-provider/package.json packages/ai-provider/package.json
+COPY packages/api-contracts/package.json packages/api-contracts/package.json
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
@@ -38,7 +40,10 @@ COPY packages/pdf-core packages/pdf-core
 # load at runtime -- so its sources have to be in the build context.
 # `@pdfshush/ai-agent` is only ever imported with `import type` (erased before
 # esbuild resolves anything), so its manifest in the deps stage is enough.
+# `@pdfshush/api-contracts` (P6.3) gets the same bundling treatment: pure zod,
+# TypeScript main, aliased into every one of the three esbuild bundles.
 COPY packages/ai-provider packages/ai-provider
+COPY packages/api-contracts packages/api-contracts
 COPY apps/api apps/api
 RUN pnpm --filter @pdfshush/api build
 

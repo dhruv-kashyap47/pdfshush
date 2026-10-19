@@ -1,0 +1,16 @@
+PDFShush `apps/mcp` — design donor attribution
+================================================
+
+The MCP server architecture in `apps/mcp/src/` is adapted from GenOffice
+(`genoffice-main/packages/cli/src/mcp/`: tools.ts tool-shape generation,
+remote.ts URL-guard/materialization concepts, server.ts stdio assembly and
+the per-tool guide-resource pattern).
+
+GenOffice is licensed Apache-2.0; the full text is in
+`licenses/genoffice-MCP-donor-Apache-2.0.txt`.
+
+Changes from the donor: GenOffice runs tools in-process against a local CLI;
+PDFShush's server is remote-only — it carries no engine, touches no
+filesystem, and turns every tool call into a REST round-trip against
+/api/v1 (contract shapes from @pdfshush/api-contracts instead of argv
+construction).

@@ -15,9 +15,13 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
+import { API_KEY_SCOPES, type ApiKeyScope } from '@pdfshush/api-contracts';
 import type { ApiKeyDoc, AuthCollections } from '../auth/mongo.js';
 
 export type { ApiKeyDoc };
+/** Re-exported for the account routes and the OpenAPI document. */
+export { API_KEY_SCOPES };
+export type { ApiKeyScope };
 
 /** Every API key starts with this, so prefix confusion cannot happen. */
 export const API_KEY_PREFIX = 'pshk_';
@@ -26,12 +30,10 @@ export const API_KEY_PREFIX = 'pshk_';
 const DISPLAY_PREFIX_LENGTH = 16;
 
 /**
- * Scopes a key may hold. Plan decision D5: no AI scope by design -- the
- * managed-AI budget is an interaction-cost guard, not something a programmatic
- * key should silently spend.
+ * Scopes a key may hold. The list lives in `@pdfshush/api-contracts` (D5:
+ * no AI scope by design -- the managed-AI budget is an interaction-cost
+ * guard, not something a programmatic key should silently spend).
  */
-export const API_KEY_SCOPES = ['jobs:write', 'jobs:read', 'results:read'] as const;
-export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
 
 export interface ApiKeyView {
   id: string;
