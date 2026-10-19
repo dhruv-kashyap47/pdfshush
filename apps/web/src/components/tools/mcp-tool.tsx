@@ -7,64 +7,22 @@
  * Claude Desktop-style clients; keys stay out of it.
  */
 
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, BookOpen, KeyRound, ServerCog, ShieldCheck, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatBytes } from '@pdfshush/pdf-core';
-
-interface Spec {
-  components: {
-    schemas: {
-      Catalog?: {
-        properties?: {
-          limits?: {
-            properties?: {
-              tasksPerMinute?: { const?: number };
-              tasksPerDay?: { const?: number };
-              bytesPerDay?: { const?: number };
-              maxInlineFileBytes?: { const?: number };
-              resultRetentionMs?: { const?: number };
-            };
-          };
-        };
-      };
-    };
-  };
-  'x-tool-labels'?: Record<string, string>;
-}
+import { mcpToolName, useMcpCatalog } from '@/lib/mcp-catalog';
 
 const SPEC_URL = '/api/v1/openapi.json';
 
-function toolName(slug: string): string {
-  return `pdfshush_${slug.replaceAll('-', '_')}`;
-}
-
 export function McpToolPage() {
-  const [spec, setSpec] = useState<Spec | undefined>(undefined);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch(SPEC_URL);
-        if (!response.ok) throw new Error(`status ${response.status}`);
-        if (!cancelled) setSpec((await response.json()) as Spec);
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const limits = spec?.components.schemas.Catalog?.properties?.limits?.properties;
-  const labels = spec?.['x-tool-labels'] ?? {};
-  const slugs = Object.keys(labels);
-  const inlineCap = limits?.maxInlineFileBytes?.const ? formatBytes(limits.maxInlineFileBytes.const) : '10 MB';
+  const { status, catalog, reload } = useMcpCatalog();
+  const failed = status === 'failed';
+  const limits = catalog?.limits ?? {};
+  const labels = catalog?.labels ?? {};
+  const slugs = catalog?.slugs ?? [];
+  const inlineCap = limits.maxInlineFileBytes ? formatBytes(limits.maxInlineFileBytes) : '10 MB';
 
   const snippet = JSON.stringify(
     {
@@ -175,13 +133,13 @@ export function McpToolPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Submissions / minute / key" value={limits?.tasksPerMinute?.const} />
-          <Metric label="Tasks / day / key" value={limits?.tasksPerDay?.const} />
-          <Metric label="Uploads / day / key" value={limits?.bytesPerDay?.const ? formatBytes(limits.bytesPerDay.const) : undefined} />
-          <Metric label="Inline file ceiling" value={limits?.maxInlineFileBytes?.const ? formatBytes(limits.maxInlineFileBytes.const) : undefined} />
+          <Metric label="Submissions / minute / key" value={limits.tasksPerMinute} />
+          <Metric label="Tasks / day / key" value={limits.tasksPerDay} />
+          <Metric label="Uploads / day / key" value={limits.bytesPerDay ? formatBytes(limits.bytesPerDay) : undefined} />
+          <Metric label="Inline file ceiling" value={limits.maxInlineFileBytes ? formatBytes(limits.maxInlineFileBytes) : undefined} />
           <Metric
             label="Result retention"
-            value={limits?.resultRetentionMs?.const ? `${Math.round(limits.resultRetentionMs.const / 60_000)} min` : undefined}
+            value={limits.resultRetentionMs ? `${Math.round(limits.resultRetentionMs / 60_000)} min` : undefined}
           />
         </CardContent>
       </Card>
@@ -201,11 +159,11 @@ export function McpToolPage() {
           {failed ? (
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Could not reach the API right now, so the live tool list is not shown.</span>
-              <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              <Button variant="outline" size="sm" onClick={reload}>
                 Retry
               </Button>
             </div>
-          ) : !spec ? (
+          ) : status === 'loading' ? (
             <p className="text-sm text-muted-foreground">Reading the deployment's catalog…</p>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -214,7 +172,7 @@ export function McpToolPage() {
                   key={slug}
                   className="flex min-w-0 items-baseline gap-2 rounded-lg border px-3 py-2 text-sm"
                 >
-                  <code className="shrink-0 font-mono text-xs text-muted-foreground">{toolName(slug)}</code>
+                  <code className="shrink-0 font-mono text-xs text-muted-foreground">{mcpToolName(slug)}</code>
                   <span className="truncate">{labels[slug]}</span>
                 </li>
               ))}

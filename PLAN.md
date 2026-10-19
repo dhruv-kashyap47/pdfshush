@@ -51,17 +51,20 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
 **Current gate:** re-measured 2026-10-19 with **P6.4 hardening over the new surface shipped** (§8
-first entry) — the P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review +
-`redactSecrets` hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2),
-P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all still hold.
+first entry) plus the **landing MCP console** (§8 second entry) — the P5 AI port (§23), the gap-closing
+pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
+interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
+still hold.
 **22 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
-`api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines)
+`api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
+door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**937/937 unit** (189 engine · **197 API** · 364 provider · 152 agent · **16 web** — the web app's own
-unit suite covers the signature trim math and validation · **19 MCP**: parity pin, base-URL
-no-escape gate + origin-smuggling shapes, stdio E2E against a spawned binary) · browser E2E: full
-smoke (re-run 2026-10-18 error-free, incl. the comparison-table fix) · **8/8 focused text-edit E2E** ·
+**940/940 unit** (189 engine · **197 API** · 364 provider · 152 agent · **19 web** — the web app's own
+unit suite covers the signature trim math, the MCP tool naming rule and the shared catalog reader ·
+**19 MCP**: parity pin, base-URL no-escape gate + origin-smuggling shapes, stdio E2E against a spawned
+binary) · browser E2E: full
+smoke (re-run 2026-10-19 error-free, incl. the MCP console) · **8/8 focused text-edit E2E** ·
 **17/17 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock; re-measured — 17, not
 the 18 previously recorded, all passing, so the drift came from the §23.6 AI-workspace consolidation
@@ -538,10 +541,61 @@ never actually wired, and a stream with no error listener.*
   URL parser accept what looks like a path as a host. When reviewing a "refuse these characters"
   class, assert a smuggle case *at every position* (`test/base-url.test.ts` does), and remember
   that percent-encoding can introduce `?`/`#` that `url.search`/`url.hash` will never see.
+- **An effect in a component ABOVE a Radix portal can run before the portal content mounts.**
+  The MCP console's entrance animation lived in the dialog shell and therefore queried elements
+  that did not exist yet; the panels shipped as `opacity: 0` and never arrived, with no error
+  anywhere. Anything that animates content on open now lives *inside* the portal (a `DialogPanels`
+  child that mounts with the content), and every screenshot pass looks for "the panel is missing",
+  not only "the panel is wrong".
+- **Join authored content to live data on the canonical key, not the pretty one.** The console's
+  sample calls were keyed `split_by_pages` while the catalog serves `split-by-pages`, and the
+  mismatch showed up only as three missing chips. Display names get prettified; joins use the
+  canonical slug, and the transformation between them gets its own unit test.
 
 ---
 
 ## 8. Changelog
+
+- **2026-10-19 — Landing MCP console: the hero gained a third door, and the agent surface is now
+  explainable without leaving the page.**
+
+  **What shipped.** A new `Wire up an agent` button in the hero actions (`McpShowcaseButton`) opens a
+  full console dialog (`components/landing/mcp-dialog.tsx`) instead of a link: a three-step connect
+  guide (create a key → paste the client config → just ask), copy buttons on both snippets, and a
+  **live wire** panel where picking any of the eight tools shows the literal `tools/call` JSON the
+  client sends, the prompt a person types, and, on **Send it**, the animated round trip
+  (request lines → the `submit`/`poll`/`attach` legs → the response envelope with its real file
+  listing and the honest note about what rides along). Footer carries the per-key limits read live
+  and links to `/tools/mcp` + `/tools/api`.
+
+  **Honesty properties kept.** The tool list is not invented client side: both this dialog and
+  `/tools/mcp` now read one shared `lib/mcp-catalog.ts` hook over the public OpenAPI document, so a
+  deployment that cannot run a slug never shows it. When the document is unreachable the console says
+  "catalog unreachable, showing the shipped tool set" and falls back to the shipped eight (verified
+  by aborting the request in a real browser). Every sample is the server's own shapes, quoted from
+  `apps/mcp/src/run.ts`: the 32-hex `jobId`, `{files:[{name,bytes,inline}], pageCount}`, the
+  multi-file listing, the four-minute wait, and the `edit` limitation that image objects are not
+  expressible over JSON. Copy carries **no em dashes**.
+
+  **Two bugs the browser found (both would have shipped silently).** (1) The sample cases were
+  authored with underscored slugs (`split_by_pages`) while the API's slugs are dashed
+  (`split-by-pages`), so the live-catalog join silently dropped three of the eight tools. The gate
+  test in `lib/mcp-catalog.test.ts` now pins the mapping in both directions, including that a
+  converted name is not converted twice. (2) The entrance animation originally lived in the dialog
+  shell; an effect in the shell can run before Radix has mounted its portal content, so the panels
+  stayed at `opacity: 0` and the console body never arrived. Everything animated now lives in
+  `DialogPanels`, which mounts with the content (see §7).
+
+  **Motion.** One anime timeline for the entrance (title, lede, the three steps at 70 ms, chips at
+  26 ms, console, footer), one for the round trip (request lines at 24 ms, the three legs at their
+  real offsets, response at 580 ms). Transform and opacity only, every delay through `dur()`/
+  `staggerUI()`, and the blinking caret in the button is a CSS loop the global reduced-motion rule
+  nullifies. Verified in Edge at 1440/820/390 in light and dark, under `prefers-reduced-motion`
+  (everything lands at opacity 1 instantly) and with the catalog aborted.
+
+  **Gates.** Web unit **19/19** (+3, the naming rule) · full **940/940** unit · browser smoke
+  **all checks passed, no console or page errors** · `pnpm test:bundle` boundary intact (364 modules,
+  0 engines in the main chunk) · `pnpm typecheck` clean.
 
 - **2026-10-19 — P6.4 hardening pass over the P6 surface: one real fix (MCP base-URL smuggle class),
   one drill, one stream-sniff matrix, three recorded reviews, the vector flag dropped on the record.**

@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/format';
 import { EASE, DUR, staggerUI, timelineUI, prefersReducedMotion } from '@/lib/motion';
 import { useMotionScope } from '@/hooks/use-motion';
+import { McpShowcaseButton } from '@/components/landing/mcp-dialog';
 
 /* Definitions are written to survive a 390px phone's half-panel chip on one
    line: a truncated promise ("Permanent destructive sanititi...") reads worse
@@ -220,6 +221,9 @@ export function HeroSection() {
                   Edit with AI
                 </Link>
               </Button>
+              {/* Third door: the MCP server, for people whose agent does the
+                  work instead of their tab. Opens the in-page console. */}
+              <McpShowcaseButton />
             </div>
 
             {/* Jump-straight-in tool grid (replaces the plain "Start directly"
