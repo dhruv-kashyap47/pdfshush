@@ -14,6 +14,13 @@
 services:
   redis:
     image: redis:7-alpine
+    # `pnpm dev` runs the API on the host against `redis://127.0.0.1:6379`,
+    # so the broker has to be reachable from outside the compose network.
+    # Bound to loopback: Redis has no auth and must never answer off-box.
+    # The api/worker containers below still use `redis://redis:6379` on the
+    # internal network and are unaffected by this mapping.
+    ports:
+      - "127.0.0.1:6379:6379"
     # Bounded memory: the queue holds paths and counters, never documents.
     command: >
       redis-server

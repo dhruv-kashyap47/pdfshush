@@ -9,6 +9,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
+    "predev": "node scripts/ensure-redis.mjs",
     "dev": "pnpm --parallel --filter @pdfshush/web --filter @pdfshush/api dev",
     "build": "pnpm --filter @pdfshush/web build",
     "preview": "pnpm --filter @pdfshush/web preview",
