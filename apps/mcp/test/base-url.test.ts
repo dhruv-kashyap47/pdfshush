@@ -39,17 +39,33 @@ describe('resolveBaseUrl', () => {
   it('permits plain http on loopback only', () => {
     expect(resolveBaseUrl('http://localhost:8080', env({})).hostname).toBe('localhost');
     expect(resolveBaseUrl('http://127.0.0.1:8080', env({})).hostname).toBe('127.0.0.1');
+    expect(resolveBaseUrl('http://[::1]:8080', env({})).hostname).toBe('[::1]');
     expect(() => resolveBaseUrl('http://10.0.0.14:8080', env({}))).toThrow(ConfigError);
+    // IPv6 neighbours of the loopback and the unspecified address are not
+    // loopback: they answer for other interfaces, so they need the opt-in.
+    expect(() => resolveBaseUrl('http://[fe80::1]:8080', env({}))).toThrow(ConfigError);
+    expect(() => resolveBaseUrl('http://0.0.0.0:8080', env({}))).toThrow(ConfigError);
     expect(() => resolveBaseUrl('http://internal.co:8080', env({ PDFSHUSH_ALLOW_HTTP: '1' }))).not.toThrow();
   });
 
   it('refuses userinfo, query strings, fragments and control characters', () => {
     expect(() => resolveBaseUrl('https://user:pass@example.com', env({}))).toThrow(/userinfo/);
+    expect(() => resolveBaseUrl('https://attacker:@example.com', env({}))).toThrow(/userinfo/);
     expect(() => resolveBaseUrl('https://example.com/?x=1', env({}))).toThrow(ConfigError);
     expect(() => resolveBaseUrl('https://example.com/#frag', env({}))).toThrow(ConfigError);
     expect(() => resolveBaseUrl('https://exa mple.com', env({}))).toThrow(ConfigError);
     expect(() => resolveBaseUrl('https://example.com/x\ny', env({}))).toThrow(ConfigError);
     expect(() => resolveBaseUrl('https://example.com/%00', env({}))).toThrow(ConfigError);
+  });
+
+  it('refuses origin-smuggling shapes (P6.4 SSRF review)', () => {
+    // Protocol-relative: no scheme at all is refused as non-absolute, so it
+    // can never inherit an https prefix from elsewhere.
+    expect(() => resolveBaseUrl('//attacker.example', env({}))).toThrow(/absolute URL/);
+    // Backslash hosts / escapes never become a different origin legally, but
+    // they are parser-divergence bait and the guard refuses them outright.
+    expect(() => resolveBaseUrl('https:\\attacker.example', env({}))).toThrow(ConfigError);
+    expect(() => resolveBaseUrl('https://example.com/%2e%2e/%3f', env({}))).toThrow(ConfigError);
   });
 
   it('is honest about unparseable values', () => {

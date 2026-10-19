@@ -209,6 +209,8 @@ interface HarnessOptions {
     maxKeysPerAccount: number;
   }>;
   enabled?: boolean;
+  /** The per-request upload ceiling (`config.quota.maxUploadBytes`). */
+  maxUploadBytes?: number;
 }
 
 async function harness(options: HarnessOptions = {}) {
@@ -225,7 +227,7 @@ async function harness(options: HarnessOptions = {}) {
     pepper: 'test-pepper',
     logger: { info() {}, warn() {}, error() {}, debug() {}, trace() {}, fatal() {} } as never,
     config: {
-      quota: { maxUploadBytes: 5 * 1024 * 1024 },
+      quota: { maxUploadBytes: options.maxUploadBytes ?? 5 * 1024 * 1024 },
       apikey: {
         tasksPerMinute: 100,
         tasksPerDay: 100,
@@ -755,6 +757,197 @@ describe('dashboard key management', () => {
       method: 'DELETE',
     });
     expect(own.status).toBe(204);
+  });
+});
+
+/* --------------------------------- P6.4 hardening: rotation drill + multipart */
+
+describe('rotation + revocation drill', () => {
+  it('a minted replacement key inherits account-owned jobs the revoked key created', async () => {
+    const h = await harness();
+    const created = await body<{ key: { id: string }; token: string }>(
+      await h.createKey({ name: 'to rotate' }),
+    );
+    const job = await createJob(h, created.token);
+    expect(job.response.status).toBe(202);
+    const jobId = (job.payload as unknown as { jobId: string }).jobId;
+
+    // Finish the job so written results exist, exactly as a stolen key would
+    // have left them behind.
+    await h.store.writeResult(jobId, 'doc-result.json', Buffer.from('{}'));
+    h.queue.complete(jobId, {
+      status: 'completed',
+      files: [{ name: 'doc-result.json', bytes: 2 }],
+    });
+
+    // Revoke through the real dashboard route.
+    expect(
+      (await h.callDashboard(`/api/account/api-keys/${created.key.id}`, { method: 'DELETE' })).status,
+    ).toBe(204);
+    const dead = await h.v1(`/jobs/${jobId}`, { apiKey: created.token });
+    expect(dead.status).toBe(401);
+    expect((await body(dead)).code).toBe('unauthorized');
+
+    // The replacement key polls AND downloads the revoked key's outputs:
+    // ownership is recorded to the account, so a rotation never orphans
+    // results the account already paid for.
+    const replacement = await body<{ token: string }>(
+      await h.createKey({ name: 'replacement' }),
+    );
+    const status = await h.v1(`/jobs/${jobId}`, { apiKey: replacement.token });
+    expect(status.status).toBe(200);
+    const download = await h.v1(`/jobs/${jobId}/result`, { apiKey: replacement.token });
+    expect(download.status).toBe(200);
+    expect((await download.arrayBuffer()).byteLength).toBe(2);
+    // And the same sibling key's submission counters are untouched: the
+    // stolen/spent bucket died with its key, never pre-paid the account
+    // ceiling for the replacement.
+    const next = await createJob(h, replacement.token);
+    expect(next.response.status).toBe(202);
+  });
+
+  it('a revoked key is refused mid-flight like a never-seen one, with no queue trace', async () => {
+    const h = await harness({ apikey: { tasksPerMinute: 1 } });
+    const created = await body<{ key: { id: string }; token: string }>(
+      await h.createKey({ name: 'burn after' }),
+    );
+    const first = await createJob(h, created.token);
+    expect(first.response.status).toBe(202);
+    // The key's minute slot is spent; revoke instead of waiting it out, then
+    // present the exact token again: nothing it can do, not even read what it
+    // created (the account needs a live credential for that).
+    expect(
+      (await h.callDashboard(`/api/account/api-keys/${created.key.id}`, { method: 'DELETE' })).status,
+    ).toBe(204);
+    const pdf = await samplePdf();
+    const reuse = await h.v1('/jobs', {
+      method: 'POST',
+      apiKey: created.token,
+      body: JSON.stringify({
+        slug: 'inspect',
+        files: [{ name: 'doc.pdf', data: pdf.toString('base64') }],
+      }),
+    });
+    expect(reuse.status).toBe(401);
+    expect((await body(reuse)).code).toBe('unauthorized');
+    const readOwn = await body(
+      await h.v1(`/jobs/${(first.payload as unknown as { jobId: string }).jobId}`, {
+        apiKey: created.token,
+      }),
+    );
+    expect(readOwn.code).toBe('unauthorized');
+  });
+});
+
+describe('v1 multipart rides the anonymous stream guards (P6.4 M2-style sniff)', () => {
+  const multipart = (parts: string[], file?: Buffer, name = 'doc.pdf') => {
+    const boundary = '----p64';
+    const chunks: Buffer[] = [
+      Buffer.from(
+        parts
+          .map(
+            (pair) =>
+              `--${boundary}\r\nContent-Disposition: form-data; name="${pair.split('=')[0]}"\r\n\r\n${
+                pair.split('=')[1]
+              }\r\n`,
+          )
+          .join(''),
+      ),
+    ];
+    if (file) {
+      chunks.push(
+        Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\n` +
+            'Content-Type: application/pdf\r\n\r\n',
+        ),
+        file,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      );
+    } else {
+      chunks.push(Buffer.from(`--${boundary}--\r\n`));
+    }
+    return { boundary, body: Buffer.concat(chunks) };
+  };
+
+  it('accepts a keyed multipart submission straight into the same queue shape', async () => {
+    const h = await harness();
+    const key = await body<{ token: string }>(await h.createKey());
+    const { boundary, body: raw } = multipart(['slug=inspect'], await samplePdf());
+    const response = await fetch(h.url('/api/v1/jobs'), {
+      method: 'POST',
+      headers: {
+        'x-api-key': key.token,
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: raw,
+    });
+    expect(response.status).toBe(202);
+    const payload = h.queue.payloads[0]!;
+    expect(payload.slug).toBe('inspect');
+    expect(payload.files).toEqual([expect.any(String)]);
+    // The worker subject stays opaque (key/account ids never reach Redis).
+    expect(payload.subject).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('sniffs multipart bytes for the PDF signature exactly as the anonymous path does', async () => {
+    const h = await harness();
+    const key = await body<{ token: string }>(await h.createKey());
+    const { boundary, body: raw } = multipart(['slug=inspect'], Buffer.from('plain text'));
+    const response = await fetch(h.url('/api/v1/jobs'), {
+      method: 'POST',
+      headers: {
+        'x-api-key': key.token,
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: raw,
+    });
+    expect(response.status).toBe(400);
+    expect((await body(response)).code).toBe('validation_failed');
+    expect(h.queue.payloads).toHaveLength(0);
+  });
+
+  it('refuses a flooding key before any byte is written, then refunds the reservation', async () => {
+    const h = await harness({
+      apikey: { bytesPerDay: 1024 * 1024 },
+    });
+    const key = await body<{ token: string }>(await h.createKey());
+    // The reserve is the whole per-request ceiling; a key whose daily byte
+    // tier is below it is refused at reservation time -- before
+    // receiveUpload ever streams, so the disk never sees a flood.
+    const oversized = multipart(['slug=inspect'], await samplePdf());
+    const response = await fetch(h.url('/api/v1/jobs'), {
+      method: 'POST',
+      headers: {
+        'x-api-key': key.token,
+        'content-type': `multipart/form-data; boundary=${oversized.boundary}`,
+      },
+      body: oversized.body,
+    });
+    expect(response.status).toBe(429);
+    expect((await body(response)).code).toBe('quota_exceeded');
+    expect(h.queue.payloads).toHaveLength(0);
+  });
+
+  it('caps a multipart request while it streams, at the per-request ceiling', async () => {
+    const pdf = await samplePdf();
+    const cap = Math.floor(pdf.length * 1.5);
+    const h = await harness({ maxUploadBytes: cap });
+    const key = await body<{ token: string }>(await h.createKey());
+    // The magic sniff passes (the pad keeps `%PDF-` in the first kilobyte);
+    // the *aggregate* counter is what stops this file.
+    const padded = Buffer.concat([pdf, Buffer.alloc(pdf.length, 'A')]);
+    const oversized = multipart(['slug=inspect'], padded, 'big.pdf');
+    const response = await fetch(h.url('/api/v1/jobs'), {
+      method: 'POST',
+      headers: {
+        'x-api-key': key.token,
+        'content-type': `multipart/form-data; boundary=${oversized.boundary}`,
+      },
+      body: oversized.body,
+    });
+    expect(response.status).toBe(413);
+    expect((await body(response)).code).toBe('upload_too_large');
+    expect(h.queue.payloads).toHaveLength(0);
   });
 });
 

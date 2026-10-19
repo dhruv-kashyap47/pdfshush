@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-19
 
 ---
 
@@ -26,7 +26,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **R2 — Advanced redaction (final phase)** | Native text-level redaction, preserving searchable/selectable text and vector quality | ⛔ **Deferred until R1 is verified in production** — see §20.3 |
 | **T — In-place text editing** | PDFium genuine rewrite of existing text objects (`SetCharcodes`/`SetText`), multi-object line matching, verification-driven pdf-lib overlay fallback | ✅ **engine + job shipped, browser-verified (2026-10-14)** · charcode resolver + multi-object matching landed · full smoke green — see §22 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ✅ **shipped (2026-10-16): BYOK summarize/chat/edit-with-AI, smart redaction + leakage gate, managed client + server budgets, in-place AI rewrites, IndexedDB key store, managed browser E2E** — see §23 |
-| **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | 🔄 **opened 2026-10-16**; P6.0 decision record ✅ **done 2026-10-18** (§25.1, D1–D8); P6.9 hardening interlude ✅ **done 2026-10-17** (H1–H3 + M1–M3 closed; H4 = operator action); detailed plan written **2026-10-18** (§25): signatures local-only, Fill & Sign first, MCP = local stdio over the public API — see §24.4 + §25 |
+| **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ✅ **done 2026-10-19** — P6.0 decision record (§25.1, D1–D8), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3), P6.3 MCP server (§25.4), P6.4 hardening incl. the base-URL smuggle fix (§25.5); the vector-signature path was dropped explicitly to P7 (§25.6) |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
 **Redaction sub-phases** (detail in §20):
@@ -50,17 +50,17 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-19 with **P6.3 MCP server shipped** (§8 first entry) —
-the P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
-hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2) and P6.2 REST API
-(§25.3) all still hold.
+**Current gate:** re-measured 2026-10-19 with **P6.4 hardening over the new surface shipped** (§8
+first entry) — the P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review +
+`redactSecrets` hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2),
+P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all still hold.
 **22 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**930/930 unit** (189 engine · **191 API** · 364 provider · 152 agent · **16 web** — the web app's own
-unit suite covers the signature trim math and validation · **18 MCP**: parity pin, base-URL
-no-escape gate, stdio E2E against a spawned binary) · browser E2E: full
+**937/937 unit** (189 engine · **197 API** · 364 provider · 152 agent · **16 web** — the web app's own
+unit suite covers the signature trim math and validation · **19 MCP**: parity pin, base-URL
+no-escape gate + origin-smuggling shapes, stdio E2E against a spawned binary) · browser E2E: full
 smoke (re-run 2026-10-18 error-free, incl. the comparison-table fix) · **8/8 focused text-edit E2E** ·
 **17/17 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock; re-measured — 17, not
@@ -82,12 +82,11 @@ export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
 0 pdf.js / 0 pdfium / 0 `signature_pad` / 0 Caveat, enforced by the extended `pnpm test:bundle`
 (PDFium is a lazy 4.6 MB asset fetched on first text edit; `signature_pad` + the bundled Caveat
 faces ride the 33 kB lazy signature-pad dialog chunk).
-**Next: P6.4 hardening pass for the new surface (§25.5) — P6.0 through P6.3 are done** (P6.3 code
-2026-10-19: `@pdfshush/api-contracts` extraction, the `@pdfshush/mcp` stdio server, `/tools/mcp`
-docs page — parity, no-escape and spawned-stdio gates all green);
-P6.4 folds findings into P7 per
-§25.6. R2 stays
-deferred until R1 is proven in production, and P4.4 triggers stay gated.
+**Next: P7 — hardening/torture suite (adversarial fixtures, SEO prerender, perf/a11y). P6.0 through
+P6.4 are all done** (P6.4 code 2026-10-19: the rotation drill, the v1 multipart sniff matrix, the
+fixed base-URL smuggle class, and the recorded SSRF/signing/vector reviews — §25.4/§25.5).
+R2 stays
+deferred until R1 is proven in production, and P4.4 triggers stay gated on the SSRF/scheduling design.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
 rooted-tree silent-loop pair (§8 top entry), gated by typecheck, a fresh production build, the
 881-test unit run and targeted browser inspection, not a new measurement of the E2E counts above.
@@ -533,10 +532,53 @@ never actually wired, and a stream with no error listener.*
 - Playwright: use `channel: 'msedge'` (system Edge) — no browser download needed.
 - React 19: no global `JSX` namespace → use `ComponentType`; `useNavigate` requires the
   Router context (header is inside `BrowserRouter`).
+- **A validation regex with a leading `^` alternative only ever checks the first character.**
+  The MCP base-URL guard spent a day refusing control chars everywhere while silently allowing
+  `https:\attacker.example` because WHATWG's backslash-folding on special schemes made the
+  URL parser accept what looks like a path as a host. When reviewing a "refuse these characters"
+  class, assert a smuggle case *at every position* (`test/base-url.test.ts` does), and remember
+  that percent-encoding can introduce `?`/`#` that `url.search`/`url.hash` will never see.
 
 ---
 
 ## 8. Changelog
+
+- **2026-10-19 — P6.4 hardening pass over the P6 surface: one real fix (MCP base-URL smuggle class),
+  one drill, one stream-sniff matrix, three recorded reviews, the vector flag dropped on the record.**
+
+  **The fix.** `resolveBaseUrl`'s forbidden-character class anchored its first alternative (`/^[…]/`),
+  so `< > " ' \` \\ ~ ^ | {` were only refused at position 0 — i.e. never for a real `https://…`
+  string. `https:\attacker.example` sailed through as a smuggled host (WHATWG folds backslashes into
+  slashes on special schemes), and percent-encoded `?`/`#` introduced a query/fragment the
+  `url.search`/`url.hash` checks could never see. The class now matches anywhere
+  (``[\x00-\x20\x7f<>"'`\\~^|{}?#]``), with `test/base-url.test.ts > refuses origin-smuggling shapes`
+  pinning protocol-relative strings, backslash hosts and decoded `%2e%2e/%3f`; every prior refusal case
+  still passes, plus IPv6 non-loopback (`[fe80::1]`, `0.0.0.0`) now explicitly refused for plain http.
+
+  **The drill.** Rotation/revocation became tests instead of a hope (`v1.test.ts` "rotation +
+  revocation drill"): a replacement key inherits the account — it polls and downloads the revoked
+  key's completed job and keeps submitting with its own quota; the revoked token 401s identically to a
+  never-seen one on any endpoint, with no queue trace, even mid-window with its minute slot spent.
+
+  **The sniff.** The v1 multipart branch — previously only covered through its shared code — is now
+  behavior-tested end to end: keyed multipart accepted into the same queue shape with an opaque worker
+  subject; non-PDF magic refused mid-stream (400 `validation_failed`, nothing enqueued); the
+  per-request ceiling caps mid-stream (413 `upload_too_large` after a passing reservation); and a key
+  whose daily byte tier sits below the ceiling is refused at reservation time before the first disk
+  byte (429 `quota_exceeded`).
+
+  **The reviews (recorded, no code change needed).** SSRF: `apps/api` has zero `fetch(` of
+  request-shaped URLs (worker child included); Google endpoints are fixed constants; managed-AI's
+  provider URL is deployment config; BYOK is browser-direct (accepted in §24.2); P4.4 URL-fetch stays
+  gated. Signing abuse: the audit sidecar is honestly a re-signable, rewritable note whose only claim
+  is the recomputable `output.digest` — `certified: false` says so; pad memory is device-local
+  IndexedDB with the existing delete story. Vector-signature flag: no flag existed; raster is the
+  shipping path and vector re-enters at P7 only behind a round-trip fidelity test (§25.6 item closed
+  rather than left open).
+
+  **Gates.** Unit **937/937** (189 engine · **197 API** (+6) · 364 provider · 152 agent · 16 web ·
+  **19 MCP** (+1)); `pnpm typecheck` ✅ across all packages; MCP bin rebuilt (spawned-stdio E2E re-ran
+  against the fixed binary).
 
 - **2026-10-19 — P6.3 PDFShush MCP server shipped (`@pdfshush/mcp`, local stdio): every
   server-runnable slug as a tool, one REST round-trip per call, zero engine on the client.**
@@ -3070,6 +3112,15 @@ speaks stdio (modelcontextprotocol/sdk) and calls `/api/v1` with the user's own 
   `localhost`. `Get-NetTCPConnection -LocalPort 8080 -State Listen` before trusting any local-port
   probe.
 
+**P6.4 review found and fixed (2026-10-19):** the P6.3 config work left one real hole —
+`resolveBaseUrl`'s forbidden-character class was anchored (`/^[…]/`), so `< > " ' \` \\ ~ ^ | { ? # }`
+were only ever refused as the **first character** of the URL. In practice WHATWG parse errors and the
+unanchored control-char alternative masked that — but `https:\attacker.example` parsed fine (WHATWG
+folds backslashes into slashes on special schemes → a smuggled `attacker.example` host). The class now
+matches anywhere and includes the percent-smuggled `?`/`#` introducers (``[\x00-\x20\x7f<>"'`\\~^|{}?#]``),
+asserted by `test/base-url.test.ts > refuses origin-smuggling shapes`. Every earlier case in the file
+still passes — the refusals just no longer depend on which end of the string the crook sat at.
+
 ### 25.5 P6.4 — hardening pass for the new surface
 
 Key-abuse cases (stolen key = reduced-quota anonymous-equivalent abuse model, scope
@@ -3077,6 +3128,50 @@ enforcement, rotation drill), signing-abuse review (audit-note tampering, pad me
 review of anything that fetches URLs (MCP base URL, any future URL-fetch tool), and the
 M2-style stream sniff for API-submitted multipart. Findings feed §24.5's backlog and P7's
 torture suite; expected to be short because P6.2/P6.3 reuse hardened paths.
+
+**Done 2026-10-19.** The pass stayed short as predicted, but it caught one real hole (the anchored
+character class above, fixed + tested) and turned four reviews and one drill into recorded verdicts:
+
+1. **Rotation / revocation drill — pinned as tests** (`apps/api/test/v1.test.ts`):
+   a minted *replacement* key inherits the account — it polls and downloads a job the revoked key
+   created (ownership is account-scoped, so rotation never orphans paid-for results) and keeps
+   submitting with its own counters; the revoked token answers 401 exactly like a never-seen one on
+   every endpoint, with no queue trace. Stolen-key model recorded: a key is a bearer credential —
+   theft is invisible to us by design, and the whole model is (a) per-key quota so one stolen key
+   cannot pre-pay the family ceiling, (b) instant revocation, (c) identical verdicts for
+   revoked/invalid so revocation leaks nothing, (d) rotation costs the abuser the results but not
+   the account its history.
+2. **M2-style stream sniff over API-submitted multipart — pinned as tests:** the v1 multipart branch
+   demonstrably runs the same `receiveUpload` guards (`test/v1.test.ts > v1 multipart rides the
+   anonymous stream guards`): a flagged multipart submission is accepted into the same queue shape
+   with an opaque subject, non-PDF magic bytes are sniffed from the streaming write (400
+   `validation_failed`, nothing enqueued), the per-request ceiling caps mid-stream (413 after a
+   reserve that passed), and a flooding key whose `bytesPerDay` tier is below the ceiling is refused
+   at reservation time before any byte reaches disk (429).
+3. **SSRF review — no new defence needed, one hole fixed, inventory written down.** Server egress
+   inventory: `apps/api` fetches nothing URL-shaped from users (grep: zero `fetch(` in `apps/api/src`;
+   the worker child has none either); `auth/google.ts` uses fixed issuer/token/JWKS constants; the
+   managed-AI proxy's provider `baseUrl` is deployment config, never request data; BYOK runs
+   browser-direct to the user's own endpoint (no allowlist, recorded as accepted in §24.2). The MCP
+   package's only egress is the boot-validated base URL — the single place a hostile string could
+   matter, and where the anchored-class hole lived. Future URL-fetch tools (P4.4 triggers, §18.5)
+   remain gated on an SSRF design before they exist.
+4. **Signing-abuse review — accepted with disclosed limits (matches D1/D2, no code change).** The
+   audit sidecar is a client-built JSON note, not a certificate: anyone holding it can rewrite the
+   `signerLabel`/`time` fields, and the review confirms the schema neither hides nor advertises more
+   than that — `certified: false` with a plain-language note. Tamper detection is exactly the
+   recomputable `output.digest` (§20-style independent verification, device-side SHA-256, fail-closed
+   when SubtleCrypto is absent — a re-signing of the *same* document by an attacker produces a fresh
+   valid-looking note, which is the honest boundary of an unkeyed digest). Pad memory: exports keep
+   the capture canvas device-local, saved assets live in the `signatures` IndexedDB store behind DB v3
+   with the existing one-click delete; no signature material is transmitted except inside the
+   `edit`-job payload the user deliberately submits.
+5. **Vector-signature flag — dropped explicitly (§25.6 order item 2 resolved).** No flag ever shipped:
+   slice one export is raster-only, the audit schema's `renderKind` field is the only vector
+   accommodation, and P6.9's "behind a feature flag" wording described an intention, not code. The
+   decision is recorded rather than left silently open: **raster is the shipping path; vector returns
+   to *P7* only with a round-trip fidelity test written first** (`toSVG()` → `drawSvgPath`, fresh
+   strokes only, never re-vectorizing a raster asset). No dead flag remains in code or docs.
 
 ### 25.6 Order
 
@@ -3087,11 +3182,13 @@ torture suite; expected to be short because P6.2/P6.3 reuse hardened paths.
 3. **P6.2 — done 2026-10-18** (code shipped, all six §25.3 gates met, §8 top entry) →
    **P6.3 — done 2026-10-19** (`@pdfshush/api-contracts` + `@pdfshush/mcp` + `/tools/mcp`; §25.4
    gates all green, §8 entry).
-4. **P6.4** last, folding findings into P7.
+4. **P6.4 — done 2026-10-19** (§25.5: rotation drill + multipart-sniff matrix as tests, the
+   base-URL smuggle class fixed and pinned, SSRF + signing-abuse reviews recorded, **vector
+   signature dropped explicitly to P7 behind a round-trip fidelity test** — the "revisit within
+   P6.4's window" clause is resolved, not left open).
 
-**Expected surface after P6:** `fill-sign` + `signature` live (18→20 live tools — **this part is
-already true**; `api` and `mcp` pages flip to real docs), one new package (`apps/mcp`), one new
+**Expected surface after P6:** `fill-sign` + `signature` live (18–20 live tools - **this part is**
+**already true**; `api` and `mcp` pages flip to real docs), one new package (`apps/mcp`), one new
 router (`v1`), one new IndexedDB store (**shipped**, `signatures` at DB v3), signature_pad as the
 slice's only new runtime dep (**shipped**).
-
 

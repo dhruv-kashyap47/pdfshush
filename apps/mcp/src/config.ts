@@ -64,7 +64,15 @@ export function resolveBaseUrl(
   if (url.username || url.password) {
     throw new ConfigError('PDFSHUSH_API_URL must not carry userinfo -- credentials go to PDFSHUSH_API_KEY.');
   }
-  const forbidden = /^[\x00-\x20<>"'`\\~^|{}]|[\x00-\x1f\x7f]/;
+  // Any of these characters anywhere in the candidate — not just at the start.
+  // A leading `^` anchor here once turned this into "only the first character
+  // may be forbidden", which let `https:\attacker.example` through as host
+  // smuggling (WHATWG normalises backslashes to slashes on special schemes).
+  // The class therefore matches anywhere: control characters (0x00-0x1f,
+  // 0x7f), a literal space, parser-divergence bait (`<>"'`\~^|{\}`), and the
+  // percent-smuggled query/fragment introducers (`?`/`#`) that `url.search`
+  // cannot see in encoded form.
+  const forbidden = /[\x00-\x20\x7f<>"'`\\~^|{}?#]/;
   if (url.search || url.hash || forbidden.test(candidate)) {
     throw new ConfigError(
       'PDFSHUSH_API_URL must end at the deployment root -- no query string, fragment or path escape characters.',
