@@ -762,6 +762,12 @@ never actually wired, and a stream with no error listener.*
   disarm on unmount (`onEnterViewport` returns a disconnect fn), the edit tool's nudge-coalescer
   timer is cleared on unmount, and em dashes were rewritten into punctuation in all user-facing copy
   (buttons, toollets, status chips, signature descriptions) — comments and numeric ranges untouched.
+  Follow-up (same day): the document band's stem plate is now alive in normal scrolling — its 18s
+  Ken-Burns settle arms the first time the band enters the viewport (the load-timed CSS take used to
+  burn out off-screen, which is why the artwork only moved on refresh, when scroll restoration put
+  the band already on screen), plus a rAF-throttled scroll-linked ±26px drift on a wrapper layer
+  (anime's `onScroll` bounds landed before the band was visible, so the parallax is plain scroll
+  math). Transform-only, reduced-motion-gated, listener cleanup on unmount.
 
 - **2026-10-18 — P6.1 Fill & Sign shipped (capture → store → place → export → audit sidecar).**
   E-sign slice one is code and green.

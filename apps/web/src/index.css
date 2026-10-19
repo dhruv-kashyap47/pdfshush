@@ -698,12 +698,15 @@ html {
 
 
 /* ── 2c-b. Document band: the photograph settles once on entry. One gentle,
-      one-time move (no loop) — the "moving picture" for the page. ────────── */
+      one-time move (no loop) — the "moving picture" for the page. The take is
+      armed only when the band first scrolls into view: fired at page load it
+      burns out off-screen, which is why the artwork only seemed to move on
+      refresh (the browser restores scroll, so the band was already there). ── */
 @keyframes bandSettle {
   from { transform: scale(1.05); }
   to   { transform: scale(1); }
 }
-.band-photo {
+.band-photo[data-settle] {
   animation: bandSettle 18s cubic-bezier(0.22, 0.61, 0.36, 1) both;
   will-change: transform;
 }
