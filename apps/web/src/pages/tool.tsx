@@ -17,6 +17,16 @@ import { RotateTool } from '@/components/tools/rotate-tool';
 import { RedactTool } from '@/components/tools/redact-tool';
 import { SplitByPagesTool } from '@/components/tools/split-by-pages-tool';
 import { SplitHalfTool } from '@/components/tools/split-half-tool';
+import { EditMetadataTool } from '@/components/tools/edit-metadata-tool';
+import { ExtractImagesTool } from '@/components/tools/extract-images-tool';
+import { FlattenTool } from '@/components/tools/flatten-tool';
+import { FlipTool } from '@/components/tools/flip-tool';
+import { GrayscaleTool } from '@/components/tools/grayscale-tool';
+import { PdfToTextTool } from '@/components/tools/pdf-to-text-tool';
+import { RemoveAnnotationsTool } from '@/components/tools/remove-annotations-tool';
+import { ResizeTool } from '@/components/tools/resize-tool';
+import { SplitBySizeTool } from '@/components/tools/split-by-size-tool';
+import { WatermarkTool } from '@/components/tools/watermark-tool';
 import { HeaderFooterTool, PageNumbersTool } from '@/components/tools/stamp-tool';
 import { SignatureTool } from '@/components/tools/signature-tool';
 import { ApiToolPage } from '@/components/tools/api-tool';
@@ -54,6 +64,17 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   signature: SignatureTool,
   api: ApiToolPage,
   mcp: McpToolPage,
+  // Plain-tools batch (PLAN.md changelog, 2026-10-20).
+  'flip-pdf': FlipTool,
+  watermark: WatermarkTool,
+  'edit-metadata': EditMetadataTool,
+  'remove-annotations': RemoveAnnotationsTool,
+  'pdf-to-text': PdfToTextTool,
+  'grayscale-pdf': GrayscaleTool,
+  'resize-pdf': ResizeTool,
+  'extract-images': ExtractImagesTool,
+  'split-by-size': SplitBySizeTool,
+  'flatten-pdf': FlattenTool,
 };
 
 export function ToolPage() {

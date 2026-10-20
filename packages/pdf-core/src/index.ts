@@ -99,6 +99,25 @@ export { splitPagesInHalf } from './ops/split.js';
 export type { SplitHalfResult, SplitOrientation } from './ops/split.js';
 export { imposePages } from './ops/nup.js';
 export type { NupCount, NupOptions, NupResult, NupSheet } from './ops/nup.js';
+export { mirrorPages, planResize, resizePages } from './ops/transform.js';
+export type { FlipAxis, ResizePlan, ResizeRequest } from './ops/transform.js';
+export { watermarkDocument } from './ops/watermark.js';
+export type {
+  WatermarkMode,
+  WatermarkPlacement,
+  WatermarkSpec,
+} from './ops/watermark.js';
+export { removeAnnotations } from './ops/annotations.js';
+export type { AnnotationRemovalResult } from './ops/annotations.js';
+export { applyMetadataEdits } from './ops/metadata.js';
+export type { MetadataEdits } from './ops/metadata.js';
+export { extractImages } from './ops/images.js';
+export type { ExtractedImage, ExtractionResult } from './ops/images.js';
+export { toGrayscaleRgba } from './gray/gray.js';
+export type { GrayscaleOptions, GrayscaleResult } from './gray/gray.js';
+export { encodeFlatPng } from './img/png.js';
+export { renderPageToCanvas } from './render/renderPage.js';
+export type { RenderedCanvas } from './render/renderPage.js';
 
 // Rendering
 export { configurePdfjsRuntime, loadPdfForRender } from './render/pdfjsRuntime.js';
@@ -163,6 +182,34 @@ export type {
   TextEditJobOptions,
   TextEditJobReport,
 } from './jobs/textEdit.job.js';
+export { flipJob } from './jobs/flip.job.js';
+export type { FlipJobInput, FlipJobOutput, FlipJobOptions } from './jobs/flip.job.js';
+export { watermarkJob } from './jobs/watermark.job.js';
+export type { WatermarkJobInput, WatermarkJobOutput, WatermarkJobOptions } from './jobs/watermark.job.js';
+export { metadataJob } from './jobs/metadata.job.js';
+export type { MetadataJobInput, MetadataJobOutput, MetadataJobOptions } from './jobs/metadata.job.js';
+export { annotationsJob } from './jobs/annotations.job.js';
+export type { AnnotationsJobInput, AnnotationsJobOutput, AnnotationsJobOptions } from './jobs/annotations.job.js';
+export { textJob } from './jobs/text.job.js';
+export type { TextJobInput, TextJobOutput, TextJobOptions } from './jobs/text.job.js';
+export { grayscaleJob } from './jobs/grayscale.job.js';
+export type { GrayscaleJobInput, GrayscaleJobOutput, GrayscaleJobOptions } from './jobs/grayscale.job.js';
+export { resizeJob } from './jobs/resize.job.js';
+export type { ResizeJobInput, ResizeJobOutput, ResizeJobOptions } from './jobs/resize.job.js';
+export { imagesJob } from './jobs/images.job.js';
+export type {
+  ImagesJobInput,
+  ImagesJobOutput,
+  ImagesJobFile,
+} from './jobs/images.job.js';
+export { splitBySizeJob } from './jobs/splitBySize.job.js';
+export type {
+  SplitBySizeInput,
+  SplitBySizeOptions,
+  SplitBySizeOutput,
+} from './jobs/splitBySize.job.js';
+export { flattenJob } from './jobs/flatten.job.js';
+export type { FlattenJobInput, FlattenJobOutput, FlattenJobOptions } from './jobs/flatten.job.js';
 
 // In-place text editing (PDFium primary, pdf-lib overlay fallback)
 export {

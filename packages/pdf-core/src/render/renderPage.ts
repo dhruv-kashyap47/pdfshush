@@ -30,10 +30,23 @@ const MIME: Record<ImageFormat, string> = {
   jpeg: 'image/jpeg',
 };
 
-export async function renderPageToImage(
+export interface RenderedCanvas {
+  /** Typed loosely so the worker (Offscreen) and tests (DOM) both fit. */
+  canvas: import('./canvas.js').RenderCanvas;
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  width: number;
+  height: number;
+}
+
+/**
+ * Renders one page into a fresh canvas and returns the raw context, so
+ * callers that need pixel access (grayscale) can post-process before
+ * encoding. Shared by `renderPageToImage`.
+ */
+export async function renderPageToCanvas(
   page: PDFPageProxy,
   options: RenderPageOptions,
-): Promise<RenderedImage> {
+): Promise<RenderedCanvas> {
   const factory = options.canvasFactory ?? defaultCanvasFactory();
   const scale = scaleForWidth(page.getViewport({ scale: 1 }).width, options.targetWidthPx);
   const viewport = page.getViewport({ scale });
@@ -66,13 +79,21 @@ export async function renderPageToImage(
   });
   await task.promise;
 
+  return { canvas, context, width, height };
+}
+
+export async function renderPageToImage(
+  page: PDFPageProxy,
+  options: RenderPageOptions,
+): Promise<RenderedImage> {
+  const rendered = await renderPageToCanvas(page, options);
   const mimeType = MIME[options.format];
-  const blob = await canvas.toBlob(
+  const blob = await rendered.canvas.toBlob(
     mimeType,
     options.format === 'jpeg' ? (options.quality ?? 0.92) : undefined,
   );
   const data = await blob.arrayBuffer();
-  return { data, width, height, mimeType };
+  return { data, width: rendered.width, height: rendered.height, mimeType };
 }
 
 export interface RenderPageRangeOptions extends RenderPageOptions {

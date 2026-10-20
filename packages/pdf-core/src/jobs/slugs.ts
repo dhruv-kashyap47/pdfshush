@@ -15,18 +15,28 @@
 
 export const JOB_SLUGS = [
   'edit',
+  'extract-images',
+  'flatten',
+  'flip',
+  'grayscale',
   'inspect',
   'merge',
   'n-up',
   'organize',
   'pdf-to-images',
+  'pdf-to-text',
   'redact',
+  'remove-annotations',
+  'resize',
   'split-by-pages',
+  'split-by-size',
   'split-in-half',
   'stamp',
   'text-edit',
   'text-runs',
   'thumbnails',
+  'watermark',
+  'edit-metadata',
 ] as const;
 
 export type JobSlugLiteral = (typeof JOB_SLUGS)[number];

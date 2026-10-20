@@ -12,6 +12,8 @@ export interface RenderCanvas {
   /** 2D rendering context. */
   readonly context: unknown;
   toBlob(type: string, quality?: number): Promise<Blob>;
+  /** Optional early release of the underlying bitmap (memory pressure). */
+  release?(): void;
 }
 
 export type CanvasFactory = (width: number, height: number) => RenderCanvas;
@@ -29,6 +31,10 @@ class OffscreenCanvasAdapter implements RenderCanvas {
   }
   toBlob(type: string, quality?: number): Promise<Blob> {
     return this.canvas.convertToBlob({ type, ...(quality !== undefined ? { quality } : {}) });
+  }
+  release(): void {
+    this.canvas.width = 0;
+    this.canvas.height = 0;
   }
 }
 
@@ -51,6 +57,10 @@ class HtmlCanvasAdapter implements RenderCanvas {
         quality,
       );
     });
+  }
+  release(): void {
+    this.canvas.width = 0;
+    this.canvas.height = 0;
   }
 }
 

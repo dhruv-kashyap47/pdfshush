@@ -122,6 +122,18 @@ const LIVE = new Set([
   'api',
   // Phase 6 (MCP, PLAN.md §25.4): the stdio server docs page.
   'mcp',
+  // Plain-tools batch (PLAN.md changelog, 2026-10-20): ten more client-side
+  // tools over the existing engine, shipped in one wave.
+  'flip-pdf',
+  'watermark',
+  'edit-metadata',
+  'remove-annotations',
+  'pdf-to-text',
+  'grayscale-pdf',
+  'resize-pdf',
+  'extract-images',
+  'split-by-size',
+  'flatten-pdf',
 ]);
 
 /**
@@ -147,6 +159,17 @@ const TOOL_NEXT: Record<string, string[]> = {
   'summarize-pdf': ['chat-with-pdf', 'redact-pdf'],
   'chat-with-pdf': ['summarize-pdf', 'redact-pdf'],
   'edit-pdf-with-ai': ['edit-pdf', 'organize-pdf'],
+  // Plain-tools batch suggestions (live targets only render).
+  'flip-pdf': ['rotate-pdf', 'organize-pdf'],
+  'watermark': ['header-footer', 'edit-pdf'],
+  'edit-metadata': ['organize-pdf', 'merge-pdf'],
+  'remove-annotations': ['flatten-pdf', 'redact-pdf'],
+  'pdf-to-text': ['summarize-pdf', 'extract-pages'],
+  'grayscale-pdf': ['pdf-to-jpg', 'organize-pdf'],
+  'resize-pdf': ['n-up', 'organize-pdf'],
+  'extract-images': ['jpg-to-pdf', 'merge-pdf'],
+  'split-by-size': ['merge-pdf', 'compress-pdf'],
+  'flatten-pdf': ['fill-sign', 'remove-annotations'],
 };
 
 const tool = (

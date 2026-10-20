@@ -63,6 +63,15 @@ export const WORKFLOW_OUTPUT_JOBS: ReadonlySet<string> = new Set([
   'split-in-half',
   'stamp',
   'n-up',
+  // Client-side document jobs shipped with the plain-tools batch (PLAN.md
+  // changelog, 2026-10-20). All produce a document a later step may consume.
+  'flip',
+  'watermark',
+  'edit-metadata',
+  'remove-annotations',
+  'resize',
+  'grayscale',
+  'flatten',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

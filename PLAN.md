@@ -27,6 +27,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **T — In-place text editing** | PDFium genuine rewrite of existing text objects (`SetCharcodes`/`SetText`), multi-object line matching, verification-driven pdf-lib overlay fallback | ✅ **engine + job shipped, browser-verified (2026-10-14)** · charcode resolver + multi-object matching landed · full smoke green — see §22 |
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ✅ **shipped (2026-10-16): BYOK summarize/chat/edit-with-AI, smart redaction + leakage gate, managed client + server budgets, in-place AI rewrites, IndexedDB key store, managed browser E2E** — see §23 |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ✅ **done 2026-10-19** — P6.0 decision record (§25.1, D1–D8), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3), P6.3 MCP server (§25.4), P6.4 hardening incl. the base-URL smuggle fix (§25.5); the vector-signature path was dropped explicitly to P7 (§25.6) |
+| **Plain-tools batch** | Ten client-side tools over the existing engine in one wave: flip, watermark, edit-metadata, remove-annotations, pdf-to-text, grayscale, resize, extract-images, split-by-size, flatten | ✅ **shipped 2026-10-20** — see §8 first entry |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
 **Redaction sub-phases** (detail in §20):
@@ -55,16 +56,21 @@ first entry) plus the **landing MCP console** (§8 second entry) — the P5 AI p
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
 still hold.
-**22 of 56 tools live** (`redact-pdf` in Security; `summarize-pdf` + `chat-with-pdf` +
+**32 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+`edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
+`extract-images`, `split-by-size`, `flatten-pdf`; `redact-pdf` in Security; `summarize-pdf` +
+`chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**940/940 unit** (189 engine · **197 API** · 364 provider · 152 agent · **19 web** — the web app's own
+**973/973 unit** (**222 engine** · **197 API** · 364 provider · 152 agent · **19 web** — the web app's own
 unit suite covers the signature trim math, the MCP tool naming rule and the shared catalog reader ·
 **19 MCP**: parity pin, base-URL no-escape gate + origin-smuggling shapes, stdio E2E against a spawned
 binary) · browser E2E: full
-smoke (re-run 2026-10-19 error-free, incl. the MCP console) · **8/8 focused text-edit E2E** ·
+smoke (re-run 2026-10-20 error-free, incl. the MCP console) + **plain-tools suite, 13/13 checks**
+(`tests/e2e/plain-tools.mjs`, real downloads with magic-byte asserts: `%PDF-`, `PK`, inflated
+`FF D8` JPEG in the extract-images ZIP, page text inside the .txt) · **8/8 focused text-edit E2E** ·
 **17/17 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock; re-measured — 17, not
 the 18 previously recorded, all passing, so the drift came from the §23.6 AI-workspace consolidation
@@ -186,7 +192,7 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 53 tools (**15 live**), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 57 tools (**32 live**), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
 │   └── src/components/tools/*      14 tool-body files (15 tools — stamp.tsx serves two)
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
@@ -555,6 +561,61 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-20 — The plain-tools batch: ten more client-side tools shipped in one wave, taking the
+  catalog from 22 to 32 live.** Flip, Watermark, Edit Metadata, Remove Annotations, PDF to Text,
+  Grayscale, Resize, Extract Images, Split by Size and Flatten — every one off the existing engine
+  contract, all client-side (none joined `SERVER_SLUGS`, API/MCP surface untouched), no new
+  dependencies.
+
+  **Engine.** New ops: `ops/transform.ts` (mirror + resize pages through the verified
+  `embedPage`/`drawPage` negative-scale technique — flipping emits the exact `-1 0 0 1` /
+  `1 0 0 -1` matrix, re-renders preserve `/Rotate`, and pages with no `/Contents` pass through
+  untouched because `embedPage` refuses them), `ops/watermark.ts` (single `viewToPdf` placement,
+  display-space angle with the rotation-90° axis swap, RGB color, pivot-at-corner math),
+  `ops/annotations.ts` (strips every `/Annots` subtype except Widget so forms stay fillable),
+  `ops/metadata.ts` (writes/clears Info fields with a 500-char clamp), `ops/images.ts` +
+  `img/png.ts` (JPEG passthrough at byte parity; FlateDecode 8-bit DeviceGray/DeviceRGB re-encoded
+  as PNG through zlibSync with PNG-predictor 12/15 inflating; CMYK/16-bit/JBIG2/predictor-2 honestly
+  counted as skipped, never silently dropped), `gray/gray.ts` (rasterize → BT.601 luma → JPEG
+  rebuild, browser-only, gated by the same `LIMITS.tool.maxRedactPages` 150-page ceiling secure
+  redaction uses, and disclosed as image-based in the UI exactly like redaction is).
+  `splitBySize.job.ts` exports a pure `planSplitBySize` planner; part sizes are measured by
+  serializing each part, and the output ships `approximate: true` for the pre-run estimate.
+  `renderPage.ts` was split into `renderPageToCanvas` (reused by thumbnails, grayscale and the
+  raster tests) with an optional `release()` on both canvas adapters.
+
+  **Web.** Ten components under `components/tools/` following the rotate/stamp patterns
+  (FileDropzone + `useJobRunner` + progress + result panels, capacity checks, recent history):
+  flip is a thumbnail grid with per-tile H/V toggles, flip-all and live CSS-mirror previews;
+  watermark is a live first-page overlay preview (angle/opacity/color/size/placement all rendered
+  before the job, and the preview shows the user's own text, not a placeholder); metadata prefills
+  from inspect and only sends touched fields (clearing a field deletes the entry);
+  remove-annotations and flatten get precise counts from the job output, flatten behind an explicit
+  irreversible warning; pdf-to-text shows the text inline with an honest "this is a scan, no OCR"
+  empty state; grayscale shows a colour-vs-luma side-by-side disclosure before running;
+  resize is preset cards + a 25–400% custom scale; extract-images renders the extracted files as a
+  blob-URL gallery with per-file pixel sizes and the skipped count; split-by-size previews the
+  part plan with the measured table in the result. Registry: 10 slugs flipped live with `nextFor`
+  suggestions, all wired into `WORKFLOW_OUTPUT_JOBS` where a single-file deliverable exists.
+
+  **Tests.** 32 new engine tests in `test/plain-tools.test.ts` (+33 → **222**) — every job gets a
+  validation case and a real-run case whose serialized output is re-opened, not trusted (text
+  scanned through zlib streams, AcroForm field arrays counted, PNG dimensions re-declared,
+  classification honestly null on mismatched samples). New `tests/e2e/plain-tools.mjs`:
+  13 checks driving all ten tools in real Edge, asserting on actual downloaded bytes —
+  `%PDF-` magic on the seven PDF outputs, `PK` plus the inflated first-entry `FF D8` JPEG magic for
+  both ZIP tools, and the fixture's page text inside the .txt. Full smoke re-run green after the
+  registry change.
+
+  **Process note.** The first E2E attempt timed out waiting for downloads because the run button
+  and the result-panel **Download** are two separate clicks — the tool suites assert the result
+  state first, then drive the download; mirror that shape for future tool E2Es.
+
+  **Gates.** pdf-core `pnpm test` **222/222** + `tsc` clean · web unit **19/19** · web build clean
+  with the main browser chunk still 0 pdf-lib / 0 pdf.js / 0 pdfium (string-scanned post-build) ·
+  browser E2E: smoke **ALL CHECKS PASSED** (re-run 2026-10-20) + plain-tools **13/13** ·
+  full-page screenshots inspected for every new tool page (landing, working and result states).
 
 - **2026-10-19 — Landing MCP console: the hero gained a third door, and the agent surface is now
   explainable without leaving the page.**
@@ -1385,8 +1446,9 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all five packages
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web (897 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web (973 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
+pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
@@ -1418,7 +1480,10 @@ back-to-back quota-consuming runs (smoke → hardening) leave the anonymous day 
 spent — `docker compose restart redis` resets them. *(2026-10-18 addendum: Docker's server **is**
 on PATH now — `docker compose up -d --build` works directly from the session.)*
 
-**Next move:** **P6.3, the MCP server, has shipped** (`@pdfshush/mcp`, §25.4 with all four gates
+**Next move:** **P7 — the hardening/torture suite** (adversarial fixtures, SEO prerender, perf/a11y)
+is the only unshipped phase. The 2026-10-20 plain-tools batch (§8 first entry) already raised the
+catalog to 32 of 57 live tools with the engine at 222 tests and a dedicated plain-tools E2E.
+**P6.3, the MCP server, has shipped** (`@pdfshush/mcp`, §25.4 with all four gates
 met): stdio server over `/api/v1` with the user's own key, one tool per server-runnable slug built
 from `@pdfshush/api-contracts` (the §25.3 zod contracts, now a shared package read by the API via
 two re-export shims), `pdfshush://tools` + `pdfshush://guide/<slug>` resources, `/tools/mcp` docs
