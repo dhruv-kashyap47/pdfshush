@@ -24,6 +24,7 @@ import {
 } from '@pdfshush/pdf-core';
 import type { AiSettings } from '@pdfshush/ai-provider/browser';
 import { AiSettingsCard } from '@/components/ai/ai-settings-card';
+import { AiWelcomeOverlay } from '@/components/ai/ai-welcome-overlay';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
 import { ResultPanel } from '@/components/tools/result-panel';
@@ -37,6 +38,7 @@ import { jobPool } from '@/lib/job-pool';
 import { proposeSensitiveRegions, type ProposedRegion } from '@/lib/ai/redaction-propose';
 import { managedAsk } from '@/lib/ai/ask';
 import { managedAvailable } from '@/lib/ai/managed';
+import { aiWelcomeAnswered, markAiWelcomeAnswered } from '@/lib/ai/welcome';
 import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
 import { aiReady, clearAiSettings, loadAiSettings, loadAiState, saveAiSettings, storedKeyPresent } from '@/lib/ai/settings';
 import { recordRecent } from '@/tools/recent';
@@ -79,6 +81,7 @@ export function RedactTool() {
   const [settings, setSettings] = useState<AiSettings>(() => loadAiSettings());
   const [showSettings, setShowSettings] = useState(false);
   const [mode, setMode] = useState<AiMode>(() => loadAiMode());
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [managedOk, setManagedOk] = useState(false);
   const [finding, setFinding] = useState(false);
   const [findError, setFindError] = useState<string | null>(null);
@@ -111,6 +114,24 @@ export function RedactTool() {
 
   const effectiveMode: AiMode = mode === 'managed' && managedOk ? 'managed' : 'byok';
   const aiUsable = effectiveMode === 'managed' ? true : aiReady(settings);
+
+  /* ------------------------------------------------------------ welcome */
+  //
+  // Same first-run walkthrough as the AI workspace (see ai-workspace.tsx):
+  // once per browser, only while BYOK has no key, opened slightly late so the
+  // IndexedDB hydration race decides before it ever blinks.
+  useEffect(() => {
+    const missing = effectiveMode === 'byok' && !storedKeyPresent(settings);
+    if (aiWelcomeAnswered() || !missing) {
+      setWelcomeOpen(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      markAiWelcomeAnswered();
+      setWelcomeOpen(true);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [effectiveMode, settings]);
 
   /** Page size in points, per page index. */
   const pageSize = (pageIndex: number): { width: number; height: number } | null => {
@@ -548,6 +569,23 @@ export function RedactTool() {
       {runner.state.status === 'running' && (
         <JobProgressPanel progress={runner.state.progress} onCancel={runner.cancel} />
       )}
+
+      {/* Rendered at the root of every state of this page (the AI workspace
+          does the same): the walkthrough belongs to opening the tool, not to
+          loading a document — a keyless first visit must be able to dismiss it
+          before files come in. */}
+      {welcomeOpen ? (
+        <AiWelcomeOverlay
+          settings={settings}
+          onSave={(next) => setSettings(saveAiSettings(next))}
+          managedAvailable={managedOk}
+          onUseManaged={() => {
+            setMode('managed');
+            saveAiMode('managed');
+          }}
+          onDismiss={() => setWelcomeOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

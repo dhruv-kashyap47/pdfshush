@@ -16,6 +16,7 @@ export type AiProviderId =
   | 'longcat'
   | 'minimax'
   | 'xai'
+  | 'groq'
   | 'mistral'
   | 'openrouter'
   | 'requesty'
@@ -134,6 +135,13 @@ export interface AiProviderMeta {
   defaultModel: string
   keyPlaceholder: string
   needsBaseUrl?: boolean
+  /**
+   * Cost story shown as a small tag in the settings picker ('free' = a usable
+   * no-card free tier, 'budget' = pay-as-you-go but far below frontier price).
+   * Untagged = full-price frontier. Only tag what is factually current; the
+   * picker renders exactly what is declared.
+   */
+  tier?: 'free' | 'budget' | undefined
 }
 
 /** Image generation / media analysis backends (separate from the chat provider) */

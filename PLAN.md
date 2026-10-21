@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-21
 
 ---
 
@@ -29,6 +29,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ✅ **done 2026-10-19** — P6.0 decision record (§25.1, D1–D8), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3), P6.3 MCP server (§25.4), P6.4 hardening incl. the base-URL smuggle fix (§25.5); the vector-signature path was dropped explicitly to P7 (§25.6) |
 | **Plain-tools batch** | Ten client-side tools over the existing engine in one wave: flip, watermark, edit-metadata, remove-annotations, pdf-to-text, grayscale, resize, extract-images, split-by-size, flatten | ✅ **shipped 2026-10-20** — see §8 first entry |
 | **Next-tools batch** | Six more client-side tools off the same engine: unlock, JPG to PDF, rename, Bates numbering, split by text, compress | ✅ **shipped 2026-10-21** — see §8 first entry |
+| **AI access pass** | Groq BYOK (free tier), cost-tier tags, managed default → OpenRouter free models, plain-English first-run onboarding overlay with anime.js motion | ✅ **shipped 2026-10-21** — see §26 |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
 **Redaction sub-phases** (detail in §20):
@@ -3519,4 +3520,56 @@ character class above, fixed + tested) and turned four reviews and one drill int
 **already true**; `api` and `mcp` pages flip to real docs), one new package (`apps/mcp`), one new
 router (`v1`), one new IndexedDB store (**shipped**, `signatures` at DB v3), signature_pad as the
 slice's only new runtime dep (**shipped**).
+
+## 26. Groq BYOK + OpenRouter managed default + AI onboarding (2026-10-21)
+
+**Goal:** the full AI suite must be reachable for free and for non-experts — register Groq as a
+BYOK provider (its permanently free no-card tier: 30 RPM / 14,400 requests/day), point the managed
+trial at OpenRouter, and give users who have never bought an API key a plain-English walkthrough.
+
+**Shipped this session:**
+
+1. **Groq provider** (`packages/ai-provider`): `'groq'` in the `AiProviderId` union, a catalogue
+   entry (label `Groq`, default `openai/gpt-oss-120b` — reasoning + tool calling + 131k context at
+   $0.15/$0.60 per 1M, chosen against "agentic, intelligent, cost-effective"; the
+   Enterprise-only `llama-3.*` ids are deliberately not listed — those 404 for ordinary keys), an
+   adapter (`openai-compatible`, `https://api.groq.com/openai/v1`,
+   `useMaxCompletionTokens: true` — Groq answers 400 on the renamed-field-less shape), and
+   conservative provider-level vision (`false`): the production catalogue is text-first, so
+   screenshots never reach it. Pinned by `test/groq-capabilities.test.ts` (6 checks: registration,
+   endpoint resolution, regional base URL, vision refusal, untouched default provider, a streamed
+   turn with `max_completion_tokens` on the wire).
+2. **Provider cost tiers** (`AiProviderMeta.tier?: 'free' | 'budget'`, rendered by the settings
+   picker): Groq + OpenRouter tagged `free`, DeepSeek + GLM tagged `budget`. Tags are declared
+   facts the picker renders verbatim — no heuristic pricing.
+3. **Managed route on OpenRouter** (`apps/api/src/config.ts`): `AI_MANAGED_PROVIDER` default
+   `openai` → `openrouter`; `AI_MANAGED_MODEL` default → `minimax/minimax-m3.1-flash:free`
+   (verified live 2026-10-21: 404 on `openrouter/free` — the requested intent, resolved to the
+   strongest currently-serving free id, intelligence index 42.7 / 1M context / $0; the
+   `:free` line-up rotates, so `AI_MANAGED_MODEL` stays the override lever). The managed verdict
+   is now: **on whenever a deployment sets only `AI_MANAGED_API_KEY`** — the model default stands
+   in so one variable turns the trial on. Budgets/concurrency untouched.
+4. **AI welcome overlay** (`apps/web/src/components/ai/ai-welcome-overlay.tsx` +
+   `lib/ai/welcome.ts`): a three-step, plain-English first-run walkthrough shown full-screen the
+   first time an AI surface (`ai-workspace.tsx`, `redact-tool.tsx`) opens with BYOK started and no
+   key anywhere — *what a key is* ("like a password that tells the AI 'this person is allowed'"),
+   *get a free one* (four numbered moves + an auto-selecting Groq provider), *paste & save*
+   (through the same `onSave` pipeline; never a direct credential write). Escape and
+   "skip for now" always available; "Too much? Use ours" flips managed mode when the deployment
+   offers it. Motion walks the existing contract (`lib/motion.ts` tokens, per-component scope via
+   `useMotionScope`, transform + opacity only, zero duration under reduced motion — an entrance
+   timeline, step reveals, a focus pulse, a save flash). Overlay fires once per browser
+   (`localStorage` marker — a UI preference, deliberately not IndexedDB: the key store stays
+   key-material-only); the 350 ms open delay lets the IndexedDB hydration race decide, so a
+   browser that already had a key never sees it blink.
+5. **E2E coverage**: `test/dismissAiWelcome` in `tests/support/e2e-util.mjs`; `ai-managed.mjs` and
+   `smoke.mjs` (redact flow) dismiss the overlay first — a fresh profile trips it there;
+   `ai.mjs` seeds a key so the seeded flows are unaffected, and **gains a 5-check block** in a
+   keyless context: overlay opens, the password analogy copy holds, step 2 offers the walkthrough,
+   dismiss works, and a reload never shows it again.
+
+**What was *not* done on purpose:** Groq is not the default provider — the user's key, the user's
+decision; the walkthrough merely presents a free path. No media/image-generation wiring (Groq has
+none). `openrouter/free` was specified by the product owner but does not exist (404); the recorded
+resolution is the live free-slug fallback above.
 

@@ -98,6 +98,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     models: ['deepseek-v4-pro', DEEPSEEK_V41_FLASH],
     defaultModel: 'deepseek-v4-pro',
     keyPlaceholder: 'sk-...',
+    tier: 'budget',
   },
   {
     id: 'openai',
@@ -111,6 +112,28 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     models: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'],
     defaultModel: 'gpt-5.6-terra',
     keyPlaceholder: 'sk-...',
+  },
+  {
+    id: 'groq',
+    label: 'Groq',
+    // GroqCloud production catalogue (console.groq.com/docs/models, read
+    // 2026-10-21). gpt-oss-120b is the sensible default: full reasoning +
+    // tool calling, 131k context, $0.15/$0.60 per 1M tokens at ~500 tps —
+    // strong agentic behaviour on a permanently free no-card tier
+    // (30 RPM / 14,400 requests/day). compound-mini is their agentic
+    // compound system with built-in tools. The Enterprise-only llama-3.*
+    // ids are omitted: keys without a committed-spend contract 404 on them.
+    models: [
+      'openai/gpt-oss-120b',
+      'openai/gpt-oss-20b',
+      'qwen/qwen3.8-27b',
+      'minimaxai/minimax-m2.7',
+      'groq/compound-mini',
+      'llama-3.1-8b-instant',
+    ],
+    defaultModel: 'openai/gpt-oss-120b',
+    keyPlaceholder: 'gsk_...',
+    tier: 'free',
   },
   {
     id: 'kimi',
@@ -131,6 +154,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     models: ['glm-5.3', 'glm-5.3-flash', 'glm-5.2'],
     defaultModel: 'glm-5.3',
     keyPlaceholder: 'xxxxxxxx.xxxxxxxx',
+    tier: 'budget',
   },
   {
     id: 'qwen',
@@ -239,7 +263,10 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     id: 'openrouter',
     label: 'OpenRouter',
     // vendor-prefixed slugs exactly as openrouter.ai/api/v1/models lists them —
-    // there is no `openai/gpt-5.6` alias there, only the per-tier ids
+    // there is no `openai/gpt-5.6` alias there, only the per-tier ids. The
+    // free-tier routes (`…:free` suffix, e.g. minimax/minimax-m3.1-flash:free)
+    // are not hard-coded because the line-up rotates daily; anything typed
+    // against a live slug works as-is.
     models: [
       'openrouter/auto',
       'anthropic/claude-opus-5.5',
@@ -252,6 +279,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     ],
     defaultModel: 'openrouter/auto',
     keyPlaceholder: 'sk-or-...',
+    tier: 'free',
   },
   {
     id: 'requesty',

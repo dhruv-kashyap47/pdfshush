@@ -65,3 +65,20 @@ export async function waitFor(fn, timeoutMs = 45_000, label = 'condition') {
   }
   throw new Error(`Timed out waiting for ${label}`);
 }
+
+/**
+ * Dismisses the AI welcome overlay when a fresh browser profile would trigger
+ * it (no stored key yet). A no-op when the overlay is absent — existing flows
+ * that seed a key, or run in managed mode, never see it. Must be awaited
+ * before any interaction with the underlying page, because the overlay covers
+ * it full-screen while open.
+ */
+export async function dismissAiWelcome(page) {
+  const dismiss = page.getByTestId('ai-welcome-dismiss');
+  try {
+    await dismiss.waitFor({ state: 'visible', timeout: 3000 });
+    await dismiss.click();
+  } catch {
+    /* no overlay within the window — the page had a key or managed mode on */
+  }
+}

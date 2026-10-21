@@ -26,6 +26,7 @@ import type { AiSettings } from '@pdfshush/ai-provider/browser';
 import { AiChat } from '@/components/ai/ai-chat';
 import { AiDocumentPane, type OverlayMarker } from '@/components/ai/ai-document-pane';
 import { AiSettingsCard } from '@/components/ai/ai-settings-card';
+import { AiWelcomeOverlay } from '@/components/ai/ai-welcome-overlay';
 import { EditPlanPanel } from '@/components/ai/edit-plan-panel';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { ResultPanel } from '@/components/tools/result-panel';
@@ -35,6 +36,7 @@ import { usePageThumbnails } from '@/hooks/use-page-thumbnails';
 import { downloadBytes } from '@/lib/download';
 import { aiReady, clearAiSettings, loadAiSettings, loadAiState, saveAiSettings, storedKeyPresent } from '@/lib/ai/settings';
 import { managedAvailable } from '@/lib/ai/managed';
+import { aiWelcomeAnswered, markAiWelcomeAnswered } from '@/lib/ai/welcome';
 import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
 import {
   applyEditPlan,
@@ -108,6 +110,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [mode, setMode] = useState<AiMode>(() => loadAiMode());
   const [managedOk, setManagedOk] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   const [activePage, setActivePage] = useState(1);
   const [pageSizes, setPageSizes] = useState<{ width: number; height: number }[] | null>(null);
@@ -350,6 +353,30 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   // A stored "managed" choice is ignored on a deployment that does not offer it.
   const effectiveMode: AiMode = mode === 'managed' && managedOk ? 'managed' : 'byok';
   const ready = effectiveMode === 'managed' ? true : aiReady(settings);
+
+  /* ------------------------------------------------------------- welcome */
+  //
+  // The first-run walkthrough opens only where BYOK is genuinely unusable
+  // (no key anywhere, started in BYOK mode) and only once per browser: the
+  // open itself writes the answered marker, so dismissing or completing keeps
+  // it away even after the key is forgotten later. The short delay lets the
+  // IndexedDB hydration race win — a browser that already had a key never
+  // sees the overlay blink open and shut. Placed after `effectiveMode`, whose
+  // value its dependency array reads on the very first render.
+  useEffect(() => {
+    const missing = effectiveMode === 'byok' && !storedKeyPresent(settings);
+    if (aiWelcomeAnswered() || !missing) {
+      setWelcomeOpen(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      markAiWelcomeAnswered();
+      setWelcomeOpen(true);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [effectiveMode, settings]);
+
+  const dismissWelcome = useCallback(() => setWelcomeOpen(false), []);
   const pageCount = doc?.pages.length ?? 0;
   const previewTile = tiles.find((tile) => tile.pageIndex === activePage - 1);
   const activeSize = pageSizes?.[activePage - 1];
@@ -414,6 +441,16 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
               {...(storedKeyPresent(settings) ? { onForget: onForgetKey } : {})}
             />
           </div>
+        ) : null}
+
+        {welcomeOpen ? (
+          <AiWelcomeOverlay
+            settings={settings}
+            onSave={onSaveSettings}
+            managedAvailable={managedOk}
+            onUseManaged={() => changeMode('managed')}
+            onDismiss={dismissWelcome}
+          />
         ) : null}
       </div>
     );
@@ -540,6 +577,16 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
           <Wand2 className="h-3.5 w-3.5" /> Add a provider above to start. Your key is stored in this
           browser only.
         </p>
+      ) : null}
+
+      {welcomeOpen ? (
+        <AiWelcomeOverlay
+          settings={settings}
+          onSave={onSaveSettings}
+          managedAvailable={managedOk}
+          onUseManaged={() => changeMode('managed')}
+          onDismiss={dismissWelcome}
+        />
       ) : null}
     </div>
   );

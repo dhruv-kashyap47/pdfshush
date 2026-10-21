@@ -25,7 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { buildPdf, waitFor } from '../support/e2e-util.mjs';
+import { buildPdf, waitFor, dismissAiWelcome } from '../support/e2e-util.mjs';
 import { startMockLlm, MOCK_MARK_PHRASE } from '../support/mock-llm.mjs';
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
@@ -141,6 +141,9 @@ async function main() {
 
     /* ------------------------------------------------ trial mode selection */
     await page.goto(`${BASE}/tools/chat-with-pdf`, { waitUntil: 'networkidle' });
+    // The trial flow starts from a clean profile (no BYOK key), so the welcome
+    // overlay opens first; get past it, switching modes is the flow's business.
+    await dismissAiWelcome(page);
 
     const trialButton = page.getByTestId('ai-mode-managed');
     await waitFor(

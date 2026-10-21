@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 import { chromium } from 'playwright';
+import { dismissAiWelcome } from '../support/e2e-util.mjs';
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1248,6 +1249,9 @@ async function main() {
   // text from, and the pages reduced to images.
   console.log('\n19b. Redact PDF');
   await page.goto(`${BASE}/tools/redact-pdf`, { waitUntil: 'networkidle' });
+  // A fresh profile has no AI key yet, so the welcome overlay opens on this
+  // page; drop it before the drag-coordinated flow underneath runs.
+  await dismissAiWelcome(page);
   await page.locator('input[accept*="application/pdf"]').first().setInputFiles([fileA]);
   await waitFor(
     async () => (await page.locator('[data-testid="redact-page-0"]').count()) === 1,

@@ -187,6 +187,19 @@ export const AI_PROVIDER_ADAPTERS: Record<AiProviderId, ProviderAdapter> = {
     capabilities: { auth: 'api-key', vision: true },
     resolveEndpoint: fixedEndpoint('openai-compatible', 'https://api.x.ai/v1'),
   },
+  groq: {
+    meta: metaOf('groq'),
+    // Conservative on vision: the production catalogue is text-first (gpt-oss
+    // took reasoning tool turns, not images), so screenshots never go to it
+    // even for vision ids someone types in — the endpoint 400s those it misses.
+    capabilities: { auth: 'api-key', vision: false },
+    // Groq wants the OpenAI-renamed output cap and answers 400 on plain
+    // max_tokens for its newer endpoints (verified against the docs,
+    // 2026-10-21).
+    resolveEndpoint: fixedEndpoint('openai-compatible', 'https://api.groq.com/openai/v1', {
+      useMaxCompletionTokens: true,
+    }),
+  },
   mistral: {
     meta: metaOf('mistral'),
     capabilities: { auth: 'api-key', vision: false },

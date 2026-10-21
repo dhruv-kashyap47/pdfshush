@@ -186,6 +186,51 @@ async function main() {
       requests.map((entry) => entry.url).filter((url) => url.includes('/api/ai/chat')).join(' | '),
     );
 
+    /* -------------------------------------------------- first-run welcome */
+    // A separate, keyless context: the welcome overlay belongs to the exact
+    // situation this suite's seeded flows are NOT in. No mock is needed — the
+    // flow ends in "skip for now", so nothing talks to an AI backend.
+    {
+      const fresh = await browser.newContext();
+      const freshPage = await fresh.newPage();
+      await freshPage.goto(`${BASE}/tools/chat-with-pdf`, { waitUntil: 'networkidle' });
+
+      const overlay = freshPage.getByTestId('ai-welcome');
+      const shown = await waitFor(
+        async () => ((await overlay.count()) && (await overlay.isVisible()) ? true : null),
+        10_000,
+        'welcome overlay',
+      ).catch(() => null);
+      check('the welcome overlay opens on a keyless first visit', Boolean(shown));
+
+      const body = await freshPage.getByTestId('ai-welcome-body').innerText();
+      check(
+        'the overlay explains an API key in plain english',
+        /like a password/i.test(body),
+        body.replace(/\s+/g, ' ').slice(0, 120),
+      );
+
+      await freshPage.getByRole('button', { name: 'Next' }).click();
+      const guide = freshPage.getByTestId('ai-welcome-guide');
+      const guideShown = await waitFor(
+        async () => ((await guide.count()) ? true : null),
+        5_000,
+        'key-walkthrough guide',
+      ).catch(() => null);
+      check('step 2 walks through getting a free key', Boolean(guideShown));
+
+      await freshPage.getByTestId('ai-welcome-dismiss').click();
+      check('skip-for-now closes the overlay', (await overlay.count()) === 0);
+
+      // The overlay answers once per browser: a reload goes straight through.
+      await freshPage.reload({ waitUntil: 'networkidle' });
+      // Long enough to outlive the 350 ms open timer the overlay fires on.
+      await freshPage.waitForTimeout(1200);
+      check('it never nags again after being dismissed', (await freshPage.getByTestId('ai-welcome').count()) === 0);
+
+      await fresh.close();
+    }
+
     /* --------------------------------------------------- edit PDF with AI */
     await page.goto(`${BASE}/tools/edit-pdf-with-ai`, { waitUntil: 'networkidle' });
     await page.locator('input[accept*="application/pdf"]').setInputFiles([fixture]);

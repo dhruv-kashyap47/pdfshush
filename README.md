@@ -22,7 +22,7 @@ quotas, through the exact same job contract.
 | `apps/api` | ✅ Express + Redis + BullMQ sandboxed worker + TTL janitor, plus an optional managed-AI gateway |
 | Live tools (18) | ✅ Merge, Organize, PDF → JPG, Delete Pages, Extract Pages, Rotate, Split by pages, Alternate & Mix, Split in half, Page Numbers, Crop, Header & Footer, N-up, Edit PDF, **Redact PDF (verified)**, Summarize, Chat with PDF, Edit PDF with AI |
 | Accounts (P4) | ✅ Google sign-in; every tool stays anonymous-only when no Mongo/Google config is present |
-| AI (P5) | ✅ BYOK keys never leave the browser; the managed trial is off unless `AI_MANAGED_MODEL` and `AI_MANAGED_API_KEY` are both set |
+| AI (P5) | ✅ BYOK keys never leave the browser; 21 providers incl. **Groq** (permanently free tier) with a first-run onboarding overlay; the managed trial runs on OpenRouter free models and is off unless `AI_MANAGED_API_KEY` is set (model defaults to the strongest live `:free` id) |
 | E-sign / public API / MCP (P6) | ⏳ Planned |
 
 Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an
@@ -53,7 +53,11 @@ pnpm stack:down                     # stop the Docker stack
 ```
 
 - **A** needs Docker Desktop running. Compose reads the project-root `.env` for the optional
-  accounts (`MONGODB_*`, `GOOGLE_*`) and managed-AI (`AI_MANAGED_*`) settings.
+  accounts (`MONGODB_*`, `GOOGLE_*`) and managed-AI (`AI_MANAGED_*`) settings. The managed AI
+  trial defaults to `AI_MANAGED_PROVIDER=openrouter` with the strongest
+  currently-serving `:free` model (`AI_MANAGED_MODEL` overrides it), so a deployment turns it
+  on with a single `AI_MANAGED_API_KEY` — any registered provider id works, e.g.
+  `AI_MANAGED_PROVIDER=groq`.
 - **B** needs a Redis on `127.0.0.1:6379` (`pnpm redis:up`, which is
   `docker compose up -d redis`, or `docker run -d -p 6379:6379 redis:7-alpine`), plus
   one `pnpm --filter @pdfshush/api build` so the sandboxed processor bundle exists — the API

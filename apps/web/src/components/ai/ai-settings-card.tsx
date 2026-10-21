@@ -142,6 +142,16 @@ export function AiSettingsCard({
                   {AI_PROVIDERS.map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
                       {provider.label}
+                      {/* Cost story, declared by the catalog and rendered as-is */}
+                      {provider.tier ? (
+                        <span
+                          className={`ml-2 text-[0.65rem] font-normal uppercase tracking-wide ${
+                            provider.tier === 'free' ? 'text-emerald-600' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {provider.tier === 'free' ? 'Free' : 'Budget'}
+                        </span>
+                      ) : null}
                     </SelectItem>
                   ))}
                 </SelectContent>

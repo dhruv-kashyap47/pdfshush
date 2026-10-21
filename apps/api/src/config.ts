@@ -147,11 +147,14 @@ const schema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
   /**
-   * Managed AI. Off unless both a key and a model are present, so a deployment
-   * without them behaves exactly as before (BYOK only) and CI needs no secrets.
+   * Managed AI. Off unless the deployment sets a key (the model has a default
+   * now: OpenRouter's strongest free-tier model, rotated on deprecation), so a
+   * deployment without them behaves exactly as before (BYOK only) and CI needs
+   * no secrets. `AI_MANAGED_MODEL` still overrides the default, and any
+   * registered provider id is accepted here ('anthropic', 'groq', …).
    */
-  AI_MANAGED_PROVIDER: z.string().default('openai'),
-  AI_MANAGED_MODEL: z.string().optional(),
+  AI_MANAGED_PROVIDER: z.string().default('openrouter'),
+  AI_MANAGED_MODEL: z.string().default('minimax/minimax-m3.1-flash:free'),
   AI_MANAGED_API_KEY: z.string().optional(),
   AI_MANAGED_BASE_URL: z.string().optional(),
   AI_MANAGED_DAILY_TOKENS: z.coerce.number().int().positive().optional(),
