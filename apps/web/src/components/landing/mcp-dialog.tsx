@@ -35,8 +35,9 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { formatBytes } from '@/lib/format';
-import { EASE, DUR, dur, staggerUI, timelineUI } from '@/lib/motion';
+import { EASE, DUR, dur, prefersReducedMotion, staggerUI, timelineUI } from '@/lib/motion';
 import { mcpToolName, type McpCatalog, useMcpCatalog } from '@/lib/mcp-catalog';
+import { useMotionScope } from '@/hooks/use-motion';
 
 /* --------------------------------------------------------------- samples */
 
@@ -764,12 +765,28 @@ function DialogPanels({
 /* --------------------------------------------------------------- trigger */
 
 /**
- * The hero affordance: a real button that opens the console. The caret is a
- * CSS loop (the global prefers-reduced-motion rule nullifies it) and every
- * other move in here is a response to the click.
+ * The hero affordance: a real button that opens the console. Its terminal
+ * cursor is an Anime.js blink, but remains visibly present for reduced motion.
  */
 export function McpShowcaseButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
+  const cursorRef = useRef<HTMLSpanElement>(null);
+  const motion = useMotionScope();
+
+  useEffect(() => {
+    const cursor = cursorRef.current;
+    if (!cursor || prefersReducedMotion()) return;
+
+    motion.animate(cursor, {
+      opacity: [1, 0.18],
+      scaleX: [1, 0.55],
+      duration: dur(520),
+      ease: EASE.inOut,
+      loop: true,
+      alternate: true,
+    });
+  }, [motion]);
+
   return (
     <>
       <Button
@@ -780,7 +797,11 @@ export function McpShowcaseButton({ className }: { className?: string }) {
       >
         <Terminal className="mr-2 h-4 w-4 text-cyan-600 dark:text-cyan-400" />
         Wire up an agent
-        <span aria-hidden className="ml-2.5 inline-block h-3.5 w-2 animate-pulse bg-primary/70" />
+        <span
+          ref={cursorRef}
+          aria-hidden
+          className="ml-2 inline-block h-3.5 w-[3px] origin-left bg-primary"
+        />
         <span className="sr-only">opens the MCP setup guide</span>
       </Button>
       <McpDialog open={open} onOpenChange={setOpen} />

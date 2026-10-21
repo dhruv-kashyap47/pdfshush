@@ -617,6 +617,22 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-21 (later) — Landing hero theme polish and MCP CTA terminal cue.**
+
+  **Hero.** The Greek day plate now uses a lighter, neutral copy-side wash with a restrained
+  vertical lower scrim: the image stays saturated and legible while the four privacy claims retain
+  black-text contrast and settle smoothly into the next white section. The night plate remains
+  cinematic, with slightly more present artwork and subtly stronger dark tool-chip and upload-panel
+  surfaces. No layout, copy, breakpoints, routes, or theme-toggle behavior changed.
+
+  **CTA.** The hero's `Wire up an agent` control now carries an Anime.js terminal cursor blink,
+  registered through the shared `useMotionScope` cleanup path. Reduced-motion visitors see the
+  cursor in its final visible state rather than an animated loop.
+
+  **Verification.** `pnpm --filter @pdfshush/web typecheck` completed without reported errors;
+  `git diff --check` is clean. The local Vite server served the updated page; headless Chrome
+  screenshot capture remains unavailable in this environment because its GPU process fails.
+
 - **2026-10-21 (later) — Redis live: the skipped workflow path exercised, and the stack exposed two
   production-only bugs.** With Docker started, every stack-dependent gate ran against real
   containers instead of skipping.

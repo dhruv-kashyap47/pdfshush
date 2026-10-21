@@ -241,7 +241,7 @@ export function HeroSection() {
                       key={item.slug}
                       to={`/tools/${item.slug}`}
                       data-tool-chip
-                      className="group rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-background/55 dark:hover:border-primary/45"
+                      className="group rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-card/62 dark:hover:border-primary/45"
                     >
                       <div className="flex items-center gap-2">
                         <span
@@ -282,9 +282,9 @@ export function HeroSection() {
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`relative overflow-hidden rounded-xl border bg-background/82 p-6 backdrop-blur-xl transition-colors dark:bg-card/55 ${gate} ${
+              className={`relative overflow-hidden rounded-xl border bg-background/82 p-6 backdrop-blur-xl transition-colors dark:bg-card/62 ${gate} ${
                 dragActive
-                  ? 'border-primary ring-2 ring-primary/20 bg-background/90 dark:bg-card/70'
+                  ? 'border-primary ring-2 ring-primary/20 bg-background/90 dark:bg-card/76'
                   : 'border-transparent hover:border-foreground/20'
               }`}
             >
@@ -336,7 +336,7 @@ export function HeroSection() {
                           <Link
                             key={item.slug}
                             to={`/tools/${item.slug}`}
-                            className="group rounded-lg bg-background/55 p-3 text-left transition-colors hover:bg-background/85 dark:bg-background/45 dark:hover:bg-background/70"
+                            className="group rounded-lg bg-background/55 p-3 text-left transition-colors hover:bg-background/85 dark:bg-background/52 dark:hover:bg-background/72"
                           >
                             <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary">
                               {item.name}

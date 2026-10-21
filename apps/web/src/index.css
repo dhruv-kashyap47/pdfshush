@@ -238,12 +238,13 @@ html {
   object-position: 80% 30%;
 }
 .hero-backdrop-image--day {
-  /* A touch of depth-of-field: the plate reads as atmosphere, not a pasted photo. */
-  filter: blur(1.6px) saturate(0.94) brightness(1.02);
+  /* Keep a trace of depth while the light scrim, rather than a hard mask,
+     provides the smooth readable transition at the foot of the hero. */
+  filter: blur(0.8px) saturate(1.02) brightness(1.01);
   object-position: 84% 36%;
 }
 .hero-backdrop-image--night {
-  filter: blur(1.4px) saturate(0.97) brightness(0.95) contrast(1.03);
+  filter: blur(1.4px) saturate(1.01) brightness(0.98) contrast(1.04);
   object-position: 80% 24%;
 }
 @media (min-width: 640px) {
@@ -287,9 +288,9 @@ html {
    1. the text-side wash — a 100deg gradient that keeps a calm ground under the
       copy; a vertical mask lifts it off the top of the frame so the sky,
       sunlight and moonlight stay photographic instead of milky,
-   2. the scrim — top and bottom dissolves (the plate bleeds into the page, and
-      under the translucent header) plus the colour grade that keeps the artwork
-      cinematic rather than photographic.
+   2. the scrim — a top dissolve under the translucent header and one gentle
+      bottom transition that keeps the supporting copy readable without creating
+      a visible band at the edge of the hero.
 
    The light wash is deliberately *neutral* white, not warm: tinting it yellow
    is what turns a golden-hour photograph into a beige wash. The warmth has to
@@ -299,11 +300,11 @@ html {
   inset: 0;
   background-image: linear-gradient(
     100deg,
-    oklch(1 0 0 / 80%) 0%,
-    oklch(1 0 0 / 74%) 26%,
-    oklch(1 0 0 / 63%) 44%,
-    oklch(1 0 0 / 44%) 57%,
-    oklch(1 0 0 / 22%) 69%,
+    oklch(1 0 0 / 71%) 0%,
+    oklch(1 0 0 / 63%) 26%,
+    oklch(1 0 0 / 50%) 44%,
+    oklch(1 0 0 / 31%) 57%,
+    oklch(1 0 0 / 13%) 69%,
     oklch(1 0 0 / 6%) 81%,
     oklch(1 0 0 / 0%) 93%
   );
@@ -325,11 +326,11 @@ html {
 .dark .hero-backdrop-wash {
   background-image: linear-gradient(
     100deg,
-    oklch(0.1 0.018 255 / 93%) 0%,
-    oklch(0.1 0.018 255 / 89%) 30%,
-    oklch(0.09 0.018 255 / 77%) 50%,
-    oklch(0.075 0.016 255 / 57%) 62%,
-    oklch(0.065 0.014 255 / 31%) 74%,
+    oklch(0.1 0.018 255 / 91%) 0%,
+    oklch(0.1 0.018 255 / 87%) 30%,
+    oklch(0.09 0.018 255 / 74%) 50%,
+    oklch(0.075 0.016 255 / 53%) 62%,
+    oklch(0.065 0.014 255 / 27%) 74%,
     oklch(0.06 0.012 255 / 10%) 86%,
     oklch(0.06 0.012 255 / 0%) 96%
   );
@@ -343,10 +344,11 @@ html {
       to bottom,
       oklch(0.99 0.006 90 / 22%) 0%,
       oklch(0.99 0.006 90 / 7%) 14%,
-      oklch(0.995 0.005 90 / 0%) 32%,
-      oklch(0.995 0.005 90 / 0%) 40%,
-      oklch(0.99 0.006 90 / 58%) 64%,
-      var(--background) 82%
+      oklch(0.995 0.005 90 / 0%) 42%,
+      oklch(0.99 0.006 90 / 12%) 58%,
+      oklch(0.99 0.006 90 / 42%) 74%,
+      oklch(0.99 0.006 90 / 74%) 89%,
+      var(--background) 100%
     ),
     radial-gradient(
       120% 80% at 78% 34%,
@@ -381,19 +383,19 @@ html {
       fights the lamps and moored boats. */
 @media (min-width: 1024px) {
   .hero-backdrop-image--day {
-    filter: blur(1.6px) saturate(1.06) brightness(1.08);
+    filter: blur(0.8px) saturate(1.12) brightness(1.05);
   }
   .hero-backdrop-image--night {
-    filter: blur(1.4px) saturate(1.08) brightness(1.04) contrast(1.04);
+    filter: blur(1.4px) saturate(1.1) brightness(1.06) contrast(1.05);
   }
   .hero-backdrop-wash {
     background-image: linear-gradient(
       100deg,
-      oklch(1 0 0 / 72%) 0%,
-      oklch(1 0 0 / 64%) 26%,
-      oklch(1 0 0 / 36%) 44%,
-      oklch(1 0 0 / 20%) 57%,
-      oklch(1 0 0 / 7%) 69%,
+      oklch(1 0 0 / 63%) 0%,
+      oklch(1 0 0 / 53%) 26%,
+      oklch(1 0 0 / 23%) 44%,
+      oklch(1 0 0 / 10%) 57%,
+      oklch(1 0 0 / 3%) 69%,
       oklch(1 0 0 / 1%) 81%,
       oklch(1 0 0 / 0%) 93%
     );
@@ -401,11 +403,11 @@ html {
   .dark .hero-backdrop-wash {
     background-image: linear-gradient(
       100deg,
-      oklch(0.1 0.018 255 / 90%) 0%,
-      oklch(0.1 0.018 255 / 85%) 30%,
-      oklch(0.09 0.018 255 / 66%) 50%,
-      oklch(0.075 0.016 255 / 43%) 62%,
-      oklch(0.065 0.014 255 / 19%) 74%,
+      oklch(0.1 0.018 255 / 88%) 0%,
+      oklch(0.1 0.018 255 / 82%) 30%,
+      oklch(0.09 0.018 255 / 62%) 50%,
+      oklch(0.075 0.016 255 / 39%) 62%,
+      oklch(0.065 0.014 255 / 16%) 74%,
       oklch(0.06 0.012 255 / 6%) 86%,
       oklch(0.06 0.012 255 / 0%) 96%
     );
@@ -416,11 +418,11 @@ html {
         to bottom,
         oklch(0.99 0.006 90 / 22%) 0%,
         oklch(0.99 0.006 90 / 7%) 14%,
-        oklch(0.995 0.005 90 / 0%) 32%,
-        oklch(0.995 0.005 90 / 0%) 60%,
-        oklch(0.99 0.006 90 / 34%) 68%,
-        oklch(0.99 0.006 90 / 76%) 82%,
-        var(--background) 94%
+        oklch(0.995 0.005 90 / 0%) 48%,
+        oklch(0.99 0.006 90 / 10%) 62%,
+        oklch(0.99 0.006 90 / 42%) 77%,
+        oklch(0.99 0.006 90 / 74%) 91%,
+        var(--background) 100%
       ),
       radial-gradient(
         120% 80% at 78% 34%,
@@ -461,9 +463,9 @@ html {
   .hero-backdrop-wash {
     background-image: linear-gradient(
       to bottom,
-      oklch(1 0 0 / 50%) 0%,
-      oklch(1 0 0 / 42%) 18%,
-      oklch(1 0 0 / 21%) 34%,
+      oklch(1 0 0 / 42%) 0%,
+      oklch(1 0 0 / 34%) 18%,
+      oklch(1 0 0 / 14%) 34%,
       oklch(1 0 0 / 5%) 48%,
       oklch(1 0 0 / 0%) 60%
     );
@@ -473,9 +475,9 @@ html {
   .dark .hero-backdrop-wash {
     background-image: linear-gradient(
       to bottom,
-      oklch(0.1 0.018 255 / 70%) 0%,
-      oklch(0.095 0.018 255 / 62%) 18%,
-      oklch(0.085 0.016 255 / 40%) 36%,
+      oklch(0.1 0.018 255 / 68%) 0%,
+      oklch(0.095 0.018 255 / 59%) 18%,
+      oklch(0.085 0.016 255 / 37%) 36%,
       oklch(0.07 0.014 255 / 14%) 52%,
       oklch(0.05 0.01 255 / 0%) 66%
     );
@@ -485,10 +487,10 @@ html {
       linear-gradient(
         to bottom,
         oklch(1 0 0 / 0%) 0%,
-        oklch(1 0 0 / 0%) 46%,
-        oklch(1 0 0 / 34%) 64%,
-        oklch(1 0 0 / 84%) 80%,
-        var(--background) 94%
+        oklch(1 0 0 / 0%) 48%,
+        oklch(1 0 0 / 30%) 66%,
+        oklch(1 0 0 / 60%) 84%,
+        var(--background) 100%
       ),
       radial-gradient(
         120% 80% at 84% 34%,
