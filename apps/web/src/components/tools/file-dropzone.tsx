@@ -17,6 +17,12 @@ interface FileDropzoneProps {
    * (the AI tools send the text you ask about to a provider) pass their own.
    */
   note?: string;
+  /** Picker filter; defaults to PDFs. */
+  accept?: string;
+  /** Drop filter paired with `accept`; defaults to PDF detection. */
+  accepts?: (file: File) => boolean;
+  /** Noun used in the copy: "PDF" (default) or "image". */
+  kind?: string;
 }
 
 /**
@@ -31,22 +37,26 @@ export function FileDropzone({
   disabled,
   hint,
   note = 'Processed on this device; never uploaded',
+  accept,
+  accepts,
+  kind = 'PDF',
 }: FileDropzoneProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isAccepted = accepts ?? isPdfLike;
 
-  const accept = (incoming: FileList | null) => {
+  const acceptFiles = (incoming: FileList | null) => {
     if (!incoming || disabled) return;
     const all = Array.from(incoming);
-    const pdfs = all.filter(isPdfLike);
-    const rejected = all.length - pdfs.length;
+    const picked = all.filter(isAccepted);
+    const rejected = all.length - picked.length;
     if (rejected > 0) {
-      // Non-PDFs are silently dropped rather than hard-failed: drag-drop often
-      // grabs a sibling file by accident.
+      // Non-matching files are silently dropped rather than hard-failed:
+      // drag-drop often grabs a sibling file by accident.
       return;
     }
-    if (pdfs.length === 0) return;
-    onFiles(multiple ? [...files, ...pdfs] : [pdfs[0]!]);
+    if (picked.length === 0) return;
+    onFiles(multiple ? [...files, ...picked] : [picked[0]!]);
   };
 
   return (
@@ -54,11 +64,11 @@ export function FileDropzone({
       <input
         ref={inputRef}
         type="file"
-        accept={PDF_ACCEPT}
+        accept={accept ?? PDF_ACCEPT}
         multiple={multiple}
         className="hidden"
         onChange={(event) => {
-          accept(event.target.files);
+          acceptFiles(event.target.files);
           event.target.value = '';
         }}
       />
@@ -75,7 +85,7 @@ export function FileDropzone({
           onDrop={(event) => {
             event.preventDefault();
             setDragOver(false);
-            accept(event.dataTransfer.files);
+            acceptFiles(event.dataTransfer.files);
           }}
           // Centred and height-capped on purpose: stretched to the full tool frame the
           // empty target read as a large empty box rather than as an action.
@@ -89,7 +99,7 @@ export function FileDropzone({
             {dragOver ? <Upload className="h-6 w-6" /> : <FilePlus2 className="h-6 w-6" />}
           </span>
           <span className="text-base font-semibold">
-            {dragOver ? 'Drop to add' : 'Choose PDF files'}
+            {dragOver ? 'Drop to add' : `Choose ${kind} files`}
           </span>
           <span className="text-sm text-muted-foreground">
             or drag and drop them here: {multiple ? 'multiple files supported' : 'one file'} · max 100 MB each
@@ -103,7 +113,7 @@ export function FileDropzone({
             <p className="truncate text-sm font-medium">
               {files.length === 1
                 ? shortName(files[0]!.name)
-                : `${files.length} PDF files selected`}
+                : `${files.length} ${kind} files selected`}
             </p>
             <p className="text-xs text-muted-foreground">
               {formatBytes(files.reduce((s, f) => s + f.size, 0))} total

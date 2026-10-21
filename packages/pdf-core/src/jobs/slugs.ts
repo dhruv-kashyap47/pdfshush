@@ -14,12 +14,15 @@
  */
 
 export const JOB_SLUGS = [
+  'bates-numbering',
+  'compress',
   'edit',
   'extract-images',
   'flatten',
   'flip',
   'grayscale',
   'inspect',
+  'jpg-to-pdf',
   'merge',
   'n-up',
   'organize',
@@ -27,14 +30,17 @@ export const JOB_SLUGS = [
   'pdf-to-text',
   'redact',
   'remove-annotations',
+  'rename',
   'resize',
   'split-by-pages',
   'split-by-size',
+  'split-by-text',
   'split-in-half',
   'stamp',
   'text-edit',
   'text-runs',
   'thumbnails',
+  'unlock',
   'watermark',
   'edit-metadata',
 ] as const;

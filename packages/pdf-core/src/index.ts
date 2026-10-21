@@ -210,6 +210,52 @@ export type {
 } from './jobs/splitBySize.job.js';
 export { flattenJob } from './jobs/flatten.job.js';
 export type { FlattenJobInput, FlattenJobOutput, FlattenJobOptions } from './jobs/flatten.job.js';
+export { batesJob } from './jobs/bates.job.js';
+export type { BatesJobInput, BatesJobOutput, BatesJobOptions } from './jobs/bates.job.js';
+export { compressJob } from './jobs/compress.job.js';
+export type { CompressJobInput, CompressJobOutput, CompressJobOptions } from './jobs/compress.job.js';
+export { jpgToPdfJob } from './jobs/jpgToPdf.job.js';
+export type { JpgToPdfJobInput, JpgToPdfJobOutput, JpgToPdfJobOptions } from './jobs/jpgToPdf.job.js';
+export { renameJob } from './jobs/rename.job.js';
+export type { RenameJobInput, RenameJobOutput, RenameJobOptions } from './jobs/rename.job.js';
+export { splitByTextJob } from './jobs/splitByText.job.js';
+export type {
+  SplitByTextInput,
+  SplitByTextOutput,
+  SplitByTextOptions,
+} from './jobs/splitByText.job.js';
+export { unlockJob } from './jobs/unlock.job.js';
+export type { UnlockJobInput, UnlockJobOutput, UnlockJobOptions } from './jobs/unlock.job.js';
+export { batesNumberDocument, formatBatesNumber, BATES_LIMITS } from './ops/bates.js';
+export type { BatesOptions, BatesResult } from './ops/bates.js';
+export {
+  detectImageKind,
+  imagesToPdf,
+  planImagePlacement,
+  IMAGE_LIMITS,
+} from './ops/imageDocs.js';
+export type {
+  ImageInput,
+  ImageKind,
+  ImageOrientation,
+  ImagePageSize,
+  ImagePlacement,
+  ImagesToPdfOptions,
+  ImagesToPdfResult,
+} from './ops/imageDocs.js';
+export {
+  expandRenamePattern,
+  sanitizeStem,
+  RENAME_LIMITS,
+  RENAME_TOKENS,
+} from './ops/renamePattern.js';
+export type { RenameContext } from './ops/renamePattern.js';
+export { planSplitByText, SPLIT_BY_TEXT_LIMITS } from './ops/splitByText.js';
+export type { PageSpan, SplitByTextPlan } from './ops/splitByText.js';
+export { compressDocument, COMPRESS_DEFAULTS, COMPRESS_LIMITS } from './compress/compress.js';
+export type { CompressMode, CompressOptions, CompressResult } from './compress/compress.js';
+export { unlockDocument } from './ops/unlock.js';
+export type { UnlockResult } from './ops/unlock.js';
 
 // In-place text editing (PDFium primary, pdf-lib overlay fallback)
 export {

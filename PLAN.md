@@ -28,6 +28,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P5 — AI** | Hybrid BYOK + managed keys, budgets, redaction tool → **leakage gate** | ✅ **shipped (2026-10-16): BYOK summarize/chat/edit-with-AI, smart redaction + leakage gate, managed client + server budgets, in-place AI rewrites, IndexedDB key store, managed browser E2E** — see §23 |
 | **P6 — E-sign / API / MCP** | Signature flows, public REST API, PDFShush MCP server | ✅ **done 2026-10-19** — P6.0 decision record (§25.1, D1–D8), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3), P6.3 MCP server (§25.4), P6.4 hardening incl. the base-URL smuggle fix (§25.5); the vector-signature path was dropped explicitly to P7 (§25.6) |
 | **Plain-tools batch** | Ten client-side tools over the existing engine in one wave: flip, watermark, edit-metadata, remove-annotations, pdf-to-text, grayscale, resize, extract-images, split-by-size, flatten | ✅ **shipped 2026-10-20** — see §8 first entry |
+| **Next-tools batch** | Six more client-side tools off the same engine: unlock, JPG to PDF, rename, Bates numbering, split by text, compress | ✅ **shipped 2026-10-21** — see §8 first entry |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
 
 **Redaction sub-phases** (detail in §20):
@@ -51,26 +52,32 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-19 with **P6.4 hardening over the new surface shipped** (§8
-first entry) plus the **landing MCP console** (§8 second entry) — the P5 AI port (§23), the gap-closing
+**Current gate:** re-measured 2026-10-21 with the **next-tools batch shipped** (§8 first entry) on top
+of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
 still hold.
-**32 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**38 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
-`extract-images`, `split-by-size`, `flatten-pdf`; `redact-pdf` in Security; `summarize-pdf` +
+`extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
+`jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; `redact-pdf` in
+Security; `summarize-pdf` +
 `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**973/973 unit** (**222 engine** · **197 API** · 364 provider · 152 agent · **19 web** — the web app's own
+**1002/1002 unit** (**251 engine** · **197 API** · 364 provider · 152 agent · **19 web** — the web app's own
 unit suite covers the signature trim math, the MCP tool naming rule and the shared catalog reader ·
 **19 MCP**: parity pin, base-URL no-escape gate + origin-smuggling shapes, stdio E2E against a spawned
 binary) · browser E2E: full
-smoke (re-run 2026-10-20 error-free, incl. the MCP console) + **plain-tools suite, 13/13 checks**
+smoke (re-run 2026-10-21 error-free, incl. the MCP console; the workflow *run* honestly skips when
+`/api/health` reports Redis down) + **plain-tools suite, 13/13 checks**
 (`tests/e2e/plain-tools.mjs`, real downloads with magic-byte asserts: `%PDF-`, `PK`, inflated
-`FF D8` JPEG in the extract-images ZIP, page text inside the .txt) · **8/8 focused text-edit E2E** ·
+`FF D8` JPEG in the extract-images ZIP, page text inside the .txt) + **next-tools suite, 18/18 checks**
+(`tests/e2e/next-tools.mjs`: decrypted PDF with no `/Encrypt` and its text intact, image-embedded
+PDF page count, renamed ZIP, stamped Bates numbers read back out of zlib streams, split parts,
+repack and a real raster compress) · **8/8 focused text-edit E2E** ·
 **17/17 AI E2E**
 (chat + highlight apply + in-place replacement + key-handling, local SSE mock; re-measured — 17, not
 the 18 previously recorded, all passing, so the drift came from the §23.6 AI-workspace consolidation
@@ -192,9 +199,9 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 57 tools (**32 live**), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 57 tools (**38 live**), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
-│   └── src/components/tools/*      14 tool-body files (15 tools — stamp.tsx serves two)
+│   └── src/components/tools/*      36 tool-body files
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
 ├── packages/pdf-core               engine — same code path in worker and Node
 │   ├── src/node.ts                  Node-safe barrel: only the isomorphic surface (P3)
@@ -204,10 +211,10 @@ pdfshush/
 │   │                                geometry · edit · forms (P2) · ranges · textMetrics (dep-free*)
 │   ├── src/render/                  pdfjsRuntime · canvas · renderPage · textRuns (P2)
 │   ├── src/redact/                  R1 secure redaction: rasterize · rebuild · verify (§20)
-│   └── src/jobs/                    12: inspect · merge · organize · pdf-to-images · thumbnails ·
-│                                     stamp · split-by-pages · split-half · n-up · edit · text-runs ·
-│                                     redact
+│   └── src/jobs/                    29 jobs: the original 12 + the plain-tools ten + next-tools six
 ├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools (101 checks)
+├── tests/e2e/plain-tools.mjs       the ten plain tools, magic-byte asserts (13 checks)
+├── tests/e2e/next-tools.mjs        the six next tools, incl. a real raster compress (18 checks)
 ├── tests/api/smoke.mjs             real stack: upload → Redis → worker → download (21 checks)
 ├── tests/api/hardening.mjs         the P3 gate: SIGKILL mid-job, prove the pipeline holds
 ├── docker-compose.yml              redis + api + worker (P3)
@@ -432,6 +439,13 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   (split-in-half, crop overlays) must use `getCropBox()`, which falls back to the MediaBox.
 - `drawText` with a standard font does **not** throw on un-encodable characters — emoji are
   silently mangled. Reject them explicitly if you ever need to.
+- `PDFDocument.load` only takes the **decrypt** path when `password` is *defined* — pass `''`
+  for owner-restricted PDFs (empty user password) or the load throws `EncryptedPDFError`.
+  A successful decrypt deletes the trailer `/Encrypt`, so `doc.save()` produces an unencrypted
+  copy. That is the whole Unlock tool.
+- There is **no encrypt-on-save** in @cantoo/pdf-lib 2.11.1 (no `userPassword` SaveOption, no
+  `EncryptStream`). Protect PDF stays planned until it is written properly; never fake it by
+  setting permission bits without encryption.
 
 **pdfjs-dist v6**
 - Entry `build/pdf.mjs`; types `types/src/pdf.d.ts`.
@@ -457,6 +471,17 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   the DOM variant).
 - `JobInputBase['options']` is `Record<string, unknown>` → custom options types must be
   **type aliases** (object literals get implicit index signatures; interfaces do not).
+- Live web previews may call an engine formatter, but only from a **pdf-lib-free module**
+  (`ops/renamePattern.ts`, `ops/splitByText.ts`, `ops/ranges.ts`, `ops/textMetrics.ts`).
+  Importing a job module from a component drags the whole worker engine into the main chunk.
+
+**Web tools / React 19**
+- StrictMode invokes state updaters twice. Never create or revoke object URLs inside
+  `setState(prev => …)` — it leaks one URL per file in dev. Compute the next list outside the
+  updater (the JPG-to-PDF tool keeps an `entriesRef` mirror for this).
+- A button whose label follows a *combined* "busy" flag lies: the Compress/Rename tools run
+  `inspect` on upload, and the first build showed "Compressing…" before the user pressed
+  anything. Track `inspecting` and the real run separately.
 
 **Tests (anti-regression — all covered by the 46 tests)**
 - `parsePageRanges`: bare `"5"` = single page (≠ `"5-"` open range); `"99-200"` on 10
@@ -471,6 +496,8 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   form rects against the drawn UI, not the source values.
 - `drawText` hex-encodes its output → test text presence via the `pdfContainsText` helper
   (`ops` bytes contain the hex string), not raw ASCII.
+- The hex is **uppercase** in the stream (`<43415345…>`). Byte-scanning E2E helpers must
+  lowercase both sides before comparing a UTF-8 → hex conversion.
 - Node/vitest pdf.js: alias to `pdfjs-dist/legacy/build/pdf.mjs` (regex alias in
   `packages/pdf-core/vitest.config.ts`) and set workerSrc inside tests via
   `new URL('../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url)` —
@@ -539,6 +566,15 @@ never actually wired, and a stream with no error listener.*
 - pnpm 11 ignores the `pnpm` field in `package.json` → `onlyBuiltDependencies` lives in
   `pnpm-workspace.yaml`. Root installs need `pnpm add -Dw`.
 - Playwright: use `channel: 'msedge'` (system Edge) — no browser download needed.
+- **`/api/tools` answering does not mean the queue works.** It is served without Redis; a
+  server-run workflow then submits to `/api/jobs` and dies. Gate server-side E2E on
+  `/api/health` reporting `redis.status === 'connected'`, and skip loudly instead of waiting
+  out a three-minute download timeout (smoke §19 does).
+- Encrypted test fixtures: @cantoo/pdf-lib cannot *create* one, so
+  `scripts/make-encrypted-fixtures.py` (dev-time pypdf, not a dependency) writes
+  `test/fixtures/encrypted-aes128.pdf` (user password `shush123`) and
+  `encrypted-owner-only.pdf` (empty user password). The PDFs are committed; the script is not
+  part of any build.
 - React 19: no global `JSX` namespace → use `ComponentType`; `useNavigate` requires the
   Router context (header is inside `BrowserRouter`).
 - **A validation regex with a leading `^` alternative only ever checks the first character.**
@@ -561,6 +597,95 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-21 — The next-tools batch: six more client-side tools, taking the catalog from 32 to
+  38 live.** Unlock, JPG to PDF, Rename, Bates Numbering, Split by Text and Compress — chosen
+  because every one reuses engine machinery that already ships and passes its gates. All
+  client-side, so `SERVER_SLUGS`, the REST API and the MCP surface are untouched; no new
+  dependencies.
+
+  **Engine.**
+  - `ops/unlock.ts` — `PDFDocument.load` takes its decrypt path whenever `password` is
+    *defined*, so the tool passes the user's password or `''` (which opens owner-restricted
+    PDFs) and saves: the trailer `/Encrypt` is gone and the output is a normal PDF. A separate
+    `ignoreEncryption` parse answers `wasEncrypted` without decrypting twice. Wrong or missing
+    passwords map to a plain sentence, not `Password incorrect` from the crypto layer. This is
+    explicitly not a cracker — and Protect PDF remains blocked because @cantoo/pdf-lib 2.11.1
+    has no encrypt-on-save (§7).
+  - `ops/imageDocs.ts` + `jobs/jpgToPdf.job.ts` — JPEG/PNG sniffed by magic bytes (a `.jpg` that
+    is really HEIC is rejected by name, not decoded and re-compressed), embedded verbatim, one
+    page per image. `planImagePlacement` is pure: A4/Letter/own-size paper, auto or forced
+    orientation, margin-clamped contain fit with centring, so the UI can reason about placement
+    without opening a document.
+  - `ops/renamePattern.ts` + `jobs/rename.job.ts` — dependency-free token expander
+    (`{name}`, `{title}`, `{n}`, `{total}`, `{date}`), filename sanitisation and collision
+    suffixing. The job opens each document once to read its real title, then returns the
+    **original bytes** under the new name — no re-encode — as a ZIP when the batch is larger
+    than one. Keeping the formatter pdf-lib-free is what lets the live preview run on the main
+    thread without dragging the engine into the entry chunk.
+  - `ops/bates.ts` + job — `formatBatesNumber` (prefix, offset, zero padding, clamped) plus
+    `batesNumberDocument`. `StampRegion` gained an optional
+    `textFor(pageIndex, pageCount)` resolver, so Bates reuses the existing display-space,
+    rotation-safe stamp placement instead of a second copy of that maths; the `{n}`/`{N}`
+    template behaviour is untouched and still pinned by the stamp tests.
+  - `ops/splitByText.ts` + job — a pure planner splits *before* every matching page (the match
+    page opens its part), treats page 1 as the implicit start, never emits an empty part for
+    consecutive markers, and refuses a no-op plan or more than 200 parts with a specific
+    message. The job extracts text through the editor's pdf.js pipeline and composes each part
+    as a standalone PDF in a ZIP.
+  - `compress/compress.ts` + job — two strategies, stated honestly. `lossless` re-serializes
+    with object streams: text and images survive exactly, and the UI says gains may be zero.
+    `raster` renders each page at a chosen DPI, JPEG-encodes at a chosen quality and rebuilds —
+    the same rasterize-and-rebuild contract as redaction and grayscale, gated by the same
+    150-page ceiling, with the loss of selectable text disclosed before the run. The job returns
+    `originalBytes` so the result panel shows a measured percentage (including "no saving")
+    rather than a promise.
+
+  **Web.** Six components on the established dropzone → progress → result shape, with capacity
+  checks and recent history. Unlock has a reveal toggle and a plain "we cannot guess it" note;
+  JPG to PDF orders images with real thumbnail previews and up/down controls (`FileDropzone` grew
+  `accept`/`accepts`/`kind` props, defaults unchanged for every PDF tool); Rename runs `inspect`
+  on upload so the `{title}` preview is the actual title, offers token chips and previews the
+  whole batch before the run; Bates draws a mini page with the user's own sample number at the
+  chosen corner; Split by Text pairs the needle with an honest "text layer only, scans need OCR"
+  explainer; Compress presents the two modes as cards with quality/DPI controls, an over-cap
+  notice and a before/after strip. Registry: six slugs live with `nextFor` suggestions;
+  `bates-numbering`, `compress`, `rename` and `unlock` joined `WORKFLOW_OUTPUT_JOBS` (single-document
+  deliverables only — the ZIP-producing splits stay out).
+
+  **Tests.** 29 new engine tests in `test/next-tools.test.ts` (+29 → **251**), each re-opening the
+  output: Bates numbers scanned out of the deflated stream, image XObjects counted, renamed ZIP
+  entries byte-compared to the originals, split parts re-opened page by page, the lossless
+  repack re-parsed, and Unlock run against two committed fixtures — AES-128 with a real user
+  password (`shush123`), and an owner-only PDF that opens with the empty password. Wrong-password
+  and missing-password paths assert the friendly message, and an unencrypted input still reports
+  `wasEncrypted: false`. Because pdf-lib cannot create encrypted files,
+  `scripts/make-encrypted-fixtures.py` (dev-time pypdf, not a dependency) generated the PDFs; the
+  fixtures are committed, the script documents itself. New `tests/e2e/next-tools.mjs`: 18 checks
+  driving all six tools in real Edge and asserting downloaded bytes — `%PDF-` on five outputs,
+  no `/Encrypt` and the original page text inside the unlocked PDF, `/Count 2` for the image
+  build, `PK` plus a PDF first entry for both ZIP tools, stamped `CASE-0007`/`CASE-0009` read
+  back through zlib, the preserved text layer after a repack, and a real browser raster
+  compression.
+
+  **Smoke fixes found by the batch.** The routing check still pointed at `compress-pdf` as
+  "planned" now that it ships (moved to `protect-pdf`), and the workflow *run* was gated on
+  `/api/tools` — which answers without Redis — so an API-up/queue-down session died as a
+  three-minute download timeout. It now asks `/api/health` for
+  `redis.status === 'connected'` and skips loudly. Full smoke re-run green.
+
+  **Visual pass.** Full-page screenshots of all six tools (working state) caught two real
+  problems: Compress and Rename said "Compressing…"/"Renaming…" while the upload-time `inspect`
+  was running, and Split by Text had a half-empty card. Busy states are now separate
+  (`inspecting` vs the real run), the split card carries a matching explainer, and the JPG list
+  moved object-URL management out of a StrictMode-double-invoked state updater (§7).
+
+  **Gates.** pdf-core **251/251** + `tsc` clean · full unit **1002/1002** · web unit **19/19** ·
+  `pnpm build` clean with the main chunk still 0 pdf-lib / 0 pdf.js / 0 pdfium (string-scanned) ·
+  browser E2E: next-tools **18/18**, plain-tools **13/13**, smoke **ALL CHECKS PASSED** — with the
+  server-run workflow **skipped** because Redis was not running in this session. That one path is
+  unverified here, not green; it needs the compose stack (§9), exactly as the smoke's own skip
+  says.
 
 - **2026-10-20 — The plain-tools batch: ten more client-side tools shipped in one wave, taking the
   catalog from 22 to 32 live.** Flip, Watermark, Edit Metadata, Remove Annotations, PDF to Text,
@@ -1446,9 +1571,10 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all five packages
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web (973 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web (1002 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
+pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
@@ -1481,8 +1607,9 @@ spent — `docker compose restart redis` resets them. *(2026-10-18 addendum: Doc
 on PATH now — `docker compose up -d --build` works directly from the session.)*
 
 **Next move:** **P7 — the hardening/torture suite** (adversarial fixtures, SEO prerender, perf/a11y)
-is the only unshipped phase. The 2026-10-20 plain-tools batch (§8 first entry) already raised the
-catalog to 32 of 57 live tools with the engine at 222 tests and a dedicated plain-tools E2E.
+is the only unshipped phase. The 2026-10-21 next-tools batch (§8 first entry) raised the catalog to
+38 of 57 live tools with the engine at 251 tests and its own E2E; the 2026-10-20 plain-tools batch
+before it added ten more tools and the first dedicated tool suite.
 **P6.3, the MCP server, has shipped** (`@pdfshush/mcp`, §25.4 with all four gates
 met): stdio server over `/api/v1` with the user's own key, one tool per server-runnable slug built
 from `@pdfshush/api-contracts` (the §25.3 zod contracts, now a shared package read by the API via
@@ -1518,8 +1645,10 @@ must come back empty.
 
 **A skipped check is not a passing check.** The workflow section of the browser suite skips itself
 whenever `/api/tools` is unreachable, which is exactly how a broken server pipeline stayed
-invisible until §8's second entry. When a gate self-skips, treat the skipped path as *unverified*,
-not as covered.
+invisible until §8's second entry. It now also skips the *run* when `/api/health` reports Redis
+down — an honest skip, not a pass: a plain `pnpm dev` without Docker leaves that path unverified,
+so run `pnpm test:e2e` against the compose stack before trusting a release. When a gate
+self-skips, treat the skipped path as *unverified*, not as covered.
 
 **E2E notes.** `tests/support/e2e-util.mjs` holds the shared fixtures (`buildPdf`,
 `extractText`, `waitFor`). The AI scripts run against `tests/support/mock-llm.mjs`; the

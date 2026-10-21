@@ -72,6 +72,11 @@ export const WORKFLOW_OUTPUT_JOBS: ReadonlySet<string> = new Set([
   'resize',
   'grayscale',
   'flatten',
+  // Next-tools batch (2026-10-21): document-in, document-out.
+  'bates-numbering',
+  'compress',
+  'rename',
+  'unlock',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

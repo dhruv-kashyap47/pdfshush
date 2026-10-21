@@ -1,0 +1,11 @@
+# Git's autocrlf cannot touch binary formats: a stray CRLF rewrite changes byte
+# offsets inside a PDF and breaks its xref table.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary

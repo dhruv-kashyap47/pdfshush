@@ -1042,7 +1042,9 @@ async function main() {
 
   /* 17. Planned tool page + 404 */
   console.log('\n17. Routing');
-  await page.goto(`${BASE}/tools/compress-pdf`, { waitUntil: 'networkidle' });
+  // A slug that is still planned; the batch tools now render their real UI, so
+  // the placeholder check must point at something the catalog has not shipped.
+  await page.goto(`${BASE}/tools/protect-pdf`, { waitUntil: 'networkidle' });
   check('planned tool page renders', await page.getByText('In development').isVisible());
   await page.goto(`${BASE}/tools/does-not-exist`, { waitUntil: 'networkidle' });
   check('404 page renders', await page.getByText('This page went missing').isVisible());
@@ -1148,6 +1150,18 @@ async function main() {
   } catch {
     apiReachable = false;
   }
+  // `/api/tools` answers without Redis; the queue does not. Running a recipe
+  // submits to `/api/jobs`, so ask health rather than discovering the outage as
+  // a three-minute download timeout.
+  let queueLive = false;
+  if (apiReachable) {
+    try {
+      const health = await (await fetch(`${BASE}/api/health`)).json();
+      queueLive = health?.redis?.status === 'connected';
+    } catch {
+      queueLive = false;
+    }
+  }
   if (!apiReachable) {
     console.log('   [SKIP] workflow recipe + run need the API stack (/api/tools is not reachable)');
   } else {
@@ -1178,17 +1192,21 @@ async function main() {
 
   // Run it for real: upload → step 1 → step 2 → download. This is the whole
   // point of the feature, so it is asserted on the bytes rather than on a toast.
-  await page.getByLabel('File to run the workflow on').setInputFiles([fileA]);
-  const [workflowDownload] = await Promise.all([
-    page.waitForEvent('download', { timeout: 180_000 }),
-    page.getByRole('button', { name: /run workflow/i }).click(),
-  ]);
-  const workflowBytes = await readFile(await workflowDownload.path());
-  check(
-    'workflow runs end to end and downloads a PDF',
-    workflowBytes.subarray(0, 5).toString('latin1') === '%PDF-',
-    `${workflowDownload.suggestedFilename()} — ${workflowBytes.length} bytes`,
-  );
+  if (!queueLive) {
+    console.log('   [SKIP] workflow run needs Redis (/api/health reports redis unavailable)');
+  } else {
+    await page.getByLabel('File to run the workflow on').setInputFiles([fileA]);
+    const [workflowDownload] = await Promise.all([
+      page.waitForEvent('download', { timeout: 180_000 }),
+      page.getByRole('button', { name: /run workflow/i }).click(),
+    ]);
+    const workflowBytes = await readFile(await workflowDownload.path());
+    check(
+      'workflow runs end to end and downloads a PDF',
+      workflowBytes.subarray(0, 5).toString('latin1') === '%PDF-',
+      `${workflowDownload.suggestedFilename()} - ${workflowBytes.length} bytes`,
+    );
+  }
 
   await page.getByRole('button', { name: /save workflow/i }).click();
   await waitFor(

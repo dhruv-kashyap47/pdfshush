@@ -134,6 +134,13 @@ const LIVE = new Set([
   'extract-images',
   'split-by-size',
   'flatten-pdf',
+  // Next-tools batch (2026-10-21): the fastest six left in the catalog.
+  'unlock-pdf',
+  'jpg-to-pdf',
+  'rename-pdf',
+  'bates-numbering',
+  'split-by-text',
+  'compress-pdf',
 ]);
 
 /**
@@ -170,6 +177,13 @@ const TOOL_NEXT: Record<string, string[]> = {
   'extract-images': ['jpg-to-pdf', 'merge-pdf'],
   'split-by-size': ['merge-pdf', 'compress-pdf'],
   'flatten-pdf': ['fill-sign', 'remove-annotations'],
+  // Next-tools batch (2026-10-21).
+  'unlock-pdf': ['compress-pdf', 'edit-pdf'],
+  'jpg-to-pdf': ['merge-pdf', 'compress-pdf'],
+  'rename-pdf': ['edit-metadata', 'merge-pdf'],
+  'bates-numbering': ['split-by-pages', 'compress-pdf'],
+  'split-by-text': ['merge-pdf', 'organize-pdf'],
+  'compress-pdf': ['split-by-size', 'merge-pdf'],
 };
 
 const tool = (

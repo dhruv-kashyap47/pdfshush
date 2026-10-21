@@ -27,6 +27,12 @@ import { RemoveAnnotationsTool } from '@/components/tools/remove-annotations-too
 import { ResizeTool } from '@/components/tools/resize-tool';
 import { SplitBySizeTool } from '@/components/tools/split-by-size-tool';
 import { WatermarkTool } from '@/components/tools/watermark-tool';
+import { BatesNumberingTool } from '@/components/tools/bates-numbering-tool';
+import { CompressPdfTool } from '@/components/tools/compress-pdf-tool';
+import { JpgToPdfTool } from '@/components/tools/jpg-to-pdf-tool';
+import { RenamePdfTool } from '@/components/tools/rename-pdf-tool';
+import { SplitByTextTool } from '@/components/tools/split-by-text-tool';
+import { UnlockTool } from '@/components/tools/unlock-tool';
 import { HeaderFooterTool, PageNumbersTool } from '@/components/tools/stamp-tool';
 import { SignatureTool } from '@/components/tools/signature-tool';
 import { ApiToolPage } from '@/components/tools/api-tool';
@@ -75,6 +81,13 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'extract-images': ExtractImagesTool,
   'split-by-size': SplitBySizeTool,
   'flatten-pdf': FlattenTool,
+  // Next-tools batch (2026-10-21).
+  'unlock-pdf': UnlockTool,
+  'jpg-to-pdf': JpgToPdfTool,
+  'rename-pdf': RenamePdfTool,
+  'bates-numbering': BatesNumberingTool,
+  'split-by-text': SplitByTextTool,
+  'compress-pdf': CompressPdfTool,
 };
 
 export function ToolPage() {

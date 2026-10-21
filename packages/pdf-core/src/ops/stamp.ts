@@ -35,6 +35,14 @@ export interface StampRegion {
   /** Template with `{n}` / `{N}` placeholders. Empty string skips the region. */
   text: string;
   position?: StampPosition;
+  /**
+   * When set, called once per page instead of expanding `{n}`/`{N}`.
+   *
+   * Bates numbering needs a zero-padded, offset value that a template cannot
+   * express, and it must not re-implement the placement maths here. Returning
+   * an empty string skips that page's region. `pageIndex` is zero-based.
+   */
+  textFor?: (pageIndex: number, pageCount: number) => string;
 }
 
 export interface StampContent {
@@ -71,7 +79,14 @@ export async function stampDocument(
   };
   const headerText = content.header?.text?.trim() ?? '';
   const footerText = content.footer?.text?.trim() ?? '';
-  if (headerText.length === 0 && footerText.length === 0) return;
+  if (
+    !content.header?.textFor &&
+    !content.footer?.textFor &&
+    headerText.length === 0 &&
+    footerText.length === 0
+  ) {
+    return;
+  }
 
   const progress = createProgressReporter(ctx);
   const font = await doc.embedFont(
@@ -83,16 +98,36 @@ export async function stampDocument(
   for (let i = 0; i < total; i += 1) {
     ctx.throwIfAborted();
     const page = pages[i]!;
-    stampPage(page, {
-      header: headerText
-        ? { text: renderStampTemplate(headerText, i + 1, total), position: content.header?.position ?? 'top-center' }
-        : undefined,
-      footer: footerText
-        ? { text: renderStampTemplate(footerText, i + 1, total), position: content.footer?.position ?? 'bottom-center' }
-        : undefined,
-    }, { font, fontSize, margin, color });
+    stampPage(
+      page,
+      {
+        header: resolveRegion(content.header, i, total, 'top-center'),
+        footer: resolveRegion(content.footer, i, total, 'bottom-center'),
+      },
+      { font, fontSize, margin, color },
+    );
     progress.step(i, total, 'Adding text');
   }
+}
+
+/**
+ * Turns a template region into this page's text. A `textFor` resolver wins so
+ * callers such as Bates numbering keep the placement code below as the single
+ * owner of where stamped text lands (including rotated pages).
+ */
+function resolveRegion(
+  region: StampRegion | undefined,
+  pageIndex: number,
+  pageCount: number,
+  fallback: StampPosition,
+): ResolvedRegion | undefined {
+  if (!region) return undefined;
+  const text = region.textFor
+    ? region.textFor(pageIndex, pageCount)
+    : renderStampTemplate(region.text.trim(), pageIndex + 1, pageCount);
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return undefined;
+  return { text: trimmed, position: region.position ?? fallback };
 }
 
 interface ResolvedRegion {
