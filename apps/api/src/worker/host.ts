@@ -188,18 +188,3 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
 
   return { worker, janitor, watchdog, shutdown, store, logger };
 }
-
-// Run directly (not when imported by tests or the embedded worker).
-// `pathToFileURL` produces the same `file:///C:/...` form as `import.meta.url`.
-// The previous `file://` + path concatenation dropped the drive slash, so it
-// was never true on Windows and `pnpm worker` exited without starting.
-const invokedDirectly =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (invokedDirectly) {
-  startWorkerHost().catch((error: unknown) => {
-    // eslint-disable-next-line no-console
-    console.error('worker host failed to start:', error);
-    process.exit(1);
-  });
-}

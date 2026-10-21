@@ -36,5 +36,29 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+    rolldownOptions: {
+      output: {
+        // Vite 8/Rolldown: object and function `manualChunks` are gone, so the
+        // vendor split is expressed as named code-splitting groups. Third-party
+        // code changes on a different cadence than ours, so giving it stable
+        // names keeps a tool deploy from invalidating the whole cache.
+        codeSplitting: {
+          groups: [
+            {
+              name: 'vendor-react',
+              test: /node_modules[\\/](?:react|react-dom|scheduler|react-router|react-router-dom)[\\/]/,
+            },
+            {
+              name: 'vendor-ui',
+              test: /node_modules[\\/](?:@radix-ui|@dnd-kit|@floating-ui|sonner|lucide-react|tailwind-merge|clsx|class-variance-authority|cmdk)[\\/]/,
+            },
+            {
+              name: 'vendor-motion',
+              test: /node_modules[\\/](?:animejs|motion|framer-motion)[\\/]/,
+            },
+          ],
+        },
+      },
+    },
   },
 });

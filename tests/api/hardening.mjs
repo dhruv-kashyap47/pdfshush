@@ -146,6 +146,14 @@ async function main() {
   console.log(`P3 hardening gate against ${BASE}\n`);
   const before = await health();
   check('stack is healthy before the test', before.status === 'ok');
+  // The kill below must interrupt a live consumer. Without this, a stack whose
+  // worker was already down passes the SIGKILL assertion with "no container to
+  // kill", proving nothing.
+  check(
+    'a worker is consuming the queue',
+    Number(before.workers?.count ?? 0) > 0,
+    `${Number(before.workers?.count ?? 0)} worker(s)`,
+  );
 
   // The janitor assertions below only mean anything if the running container
   // really is using a short retention. `docker compose up -d` will not recreate
@@ -210,9 +218,15 @@ async function main() {
     .map((line) => JSON.parse(line))[0];
   check(
     'worker container was killed with SIGKILL',
-    workerState?.State !== 'running',
-    `state=${workerState?.State}`,
+    workerState?.State === 'exited',
+    workerState ? `state=${workerState.State} exit=${workerState.ExitCode}` : 'no worker container found',
   );
+
+  // `docker compose kill` marks the container stopped on purpose, so Docker's
+  // restart policy deliberately does not resurrect it. Bring it back the way an
+  // orchestrator would; this gate is about the queue and the files surviving a
+  // crash, not about Docker's restart policy.
+  docker(['compose', 'start', 'worker']);
 
   console.log('\n2. The queue and the api survive');
   const afterKill = await health();
@@ -241,8 +255,12 @@ async function main() {
   );
 
   console.log('\n3. No orphan files (the janitor is the mechanism)');
-  // The compose profile for the gate uses a short TTL so the sweep is observable.
-  const ttlMs = Number(process.env.FILE_TTL_MS ?? 30_000);
+  // The compose profile for the gate uses a short TTL so the sweep is
+  // observable. Read it from the running API rather than from this process's
+  // environment: the stack is usually started in another shell, so a bare
+  // `FILE_TTL_MS` here can be unset while the container runs a 120s window --
+  // which is exactly how this check failed once by waiting 90s for a 120s TTL.
+  const ttlMs = retentionMs > 0 ? retentionMs : Number(process.env.FILE_TTL_MS ?? 30_000);
 
   // Proving deletion needs a file whose fate we know, so start from a job that
   // *completes*: its result must be downloadable now and gone once the TTL
@@ -279,7 +297,9 @@ async function main() {
         });
         return response.status === 404;
       },
-      Math.max(ttlMs * 3, 60_000),
+      // TTL + one sweep interval + slack. Doubling the measured retention is
+      // enough for a 120s gate profile without the old 3x over-wait.
+      Math.max(ttlMs * 2, 60_000),
       'the janitor to delete the finished job',
     ).catch(() => false);
     check("janitor deleted the expired job's files (result 404s)", gone === true);

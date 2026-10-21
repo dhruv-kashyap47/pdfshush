@@ -71,7 +71,8 @@ door opens the MCP console in place from P6.4's polish pass)
 unit suite covers the signature trim math, the MCP tool naming rule and the shared catalog reader ·
 **19 MCP**: parity pin, base-URL no-escape gate + origin-smuggling shapes, stdio E2E against a spawned
 binary) · browser E2E: full
-smoke (re-run 2026-10-21 error-free, incl. the MCP console; the workflow *run* honestly skips when
+smoke (re-run 2026-10-21 with Redis up — no skips: the workflow *run* executes through
+`/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
 `/api/health` reports Redis down) + **plain-tools suite, 13/13 checks**
 (`tests/e2e/plain-tools.mjs`, real downloads with magic-byte asserts: `%PDF-`, `PK`, inflated
 `FF D8` JPEG in the extract-images ZIP, page text inside the .txt) + **next-tools suite, 18/18 checks**
@@ -474,6 +475,19 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
 - Live web previews may call an engine formatter, but only from a **pdf-lib-free module**
   (`ops/renamePattern.ts`, `ops/splitByText.ts`, `ops/ranges.ts`, `ops/textMetrics.ts`).
   Importing a job module from a component drags the whole worker engine into the main chunk.
+- Vite 8 is Rolldown: `output.manualChunks` is removed (object form) or deprecated (function
+  form). Split vendors with `build.rolldownOptions.output.codeSplitting.groups` (`name` +
+  `test` regex) — the vendor chunks then get stable names across app deploys.
+- A worker's **dynamic** import is emitted as an ordinary app-visible chunk. pdfium therefore
+  ships as `index.browser-*.js` and only `job-worker-*.js` imports it, so a "no engine outside
+  the worker" scan must follow the worker's imports, not just chunk filenames.
+- `apps/web/src/App.tsx` lazy-loads `ToolPage` (all tool bodies, the editor and AI surfaces sit
+  behind it). Keep the entry chunk at ~139 kB; the tool chunk loads on navigation.
+- A bundle **inlines** its imports, so an `import.meta.url === pathToFileURL(argv[1])` "run me
+  directly" guard is true in every bundle that contains the module. The API bundle (which imports
+  `worker/host.ts`) started a second, unbounded worker in production for exactly this reason; the
+  hardening gate caught it because the `api` container logged "worker host ready". Only a
+  dedicated entry (`src/worker/main.ts`) may call `startWorkerHost`.
 
 **Web tools / React 19**
 - StrictMode invokes state updaters twice. Never create or revoke object URLs inside
@@ -563,6 +577,10 @@ never actually wired, and a stream with no error listener.*
   `'file'` event time.
 
 **Tooling**
+- `pnpm dev`'s embedded worker runs `apps/api/dist/processor.cjs`, and `tsx watch src/server.ts`
+  never builds it. `predev` now rebuilds the API bundle first (esbuild, under a second); without
+  that step a fresh clone accepts a job and the sandbox fails to require its processor. A stale
+  bundle is the subtler failure: jobs that predate the last batch run, new ones do not.
 - pnpm 11 ignores the `pnpm` field in `package.json` → `onlyBuiltDependencies` lives in
   `pnpm-workspace.yaml`. Root installs need `pnpm add -Dw`.
 - Playwright: use `channel: 'msedge'` (system Edge) — no browser download needed.
@@ -597,6 +615,58 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-21 (later) — Redis live: the skipped workflow path exercised, and the stack exposed two
+  production-only bugs.** With Docker started, every stack-dependent gate ran against real
+  containers instead of skipping.
+  - **The workflow run is verified.** Smoke §19 queues `organize` then `merge` through `/api/jobs`,
+    the sandboxed child executes both, and the browser downloads
+    `alpha-organized-merged.pdf` (1664 B). `tests/api/smoke.mjs` passed on the compose stack too
+    (real job through Redis into the sandboxed processor, ownership refusals, the anonymous quota,
+    work-dir accounting). Its §6 v1 walk skips on this machine only because accounts are enabled
+    and `PSH_SMOKE_MONGODB_URI` is not set; that skip is reported, not green.
+    `tests/api/hardening.mjs` passes all 18 checks after the fixes below.
+
+  **Bug 1 — the dev worker ran a stale engine.** `pnpm dev` starts the API with `tsx watch`, while
+  the embedded worker forks `apps/api/dist/processor.cjs`. Nothing built that file, and the one on
+  disk was from Oct 17 — before the plain-tools and next-tools batches. A freshly pulled checkout
+  would queue jobs the sandbox could not run, and an old checkout silently ran yesterday's code.
+  `predev` now rebuilds the API bundle (esbuild, under a second) before either dev server starts.
+
+  **Bug 2 — the API bundle started a second worker.** `worker/host.ts` ended with a
+  "run me directly" guard comparing `import.meta.url` to `pathToFileURL(process.argv[1])`. esbuild
+  inlines the module into `dist/server.js`, where both values are the same file, so the guard was
+  true and the API container called `startWorkerHost()` even with `EMBEDDED_WORKER=false`. The
+  consequences were real: jobs ran inside the 1 GB API container instead of the 5 GB worker, a
+  worker crash could take the API down, and the hardening gate "passed" while the worker container
+  was already dead because the API kept consuming. The guard is gone; a dedicated
+  `src/worker/main.ts` is the only place that starts a host, and both the build
+  (`dist/worker-host.js`) and `pnpm worker` point at it. Verified in the container: the API process
+  has no BullMQ child and `/api/health` reports exactly one worker.
+
+  **Gate corrections found while proving the above.** Hardening read `FILE_TTL_MS` from its own
+  shell (unset when the suite and `docker compose up` run in different terminals) and waited 90 s
+  for a 120 s TTL — it now reads `retentionMs` from `/api/health`. Its SIGKILL assertion
+  (`state !== 'running'`) passed when no container existed at all; it now requires `exited`/137 and
+  a live consumer before the kill. And `docker compose kill` deliberately marks a container
+  stopped, so no restart policy applies: the gate now restarts the worker explicitly, the way an
+  orchestrator would, then asserts the new container is healthy.
+
+  **Entry chunk: 1,074 kB → 139 kB (gzip 320 → 40).** The build warning was legitimate. `App.tsx`
+  now lazy-loads `ToolPage` (every tool body, the editor and the AI surfaces live behind that
+  route), and vendor code is split with Rolldown's `codeSplitting` groups (`vendor-react` 258 kB,
+  `vendor-ui` 275 kB, `vendor-motion` 37 kB) so framework chunks survive app deploys. The tool
+  chunk is 369 kB (97 kB gzip), fetched on navigation. Both build warnings are gone; the auth
+  toast's `import('sonner')` became a static import because the Toaster already keeps sonner on the
+  entry path, so it could never split. `tests/bundle-boundary.mjs` now scans every app chunk
+  (excluding chunks the worker imports) instead of only the entry — which caught pdfium's
+  worker-owned `index.browser-*.js` and forced the check to follow imports rather than filenames.
+  Result: 6 app chunks, 0 engines; the pad stays lazy; the engines still ship in the worker chunks.
+
+  **Gates.** 1002/1002 unit · web 19/19 · API 197/197 · typecheck clean · smoke green **with no
+  skips** (workflow run included) · API smoke all passed on the Docker stack · hardening 18/18 ·
+  bundle boundary green. Dev stack stopped afterwards and `pnpm dev` restored (with the new
+  `predev` build).
 
 - **2026-10-21 — The next-tools batch: six more client-side tools, taking the catalog from 32 to
   38 live.** Unlock, JPG to PDF, Rename, Bates Numbering, Split by Text and Compress — chosen
@@ -1599,7 +1669,11 @@ TTLs so the janitor sweep is observable inside the run — **the test process mu
 TTL the stack wears**, or its wait budget under-runs the container's window (the gate itself also
 refuses to run unless `/api/health` reports `retentionMs <= 120000`):
 `$env:FILE_TTL_MS=120000; $env:JANITOR_INTERVAL_MS=10000; docker compose up -d --build` then
-`node tests/api/hardening.mjs`. With a TTL that short the janitor can also delete a *queued*
+`node tests/api/hardening.mjs`. The suite reads `retentionMs` from `/api/health` (the shell that
+runs it may not be the one that started the stack) and, after SIGKILLing the worker, explicitly
+runs `docker compose start worker`: `compose kill` marks the container stopped on purpose, so the
+restart policy cannot resurrect it and the summary line would otherwise hide a worker that never
+came back. With a TTL that short the janitor can also delete a *queued*
 job's inputs — which is why the killed job may legitimately settle as `failed`; the gate
 accepts either outcome, because the claim being tested is "the queue recovers". Note also that
 back-to-back quota-consuming runs (smoke → hardening) leave the anonymous day counters partially

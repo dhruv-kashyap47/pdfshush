@@ -102,6 +102,36 @@ async function main() {
     padChunks.join(', ') || 'not found in any chunk (is it code-split?)',
   );
 
+  // Lazy routes mean the entry is no longer the whole app. The rule is "only the
+  // worker may carry an engine", so check every app chunk: splitting the tool
+  // page into its own file must not let pdf-lib ride along unobserved. Chunks the
+  // worker itself imports are worker code, even when Vite gives them an
+  // `index.browser-*` name (pdfium is a dynamic import inside the worker).
+  const workerNames = allAssets.filter((name) => /^job-worker-.*\.js$/.test(name));
+  const workerImports = new Set();
+  for (const name of workerNames) {
+    const text = await readFile(path.join(DIST, 'assets', name), 'utf8');
+    for (const match of text.matchAll(/([A-Za-z0-9_.-]+\.js)/g)) workerImports.add(match[1]);
+  }
+  const appChunks = chunks.filter(
+    (name) => name !== entry && !workerNames.includes(name) && !workerImports.has(name),
+  );
+  const contaminated = [];
+  for (const name of appChunks) {
+    try {
+      const map = JSON.parse(await readFile(path.join(DIST, 'assets', `${name}.map`), 'utf8'));
+      const hits = (map.sources ?? []).filter((source) => ENGINE.test(source));
+      if (hits.length > 0) contaminated.push(`${name} (${hits.length})`);
+    } catch {
+      // No map for this chunk; skip.
+    }
+  }
+  check(
+    'no lazy app chunk carries a PDF engine',
+    contaminated.length === 0,
+    contaminated.join(', ') || `${appChunks.length} chunks, 0 engines`,
+  );
+
   // The engines should exist *somewhere* in the worker chunks; if they vanished
   // entirely the check above would pass for the wrong reason.
   const assets = await readdir(path.join(DIST, 'assets'));

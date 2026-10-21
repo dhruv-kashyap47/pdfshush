@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { ApiError, api } from '@/lib/api';
 
 export interface Account {
@@ -90,9 +91,7 @@ export function useAuthRedirectNotice(onSignedIn?: () => void): void {
 
     if (outcome === 'error') {
       const reason = params.get('reason') ?? 'signin_failed';
-      void import('sonner').then(({ toast }) => {
-        toast.error(AUTH_ERRORS[reason] ?? 'Sign-in failed. Please try again.');
-      });
+      toast.error(AUTH_ERRORS[reason] ?? 'Sign-in failed. Please try again.');
     } else {
       onSignedIn?.();
     }
