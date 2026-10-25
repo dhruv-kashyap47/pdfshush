@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-21
+**Last updated:** 2026-10-25
 
 ---
 
@@ -30,7 +30,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Plain-tools batch** | Ten client-side tools over the existing engine in one wave: flip, watermark, edit-metadata, remove-annotations, pdf-to-text, grayscale, resize, extract-images, split-by-size, flatten | ✅ **shipped 2026-10-20** — see §8 first entry |
 | **Next-tools batch** | Six more client-side tools off the same engine: unlock, JPG to PDF, rename, Bates numbering, split by text, compress | ✅ **shipped 2026-10-21** — see §8 first entry |
 | **AI access pass** | Groq BYOK (free tier), cost-tier tags, managed default → OpenRouter free models, plain-English first-run onboarding overlay with anime.js motion | ✅ **shipped 2026-10-21** — see §26 |
-| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ |
+| **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
+| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -53,7 +54,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-21 with the **next-tools batch shipped** (§8 first entry) on top
+**Current gate:** re-measured 2026-10-25 in the **P7.0 reconcile pass** (`pnpm test` + `pnpm typecheck`;
+the browser and Docker gates were not re-run). The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
 of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
@@ -68,10 +70,10 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1002/1002 unit** (**251 engine** · **197 API** · 364 provider · 152 agent · **19 web** — the web app's own
-unit suite covers the signature trim math, the MCP tool naming rule and the shared catalog reader ·
-**19 MCP**: parity pin, base-URL no-escape gate + origin-smuggling shapes, stdio E2E against a spawned
-binary) · browser E2E: full
+**1019/1019 unit** (**251 engine** · **208 API** · 370 provider · 152 agent · **19 web** ·
+**19 MCP**) — the API total rose by 11 in P7.0 (CSRF on logout and managed AI, the bounded
+`options` contract, input-token reservation, the shared AI lock, the result-type allowlist) ·
+browser E2E: full
 smoke (re-run 2026-10-21 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
 `/api/health` reports Redis down) + **plain-tools suite, 13/13 checks**
@@ -80,15 +82,15 @@ smoke (re-run 2026-10-21 with Redis up — no skips: the workflow *run* executes
 (`tests/e2e/next-tools.mjs`: decrypted PDF with no `/Encrypt` and its text intact, image-embedded
 PDF page count, renamed ZIP, stamped Bates numbers read back out of zlib streams, split parts,
 repack and a real raster compress) · **8/8 focused text-edit E2E** ·
-**17/17 AI E2E**
-(chat + highlight apply + in-place replacement + key-handling, local SSE mock; re-measured — 17, not
-the 18 previously recorded, all passing, so the drift came from the §23.6 AI-workspace consolidation
-rather than a lost assertion, but treat 18 as a contract worth confirming) · **11/11 managed AI
+**17/17 AI E2E in the seeded run** (chat + highlight apply + in-place replacement + key-handling,
+local SSE mock; the script carries **22** checks total — the extra five are the keyless
+welcome-overlay block, so the old "17 vs 18" note is resolved as a script-shape difference, not a
+lost assertion) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
 **17/17 sign E2E** (P6.1: dialog draw/save/adopt/place, export, audit note read back as JSON,
 manage page; `tests/e2e/sign.mjs`) ·
 **41 API smoke sections incl. the new §6 v1 flow** (section 6 in either mode: 503-when-disabled or
-the full key→submit→poll→download→revoke walk on the real stack, 2026-10-18) · 17/17 hardening · renderer hosts CMaps + standard fonts and forces
+the full key→submit→poll→download→revoke walk on the real stack, 2026-10-18) · **17/17 hardening** · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
 **genuine in-place text editing shipped end to end (§22; AI replacements now use it too, §23.7.2)** ·
@@ -100,13 +102,12 @@ export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
 0 pdf.js / 0 pdfium / 0 `signature_pad` / 0 Caveat, enforced by the extended `pnpm test:bundle`
 (PDFium is a lazy 4.6 MB asset fetched on first text edit; `signature_pad` + the bundled Caveat
 faces ride the 33 kB lazy signature-pad dialog chunk).
-**Next: P7 — hardening/torture suite (adversarial fixtures, SEO prerender, perf/a11y). P6.0 through
-P6.4 are all done** (P6.4 code 2026-10-19: the rotation drill, the v1 multipart sniff matrix, the
-fixed base-URL smuggle class, and the recorded SSRF/signing/vector reviews — §25.4/§25.5).
-R2 stays
+**Next: P7.1 — the adversarial torture suite.** P7.0 (2026-10-25) closed the cheap §24.5 backlog
+and added CI; the remaining P7 work is the fixture corpus + abuse gate (P7.1), SEO prerender
+(P7.2) and the perf/a11y pass (P7.3). R2 stays
 deferred until R1 is proven in production, and P4.4 triggers stay gated on the SSRF/scheduling design.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
-rooted-tree silent-loop pair (§8 top entry), gated by typecheck, a fresh production build, the
+rooted-tree silent-loop pair (§8, 2026-10-18 entry), gated by typecheck, a fresh production build, the
 881-test unit run and targeted browser inspection, not a new measurement of the E2E counts above.
 *(2026-10-18 addendum 2:)* the landing hero and AI band were replaced by the premium rework with the
 anime.js motion system, gated by typecheck, the 897-test unit run, a fresh build and a screenshot
@@ -616,6 +617,54 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-25 — P7.0: the §24.5 low backlog closed, managed AI metered on input, CI added.**
+  A reconcile pass before P7.1, so the auth and budget findings did not wait behind the torture
+  suite.
+
+  **CSRF, one implementation (L1, L2).** `http/csrf.ts` now owns the double-submit check and the
+  cookie names live in `auth/cookies.ts`; the account routes, API-key routes, logout and managed
+  AI all read one helper, so no surface can drift back to a length-only comparison. `POST
+  /api/auth/logout` with a session cookie but no matching header is **403 and the session
+  survives** (a cross-site page can send the cookie, not read it). `/api/ai/chat` requires the
+  same header **whenever a session cookie is present**, so a cross-site call cannot spend the
+  signed-in account's trial; anonymous calls have no session to protect and stay IP/rate
+  metered. The SPA already echoed the header on both calls, so no client change was needed.
+
+  **Bounded `options` (L4).** The shared contract walks the record before the queue sees it:
+  **8 levels deep, 64 keys per object, 1024 values total**, keys ≤ 128 chars. `/api/jobs`
+  multipart and `/api/v1` inline JSON both reject a violation with 400
+  ("nested too deeply" / "too many keys"), and the MCP tool shapes inherit the schema.
+  Legitimate tool options are an order of magnitude under every bound.
+
+  **Managed-AI budget (L7, L8).** `reserve()` takes the turn's prompt estimate and reserves
+  output ceiling + prompt together; `settle()` adjusts against that actual reservation. The
+  estimate is chars/4 over system, message text/reasoning and tool schemas, plus a **flat 1,500
+  tokens per image** — base64 must not be billed as text. `AiConcurrencyGuard` now also takes a
+  per-subject counter slot (`ai:<subject>:live`, 300 s TTL, undone on release), so the one-turn
+  rule holds across API instances; a counter outage degrades to the per-process set and the
+  daily budget remains the backstop.
+
+  **Result types (L5).** `.html` left the allowlist. No job emits it; a stored name ending in
+  `.html` now downloads as `application/octet-stream`.
+
+  **CI.** `.github/workflows/ci.yml` runs `pnpm typecheck`, `pnpm test`, `pnpm build` and
+  `pnpm test:bundle` on every push and PR, with the pnpm version read from `packageManager`.
+  The Docker/Redis gates are deliberately out: a green CI run does not claim they passed, and
+  §9 says so.
+
+  **Docs reconciled.** README reports the real surface (38 of 57 tools, P6 shipped, 1008 tests)
+  instead of the P6.0-era 18/862 text. §1/§9 use one unit total: **1019** (251 engine + 208 API
+  + 370 provider + 152 agent + 19 web + 19 MCP; the old 1002 did not match its own breakdown).
+  The AI E2E figure is explained rather than guessed: 17 seeded checks plus 5 keyless-overlay
+  checks = 22 in the script. Hardening is 17 checks everywhere. **L3 and L9 were verified
+  already closed** (413 mapping in `http/app.ts`; `ownsJob` is used by `/api/v1` ownership).
+
+  **Gates.** `pnpm test` **1019/1019** · `pnpm typecheck` clean · API suite **208** (+11: logout
+  CSRF, AI CSRF in both directions, input reservation, prompt estimator, shared guard, deep and
+  wide `options`, `/api/v1` options, the content-type map) · MCP 19/19. The browser E2E suites,
+  `test:api` and `test:hardening` were **not** re-run in this pass (no stack was up); the next
+  session should run them before a release.
 
 - **2026-10-21 (later) — Landing hero theme polish and MCP CTA terminal cue.**
 
@@ -1657,14 +1706,14 @@ never actually wired, and a stream with no error listener.*
 ```bash
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
-pnpm typecheck        # strict tsc, all five packages
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web (1002 tests)
+pnpm typecheck        # strict tsc, all seven workspace projects
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1019 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
-pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (18 checks)
+pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (17 seeded checks; the script also carries 5 keyless-overlay checks)
 pnpm test:e2e:ai-managed # managed trial through the real API routes, in-memory counters (11 checks)
 pnpm test:bundle      # after `pnpm build`: entry chunk must carry no PDF engine
 pnpm test:sweep       # responsive sweep (not a gate): overflow, reveal + size/contrast outliers
@@ -1673,10 +1722,15 @@ pnpm stack:up         # docker compose up -d --build (redis + api + worker)
 pnpm stack:down       # docker compose down
 pnpm test:api         # 21 checks against a running stack on :8080
 pnpm test:hardening   # 17 checks: SIGKILL a worker mid-job, prove the pipeline holds
-pnpm --filter @pdfshush/mcp test        # parity + no-escape + spawned-stdio E2E (18 checks)
+pnpm --filter @pdfshush/mcp test        # parity + no-escape + spawned-stdio E2E (19 checks)
 pnpm --filter @pdfshush/mcp dev         # run the stdio server locally against the stack
 pnpm --filter @pdfshush/mcp build       # single-file dist/bin.js (bundled contracts)
 ```
+
+CI (`.github/workflows/ci.yml`) runs typecheck, `pnpm test`, `pnpm build` and `pnpm test:bundle`
+on every push and pull request. It deliberately excludes the gates that need Docker/Redis --
+`test:api`, `test:hardening` and the browser suites -- so a green CI run is **not** a claim
+that those passed.
 
 Docker Desktop's CLI is **not on the session PATH** by default — a per-user install lands in
 `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin\docker.exe` (no shell expands `$env`).
@@ -1697,17 +1751,19 @@ back-to-back quota-consuming runs (smoke → hardening) leave the anonymous day 
 spent — `docker compose restart redis` resets them. *(2026-10-18 addendum: Docker's server **is**
 on PATH now — `docker compose up -d --build` works directly from the session.)*
 
-**Next move:** **P7 — the hardening/torture suite** (adversarial fixtures, SEO prerender, perf/a11y)
-is the only unshipped phase. The 2026-10-21 next-tools batch (§8 first entry) raised the catalog to
-38 of 57 live tools with the engine at 251 tests and its own E2E; the 2026-10-20 plain-tools batch
-before it added ten more tools and the first dedicated tool suite.
-**P6.3, the MCP server, has shipped** (`@pdfshush/mcp`, §25.4 with all four gates
-met): stdio server over `/api/v1` with the user's own key, one tool per server-runnable slug built
-from `@pdfshush/api-contracts` (the §25.3 zod contracts, now a shared package read by the API via
-two re-export shims), `pdfshush://tools` + `pdfshush://guide/<slug>` resources, `/tools/mcp` docs
-page live, attribution in `licenses/pdfshush-mcp-donor-NOTICE.txt`. **The next build step is P6.4,
-the hardening pass over the new surface** (§25.5: key abuse, signing abuse, MCP/URL SSRF review,
-M2-style stream sniff; folds findings into P7). P6.0–P6.3 are done; R1 has shipped — secure
+**Next move:** **P7.1 — the adversarial torture suite** (malformed/encrypted/broken-font fixtures,
+10k-page files, interrupted jobs, cleanup verification), then P7.2 SEO prerender and P7.3 perf/a11y.
+**P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
+L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
+The 2026-10-21 next-tools batch (§8) left the catalog at 38 of 57 live tools with the engine at
+251 tests and its own E2E; the 2026-10-20 plain-tools batch added ten more and the first
+dedicated tool suite.
+**P6.4, the hardening pass, has shipped** (§25.5: rotation drill, v1 multipart-sniff matrix,
+the base-URL smuggle class fixed and pinned, SSRF/signing reviews recorded); **P6.3, the MCP
+server, shipped** (`@pdfshush/mcp`, §25.4): stdio server over `/api/v1` with the user's own key,
+one tool per server-runnable slug built from `@pdfshush/api-contracts`, `pdfshush://tools` +
+`pdfshush://guide/<slug>` resources, `/tools/mcp` docs page live, attribution in
+`licenses/pdfshush-mcp-donor-NOTICE.txt`. R1 has shipped — secure
 redaction is live as `redact-pdf` (§20), verified on
 the exported artifact, with the browser E2E asserting the downloaded bytes. R2 (native text-level
 redaction) stays deliberately deferred until R1 is proven in production (§20.3), and **P4.4**
@@ -3162,20 +3218,21 @@ redaction (not before R1 is proven in production, §20.3). P6 does not depend on
 | M1 | Med | a proxy IP collapses quota + AI budget + AI concurrency | boot warning when production trusts no hop (`http/trust-proxy.ts`) | P6.9 — done |
 | M2 | Med | uploads are extension-checked only | sniff `%PDF-` from the upload stream before enqueue | P6.9 — done |
 | M3 | Med | parallel uploads bypass the byte quota until `consume` | `reserveUpload`/`settleUpload` before streaming | P6.9 — done |
-| L1 | Low | `POST /api/auth/logout` not CSRF-checked | add the token check or document the Lax reliance | P7 |
-| L2 | Low | `/api/ai/chat` cross-site can burn a victim IP's trial | require the CSRF header when a cookie is present | P7 |
-| L3 | Low | oversized JSON body → 500, not 413 | map `entity.too.large` in `errorHandler` | P7 |
-| L4 | Low | unbounded `options` record (nested depth/keys) | bound structurally in `payloadSchema` | P7 |
-| L5 | Low | `text/html` entry in the result content-type map | drop it (no job emits `.html`) | P7 |
+| L1 | Low | `POST /api/auth/logout` not CSRF-checked | token check in the route (shared `http/csrf.ts`); cookie-only POST is 403 | **P7.0 — done 2026-10-25** |
+| L2 | Low | `/api/ai/chat` cross-site can burn a victim IP's trial | CSRF header required whenever a session cookie is present | **P7.0 — done 2026-10-25** |
+| L3 | Low | oversized JSON body → 500, not 413 | `entity.too.large` → 413 already mapped in `http/app.ts` | **closed 2026-10-25 (verified, no code change needed)** |
+| L4 | Low | unbounded `options` record (nested depth/keys) | structural bounds in `@pdfshush/api-contracts` (8 deep, 64 keys/object, 1024 values), used by `/api/jobs` and `/api/v1` | **P7.0 — done 2026-10-25** |
+| L5 | Low | `text/html` entry in the result content-type map | dropped; `.html` falls through to `application/octet-stream` | **P7.0 — done 2026-10-25** |
 | L6 | ✅ **closed 2026-10-18 (P6.2)** | logger redaction omits `cookie`/`apiKey`/`x-job-token` | extend the redact list | ~~P7~~ done in P6.2 (§25.3) |
-| L7 | Low | AI budget reserves output tokens only | reserve an input estimate too | P7 |
-| L8 | Low | AI concurrency guard is per-process | note for multi-instance, or move to Redis | P7 |
-| L9 | Low | `AccountStore.ownsJob` is dead code | delete it, or use it as the record | P7 |
+| L7 | Low | AI budget reserves output tokens only | input estimate (chars/4 + flat per image) reserved and settled | **P7.0 — done 2026-10-25** |
+| L8 | Low | AI concurrency guard is per-process | per-subject counter slot (300 s TTL) alongside the in-process set; degrades to per-process on a counter outage | **P7.0 — done 2026-10-25** |
+| L9 | Low | `AccountStore.ownsJob` is dead code | **not dead**: `/api/v1` ownership calls it (`http/v1/routes.ts`) | **closed 2026-10-25 (verified)** |
 | — | Low | **fixed in this review:** `redactSecrets` gaps (client) and the raw managed-gateway error (server) | §24.2 | done |
 
 **Order:** **P6.9 hardening — done 2026-10-17** · **P6.0 decision record — done 2026-10-18**
 (§25.1) → **P6.1 e-sign — done 2026-10-18** → **P6.2 public API — done 2026-10-18** (§25.3) →
-P6.3 MCP. Next is **P6.3**.
+**P6.3 MCP — done 2026-10-19** → **P6.4 hardening — done 2026-10-19** → **P7.0 reconcile — done
+2026-10-25**. The §24.5 low backlog is closed; P7.1 (torture suite) is next.
 
 ---
 
@@ -3334,7 +3391,7 @@ slice as a small dedicated page).
 **Also:** NOTICE attribution in `licenses/`; registry flips `fill-sign` (+ `signature`) to live;
 smoke suite gains the fill-sign section.
 
-> **Shipped 2026-10-18 (see §8 top entry for the full record):** everything in the Capture,
+> **Shipped 2026-10-18 (see the §8 entry for 2026-10-18 for the full record):** everything in the Capture,
 > Placement, Export(raster) and Audit-note bullets plus the unit / browser E2E / bundle gates —
 > trim math, store CRUD + cap, sanitizer (unit), real-stroke browser E2E (`tests/e2e/sign.mjs`,
 > 17/17), `test:bundle` extended (0 pad modules in main; pad + Caveat in the 33 kB lazy chunk).
@@ -3521,10 +3578,10 @@ character class above, fixed + tested) and turned four reviews and one drill int
 ### 25.6 Order
 
 1. **P6.0 — done 2026-10-18** (§25.1: the record is written; D1–D8 stand).
-2. **P6.1 — done 2026-10-18** (code shipped, gates green; §8 top entry. Raster export ships; the
+2. **P6.1 — done 2026-10-18** (code shipped, gates green; §8 entry for 2026-10-18. Raster export ships; the
    vector path remains behind the §25.2 flag until its round-trip test is written — revisit within
    P6.4's window or drop it explicitly rather than leaving it silently open).
-3. **P6.2 — done 2026-10-18** (code shipped, all six §25.3 gates met, §8 top entry) →
+3. **P6.2 — done 2026-10-18** (code shipped, all six §25.3 gates met, §8 entry for 2026-10-18) →
    **P6.3 — done 2026-10-19** (`@pdfshush/api-contracts` + `@pdfshush/mcp` + `/tools/mcp`; §25.4
    gates all green, §8 entry).
 4. **P6.4 — done 2026-10-19** (§25.5: rotation drill + multipart-sniff matrix as tests, the

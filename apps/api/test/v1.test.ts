@@ -616,6 +616,27 @@ describe('inline JSON submissions', () => {
     expect(wrongSlug.status).toBe(400);
   });
 
+  it('refuses structurally unbounded inline options', async () => {
+    const h = await harness();
+    const key = await body<{ token: string }>(await h.createKey());
+    let nested: Record<string, unknown> = { leaf: true };
+    for (let depth = 0; depth < 12; depth += 1) nested = { nested };
+
+    const response = await h.v1('/jobs', {
+      method: 'POST',
+      apiKey: key.token,
+      body: JSON.stringify({
+        slug: 'inspect',
+        options: nested,
+        files: [{ name: 'a.pdf', data: (await samplePdf()).toString('base64') }],
+      }),
+    });
+    expect(response.status).toBe(400);
+    const payload = (await body(response)) as { code: string; error: string };
+    expect(payload.code).toBe('validation_failed');
+    expect(payload.error).toContain('nested too deeply');
+  });
+
   it('dedupes inline names that sanitise to the same basename', async () => {
     const h = await harness();
     const key = await body<{ token: string }>(await h.createKey());

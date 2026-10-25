@@ -17,8 +17,8 @@ import { validateWorkflow, type Workflow } from '@pdfshush/pdf-core/node';
 import type { AccountStore } from './store.js';
 import { MAX_WORKFLOWS } from './store.js';
 import type { Account, AuthStore } from '../auth/store.js';
-import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE, safeReturnTo } from '../auth/routes.js';
-import { tokensMatch } from '../quota/quota.js';
+import { CSRF_COOKIE, SESSION_COOKIE, safeReturnTo } from '../auth/routes.js';
+import { readCookie, requireCsrf } from '../http/csrf.js';
 import type { JobQueue } from '../jobs/queue.js';
 
 export interface AccountRoutesDeps {
@@ -52,10 +52,6 @@ function view(account: Account): AccountView {
   };
 }
 
-function readCookies(request: Request): Record<string, unknown> {
-  return (request as Request & { cookies?: Record<string, unknown> }).cookies ?? {};
-}
-
 export function registerAccountRoutes(app: Express, deps: AccountRoutesDeps): void {
   const unavailable = (response: Response) =>
     response.status(503).json({ error: 'Accounts are not enabled on this deployment.', code: 'auth_disabled' });
@@ -69,35 +65,13 @@ export function registerAccountRoutes(app: Express, deps: AccountRoutesDeps): vo
       unavailable(response);
       return undefined;
     }
-    const token = readCookies(request)[SESSION_COOKIE];
-    const account = typeof token === 'string' ? await deps.auth.resolveSession(token) : undefined;
+    const token = readCookie(request, SESSION_COOKIE);
+    const account = token ? await deps.auth.resolveSession(token) : undefined;
     if (!account) {
       response.status(401).json({ error: 'Sign in required.', code: 'unauthenticated' });
       return undefined;
     }
     return account;
-  };
-
-  const requireCsrf = (request: Request, response: Response): boolean => {
-    const cookies = readCookies(request);
-    const expected = cookies[CSRF_COOKIE];
-    const supplied = request.header(CSRF_HEADER);
-    // A real value comparison, in constant time.
-    //
-    // This used to compare *lengths only*, which let any string of the right
-    // size through -- so the token that exists to stop a cross-site write
-    // stopped nothing at all. `tokensMatch` hashes nothing and leaks nothing:
-    // it length-checks first and then uses `timingSafeEqual`, so a wrong-length
-    // input cannot throw inside the comparison.
-    if (
-      typeof expected !== 'string' ||
-      typeof supplied !== 'string' ||
-      !tokensMatch(supplied, expected)
-    ) {
-      response.status(403).json({ error: 'Missing or invalid CSRF token.', code: 'csrf' });
-      return false;
-    }
-    return true;
   };
 
   /** Sessions, preferences, history counts -- what the account page opens with. */

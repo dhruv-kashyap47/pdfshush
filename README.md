@@ -8,7 +8,7 @@ run **client-side in a Web Worker**, so your files never leave your device. Heav
 (OCR, compression, Office conversion) will run on bounded server workers with anonymous
 quotas, through the exact same job contract.
 
-## Status: Phase 1-5 Shipped (18 client-side tools + the server stack)
+## Status: Phases 0-6 shipped (38 live tools + the server stack)
 
 > **Plan, decisions & progress tracker: [`PLAN.md`](./PLAN.md)** — read this first when
 > resuming work; it is updated at the end of every session.
@@ -18,12 +18,15 @@ quotas, through the exact same job contract.
 | `packages/pdf-core` | ✅ Environment-agnostic engine: jobs, limits, merge/compose/render/zip/stamp/split/n-up/edit, **in-place text editing (PDFium) with verified overlay fallback**, OffscreenCanvas worker factory, CMap/standard font support |
 | `packages/ai-provider` | ✅ BYOK + managed streaming, curated provider catalogue, budgeted context window |
 | `packages/ai-agent` | ✅ Tool-calling agent: edit plans and redaction proposals, bounded turns, cancellation |
+| `packages/api-contracts` | ✅ The one zod contract shared by `/api/v1`, the OpenAPI document and the MCP tool shapes |
 | `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu, web worker pool, AI workspace |
-| `apps/api` | ✅ Express + Redis + BullMQ sandboxed worker + TTL janitor, plus an optional managed-AI gateway |
-| Live tools (18) | ✅ Merge, Organize, PDF → JPG, Delete Pages, Extract Pages, Rotate, Split by pages, Alternate & Mix, Split in half, Page Numbers, Crop, Header & Footer, N-up, Edit PDF, **Redact PDF (verified)**, Summarize, Chat with PDF, Edit PDF with AI |
+| `apps/api` | ✅ Express + Redis + BullMQ sandboxed worker + TTL janitor, public `/api/v1`, optional managed-AI gateway |
+| `apps/mcp` | ✅ `@pdfshush/mcp`: stdio MCP server over the public API, one tool per server-runnable slug |
+| Live tools (38 of 57) | ✅ Merge, Organize, PDF → JPG, Delete/Extract/Rotate/Split, Alternate & Mix, N-up, Page Numbers, Crop, Header & Footer, Edit PDF, **Fill & Sign**, Signature, **Redact PDF (verified)**, Watermark, Flip, Grayscale, Resize, Edit Metadata, Remove Annotations, PDF → Text, Extract Images, Split by size/text, Flatten, Unlock, JPG → PDF, Rename, Bates Numbering, Compress, and Summarize / Chat / Edit with AI. The `api` and `mcp` catalog entries are live docs pages |
 | Accounts (P4) | ✅ Google sign-in; every tool stays anonymous-only when no Mongo/Google config is present |
 | AI (P5) | ✅ BYOK keys never leave the browser; 21 providers incl. **Groq** (permanently free tier) with a first-run onboarding overlay; the managed trial runs on OpenRouter free models and is off unless `AI_MANAGED_API_KEY` is set (model defaults to the strongest live `:free` id) |
-| E-sign / public API / MCP (P6) | ⏳ Planned |
+| E-sign / public API / MCP (P6) | ✅ Fill & Sign with a fail-closed audit sidecar; `/api/v1` with scoped keys; `@pdfshush/mcp` stdio server; P6.4 hardening (rotation drill, multipart sniff, base-URL smuggle class) |
+| P7 — hardening | ⏳ Next: adversarial torture suite, SEO prerender, perf/a11y pass |
 
 Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an
 honest "in development" state so links and SEO never churn.
@@ -34,7 +37,7 @@ honest "in development" state so links and SEO never churn.
 pnpm install
 pnpm dev              # web app: http://localhost:5173 (every client-side tool + BYOK AI)
 pnpm typecheck        # tsc across all workspace projects
-pnpm test             # vitest unit suite (862 tests)
+pnpm test             # vitest unit suites (1019 tests across six packages)
 pnpm build            # production web bundle
 ```
 
@@ -72,11 +75,21 @@ pnpm stack:down                     # stop the Docker stack
 
 ```bash
 pnpm test:e2e          # Playwright suite against a running dev server (101 checks)
-pnpm test:e2e:ai       # AI workspace, mocked provider (18 checks)
-pnpm test:bundle       # main-chunk boundary: no pdf-lib / pdf.js / pdfium, no Node built-ins
-pnpm test:api          # API integration suite (21 checks)
-pnpm test:hardening    # Hardening gate (SIGKILL recovery, TTL sweep)
+pnpm test:e2e:sign     # Fill & Sign flow (17 checks)
+pnpm test:e2e:text-edit # in-place text editing (8 checks)
+pnpm test:e2e:ai       # AI workspace, mocked provider (17 checks)
+pnpm test:e2e:ai-managed # managed trial through the real API routes (11 checks)
+pnpm test:e2e:plain-tools # ten client-side tools, magic-byte asserts (13 checks)
+pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
+pnpm test:bundle       # every app chunk: no pdf-lib / pdf.js / pdfium, no Node built-ins
+pnpm test:api          # API integration suite (21 checks, needs the Docker stack)
+pnpm test:hardening    # hardening gate: SIGKILL recovery, TTL sweep (17 checks, needs the stack)
+pnpm --filter @pdfshush/mcp test # MCP parity + no-escape + spawned stdio E2E (19 checks)
 ```
+
+CI runs the gates that need no stack (typecheck, unit, build, bundle boundary) on every
+push and pull request. The stack-dependent gates above still run locally; a green CI run
+does not claim they passed.
 
 Requirements: Node ≥ 20.19 and pnpm 12 (`corepack enable pnpm`); Docker Desktop only for
 the server stack.

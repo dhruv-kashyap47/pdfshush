@@ -16,7 +16,8 @@ import { z } from 'zod';
 import type { AgentMessage, AgentToolDef } from '@pdfshush/ai-agent';
 import { redactSecrets, streamForProvider, type AiProviderId } from '@pdfshush/ai-provider';
 import type { Logger } from '../logger.js';
-import { AiBudgetService, AiConcurrencyGuard } from './budget.js';
+import { AiBudgetService, AiConcurrencyGuard, estimateInputTokens } from './budget.js';
+import { hasSessionCookie, requireCsrf } from '../http/csrf.js';
 
 export interface AiRoutesDeps {
   enabled: boolean;
@@ -102,6 +103,12 @@ export function registerAiRoutes(app: Express, deps: AiRoutesDeps): void {
         return;
       }
 
+      // A call that carries the session cookie is spending that account's
+      // allowance, so it must prove same-origin intent like every other
+      // cookie-authenticated write. Anonymous calls have no cookie to protect;
+      // they are metered by IP and rate, not by session.
+      if (hasSessionCookie(request) && !requireCsrf(request, response)) return;
+
       const parsed = bodySchema.safeParse(request.body);
       if (!parsed.success) {
         response.status(400).json({
@@ -113,8 +120,11 @@ export function registerAiRoutes(app: Express, deps: AiRoutesDeps): void {
 
       const authenticated = await deps.isAuthenticated(request).catch(() => false);
       const subject = deps.subjectFor(request);
+      // Output is capped by maxOutputTokens; the prompt is charged too, so a
+      // huge input cannot ride on a small output reservation.
+      const inputTokens = estimateInputTokens(parsed.data);
 
-      if (!deps.concurrency.acquire(subject)) {
+      if (!(await deps.concurrency.acquire(subject))) {
         response.status(409).json({
           error: 'An AI request is already running for this client.',
           code: 'ai_busy',
@@ -123,15 +133,17 @@ export function registerAiRoutes(app: Express, deps: AiRoutesDeps): void {
       }
 
       let reserved = false;
+      let reservedTokens = 0;
       let usedTokens: number | undefined;
       try {
-        const verdict = await deps.budget.reserve(subject, authenticated);
+        const verdict = await deps.budget.reserve(subject, authenticated, inputTokens);
         if (!verdict.allowed) {
           response.setHeader('Retry-After', String(verdict.retryAfterSeconds));
           response.status(429).json({ error: verdict.reason, code: 'ai_budget' });
           return;
         }
         reserved = true;
+        reservedTokens = verdict.reservedTokens ?? 0;
 
         const controller = new AbortController();
         request.on('close', () => controller.abort());
@@ -181,12 +193,12 @@ export function registerAiRoutes(app: Express, deps: AiRoutesDeps): void {
       } finally {
         if (reserved) {
           await deps.budget
-            .settle(subject, usedTokens)
+            .settle(subject, usedTokens, reservedTokens)
             .catch((error: unknown) =>
               deps.logger.warn({ error: String(error) }, 'could not settle ai budget'),
             );
         }
-        deps.concurrency.release(subject);
+        await deps.concurrency.release(subject);
       }
     },
   );

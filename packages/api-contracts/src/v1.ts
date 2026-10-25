@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { MAX_UPLOAD_FILES, SERVER_SLUGS, JOB_ERROR_CODES } from './jobs.js';
+import { MAX_UPLOAD_FILES, SERVER_SLUGS, JOB_ERROR_CODES, optionsSchema } from './jobs.js';
 
 /**
  * Scopes an API key may hold. Plan decision D5: no AI scope by design -- the
@@ -27,7 +27,7 @@ export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
 export const apiCreateJobSchema = z.object({
   slug: z.enum(SERVER_SLUGS),
   password: z.string().max(256).optional(),
-  options: z.record(z.string(), z.unknown()).optional(),
+  options: optionsSchema,
   files: z
     .array(
       z.object({

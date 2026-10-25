@@ -21,7 +21,6 @@ const CONTENT_TYPES: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.txt': 'text/plain; charset=utf-8',
   '.csv': 'text/csv; charset=utf-8',
-  '.html': 'text/html; charset=utf-8',
 };
 
 /**

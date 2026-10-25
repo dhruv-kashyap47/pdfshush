@@ -10,14 +10,12 @@
 import type { Express, Request, Response } from 'express';
 import { GoogleOidc, GoogleOidcError, codeChallengeFor, randomToken } from './google.js';
 import type { AuthStore } from './store.js';
+import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE } from './cookies.js';
+import { readCookie, requireCsrf } from '../http/csrf.js';
 
-export const SESSION_COOKIE = 'pdfshush_session';
-/**
- * Double-submit CSRF token. Readable by design -- the SPA has to echo it back in
- * `CSRF_HEADER`, which is exactly what a cross-site attacker cannot do.
- */
-export const CSRF_COOKIE = 'pdfshush_csrf';
-export const CSRF_HEADER = 'x-csrf-token';
+// Re-exported here because this module is the auth surface's public entry point
+// for the SPA/tests; the values themselves live in `./cookies.js`.
+export { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE };
 
 /** Only ever a same-origin path: `//evil.com` and `https://evil.com` are not. */
 export function safeReturnTo(value: unknown): string {
@@ -177,6 +175,12 @@ export function registerAuthRoutes(app: Express, deps: AuthRoutesDeps): void {
     }
     const token = readSessionCookie(request);
     if (token) {
+      // Logging out revokes a live session, so a cookie alone must not be
+      // enough: a cross-site POST would otherwise be able to sign the victim
+      // out. The SPA already sends the double-submit header on every
+      // state-changing call; a caller without it gets 403 and keeps its
+      // session, which is the safe failure direction.
+      if (!requireCsrf(request, response)) return;
       await deps.store.revokeSession(token).catch((error: unknown) => {
         deps.logger.error({ error: String(error) }, 'could not revoke the session');
       });
@@ -188,7 +192,5 @@ export function registerAuthRoutes(app: Express, deps: AuthRoutesDeps): void {
 }
 
 function readSessionCookie(request: Request): string {
-  const jar = (request as Request & { cookies?: Record<string, unknown> }).cookies;
-  const value = jar?.[SESSION_COOKIE];
-  return typeof value === 'string' ? value : '';
+  return readCookie(request, SESSION_COOKIE);
 }

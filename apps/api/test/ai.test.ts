@@ -13,10 +13,11 @@ import type { Server } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/http/app.js';
 import { createContext, type ApiContext } from '../src/context.js';
+import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE } from '../src/auth/routes.js';
 import { WorkDirStore } from '../src/files/store.js';
 import { MemoryQuotaStore } from '../src/quota/store.js';
 import { subjectId } from '../src/quota/quota.js';
-import { AiBudgetService, AiConcurrencyGuard } from '../src/ai/budget.js';
+import { AiBudgetService, AiConcurrencyGuard, estimateInputTokens } from '../src/ai/budget.js';
 import type { CancelOutcome, JobQueue } from '../src/jobs/queue.js';
 import type { JobPayload, JobStateSnapshot } from '../src/jobs/payload.js';
 
@@ -101,16 +102,59 @@ describe('AiBudgetService', () => {
     await service.settle('s', undefined);
     expect(await store.read('ai:s:tok:d')).toBe(100);
   });
+
+  it('reserves the input estimate on top of the output ceiling', async () => {
+    const store = new MemoryQuotaStore();
+    const service = new AiBudgetService(store, { ...LIMITS, perMinute: 100 });
+    const verdict = await service.reserve('s', true, 40);
+    expect(verdict.allowed).toBe(true);
+    expect(verdict.reservedTokens).toBe(140);
+    expect(await store.read('ai:s:tok:d')).toBe(140);
+    // The provider billed 70 prompt + 15 completion: settle to the real total,
+    // not to the output-only reservation.
+    await service.settle('s', 85, 140);
+    expect(await store.read('ai:s:tok:d')).toBe(85);
+  });
+
+  it('estimates the prompt from text, tools and images', () => {
+    expect(estimateInputTokens({ system: '', messages: [] })).toBe(0);
+    // 400 chars of text at ~4 chars/token, plus one image's flat charge.
+    const estimate = estimateInputTokens({
+      system: 's'.repeat(200),
+      messages: [{ text: 'm'.repeat(200), images: [{}, {}] }],
+      tools: [{ name: 'x' }],
+    });
+    expect(estimate).toBeGreaterThanOrEqual(100 + 2 * 1_500);
+    // The base64 payload of an image must not be charged as text tokens.
+    const withImage = estimateInputTokens({
+      system: '',
+      messages: [{ images: [{ base64: 'A'.repeat(1_000_000) }] }],
+    });
+    expect(withImage).toBeLessThan(2_000);
+  });
 });
 
 describe('AiConcurrencyGuard', () => {
-  it('admits one turn per subject at a time', () => {
+  it('admits one turn per subject at a time', async () => {
     const guard = new AiConcurrencyGuard();
-    expect(guard.acquire('a')).toBe(true);
-    expect(guard.acquire('a')).toBe(false);
-    expect(guard.acquire('b')).toBe(true);
-    guard.release('a');
-    expect(guard.acquire('a')).toBe(true);
+    expect(await guard.acquire('a')).toBe(true);
+    expect(await guard.acquire('a')).toBe(false);
+    expect(await guard.acquire('b')).toBe(true);
+    await guard.release('a');
+    expect(await guard.acquire('a')).toBe(true);
+  });
+
+  it('shares the one-turn rule across instances through the counter store', async () => {
+    const counters = new MemoryQuotaStore();
+    const first = new AiConcurrencyGuard(counters);
+    const second = new AiConcurrencyGuard(counters);
+    expect(await first.acquire('subject')).toBe(true);
+    // A different process holds no in-memory entry; the counter is what stops it.
+    expect(await second.acquire('subject')).toBe(false);
+    await first.release('subject');
+    expect(await second.acquire('subject')).toBe(true);
+    await second.release('subject');
+    expect(await counters.read('ai:subject:live')).toBe(0);
   });
 });
 
@@ -188,6 +232,45 @@ describe('POST /api/ai/chat', () => {
       body: JSON.stringify({ system: 's', messages: [] }),
     });
     expect(response.status).toBe(400);
+  });
+
+  it('refuses a cookie-bearing call without the CSRF header, before spending the key', async () => {
+    const provider = vi.fn(async () => new Response(sseBody(), { status: 200 }));
+    vi.stubGlobal('fetch', provider);
+    const { url } = await harness({ enabled: true, model: 'm', apiKey: 'k' });
+
+    const response = await httpFetch(url('/api/ai/chat'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE}=session-value`,
+      },
+      body: JSON.stringify({ system: 's', messages: [{ role: 'user', text: 'hi' }] }),
+    });
+    expect(response.status).toBe(403);
+    expect(((await response.json()) as { code: string }).code).toBe('csrf');
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('accepts a cookie-bearing call that echoes the CSRF cookie', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(sseBody(), { status: 200, headers: { 'content-type': 'text/event-stream' } })),
+    );
+    const { url } = await harness({ enabled: true, model: 'm', apiKey: 'k' });
+    const csrf = 'csrf-value';
+
+    const response = await httpFetch(url('/api/ai/chat'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `${SESSION_COOKIE}=session-value; ${CSRF_COOKIE}=${csrf}`,
+        [CSRF_HEADER]: csrf,
+      },
+      body: JSON.stringify({ system: 's', messages: [{ role: 'user', text: 'hi' }] }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('event: done');
   });
 
   it('streams provider events and settles the budget to the reported usage', async () => {

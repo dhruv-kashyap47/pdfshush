@@ -247,7 +247,7 @@ export function createApp(context: ApiContext): Express {
       perMinute: context.config.ai.perMinute,
       reserveTokens: context.config.ai.maxOutputTokens,
     }),
-    concurrency: new AiConcurrencyGuard(),
+    concurrency: new AiConcurrencyGuard(context.counters),
     subjectFor: (request) => subjectFor(request, context),
     isAuthenticated: async (request) => Boolean(await currentAccount(request, context)),
     logger: context.logger,

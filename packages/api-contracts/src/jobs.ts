@@ -35,7 +35,74 @@ export const SERVER_SLUGS = [
   'edit',
 ] as const;
 
-const optionsSchema = z.record(z.string(), z.unknown()).optional();
+const MAX_OPTION_KEY_LENGTH = 128;
+/** Keys allowed on any one object in `options`. */
+export const MAX_OPTION_KEYS = 64;
+/** Container nesting allowed in `options` (the top-level object is depth 1). */
+export const MAX_OPTION_DEPTH = 8;
+/** Total values (keys, array entries, primitives) accepted in `options`. */
+export const MAX_OPTION_NODES = 1024;
+
+/**
+ * Structural verdict for a free-form `options` value.
+ *
+ * Tools own their option shapes, so this cannot be a closed schema; but it must
+ * not be an open door either. Without a bound, one request can hand the queue a
+ * deeply nested / very wide object that every downstream reader has to walk.
+ * The limits are generous by an order of magnitude over any shipped tool.
+ */
+export function optionsProblem(value: unknown): string | undefined {
+  let nodes = 0;
+  const containers = new Set<object>();
+
+  const walk = (node: unknown, depth: number): string | undefined => {
+    nodes += 1;
+    if (nodes > MAX_OPTION_NODES) {
+      return `The "options" field is too large (limit ${MAX_OPTION_NODES} values).`;
+    }
+    if (node === null || typeof node !== 'object') return undefined;
+    if (depth > MAX_OPTION_DEPTH) {
+      return `The "options" field is nested too deeply (limit ${MAX_OPTION_DEPTH}).`;
+    }
+    // JSON cannot produce a cycle, but a caller of the schema can. The set is
+    // path-scoped so the same (acyclic) object appearing twice is not a cycle.
+    if (containers.has(node)) return 'The "options" field contains a cycle.';
+    containers.add(node);
+    if (Array.isArray(node)) {
+      for (const entry of node) {
+        const problem = walk(entry, depth + 1);
+        if (problem) return problem;
+      }
+    } else {
+      const keys = Object.keys(node);
+      if (keys.length > MAX_OPTION_KEYS) {
+        return `The "options" field has too many keys at one level (limit ${MAX_OPTION_KEYS}).`;
+      }
+      for (const key of keys) {
+        const problem = walk((node as Record<string, unknown>)[key], depth + 1);
+        if (problem) return problem;
+      }
+    }
+    containers.delete(node);
+    return undefined;
+  };
+
+  return walk(value, 1);
+}
+
+/**
+ * Optional, structurally bounded `options` object.
+ *
+ * Exported because `/api/v1` validates the same field before it ever becomes a
+ * job payload; both paths must reject the same shapes.
+ */
+export const optionsSchema = z
+  .record(z.string().max(MAX_OPTION_KEY_LENGTH), z.unknown())
+  .superRefine((value, ctx) => {
+    const problem = optionsProblem(value);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem });
+  })
+  .optional();
 
 /** What the API hands to BullMQ. */
 export const jobPayloadSchema = z.object({

@@ -23,7 +23,7 @@ import { GoogleOidc, GoogleOidcError, codeChallengeFor } from '../src/auth/googl
 import { AUTH_TRANSACTION_TTL_MS, AuthStore } from '../src/auth/store.js';
 import { AccountStore } from '../src/account/store.js';
 import { ApiKeyStore } from '../src/keys/store.js';
-import { SESSION_COOKIE, safeReturnTo } from '../src/auth/routes.js';
+import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE, safeReturnTo } from '../src/auth/routes.js';
 import type { AccountDoc, AuthCollections, AuthTransactionDoc, SessionDoc } from '../src/auth/mongo.js';
 import { createApp } from '../src/http/app.js';
 import { createContext, type ApiContext } from '../src/context.js';
@@ -611,15 +611,31 @@ describe('auth routes', () => {
     // the server stores.
     expect(cookie).not.toContain('Secure');
 
+    const csrfCookie = setCookie.find((value) => value.startsWith(CSRF_COOKIE));
+    expect(csrfCookie).toBeDefined();
+    // The double-submit token is readable by design; the session is not.
+    expect(csrfCookie).not.toMatch(/HttpOnly/i);
+
     const cookieHeader = (cookie as string).split(';')[0] as string;
+    const csrf = (csrfCookie as string).split(';')[0]!.split('=')[1] as string;
     const me = await fetch(url('/api/auth/me'), { headers: { cookie: cookieHeader } });
     expect(me.status).toBe(200);
     const body = (await me.json()) as { account: { email: string } };
     expect(body.account.email).toBe('person@example.com');
 
-    const logout = await fetch(url('/api/auth/logout'), {
+    // A logout carrying only the session cookie is a cross-site POST an attacker
+    // could make: it must not revoke anything.
+    const noToken = await fetch(url('/api/auth/logout'), {
       method: 'POST',
       headers: { cookie: cookieHeader },
+    });
+    expect(noToken.status).toBe(403);
+    const stillSignedIn = await fetch(url('/api/auth/me'), { headers: { cookie: cookieHeader } });
+    expect(stillSignedIn.status).toBe(200);
+
+    const logout = await fetch(url('/api/auth/logout'), {
+      method: 'POST',
+      headers: { cookie: `${cookieHeader}; ${CSRF_COOKIE}=${csrf}`, [CSRF_HEADER]: csrf },
     });
     expect(logout.status).toBe(204);
 

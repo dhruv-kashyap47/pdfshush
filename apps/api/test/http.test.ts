@@ -317,6 +317,46 @@ it('refuses an oversized options field with the real reason', async () => {
     expect((await store.usage()).jobDirs).toBe(0);
   });
 
+  it('refuses options nested past the structural limit', async () => {
+    const pdf = await samplePdf();
+    const { url, store } = await harness();
+    // Small enough to pass the field-size check, deep enough to be a walker
+    // problem downstream. The contract bounds it before the queue sees it.
+    let nested: Record<string, unknown> = { leaf: true };
+    for (let depth = 0; depth < 12; depth += 1) nested = { nested };
+    const { body, contentType } = multipart({ slug: 'merge', options: JSON.stringify(nested) }, [
+      { name: 'one.pdf', data: pdf },
+    ]);
+
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: string }).error).toContain('nested too deeply');
+    expect((await store.usage()).jobDirs).toBe(0);
+  });
+
+  it('refuses options wider than the structural limit', async () => {
+    const pdf = await samplePdf();
+    const { url } = await harness();
+    const wide = Object.fromEntries(
+      Array.from({ length: 80 }, (_, index) => [`key${index}`, index]),
+    );
+    const { body, contentType } = multipart({ slug: 'merge', options: JSON.stringify(wide) }, [
+      { name: 'one.pdf', data: pdf },
+    ]);
+
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: string }).error).toContain('too many keys');
+  });
+
   it('refuses an unsupported file type', async () => {
     const { url } = await harness();
     const { body, contentType } = multipart({ slug: 'merge' }, [

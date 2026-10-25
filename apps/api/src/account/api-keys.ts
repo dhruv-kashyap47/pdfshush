@@ -9,8 +9,8 @@
 
 import type { Express, Request, Response } from 'express';
 import type { AuthStore, Account } from '../auth/store.js';
-import { SESSION_COOKIE, CSRF_COOKIE, CSRF_HEADER } from '../auth/routes.js';
-import { tokensMatch } from '../quota/quota.js';
+import { SESSION_COOKIE } from '../auth/routes.js';
+import { readCookie, requireCsrf } from '../http/csrf.js';
 import type { ApiKeyStore, ApiKeyScope, CreatedApiKey } from '../keys/store.js';
 import { API_KEY_SCOPES } from '../keys/store.js';
 
@@ -34,10 +34,6 @@ export interface CreatedKeyResponse {
   token: string;
 }
 
-function readCookies(request: Request): Record<string, unknown> {
-  return (request as Request & { cookies?: Record<string, unknown> }).cookies ?? {};
-}
-
 export function registerApiKeyRoutes(app: Express, deps: ApiKeyRoutesDeps): void {
   const unavailable = (response: Response) =>
     response.status(503).json({ error: 'Accounts are not enabled on this deployment.', code: 'auth_disabled' });
@@ -51,30 +47,13 @@ export function registerApiKeyRoutes(app: Express, deps: ApiKeyRoutesDeps): void
       unavailable(response);
       return undefined;
     }
-    const token = readCookies(request)[SESSION_COOKIE];
-    const account = typeof token === 'string' ? await deps.auth.resolveSession(token) : undefined;
+    const token = readCookie(request, SESSION_COOKIE);
+    const account = token ? await deps.auth.resolveSession(token) : undefined;
     if (!account) {
       response.status(401).json({ error: 'Sign in required.', code: 'unauthenticated' });
       return undefined;
     }
     return account;
-  };
-
-  const requireCsrf = (request: Request, response: Response): boolean => {
-    const cookies = readCookies(request);
-    const expected = cookies[CSRF_COOKIE];
-    const supplied = request.header(CSRF_HEADER);
-    // Same constant-time compare as the account routes: a real value
-    // comparison, length-checked first, never a structural guess.
-    if (
-      typeof expected !== 'string' ||
-      typeof supplied !== 'string' ||
-      !tokensMatch(supplied, expected)
-    ) {
-      response.status(403).json({ error: 'Missing or invalid CSRF token.', code: 'csrf' });
-      return false;
-    }
-    return true;
   };
 
   app.get('/api/account/api-keys', async (request, response) => {

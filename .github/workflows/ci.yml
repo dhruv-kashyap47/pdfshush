@@ -1,0 +1,46 @@
+name: CI
+
+# The gates that need no Docker, no Redis and no network: typecheck, the unit
+# suites, a production build and the bundle boundary. The stack-dependent gates
+# (`pnpm test:api`, `pnpm test:hardening`, the browser E2E suites) still run
+# locally against `docker compose up -d --build`, as documented in PLAN.md §9 --
+# a green run here does not claim they passed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: typecheck + unit + bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads `packageManager` from package.json (pnpm 12), so the CI pin and
+      # the local pin cannot drift apart.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
+
+      # `pnpm build` is the web build; `test:bundle` scans the chunks it emits.
+      - run: pnpm build
+
+      - run: pnpm test:bundle
