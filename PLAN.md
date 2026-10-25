@@ -54,8 +54,9 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-25 in the **P7.0 reconcile pass** (`pnpm test` + `pnpm typecheck`;
-the browser and Docker gates were not re-run). The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
+**Current gate:** re-measured 2026-10-25 in the **P7.0 reconcile pass** and its full-stack re-run
+(`pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm test:bundle`, the API smoke + hardening gates and
+all seven browser suites). The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
 of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
@@ -74,7 +75,7 @@ door opens the MCP console in place from P6.4's polish pass)
 **19 MCP**) — the API total rose by 11 in P7.0 (CSRF on logout and managed AI, the bounded
 `options` contract, input-token reservation, the shared AI lock, the result-type allowlist) ·
 browser E2E: full
-smoke (re-run 2026-10-21 with Redis up — no skips: the workflow *run* executes through
+smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
 `/api/health` reports Redis down) + **plain-tools suite, 13/13 checks**
 (`tests/e2e/plain-tools.mjs`, real downloads with magic-byte asserts: `%PDF-`, `PK`, inflated
@@ -82,15 +83,15 @@ smoke (re-run 2026-10-21 with Redis up — no skips: the workflow *run* executes
 (`tests/e2e/next-tools.mjs`: decrypted PDF with no `/Encrypt` and its text intact, image-embedded
 PDF page count, renamed ZIP, stamped Bates numbers read back out of zlib streams, split parts,
 repack and a real raster compress) · **8/8 focused text-edit E2E** ·
-**17/17 AI E2E in the seeded run** (chat + highlight apply + in-place replacement + key-handling,
-local SSE mock; the script carries **22** checks total — the extra five are the keyless
-welcome-overlay block, so the old "17 vs 18" note is resolved as a script-shape difference, not a
-lost assertion) · **11/11 managed AI
+**22/22 AI E2E** (re-run 2026-10-25: chat + highlight apply + in-place replacement + key-handling,
+local SSE mock, plus the five keyless welcome-overlay checks in the same script, so the old
+"17 vs 18" drift is fully explained) · **11/11 managed AI
 E2E** (real API routes, in-memory counters, no Redis/docker) ·
 **17/17 sign E2E** (P6.1: dialog draw/save/adopt/place, export, audit note read back as JSON,
 manage page; `tests/e2e/sign.mjs`) ·
-**41 API smoke sections incl. the new §6 v1 flow** (section 6 in either mode: 503-when-disabled or
-the full key→submit→poll→download→revoke walk on the real stack, 2026-10-18) · **17/17 hardening** · renderer hosts CMaps + standard fonts and forces
+**37 API smoke checks incl. the §6 v1 flow** (21 base + 16 in the key→submit→poll→download→revoke
+walk; §6 needs `PSH_SMOKE_MONGODB_URI`; re-run 2026-10-25) · **19/19 hardening** (re-run 2026-10-25
+with a 20 s TTL and 5 s janitor) · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
 **genuine in-place text editing shipped end to end (§22; AI replacements now use it too, §23.7.2)** ·
@@ -657,14 +658,20 @@ never actually wired, and a stream with no error listener.*
   instead of the P6.0-era 18/862 text. §1/§9 use one unit total: **1019** (251 engine + 208 API
   + 370 provider + 152 agent + 19 web + 19 MCP; the old 1002 did not match its own breakdown).
   The AI E2E figure is explained rather than guessed: 17 seeded checks plus 5 keyless-overlay
-  checks = 22 in the script. Hardening is 17 checks everywhere. **L3 and L9 were verified
-  already closed** (413 mapping in `http/app.ts`; `ownsJob` is used by `/api/v1` ownership).
+  checks = 22, and the re-run executed all 22. Hardening is **19** executed checks (17 call
+  sites; the container-health check loops over three services), corrected from the old 17.
+  **L3 and L9 were verified already closed** (413 mapping in `http/app.ts`; `ownsJob` is used by
+  `/api/v1` ownership).
 
   **Gates.** `pnpm test` **1019/1019** · `pnpm typecheck` clean · API suite **208** (+11: logout
   CSRF, AI CSRF in both directions, input reservation, prompt estimator, shared guard, deep and
-  wide `options`, `/api/v1` options, the content-type map) · MCP 19/19. The browser E2E suites,
-  `test:api` and `test:hardening` were **not** re-run in this pass (no stack was up); the next
-  session should run them before a release.
+  wide `options`, `/api/v1` options, the content-type map) · MCP 19/19 · `pnpm build` +
+  `pnpm test:bundle` green. Full-stack re-run later the same day: `test:api` **37/37** with the
+  §6 key walk (`PSH_SMOKE_MONGODB_URI` set; 21 checks without §6), `test:hardening` **19/19**
+  (20 s TTL, 5 s janitor), and every browser suite — smoke **101/101**, plain-tools **13/13**,
+  next-tools **18/18**, sign **17/17**, text-edit **8/8**, AI **22/22**, managed AI **11/11**.
+  The managed suite boots its own API on :8080, so the Docker api container was stopped for that
+  single run and started again afterwards; every other suite used the live stack.
 
 - **2026-10-21 (later) — Landing hero theme polish and MCP CTA terminal cue.**
 
@@ -1713,15 +1720,15 @@ pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
-pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (17 seeded checks; the script also carries 5 keyless-overlay checks)
-pnpm test:e2e:ai-managed # managed trial through the real API routes, in-memory counters (11 checks)
+pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (22 checks: 17 seeded + 5 keyless overlay)
+pnpm test:e2e:ai-managed # managed trial via its own API on :8080 -- stop the Docker api container first (11 checks)
 pnpm test:bundle      # after `pnpm build`: entry chunk must carry no PDF engine
 pnpm test:sweep       # responsive sweep (not a gate): overflow, reveal + size/contrast outliers
 pnpm build            # production build (web + api bundles)
 pnpm stack:up         # docker compose up -d --build (redis + api + worker)
 pnpm stack:down       # docker compose down
-pnpm test:api         # 21 checks against a running stack on :8080
-pnpm test:hardening   # 17 checks: SIGKILL a worker mid-job, prove the pipeline holds
+pnpm test:api         # 37 checks against a running stack on :8080 (21 without §6; set PSH_SMOKE_MONGODB_URI for the v1 key walk)
+pnpm test:hardening   # 19 checks: SIGKILL a worker mid-job, prove the pipeline holds (recreate with FILE_TTL_MS=20000 JANITOR_INTERVAL_MS=5000)
 pnpm --filter @pdfshush/mcp test        # parity + no-escape + spawned-stdio E2E (19 checks)
 pnpm --filter @pdfshush/mcp dev         # run the stdio server locally against the stack
 pnpm --filter @pdfshush/mcp build       # single-file dist/bin.js (bundled contracts)

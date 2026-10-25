@@ -77,13 +77,13 @@ pnpm stack:down                     # stop the Docker stack
 pnpm test:e2e          # Playwright suite against a running dev server (101 checks)
 pnpm test:e2e:sign     # Fill & Sign flow (17 checks)
 pnpm test:e2e:text-edit # in-place text editing (8 checks)
-pnpm test:e2e:ai       # AI workspace, mocked provider (17 checks)
-pnpm test:e2e:ai-managed # managed trial through the real API routes (11 checks)
+pnpm test:e2e:ai       # AI workspace, mocked provider (22 checks: 17 seeded + 5 keyless overlay)
+pnpm test:e2e:ai-managed # managed trial through the real API routes, in-memory counters (11 checks; needs :8080 free)
 pnpm test:e2e:plain-tools # ten client-side tools, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:bundle       # every app chunk: no pdf-lib / pdf.js / pdfium, no Node built-ins
-pnpm test:api          # API integration suite (21 checks, needs the Docker stack)
-pnpm test:hardening    # hardening gate: SIGKILL recovery, TTL sweep (17 checks, needs the stack)
+pnpm test:api          # API integration suite (37 checks with PSH_SMOKE_MONGODB_URI; 21 without §6)
+pnpm test:hardening    # hardening gate: SIGKILL recovery, TTL sweep (19 checks, needs the stack)
 pnpm --filter @pdfshush/mcp test # MCP parity + no-escape + spawned stdio E2E (19 checks)
 ```
 
