@@ -43,6 +43,11 @@ export const JOB_SLUGS = [
   'unlock',
   'watermark',
   'edit-metadata',
+  // Bookmark batch (2026-10-25).
+  'repair',
+  'combine',
+  'split-by-bookmarks',
+  'zip',
 ] as const;
 
 export type JobSlugLiteral = (typeof JOB_SLUGS)[number];

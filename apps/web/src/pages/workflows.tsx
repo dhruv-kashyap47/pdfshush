@@ -44,7 +44,7 @@ function newStepId(): string {
   return `s${Date.now().toString(36)}${stepCounter}`;
 }
 
-export function WorkflowsPage() {
+export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { account } = useAuth();
   const [recipes, setRecipes] = useState<StoredRecipe[]>([]);
   const [draft, setDraft] = useState<Recipe>({ name: '', steps: [] });
@@ -226,16 +226,18 @@ export function WorkflowsPage() {
   const usingServer = Boolean(account);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Workflows</h1>
-        <p className="mt-2 text-muted-foreground">
-          Chain tools together and run them on a file in one pass.
-          {usingServer
-            ? ' Saved to your account.'
-            : ' Saved in this browser; sign in to sync them across devices.'}
-        </p>
-      </div>
+    <div className={embedded ? 'space-y-6' : 'mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8'}>
+      {!embedded && (
+        <div className="mb-8">
+          <h1 className="text-3xl font-semibold tracking-tight">Workflows</h1>
+          <p className="mt-2 text-muted-foreground">
+            Chain tools together and run them on a file in one pass.
+            {usingServer
+              ? ' Saved to your account.'
+              : ' Saved in this browser; sign in to sync them across devices.'}
+          </p>
+        </div>
+      )}
 
       <Card className="mb-8">
         <CardHeader>

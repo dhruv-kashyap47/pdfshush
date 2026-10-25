@@ -8,6 +8,7 @@
 import type { JobContext, JobDefinition, JobInputBase } from '../job.js';
 import { annotationsJob } from './annotations.job.js';
 import { batesJob } from './bates.job.js';
+import { combineJob } from './combine.job.js';
 import { compressJob } from './compress.job.js';
 import { editJob } from './edit.job.js';
 import { flattenJob } from './flatten.job.js';
@@ -23,7 +24,9 @@ import { organizeJob } from './organize.job.js';
 import { pdfToImagesJob } from './pdfToImages.job.js';
 import { redactJob } from './redact.job.js';
 import { renameJob } from './rename.job.js';
+import { repairJob } from './repair.job.js';
 import { resizeJob } from './resize.job.js';
+import { splitByBookmarksJob } from './splitByBookmarks.job.js';
 import { splitByPagesJob } from './splitByPages.job.js';
 import { splitBySizeJob } from './splitBySize.job.js';
 import { splitByTextJob } from './splitByText.job.js';
@@ -35,6 +38,7 @@ import { textRunsJob } from './textRuns.job.js';
 import { thumbnailsJob } from './thumbnails.job.js';
 import { unlockJob } from './unlock.job.js';
 import { watermarkJob } from './watermark.job.js';
+import { zipJob } from './zip.job.js';
 
 type AnyJob = JobDefinition<JobInputBase, unknown>;
 
@@ -68,6 +72,11 @@ export const JOBS = {
   [renameJob.slug]: renameJob as AnyJob,
   [splitByTextJob.slug]: splitByTextJob as AnyJob,
   [unlockJob.slug]: unlockJob as AnyJob,
+  // Bookmark batch (2026-10-25). All client-side; `zip` is the batch helper.
+  [repairJob.slug]: repairJob as AnyJob,
+  [combineJob.slug]: combineJob as AnyJob,
+  [splitByBookmarksJob.slug]: splitByBookmarksJob as AnyJob,
+  [zipJob.slug]: zipJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;

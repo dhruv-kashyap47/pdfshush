@@ -226,6 +226,19 @@ export type {
 } from './jobs/splitByText.job.js';
 export { unlockJob } from './jobs/unlock.job.js';
 export type { UnlockJobInput, UnlockJobOutput, UnlockJobOptions } from './jobs/unlock.job.js';
+export { repairJob } from './jobs/repair.job.js';
+export type { RepairJobInput, RepairJobOutput, RepairJobOptions } from './jobs/repair.job.js';
+export { combineJob } from './jobs/combine.job.js';
+export type { CombineJobInput, CombineJobOutput, CombineJobOptions } from './jobs/combine.job.js';
+export { splitByBookmarksJob } from './jobs/splitByBookmarks.job.js';
+export type {
+  SplitByBookmarksInput,
+  SplitByBookmarksOutput,
+  SplitByBookmarksOptions,
+  SplitByBookmarksPart,
+} from './jobs/splitByBookmarks.job.js';
+export { zipJob } from './jobs/zip.job.js';
+export type { ZipJobInput, ZipJobOutput, ZipJobOptions } from './jobs/zip.job.js';
 export { batesNumberDocument, formatBatesNumber, BATES_LIMITS } from './ops/bates.js';
 export type { BatesOptions, BatesResult } from './ops/bates.js';
 export {
@@ -256,6 +269,12 @@ export { compressDocument, COMPRESS_DEFAULTS, COMPRESS_LIMITS } from './compress
 export type { CompressMode, CompressOptions, CompressResult } from './compress/compress.js';
 export { unlockDocument } from './ops/unlock.js';
 export type { UnlockResult } from './ops/unlock.js';
+export { repairPdf } from './ops/repair.js';
+export type { RepairOptions, RepairResult } from './ops/repair.js';
+export { combineToPdf, isPdfBytes } from './ops/combine.js';
+export type { CombineOptions, CombinePart, CombineResult, CombineSource } from './ops/combine.js';
+export { extractOutline, splitLevel } from './render/outline.js';
+export type { OutlineEntry, OutlineReadResult } from './render/outline.js';
 
 // In-place text editing (PDFium primary, pdf-lib overlay fallback)
 export {

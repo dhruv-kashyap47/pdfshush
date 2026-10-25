@@ -48,19 +48,37 @@ for (const theme of ['light', 'dark']) {
     for (const route of ROUTES) {
       await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle' });
       await page.evaluate(async () => {
-        const step = Math.round(window.innerHeight * 0.8);
-        for (let y = 0; y < document.documentElement.scrollHeight; y += step) {
-          window.scrollTo(0, y);
-          await new Promise((r) => setTimeout(r, 130));
+        // The app sets `scroll-behavior: smooth`, so window.scrollTo() starts an
+        // animation that the next call interrupts. A fast sweep then never
+        // reaches the bottom and reports live sections as unrevealed. The sweep
+        // is about layout, not motion, so scroll instantly for its duration.
+        const html = document.documentElement;
+        const previous = html.style.scrollBehavior;
+        html.style.scrollBehavior = 'auto';
+        try {
+          const step = Math.round(window.innerHeight * 0.8);
+          for (let y = 0; y < html.scrollHeight; y += step) {
+            window.scrollTo(0, y);
+            await new Promise((r) => setTimeout(r, 130));
+          }
+          // One extra beat at the bottom so the last blocks can intersect.
+          window.scrollTo(0, html.scrollHeight);
+          await new Promise((r) => setTimeout(r, 300));
+        } finally {
+          html.style.scrollBehavior = previous;
+          window.scrollTo(0, 0);
+          await new Promise((r) => setTimeout(r, 300));
         }
-        window.scrollTo(0, 0);
-        await new Promise((r) => setTimeout(r, 300));
       });
 
       const report = await page.evaluate(() => {
         const doc = document.documentElement;
         const offenders = [];
         for (const el of document.querySelectorAll('body *')) {
+          // `data-bleed` marks art that is deliberately scaled past the
+          // viewport and clipped by an ancestor (the landing band's settle
+          // animation). It cannot cause page-level overflow; the parent clips.
+          if (el.closest('[data-bleed]')) continue;
           const r = el.getBoundingClientRect();
           if (r.width === 0 || r.height === 0) continue;
           if (r.right > window.innerWidth + 2 && getComputedStyle(el).position !== 'fixed') {

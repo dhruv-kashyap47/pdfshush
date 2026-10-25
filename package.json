@@ -22,6 +22,7 @@
     "test:e2e:ai-managed": "node tests/e2e/ai-managed.mjs",
     "test:e2e:plain-tools": "node tests/e2e/plain-tools.mjs",
   "test:e2e:next-tools": "node tests/e2e/next-tools.mjs",
+  "test:e2e:bookmark-batch": "node tests/e2e/bookmark-batch.mjs",
     "test:bundle": "node tests/bundle-boundary.mjs",
     "test:sweep": "node tests/sweep.mjs",
     "test:api": "node tests/api/smoke.mjs",

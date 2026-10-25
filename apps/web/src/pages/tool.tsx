@@ -34,6 +34,12 @@ import { RenamePdfTool } from '@/components/tools/rename-pdf-tool';
 import { SplitByTextTool } from '@/components/tools/split-by-text-tool';
 import { UnlockTool } from '@/components/tools/unlock-tool';
 import { HeaderFooterTool, PageNumbersTool } from '@/components/tools/stamp-tool';
+import { StampMarkTool } from '@/components/tools/stamp-mark-tool';
+import { RepairPdfTool } from '@/components/tools/repair-tool';
+import { CombineFilesTool } from '@/components/tools/combine-tool';
+import { BatchRunTool } from '@/components/tools/batch-run-tool';
+import { SplitByBookmarksTool } from '@/components/tools/split-by-bookmarks-tool';
+import { ImageEditorTool } from '@/components/tools/image-editor-tool';
 import { SignatureTool } from '@/components/tools/signature-tool';
 import { ApiToolPage } from '@/components/tools/api-tool';
 import { McpToolPage } from '@/components/tools/mcp-tool';
@@ -43,6 +49,7 @@ import { ToolCard } from '@/components/landing/tool-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { NotFoundPage } from '@/pages/not-found';
+import { WorkflowsPage } from '@/pages/workflows';
 import { AiTrustNotes } from '@/components/ai/ai-trust-notes';
 import { getTool, liveTools, type ToolDef } from '@/tools/registry';
 
@@ -88,6 +95,14 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'bates-numbering': BatesNumberingTool,
   'split-by-text': SplitByTextTool,
   'compress-pdf': CompressPdfTool,
+  // Bookmark batch (2026-10-25).
+  'split-by-bookmarks': SplitByBookmarksTool,
+  stamp: StampMarkTool,
+  'repair-pdf': RepairPdfTool,
+  'combine-pdf': CombineFilesTool,
+  'batch-run': BatchRunTool,
+  'image-editor': ImageEditorTool,
+  workflows: () => <WorkflowsPage embedded />,
 };
 
 export function ToolPage() {

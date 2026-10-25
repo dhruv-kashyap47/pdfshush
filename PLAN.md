@@ -56,24 +56,26 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 
 **Current gate:** re-measured 2026-10-25 in the **P7.0 reconcile pass** and its full-stack re-run
 (`pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm test:bundle`, the API smoke + hardening gates and
-all seven browser suites). The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
+all eight browser suites). The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
 of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
 still hold.
-**38 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**45 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
-`jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; `redact-pdf` in
+`jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; seven on
+2026-10-25: `stamp`, `repair-pdf`, `combine-pdf`, `image-editor`, `batch-run`,
+`split-by-bookmarks`, `workflows`; `redact-pdf` in
 Security; `summarize-pdf` +
 `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1019/1019 unit** (**251 engine** · **208 API** · 370 provider · 152 agent · **19 web** ·
-**19 MCP**) — the API total rose by 11 in P7.0 (CSRF on logout and managed AI, the bounded
-`options` contract, input-token reservation, the shared AI lock, the result-type allowlist) ·
+**1045/1045 unit** (**267 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
+**19 MCP**) — the engine total rose by 16 in the bookmark batch (repair, combine, zip, outline
+reading and zip-slip naming) and the web total by 10 (image-edit geometry) ·
 browser E2E: full
 smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
@@ -82,7 +84,10 @@ smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes
 `FF D8` JPEG in the extract-images ZIP, page text inside the .txt) + **next-tools suite, 18/18 checks**
 (`tests/e2e/next-tools.mjs`: decrypted PDF with no `/Encrypt` and its text intact, image-embedded
 PDF page count, renamed ZIP, stamped Bates numbers read back out of zlib streams, split parts,
-repack and a real raster compress) · **8/8 focused text-edit E2E** ·
+repack and a real raster compress) + **bookmark-batch suite, 29/29 checks**
+(`tests/e2e/bookmark-batch.mjs`: stamped text read back out of the PDF, repaired page count,
+mixed PDF+image+PDF ordering, a real `/Outlines` fixture split into three chapters, a two-file
+batch ZIP that downloads twice, and a rotated PNG whose exported IHDR dimensions are asserted) · **8/8 focused text-edit E2E** ·
 **22/22 AI E2E** (re-run 2026-10-25: chat + highlight apply + in-place replacement + key-handling,
 local SSE mock, plus the five keyless welcome-overlay checks in the same script, so the old
 "17 vs 18" drift is fully explained) · **11/11 managed AI
@@ -203,7 +208,7 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 57 tools (**38 live**), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 57 tools (**45 live**), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
 │   └── src/components/tools/*      36 tool-body files
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
@@ -618,6 +623,60 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-25 — The bookmark batch: seven more tools, taking the catalog from 38 to 45 live.**
+  Stamp, Repair PDF, Combine files, Image Editor, Batch run, Split by bookmarks and the Workflows
+  tool page. Chosen because each one either reuses a shipped operation or needs only a small new
+  one; all seven are client-side, so `SERVER_SLUGS`, the REST API and the MCP surface stay at
+  eight slugs. No new dependencies.
+
+  **Engine (4 new jobs, all browser-only).**
+  - `ops/repair.ts` + `jobs/repair.job.ts` — a strict `PDFDocument.load` first (so the UI can
+    honestly say "this file was already valid"), then a lenient parse when strict fails, then a
+    save with `useObjectStreams: false` that rebuilds the xref/trailer. Owner-restricted files
+    unlock with `''`; password-protected ones are refused with a pointer to Unlock PDF. It is
+    labelled as structural repair, not data recovery, in the UI and in the result copy.
+  - `ops/combine.ts` + `jobs/combine.job.ts` — PDFs contribute all pages, JPEG/PNG contribute one
+    page each through `planImagePlacement`, and everything else is refused *by name*. Built as one
+    pass rather than "JPG-to-PDF then merge" so images are never re-encoded. 50-file and 500-page
+    caps; magic-byte sniffing, not extensions.
+  - `render/outline.ts` + `jobs/splitByBookmarks.job.ts` — pdf.js resolves both destination
+    syntaxes (array and named through `/Dests`), flattening the tree with nesting levels. The split
+    level is the shallowest level *that carries more than one entry*, so a lone "Contents" root
+    descends to its children; pages before the first bookmark become an explicit "Front matter"
+    part. 2 000 nodes / 200 parts caps. The job is absent from `SERVER_SLUGS` because the server
+    has no pdf.js worker.
+  - `jobs/zip.job.ts` — batch outputs are zipped in the worker, keeping `fflate` out of the app
+    bundle exactly as Split by pages does.
+  - `safeEntryName` / `safeZipName` in `jobs/helpers.ts` — every caller-supplied archive entry name
+    is reduced to a basename, stripped of control characters and leading dots, and de-duplicated
+    before `createZip`; a `../../x.pdf` input cannot become a zip-slip entry. The zip job reports
+    the *deduped* names, so metadata and archive agree.
+
+  **UI.** Stamp is a preset surface (APPROVED / DRAFT / CONFIDENTIAL / VOID / PAID / custom) over
+  the existing watermark job, with a CSS preview. Combine renders an explicit, reorderable list.
+  Batch run walks the pool sequentially (not five raster compressions at once), survives per-file
+  failures by naming them, and keeps the produced archive so it can be downloaded twice. The image
+  editor replays an operation list (rotate / flip / crop) from the original bitmap every render, so
+  undo is exact and repeated edits never stack resampling loss; tone filters are applied identically
+  to the preview and the exported bytes, JPEG export is composited on white, and "Create a PDF"
+  goes through the normal JPG-to-PDF job. Workflows reuses the existing builder with an `embedded`
+  prop instead of duplicating it.
+
+  **Bug caught by the bundle gate.** Importing `IMAGE_LIMITS` from the package root pulled
+  `ops/imageDocs.ts` (and therefore pdf-lib) into the ToolPage chunk: `tool-*.js` jumped from
+  ~414 kB to 980 kB and `pnpm test:bundle` failed its "no lazy app chunk carries an engine" check.
+  The cap now lives beside the UI that uses it; the chunk is back to 414 kB. This is the failure
+  mode the boundary test exists for, caught before commit.
+
+  **Gates.** typecheck 7/7 · **1045/1045 unit** (engine 267, web 29) · `pnpm build` · bundle
+  boundary green (6 app chunks, 0 engines) · **bookmark-batch E2E 29/29** in real Edge, including a
+  hand-built `/Outlines` fixture and byte-level asserts on every download · **`pnpm test:sweep`
+  clean** across 6 breakpoints × 2 themes × 6 routes. The sweep had been failing on the homepage
+  with 7-8 "unrevealed" blocks: `html { scroll-behavior: smooth }` makes each `scrollTo` interrupt
+  the previous animation, so the sweep never actually reached the lower sections. The sweep now
+  scrolls instantly for its own duration, and the band's deliberately scaled-and-clipped photograph
+  is marked `data-bleed` so the overflow detector does not flag intentional art.
 
 - **2026-10-25 — P7.0: the §24.5 low backlog closed, managed AI metered on input, CI added.**
   A reconcile pass before P7.1, so the auth and budget findings did not wait behind the torture
@@ -1762,9 +1821,9 @@ on PATH now — `docker compose up -d --build` works directly from the session.)
 10k-page files, interrupted jobs, cleanup verification), then P7.2 SEO prerender and P7.3 perf/a11y.
 **P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
 L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
-The 2026-10-21 next-tools batch (§8) left the catalog at 38 of 57 live tools with the engine at
-251 tests and its own E2E; the 2026-10-20 plain-tools batch added ten more and the first
-dedicated tool suite.
+The 2026-10-25 bookmark batch (§8) took the catalog to 45 of 57 live tools and the engine to
+267 tests with its own 29-check E2E; the 2026-10-21 next-tools batch left it at 38 with 251 tests,
+the 2026-10-20 plain-tools batch added ten more and the first dedicated tool suite.
 **P6.4, the hardening pass, has shipped** (§25.5: rotation drill, v1 multipart-sniff matrix,
 the base-URL smuggle class fixed and pinned, SSRF/signing reviews recorded); **P6.3, the MCP
 server, shipped** (`@pdfshush/mcp`, §25.4): stdio server over `/api/v1` with the user's own key,

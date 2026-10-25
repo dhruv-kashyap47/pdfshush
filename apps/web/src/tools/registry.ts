@@ -141,6 +141,14 @@ const LIVE = new Set([
   'bates-numbering',
   'split-by-text',
   'compress-pdf',
+  // Bookmark batch (2026-10-25): easy remaining catalog entries.
+  'workflows',
+  'batch-run',
+  'stamp',
+  'repair-pdf',
+  'combine-pdf',
+  'image-editor',
+  'split-by-bookmarks',
 ]);
 
 /**
@@ -184,6 +192,14 @@ const TOOL_NEXT: Record<string, string[]> = {
   'bates-numbering': ['split-by-pages', 'compress-pdf'],
   'split-by-text': ['merge-pdf', 'organize-pdf'],
   'compress-pdf': ['split-by-size', 'merge-pdf'],
+  // Bookmark batch (2026-10-25).
+  'split-by-bookmarks': ['merge-pdf', 'split-by-pages'],
+  stamp: ['watermark', 'page-numbers'],
+  'repair-pdf': ['compress-pdf', 'unlock-pdf'],
+  'combine-pdf': ['merge-pdf', 'jpg-to-pdf'],
+  'image-editor': ['jpg-to-pdf', 'combine-pdf'],
+  'batch-run': ['compress-pdf', 'merge-pdf'],
+  workflows: ['batch-run', 'merge-pdf'],
 };
 
 const tool = (

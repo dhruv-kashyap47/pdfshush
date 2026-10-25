@@ -88,6 +88,7 @@ export function DocumentBand() {
           loading="lazy"
           decoding="async"
           draggable={false}
+          data-bleed
           className="band-photo block h-[320px] w-full object-cover sm:h-[440px] lg:h-[500px]"
           style={{ objectPosition: '50% 46%' }}
         />

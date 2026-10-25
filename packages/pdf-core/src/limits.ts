@@ -109,6 +109,17 @@ export const LIMITS = {
     maxRedactPages: 150,
     /** Largest redacted file we will hand back. Refused above this. */
     maxRedactOutputBytes: 100 * MB,
+    /**
+     * Files one Combine run may stitch together. Matches the API upload cap so
+     * the browser and the server accept the same request.
+     */
+    maxCombineFiles: 50,
+    /** Entries one ZIP may carry -- bounds a batch output and the name list. */
+    maxZipEntries: 100,
+    /** Bookmark/section entries a document outline may contain after reading. */
+    maxOutlineEntries: 2000,
+    /** Parts Split by bookmarks may produce from one outline. */
+    maxBookmarkParts: 200,
   },
   workflow: {
     /** Steps in one saved recipe. Bounds a stored document and its UI. */
