@@ -10,6 +10,8 @@ import { annotationsJob } from './annotations.job.js';
 import { batesJob } from './bates.job.js';
 import { combineJob } from './combine.job.js';
 import { compressJob } from './compress.job.js';
+import { createBookmarksJob } from './createBookmarks.job.js';
+import { createFormsJob } from './createForms.job.js';
 import { editJob } from './edit.job.js';
 import { flattenJob } from './flatten.job.js';
 import { flipJob } from './flip.job.js';
@@ -77,6 +79,9 @@ export const JOBS = {
   [combineJob.slug]: combineJob as AnyJob,
   [splitByBookmarksJob.slug]: splitByBookmarksJob as AnyJob,
   [zipJob.slug]: zipJob as AnyJob,
+  // Authoring batch (2026-10-26): build form fields and an outline.
+  [createFormsJob.slug]: createFormsJob as AnyJob,
+  [createBookmarksJob.slug]: createBookmarksJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;

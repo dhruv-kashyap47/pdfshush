@@ -120,6 +120,14 @@ export const LIMITS = {
     maxOutlineEntries: 2000,
     /** Parts Split by bookmarks may produce from one outline. */
     maxBookmarkParts: 200,
+    /** Form fields one Create Forms run may add. */
+    maxFormFields: 500,
+    /** Longest new form-field name; it doubles as the field's label. */
+    maxFormFieldNameChars: 64,
+    /** Longest default value stored in a new text field. */
+    maxFormFieldValueChars: 1000,
+    /** Longest bookmark title Create Bookmarks will write. */
+    maxBookmarkTitleChars: 200,
   },
   workflow: {
     /** Steps in one saved recipe. Bounds a stored document and its UI. */

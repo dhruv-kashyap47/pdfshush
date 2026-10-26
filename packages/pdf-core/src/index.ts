@@ -134,6 +134,12 @@ export { renderPageToImage, renderPages, renderThumbnails } from './render/rende
 export type { ImageFormat, RenderedImage, RenderPageOptions } from './render/renderPage.js';
 export { extractTextRuns, clusterTextRuns } from './render/textRuns.js';
 export type { TextRun, RunItem } from './render/textRuns.js';
+export { suggestBookmarks, BOOKMARK_SUGGESTION_LIMITS } from './render/suggestBookmarks.js';
+export type {
+  BookmarkSuggestion,
+  BookmarkSuggestionMode,
+  SuggestBookmarksOptions,
+} from './render/suggestBookmarks.js';
 
 // Jobs
 export { JOBS, getJob, runJob } from './jobs/registry.js';
@@ -239,6 +245,18 @@ export type {
 } from './jobs/splitByBookmarks.job.js';
 export { zipJob } from './jobs/zip.job.js';
 export type { ZipJobInput, ZipJobOutput, ZipJobOptions } from './jobs/zip.job.js';
+export { createFormsJob } from './jobs/createForms.job.js';
+export type {
+  CreateFormsJobInput,
+  CreateFormsJobOutput,
+  CreateFormsJobOptions,
+} from './jobs/createForms.job.js';
+export { createBookmarksJob } from './jobs/createBookmarks.job.js';
+export type {
+  CreateBookmarksJobInput,
+  CreateBookmarksJobOutput,
+  CreateBookmarksJobOptions,
+} from './jobs/createBookmarks.job.js';
 export { batesNumberDocument, formatBatesNumber, BATES_LIMITS } from './ops/bates.js';
 export type { BatesOptions, BatesResult } from './ops/bates.js';
 export {
@@ -275,6 +293,10 @@ export { combineToPdf, isPdfBytes } from './ops/combine.js';
 export type { CombineOptions, CombinePart, CombineResult, CombineSource } from './ops/combine.js';
 export { extractOutline, splitLevel } from './render/outline.js';
 export type { OutlineEntry, OutlineReadResult } from './render/outline.js';
+export { addFormFields, FORM_FIELD_LIMITS } from './ops/formFields.js';
+export type { NewFormField, NewFormFieldType } from './ops/formFields.js';
+export { writeOutline, OUTLINE_WRITE_LIMITS } from './ops/outlineWrite.js';
+export type { OutlineWriteEntry, OutlineWriteResult } from './ops/outlineWrite.js';
 
 // In-place text editing (PDFium primary, pdf-lib overlay fallback)
 export {

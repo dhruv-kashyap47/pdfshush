@@ -149,6 +149,9 @@ const LIVE = new Set([
   'combine-pdf',
   'image-editor',
   'split-by-bookmarks',
+  // Authoring batch (2026-10-26).
+  'create-forms',
+  'create-bookmarks',
 ]);
 
 /**
@@ -200,6 +203,9 @@ const TOOL_NEXT: Record<string, string[]> = {
   'image-editor': ['jpg-to-pdf', 'combine-pdf'],
   'batch-run': ['compress-pdf', 'merge-pdf'],
   workflows: ['batch-run', 'merge-pdf'],
+  // Authoring batch (2026-10-26).
+  'create-forms': ['fill-sign', 'edit-pdf'],
+  'create-bookmarks': ['split-by-bookmarks', 'merge-pdf'],
 };
 
 const tool = (

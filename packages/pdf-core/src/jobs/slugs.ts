@@ -48,6 +48,9 @@ export const JOB_SLUGS = [
   'combine',
   'split-by-bookmarks',
   'zip',
+  // Authoring batch (2026-10-26).
+  'create-forms',
+  'create-bookmarks',
 ] as const;
 
 export type JobSlugLiteral = (typeof JOB_SLUGS)[number];

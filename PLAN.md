@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-25
+**Last updated:** 2026-10-26
 
 ---
 
@@ -30,6 +30,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Plain-tools batch** | Ten client-side tools over the existing engine in one wave: flip, watermark, edit-metadata, remove-annotations, pdf-to-text, grayscale, resize, extract-images, split-by-size, flatten | ✅ **shipped 2026-10-20** — see §8 first entry |
 | **Next-tools batch** | Six more client-side tools off the same engine: unlock, JPG to PDF, rename, Bates numbering, split by text, compress | ✅ **shipped 2026-10-21** — see §8 first entry |
 | **AI access pass** | Groq BYOK (free tier), cost-tier tags, managed default → OpenRouter free models, plain-English first-run onboarding overlay with anime.js motion | ✅ **shipped 2026-10-21** — see §26 |
+| **Authoring batch** | Two client-side authoring tools off the same engine: Create Forms (AcroForm text fields/checkboxes) and Create Bookmarks (`/Outlines` writer + heading detection) | ✅ **shipped 2026-10-26** — see §8 first entry |
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
 
@@ -54,28 +55,29 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-25 in the **P7.0 reconcile pass** and its full-stack re-run
-(`pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm test:bundle`, the API smoke + hardening gates and
-all eight browser suites). The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
+**Current gate:** re-measured 2026-10-26 for the **authoring batch** (`pnpm test`, `pnpm typecheck`,
+`pnpm build`, `pnpm test:bundle`, `pnpm test:sweep`, and all nine browser suites; the smoke suite
+skipped its one API-stack step because no Redis was running). The last full-stack API smoke +
+hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
 of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
 still hold.
-**45 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**47 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
 `jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; seven on
 2026-10-25: `stamp`, `repair-pdf`, `combine-pdf`, `image-editor`, `batch-run`,
-`split-by-bookmarks`, `workflows`; `redact-pdf` in
+`split-by-bookmarks`, `workflows`; two on 2026-10-26: `create-forms`, `create-bookmarks`; `redact-pdf` in
 Security; `summarize-pdf` +
 `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1045/1045 unit** (**267 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
-**19 MCP**) — the engine total rose by 16 in the bookmark batch (repair, combine, zip, outline
-reading and zip-slip naming) and the web total by 10 (image-edit geometry) ·
+**1071/1071 unit** (**293 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
+**19 MCP**) — the engine total rose by 26 in the authoring batch (form-field creation, outline
+writing and heading detection); the web total is unchanged ·
 browser E2E: full
 smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
@@ -87,7 +89,11 @@ PDF page count, renamed ZIP, stamped Bates numbers read back out of zlib streams
 repack and a real raster compress) + **bookmark-batch suite, 29/29 checks**
 (`tests/e2e/bookmark-batch.mjs`: stamped text read back out of the PDF, repaired page count,
 mixed PDF+image+PDF ordering, a real `/Outlines` fixture split into three chapters, a two-file
-batch ZIP that downloads twice, and a rotated PNG whose exported IHDR dimensions are asserted) · **8/8 focused text-edit E2E** ·
+batch ZIP that downloads twice, and a rotated PNG whose exported IHDR dimensions are asserted) +
+**authoring suite, 27/27 checks** (`tests/e2e/forms-bookmarks.mjs`: a downloaded form with
+`/AcroForm`, `/Tx` and `/Btn` widgets whose field names are read back as UTF-16BE hex; a report
+fixture whose three headings are detected, edited, nested, and written as a real outline, with all
+titles read back) · **8/8 focused text-edit E2E** ·
 **22/22 AI E2E** (re-run 2026-10-25: chat + highlight apply + in-place replacement + key-handling,
 local SSE mock, plus the five keyless welcome-overlay checks in the same script, so the old
 "17 vs 18" drift is fully explained) · **11/11 managed AI
@@ -208,22 +214,27 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 57 tools (**45 live**), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 57 tools (**47 live**), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
-│   └── src/components/tools/*      36 tool-body files
+│   └── src/components/tools/*      44 tool-body files
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
 ├── packages/pdf-core               engine — same code path in worker and Node
 │   ├── src/node.ts                  Node-safe barrel: only the isomorphic surface (P3)
 │   ├── src/job.ts                   JobDefinition {validate, estimate, run} + withJobLimits
 │   ├── src/limits.ts                every capacity number in one file
 │   ├── src/ops/                     pages · compose · merge · zip · split · stamp · nup ·
-│   │                                geometry · edit · forms (P2) · ranges · textMetrics (dep-free*)
-│   ├── src/render/                  pdfjsRuntime · canvas · renderPage · textRuns (P2)
+│   │                                geometry · edit · forms (P2) · formFields · outlineWrite ·
+│   │                                ranges · textMetrics (dep-free*)
+│   ├── src/render/                  pdfjsRuntime · canvas · renderPage · textRuns (P2) ·
+│   │                                suggestBookmarks
 │   ├── src/redact/                  R1 secure redaction: rasterize · rebuild · verify (§20)
-│   └── src/jobs/                    29 jobs: the original 12 + the plain-tools ten + next-tools six
+│   └── src/jobs/                    35 jobs: the original 29 + the bookmark batch four + the
+│                                    authoring batch two
 ├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools (101 checks)
 ├── tests/e2e/plain-tools.mjs       the ten plain tools, magic-byte asserts (13 checks)
 ├── tests/e2e/next-tools.mjs        the six next tools, incl. a real raster compress (18 checks)
+├── tests/e2e/bookmark-batch.mjs    the seven bookmark-batch tools (29 checks)
+├── tests/e2e/forms-bookmarks.mjs   forms + outline authoring, downloaded bytes (27 checks)
 ├── tests/api/smoke.mjs             real stack: upload → Redis → worker → download (21 checks)
 ├── tests/api/hardening.mjs         the P3 gate: SIGKILL mid-job, prove the pipeline holds
 ├── docker-compose.yml              redis + api + worker (P3)
@@ -623,6 +634,62 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-26 — The authoring batch: Create Forms and Create Bookmarks, taking the catalog from
+  45 to 47 live.** Both are browser-only pdf-lib jobs, so `SERVER_SLUGS`, `/api/v1`, the MCP surface
+  and `NODE_JOBS` stay unchanged at eight slugs. No new dependencies — the Mantine skills installed
+  for the batch were not needed, because the app is React + Tailwind + shadcn/Radix and adding
+  `@mantine/*` would have duplicated the design system.
+
+  **Create Forms (`ops/formFields.ts` + `jobs/createForms.job.ts`).**
+  - Text fields and checkboxes are created from display-space specs (top-left, y-down) through
+    `viewRectToPdf`/`pageGeom`, so rotated pages need no UI math and the result reads back through
+    `extractFormWidgets` with the same rectangle.
+  - The whole batch is validated before the first widget exists: name shape/length, unique names
+    (in-batch and against the document's existing fields), page range, finite in-page geometry,
+    minimum sizes, font size, default-value length and flags. A rejected batch leaves no partial
+    form.
+  - Existing fields are extended, not replaced; 500 fields per run, 64-char names, 1 000-char
+    defaults. Output `<stem>-fillable.pdf`, saved with `useObjectStreams: false` so the widgets are
+    inspectable in the bytes.
+  - UI: a 900 px page render, click-to-place or explicit add, pointer drag/resize with
+    display→point scaling, a page strip, a numeric X/Y/W/H/font panel, a field list that surfaces
+    duplicate-name errors, and a run button disabled until the form is valid.
+
+  **Create Bookmarks (`ops/outlineWrite.ts` + `render/suggestBookmarks.ts` + the job).**
+  - pdf-lib has no outline API, so the writer allocates the `/Outlines` root and one dictionary per
+    bookmark, then links `/Parent`, `/Prev`, `/Next`, `/First`, `/Last` and `/Count`. Titles go
+    through `PDFHexString.fromText` (UTF-16BE), so non-Latin titles survive; the hex title is what
+    the E2E reads back.
+  - Existing outlines are replaced (the result says so); titles have control characters collapsed
+    and a 200-character cap, pages are bounds-checked, and levels (0–8, no skipped level, first
+    entry top-level) are written as a real tree rather than as indentation in a list.
+  - `suggestBookmarks` is a pure function over the editor's text runs: body size is the most common
+    line size, headings are ≥1.15× body or bold at body size, running headers/footers (repeated on
+    half the pages, no larger than 1.2× body) and page-number lines are excluded, one pick per page,
+    consecutive duplicates are dropped, and the list caps at 500. `pages` mode takes each page's top
+    line; a scanned document falls back to `Page N`.
+  - UI: detection reuses the existing `text-runs` job (no new server surface), Headings/Every-page
+    modes, editable titles and pages, include toggles, indent/outdent/up/down, manual add/remove,
+    live validation and a result note when an outline was replaced. Output
+    `<stem>-bookmarked.pdf`.
+
+  **Security review.** Field names and bookmark titles are untrusted strings written into PDF
+  dictionaries: names are ASCII-restricted and length-capped, titles are C0/C1-normalised,
+  whitespace-collapsed and length-capped, and both are encoded by pdf-lib rather than concatenated
+  into a content stream. Geometry is finite, positive and bounded by the display page, so no
+  negative or huge `/Rect` reaches the document, and page indexes are integers checked against the
+  page count. Output names still pass through `safeOutputName`. Neither job is in `SERVER_SLUGS` or
+  `NODE_JOBS`, so the API and MCP input surface is unchanged. 500 fields / 2 000 bookmarks bound the
+  work, and `estimate()` stays far below the job working-set cap.
+
+  **Gates.** typecheck 7/7 · **1071/1071 unit** (engine 293, +26 for form creation, outline writing
+  and the suggestion heuristic; web 29) · `pnpm build` · bundle boundary green (no engine in the
+  main or lazy app chunks) · **authoring E2E 27/27** in real Edge against downloaded bytes (a form
+  with `/AcroForm`, `/FT /Tx` and `/FT /Btn` plus UTF-16BE field names; a report fixture whose three
+  headings become an edited, nested outline) · the existing bookmark-batch, plain-tools, next-tools,
+  AI, sign and text-edit suites re-ran green as part of the nine browser suites (smoke skipped only
+  its API-stack step) · `pnpm test:sweep` clean across 6 breakpoints × 2 themes × 6 routes.
 
 - **2026-10-25 — The bookmark batch: seven more tools, taking the catalog from 38 to 45 live.**
   Stamp, Repair PDF, Combine files, Image Editor, Batch run, Split by bookmarks and the Workflows
@@ -1821,9 +1888,10 @@ on PATH now — `docker compose up -d --build` works directly from the session.)
 10k-page files, interrupted jobs, cleanup verification), then P7.2 SEO prerender and P7.3 perf/a11y.
 **P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
 L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
-The 2026-10-25 bookmark batch (§8) took the catalog to 45 of 57 live tools and the engine to
-267 tests with its own 29-check E2E; the 2026-10-21 next-tools batch left it at 38 with 251 tests,
-the 2026-10-20 plain-tools batch added ten more and the first dedicated tool suite.
+The 2026-10-26 authoring batch (§8) took the catalog to 47 of 57 live tools and the engine to
+293 tests with its own 27-check E2E; the 2026-10-25 bookmark batch left it at 45 with 267 tests,
+the 2026-10-21 next-tools batch at 38 with 251 tests, and the 2026-10-20 plain-tools batch added
+ten more plus the first dedicated tool suite.
 **P6.4, the hardening pass, has shipped** (§25.5: rotation drill, v1 multipart-sniff matrix,
 the base-URL smuggle class fixed and pinned, SSRF/signing reviews recorded); **P6.3, the MCP
 server, shipped** (`@pdfshush/mcp`, §25.4): stdio server over `/api/v1` with the user's own key,

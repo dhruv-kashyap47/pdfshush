@@ -40,6 +40,8 @@ import { CombineFilesTool } from '@/components/tools/combine-tool';
 import { BatchRunTool } from '@/components/tools/batch-run-tool';
 import { SplitByBookmarksTool } from '@/components/tools/split-by-bookmarks-tool';
 import { ImageEditorTool } from '@/components/tools/image-editor-tool';
+import { CreateFormsTool } from '@/components/tools/create-forms-tool';
+import { CreateBookmarksTool } from '@/components/tools/create-bookmarks-tool';
 import { SignatureTool } from '@/components/tools/signature-tool';
 import { ApiToolPage } from '@/components/tools/api-tool';
 import { McpToolPage } from '@/components/tools/mcp-tool';
@@ -103,6 +105,9 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'batch-run': BatchRunTool,
   'image-editor': ImageEditorTool,
   workflows: () => <WorkflowsPage embedded />,
+  // Authoring batch (2026-10-26).
+  'create-forms': CreateFormsTool,
+  'create-bookmarks': CreateBookmarksTool,
 };
 
 export function ToolPage() {
