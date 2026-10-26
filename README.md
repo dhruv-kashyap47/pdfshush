@@ -82,7 +82,7 @@ pnpm test:e2e:ai-managed # managed trial through the real API routes, in-memory 
 pnpm test:e2e:plain-tools # ten client-side tools, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:e2e:bookmark-batch # stamp, repair, combine, bookmarks, batch ZIP, image editor (29 checks)
-pnpm test:e2e:forms-bookmarks # Create Forms + Create Bookmarks, downloaded bytes (27 checks)
+pnpm test:e2e:forms-bookmarks # Create Forms + Create Bookmarks, downloaded bytes (49 checks)
 pnpm test:bundle       # every app chunk: no pdf-lib / pdf.js / pdfium, no Node built-ins
 pnpm test:api          # API integration suite (37 checks with PSH_SMOKE_MONGODB_URI; 21 without §6)
 pnpm test:hardening    # hardening gate: SIGKILL recovery, TTL sweep (19 checks, needs the stack)

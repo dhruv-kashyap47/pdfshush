@@ -205,14 +205,12 @@ export function CreateFormsTool() {
   };
 
   const removeField = (id: string) => {
-    setFields((previous) => {
-      const index = previous.findIndex((field) => field.id === id);
-      const next = previous.filter((field) => field.id !== id);
-      if (selectedId === id) {
-        setSelectedId(next[Math.min(index, next.length - 1)]?.id ?? null);
-      }
-      return next;
-    });
+    const index = fields.findIndex((field) => field.id === id);
+    const next = fields.filter((field) => field.id !== id);
+    setFields(next);
+    setSelectedId((current) =>
+      current === id ? (next[Math.min(index, next.length - 1)]?.id ?? null) : current,
+    );
   };
 
   const handlePageClick = (event: ReactMouseEvent<HTMLDivElement>) => {

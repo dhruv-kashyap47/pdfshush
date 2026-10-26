@@ -124,7 +124,20 @@ export function startChildWatchdog(
   store: WorkDirStore,
   options: WatchdogOptions,
 ): { stop(): void; sweep(): Promise<LiveChild[]> } {
-  const sweep = () => killExpiredChildren(store, options);
+  /**
+   * A sweep awaits Redis and the filesystem, so the next interval tick can
+   * arrive before it finishes. Sharing the in-flight promise keeps two passes
+   * from listing the same marker and killing the same pid twice.
+   */
+  let inFlight: Promise<LiveChild[]> | null = null;
+  const sweep = () => {
+    if (!inFlight) {
+      inFlight = killExpiredChildren(store, options).finally(() => {
+        inFlight = null;
+      });
+    }
+    return inFlight;
+  };
   const timer = setInterval(() => {
     void sweep().catch((error: unknown) => options.onError?.(error));
   }, options.intervalMs ?? 15_000);

@@ -167,7 +167,7 @@ async function main() {
   const formsFixture = path.join(FIXTURES, 'forms-e2e.pdf');
   const headedFixture = path.join(FIXTURES, 'headed-e2e.pdf');
 
-  await writeFile(formsFixture, buildPdf(1, 'Forms E2E'));
+  await writeFile(formsFixture, buildPdf(2, 'Forms E2E'));
   await writeFile(
     headedFixture,
     buildHeadedPdf([
@@ -216,13 +216,24 @@ async function main() {
 
     await page.getByTestId('create-forms-add-text').click();
     await page.getByTestId('field-name').fill('full_name');
+    check(
+      'both pages are available',
+      (await page.getByRole('button', { name: /^Page \d+$/ }).count()) === 2,
+    );
+    await page.getByRole('button', { name: 'Page 2', exact: true }).click();
+    check('page navigation shows page 2', await page.getByText('Page 2 of 2').isVisible());
     await page.getByTestId('create-forms-add-checkbox').click();
     await page.getByTestId('field-name').fill('agree');
     check(
       'two fields are listed',
       (await page.locator('[data-testid^="field-row-"]').count()) === 2,
     );
+    check(
+      'a field can live on page 2',
+      (await page.getByTestId('field-row-1').innerText()).includes('p.2'),
+    );
 
+    await page.getByRole('button', { name: 'Page 1', exact: true }).click();
     const pageBox = await page.getByTestId('create-forms-page').boundingBox();
     await page.mouse.click(pageBox.x + pageBox.width * 0.62, pageBox.y + pageBox.height * 0.62);
     await waitFor(
@@ -237,15 +248,82 @@ async function main() {
       (await page.locator('[data-testid^="field-row-"]').count()) === 2,
     );
 
+    // Drag/resize through real pointer events, then edit the same box numerically.
+    await page.getByTestId('field-row-0').click();
+    const xBefore = Number(await page.locator('#field-x').inputValue());
+    const yBefore = Number(await page.locator('#field-y').inputValue());
+    const fieldBox = await page.locator('[data-testid^="form-field-"]').first().boundingBox();
+    await page.mouse.move(fieldBox.x + fieldBox.width / 2, fieldBox.y + fieldBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      fieldBox.x + fieldBox.width / 2 + 40,
+      fieldBox.y + fieldBox.height / 2 + 18,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+    await waitFor(
+      async () => Number(await page.locator('#field-x').inputValue()) > xBefore,
+      5_000,
+      'drag to move',
+    );
+    const xAfter = Number(await page.locator('#field-x').inputValue());
+    const yAfter = Number(await page.locator('#field-y').inputValue());
     check(
-      'duplicate names are refused before running',
+      'dragging moves the field',
+      xAfter > xBefore && yAfter > yBefore,
+      `${xBefore},${yBefore} -> ${xAfter},${yAfter}`,
+    );
+
+    const widthBefore = Number(await page.locator('#field-width').inputValue());
+    const heightBefore = Number(await page.locator('#field-height').inputValue());
+    const handleBox = await page.locator('span.cursor-nwse-resize').boundingBox();
+    await page.mouse.move(handleBox.x + 4, handleBox.y + 4);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + 34, handleBox.y + 24, { steps: 5 });
+    await page.mouse.up();
+    await waitFor(
+      async () => Number(await page.locator('#field-width').inputValue()) > widthBefore,
+      5_000,
+      'drag to resize',
+    );
+    const widthAfter = Number(await page.locator('#field-width').inputValue());
+    const heightAfter = Number(await page.locator('#field-height').inputValue());
+    check(
+      'the resize handle changes the box',
+      widthAfter > widthBefore && heightAfter > heightBefore,
+      `${widthBefore}x${heightBefore} -> ${widthAfter}x${heightAfter}`,
+    );
+    await page.locator('#field-width').fill('180');
+    check(
+      'the numeric panel edits geometry',
+      (await page.locator('#field-width').inputValue()) === '180',
+    );
+    check(
+      'dragging did not place an extra field',
+      (await page.locator('[data-testid^="field-row-"]').count()) === 2,
+    );
+
+    await page.getByTestId('field-row-1').click();
+    await page.getByTestId('field-name').fill('full_name');
+    check(
+      'duplicate names disable the run',
+      !(await page.getByTestId('create-forms-run').isEnabled()),
+    );
+    check(
+      'the duplicate is explained before running',
+      await page.getByText('Two fields cannot share a name.').first().isVisible(),
+    );
+    await page.getByTestId('field-name').fill('agree');
+    check(
+      'fixing the name enables the run',
       await page.getByTestId('create-forms-run').isEnabled(),
     );
+
     await page.getByTestId('create-forms-run').click();
     await page.getByText('forms-e2e-fillable.pdf').waitFor({ timeout: 90_000 });
     const formsDl = await download(page, 'Download');
     check('form output is a valid PDF', isPdf(formsDl.bytes), `${formsDl.name} ${formsDl.bytes.length}B`);
-    check('form output keeps the page', pdfPageCount(formsDl.bytes) === 1);
+    check('form output keeps both pages', pdfPageCount(formsDl.bytes) === 2);
     check('form output has an AcroForm', bytesContain(formsDl.bytes, '/AcroForm'));
     check('text field is a real /Tx field', bytesContain(formsDl.bytes, '/FT /Tx'));
     check('checkbox is a real /Btn field', bytesContain(formsDl.bytes, '/FT /Btn'));
@@ -288,7 +366,30 @@ async function main() {
     check('every-page mode keeps three rows', true);
     await page.getByTestId('create-bookmarks-mode-headings').click();
 
+    await page.getByTestId('bookmark-page-0').fill('0');
+    check(
+      'an out-of-range page disables the run',
+      !(await page.getByTestId('create-bookmarks-run').isEnabled()),
+    );
+    check(
+      'the page error names the page count',
+      await page.getByText(/this PDF has 3/).first().isVisible(),
+    );
+    await page.getByTestId('bookmark-page-0').fill('1');
+    check(
+      'fixing the page re-enables the run',
+      await page.getByTestId('create-bookmarks-run').isEnabled(),
+    );
+
+    await page.getByRole('button', { name: /^Move Results up/ }).click();
+    const reordered = await page
+      .locator('[data-testid^="bookmark-title-"]')
+      .evaluateAll((nodes) => nodes.map((node) => node.value));
+    check('bookmarks can be reordered', reordered[1] === 'Results', reordered.join(' | '));
+    await page.getByRole('button', { name: /^Move Results down/ }).click();
+
     await page.getByTestId('bookmark-title-0').fill('Introduction and Scope');
+    await page.getByTestId('bookmark-title-2').fill('Résumé — 日本語');
     await page
       .getByRole('button', { name: /^Indent Method and Data/ })
       .click();
@@ -323,12 +424,69 @@ async function main() {
       'second title is written',
       bytesContain(bookmarkDl.bytes, `<${utf16Hex('Method and Data')}>`),
     );
-    check('third title is written', bytesContain(bookmarkDl.bytes, `<${utf16Hex('Results')}>`));
+    check(
+      'a non-Latin title survives',
+      bytesContain(bookmarkDl.bytes, `<${utf16Hex('Résumé — 日本語')}>`),
+    );
+    check(
+      'the edited-away title is gone',
+      !bytesContain(bookmarkDl.bytes, `<${utf16Hex('Results')}>`),
+    );
     check(
       'nested items point at their parent',
       (bookmarkDl.bytes.toString('latin1').match(/\/Parent\s+\d+\s+0\s+R/g) ?? []).length >= 3,
     );
     await page.screenshot({ path: path.join(ARTIFACTS, 'create-bookmarks-result.png') });
+
+    // Excluding a level-1 parent used to hand the writer a skipped level (0, 2).
+    // The editor now promotes its included children, so the run must succeed.
+    console.log('\n3. Create Bookmarks (excluded parent)');
+    await page.getByRole('button', { name: /Start over/i }).click();
+    await upload(headedFixture);
+    await page.getByTestId('bookmark-title-0').waitFor({ timeout: 90_000 });
+    await waitFor(
+      async () => (await page.locator('[data-testid^="bookmark-title-"]').count()) === 3,
+      30_000,
+      'three suggestions after reset',
+    );
+    await page
+      .getByRole('button', { name: /^Indent Method and Data/ })
+      .click();
+    await page.getByRole('button', { name: /^Indent Results/ }).click();
+    await page.getByRole('button', { name: /^Indent Results/ }).click();
+    check('three levels can be authored', await page.getByText('level 3').isVisible());
+    await page.getByRole('checkbox', { name: /Include Method and Data/ }).click();
+    check(
+      'excluding a parent promotes its child',
+      !(await page.getByText('level 3').isVisible()),
+    );
+    check(
+      'the excluded parent is still listed for editing',
+      await page.getByTestId('bookmark-title-1').isVisible(),
+    );
+    check(
+      'the reduced outline is ready',
+      await page.getByTestId('create-bookmarks-run').isEnabled(),
+    );
+    await page.getByTestId('create-bookmarks-run').click();
+    await page.getByText('headed-e2e-bookmarked.pdf').waitFor({ timeout: 90_000 });
+    const excludedDl = await download(page, 'Download');
+    check(
+      'excluded-parent output is a valid PDF',
+      isPdf(excludedDl.bytes),
+      `${excludedDl.name} ${excludedDl.bytes.length}B`,
+    );
+    check('excluded-parent output keeps all three pages', pdfPageCount(excludedDl.bytes) === 3);
+    check(
+      'the excluded title is not written',
+      !bytesContain(excludedDl.bytes, `<${utf16Hex('Method and Data')}>`),
+    );
+    check(
+      'the promoted titles are written',
+      bytesContain(excludedDl.bytes, `<${utf16Hex('Introduction')}>`) &&
+        bytesContain(excludedDl.bytes, `<${utf16Hex('Results')}>`),
+    );
+    await page.screenshot({ path: path.join(ARTIFACTS, 'create-bookmarks-excluded.png') });
 
     /* Console errors */
     console.log('\nConsole');

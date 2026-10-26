@@ -90,10 +90,12 @@ repack and a real raster compress) + **bookmark-batch suite, 29/29 checks**
 (`tests/e2e/bookmark-batch.mjs`: stamped text read back out of the PDF, repaired page count,
 mixed PDF+image+PDF ordering, a real `/Outlines` fixture split into three chapters, a two-file
 batch ZIP that downloads twice, and a rotated PNG whose exported IHDR dimensions are asserted) +
-**authoring suite, 27/27 checks** (`tests/e2e/forms-bookmarks.mjs`: a downloaded form with
-`/AcroForm`, `/Tx` and `/Btn` widgets whose field names are read back as UTF-16BE hex; a report
-fixture whose three headings are detected, edited, nested, and written as a real outline, with all
-titles read back) · **8/8 focused text-edit E2E** ·
+**authoring suite, 49/49 checks** (`tests/e2e/forms-bookmarks.mjs`: a downloaded two-page form with
+`/AcroForm`, `/Tx` and `/Btn` widgets whose field names are read back as UTF-16BE hex, plus page
+navigation, drag/resize, numeric placement and duplicate-name blocking; a report fixture whose three
+headings are detected, reordered, edited, nested, and written as a real outline with all titles read
+back, including a non-Latin one, plus an excluded parent whose child is promoted instead of leaving a
+skipped level) · **8/8 focused text-edit E2E** ·
 **22/22 AI E2E** (re-run 2026-10-25: chat + highlight apply + in-place replacement + key-handling,
 local SSE mock, plus the five keyless welcome-overlay checks in the same script, so the old
 "17 vs 18" drift is fully explained) · **11/11 managed AI
@@ -234,7 +236,7 @@ pdfshush/
 ├── tests/e2e/plain-tools.mjs       the ten plain tools, magic-byte asserts (13 checks)
 ├── tests/e2e/next-tools.mjs        the six next tools, incl. a real raster compress (18 checks)
 ├── tests/e2e/bookmark-batch.mjs    the seven bookmark-batch tools (29 checks)
-├── tests/e2e/forms-bookmarks.mjs   forms + outline authoring, downloaded bytes (27 checks)
+├── tests/e2e/forms-bookmarks.mjs   forms + outline authoring, downloaded bytes (49 checks)
 ├── tests/api/smoke.mjs             real stack: upload → Redis → worker → download (21 checks)
 ├── tests/api/hardening.mjs         the P3 gate: SIGKILL mid-job, prove the pipeline holds
 ├── docker-compose.yml              redis + api + worker (P3)
@@ -685,11 +687,22 @@ never actually wired, and a stream with no error listener.*
 
   **Gates.** typecheck 7/7 · **1071/1071 unit** (engine 293, +26 for form creation, outline writing
   and the suggestion heuristic; web 29) · `pnpm build` · bundle boundary green (no engine in the
-  main or lazy app chunks) · **authoring E2E 27/27** in real Edge against downloaded bytes (a form
-  with `/AcroForm`, `/FT /Tx` and `/FT /Btn` plus UTF-16BE field names; a report fixture whose three
-  headings become an edited, nested outline) · the existing bookmark-batch, plain-tools, next-tools,
+  main or lazy app chunks) · **authoring E2E 49/49** in real Edge against downloaded bytes (a
+  two-page form with `/AcroForm`, `/FT /Tx` and `/FT /Btn` plus UTF-16BE field names, page
+  navigation, drag/resize, numeric placement and duplicate-name blocking; a report fixture whose
+  three headings become an edited, reordered, nested outline including a non-Latin title, and whose
+  excluded parent promotes its child) · the existing bookmark-batch, plain-tools, next-tools,
   AI, sign and text-edit suites re-ran green as part of the nine browser suites (smoke skipped only
   its API-stack step) · `pnpm test:sweep` clean across 6 breakpoints × 2 themes × 6 routes.
+
+  **Follow-up bug-check (same day).** Excluding a middle bookmark left its child at the old depth in
+  the payload, so the writer correctly rejected the run as a skipped level. Included rows now reflow
+  when a parent is hidden (and are re-normalised on write), so the visible indentation matches the
+  saved outline; form field removal also no longer calls a state setter from inside an updater, and
+  the API child watchdog now shares an in-flight sweep so two interval ticks cannot kill the same
+  pid twice. The authoring E2E grew from 27 to 49 checks: form page navigation, drag/resize, numeric
+  placement and duplicate-name blocking, plus bookmark reorder, out-of-range pages, a non-Latin title
+  and the excluded-parent write.
 
 - **2026-10-25 — The bookmark batch: seven more tools, taking the catalog from 38 to 45 live.**
   Stamp, Repair PDF, Combine files, Image Editor, Batch run, Split by bookmarks and the Workflows
@@ -1889,7 +1902,7 @@ on PATH now — `docker compose up -d --build` works directly from the session.)
 **P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
 L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
 The 2026-10-26 authoring batch (§8) took the catalog to 47 of 57 live tools and the engine to
-293 tests with its own 27-check E2E; the 2026-10-25 bookmark batch left it at 45 with 267 tests,
+293 tests with its own 49-check E2E; the 2026-10-25 bookmark batch left it at 45 with 267 tests,
 the 2026-10-21 next-tools batch at 38 with 251 tests, and the 2026-10-20 plain-tools batch added
 ten more plus the first dedicated tool suite.
 **P6.4, the hardening pass, has shipped** (§25.5: rotation drill, v1 multipart-sniff matrix,

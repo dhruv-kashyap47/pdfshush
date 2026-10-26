@@ -115,6 +115,12 @@ describe('startChildWatchdog', () => {
     const watchdog = startChildWatchdog(store, {
       hardLimitMs: 0,
       intervalMs: 10,
+      // Slower than the interval: without sweep serialisation the ticks overlap
+      // and the same marker can be killed twice.
+      isActive: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        return true;
+      },
       kill: (pid) => killed.push(pid),
     });
 

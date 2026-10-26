@@ -73,6 +73,23 @@ function normalizeLevels(rows: Row[]): Row[] {
   return result;
 }
 
+/**
+ * Normalise the *included* rows' levels, leaving excluded rows alone.
+ *
+ * Hiding a parent promotes its children instead of leaving a gap that the
+ * writer (correctly) refuses to write. Re-including the parent reflows again,
+ * so the visible indentation always matches the outline that will be saved.
+ */
+function reflowIncluded(rows: Row[]): Row[] {
+  const levels = new Map(
+    normalizeLevels(rows.filter((row) => row.include)).map((row) => [row.id, row.level]),
+  );
+  return rows.map((row) => {
+    const level = levels.get(row.id);
+    return level === undefined || level === row.level ? row : { ...row, level };
+  });
+}
+
 export function CreateBookmarksTool() {
   const [files, setFiles] = useState<File[]>([]);
   const [info, setInfo] = useState<InspectOutput | null>(null);
@@ -202,6 +219,16 @@ export function CreateBookmarksTool() {
     );
   };
 
+  const setIncluded = (id: string, include: boolean) => {
+    setRows((previous) =>
+      previous
+        ? reflowIncluded(
+            previous.map((row) => (row.id === id ? { ...row, include } : row)),
+          )
+        : previous,
+    );
+  };
+
   const changeLevel = (id: string, delta: number) => {
     setRows((previous) => {
       if (!previous) return previous;
@@ -213,7 +240,9 @@ export function CreateBookmarksTool() {
           ? { ...row, level: Math.max(0, Math.min(MAX_LEVEL, row.level + delta)) }
           : row,
       );
-      return normalizeLevels(next);
+      // An excluded row is not in the outline yet; let it keep the level the
+      // user chose until it is included again.
+      return next[index]!.include ? reflowIncluded(next) : next;
     });
   };
 
@@ -227,13 +256,13 @@ export function CreateBookmarksTool() {
       const moving = next[index]!;
       next[index] = next[target]!;
       next[target] = moving;
-      return normalizeLevels(next);
+      return reflowIncluded(next);
     });
   };
 
   const removeRow = (id: string) => {
     setRows((previous) =>
-      previous ? normalizeLevels(previous.filter((row) => row.id !== id)) : previous,
+      previous ? reflowIncluded(previous.filter((row) => row.id !== id)) : previous,
     );
   };
 
@@ -246,7 +275,7 @@ export function CreateBookmarksTool() {
         level: 0,
         include: true,
       };
-      return normalizeLevels([...(previous ?? []), row]);
+      return reflowIncluded([...(previous ?? []), row]);
     });
   };
 
@@ -285,10 +314,13 @@ export function CreateBookmarksTool() {
     announceCapacityWarning(verdict);
 
     const stem = files[0]!.name.replace(/\.pdf$/i, '') || 'document';
+    // Handlers keep this normalised already; re-run it here so any path that
+    // adds rows can never hand the writer a skipped nesting level.
+    const includedRows = normalizeLevels(included);
     const outcome = await writer.run(
       await readAsInputFiles(files),
       {
-        bookmarks: included.map((row) => ({
+        bookmarks: includedRows.map((row) => ({
           title: row.title.trim(),
           pageIndex: Number(row.page) - 1,
           level: row.level,
@@ -459,9 +491,7 @@ export function CreateBookmarksTool() {
                         <div className="flex items-center gap-2">
                           <Checkbox
                             checked={row.include}
-                            onCheckedChange={(value) =>
-                              updateRow(row.id, { include: value === true })
-                            }
+                            onCheckedChange={(value) => setIncluded(row.id, value === true)}
                             aria-label={`Include ${row.title || `bookmark ${index + 1}`}`}
                           />
                           <Input
