@@ -7,7 +7,7 @@ import type { JobDefinition } from '../job.js';
 import { compressDocument, COMPRESS_LIMITS, type CompressMode } from '../compress/compress.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
-const MODES: ReadonlySet<string> = new Set<CompressMode>(['raster', 'lossless']);
+const MODES: ReadonlySet<string> = new Set<CompressMode>(['smart', 'raster', 'lossless']);
 
 /** Type alias (not interface) for the implicit index signature constraint. */
 export type CompressJobOptions = {
@@ -29,6 +29,11 @@ export interface CompressJobOutput {
   fileName: string;
   mode: CompressMode;
   originalBytes: number;
+  /** Smart mode metrics; 0 for the other modes. */
+  imagesOptimized: number;
+  imagesSkipped: number;
+  imageBytesBefore: number;
+  imageBytesAfter: number;
 }
 
 export const compressJob: JobDefinition<CompressJobInput, CompressJobOutput> = {
@@ -40,7 +45,7 @@ export const compressJob: JobDefinition<CompressJobInput, CompressJobOutput> = {
     if (input.files.length !== 1) issues.push({ message: 'Choose exactly one PDF' });
     const options = input.options ?? {};
     if (options.mode !== undefined && !MODES.has(options.mode)) {
-      issues.push({ message: 'Choose strong compression or repack-only' });
+      issues.push({ message: 'Choose smart compression, strong compression or repack-only' });
     }
     if (
       options.quality !== undefined &&
@@ -63,8 +68,9 @@ export const compressJob: JobDefinition<CompressJobInput, CompressJobOutput> = {
 
   estimate(input) {
     const options = input.options ?? {};
-    // Raster holds a full-page bitmap plus its encoded JPEG before embedding.
-    const factor = options.mode === 'lossless' ? 2 : 8;
+    // Smart decodes one image at a time; raster holds a full-page bitmap plus
+    // its encoded JPEG; lossless only needs the parse and the reserialized copy.
+    const factor = options.mode === 'lossless' ? 2 : options.mode === 'smart' ? 6 : 8;
     return { memoryBytes: totalInputBytes(input) * factor };
   },
 
@@ -88,6 +94,10 @@ export const compressJob: JobDefinition<CompressJobInput, CompressJobOutput> = {
       fileName: safeOutputName(options.outputName, `${baseName(file.name)}-compressed`),
       mode: result.mode,
       originalBytes: file.data.byteLength,
+      imagesOptimized: result.imagesOptimized ?? 0,
+      imagesSkipped: result.imagesSkipped ?? 0,
+      imageBytesBefore: result.imageBytesBefore ?? 0,
+      imageBytesAfter: result.imageBytesAfter ?? 0,
     };
   },
 };

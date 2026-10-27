@@ -1,6 +1,8 @@
 /**
  * End-to-end test for the next-tools batch (PLAN.md changelog, 2026-10-21):
  * unlock, JPG to PDF, rename, Bates numbering, split by text, compress.
+ * Extended 2026-10-27 with smart image compression and Protect PDF (real
+ * AES-256 encryption verified with pdf.js, independently of pdf-lib).
  *
  * Runs every tool in a real browser against generated fixtures and asserts on
  * the downloaded bytes. The encrypted fixture is generated once with pypdf (a
@@ -14,7 +16,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { deflateSync, inflateSync, inflateRawSync } from 'node:zlib';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
@@ -62,6 +64,79 @@ function buildPdf(pageCount, label) {
   body += xref;
   body += `trailer\n<< /Size ${total + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
   return Buffer.from(body, 'latin1');
+}
+
+/**
+ * A one-page PDF with a real FlateDecode RGB image and a text line. The pixels
+ * are deliberately noisy so Flate is large while JPEG is much smaller -- the
+ * exact case smart compression is meant to improve.
+ */
+function buildImagePdf(width, height, label) {
+  const raw = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 3;
+      // A cheap deterministic pattern with enough variation to resist Flate.
+      raw[i] = (x * 7 + y * 13 + ((x * y) % 251)) & 0xff;
+      raw[i + 1] = (x * 11 + y * 5 + ((x + y) % 241)) & 0xff;
+      raw[i + 2] = (x * 3 + y * 17 + ((x * 2 + y * 3) % 239)) & 0xff;
+    }
+  }
+  const compressed = deflateSync(raw, { level: 6 });
+  const content = Buffer.from(
+    `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\nBT /F1 18 Tf 36 24 Td (${label}) Tj ET`,
+    'latin1',
+  );
+  const objects = [
+    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>', 'latin1'),
+    Buffer.from('<< /Type /Pages /Kids [3 0 R] /Count 1 >>', 'latin1'),
+    Buffer.from(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] ` +
+        `/Resources << /XObject << /Im0 5 0 R >> /Font << /F1 6 0 R >> >> /Contents 4 0 R >>`,
+      'latin1',
+    ),
+    Buffer.concat([
+      Buffer.from(`<< /Length ${content.length} >>\nstream\n`, 'latin1'),
+      content,
+      Buffer.from('\nendstream', 'latin1'),
+    ]),
+    Buffer.concat([
+      Buffer.from(
+        `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} ` +
+          `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode ` +
+          `/Length ${compressed.length} >>\nstream\n`,
+        'latin1',
+      ),
+      compressed,
+      Buffer.from('\nendstream', 'latin1'),
+    ]),
+    Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', 'latin1'),
+  ];
+
+  let body = Buffer.from('%PDF-1.4\n', 'latin1');
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets[index + 1] = body.length;
+    body = Buffer.concat([
+      body,
+      Buffer.from(`${index + 1} 0 obj\n`, 'latin1'),
+      object,
+      Buffer.from('\nendobj\n', 'latin1'),
+    ]);
+  });
+  const xrefStart = body.length;
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let index = 1; index <= objects.length; index += 1) {
+    xref += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
+  }
+  body = Buffer.concat([
+    body,
+    Buffer.from(
+      `${xref}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`,
+      'latin1',
+    ),
+  ]);
+  return body;
 }
 
 const CRC_TABLE = (() => {
@@ -187,7 +262,38 @@ function pdfContainsText(bytes, needle) {
   );
 }
 
-/* ------------------------------------------------------------------- main */
+/** Opens a PDF independently with pdf.js (used to verify real encryption). */
+let pdfjsModule;
+async function openPdfWithPassword(bytes, password) {
+  if (!pdfjsModule) {
+    const moduleUrl = pathToFileURL(
+      path.join(ROOT, 'apps', 'web', 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.mjs'),
+    ).href;
+    pdfjsModule = await import(moduleUrl);
+    pdfjsModule.GlobalWorkerOptions.workerSrc = pathToFileURL(
+      path.join(
+        ROOT,
+        'apps',
+        'web',
+        'node_modules',
+        'pdfjs-dist',
+        'legacy',
+        'build',
+        'pdf.worker.mjs',
+      ),
+    ).href;
+  }
+  const task = pdfjsModule.getDocument({ data: new Uint8Array(bytes), password });
+  return task.promise;
+}
+
+async function pdfText(doc, pageNumber) {
+  const page = await doc.getPage(pageNumber);
+  const content = await page.getTextContent();
+  return content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
+}
+
+
 
 async function main() {
   await mkdir(ARTIFACTS, { recursive: true });
@@ -197,12 +303,15 @@ async function main() {
   const beta = path.join(FIXTURES, 'beta-next.pdf');
   const imageA = path.join(FIXTURES, 'photo-a.png');
   const imageB = path.join(FIXTURES, 'photo-b.png');
+  const smartSource = path.join(FIXTURES, 'smart-source.pdf');
+  const imaged = path.join(FIXTURES, 'imaged.pdf');
   const locked = path.join(ROOT, 'packages', 'pdf-core', 'test', 'fixtures', 'encrypted-aes128.pdf');
 
   await writeFile(alpha, buildPdf(3, 'PDFShush Next'));
   await writeFile(beta, buildPdf(2, 'PDFShush Beta'));
   await writeFile(imageA, buildPng(160, 100));
   await writeFile(imageB, buildPng(90, 140));
+  await writeFile(smartSource, buildImagePdf(800, 600, 'Smart compress text layer'));
 
   const browser = await chromium.launch({ channel: 'msedge' });
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
@@ -305,6 +414,11 @@ async function main() {
     console.log('\n6. Compress PDF (repack)');
     await openTool('compress-pdf');
     await upload(alpha);
+    await waitFor(
+      async () => await page.getByRole('button', { name: /Repack only/ }).isEnabled(),
+      60_000,
+      'compress ready',
+    );
     await page.getByRole('button', { name: /Repack only/ }).click();
     await page.getByRole('button', { name: 'Compress PDF' }).click();
     await page.getByText(/Repacked without touching text or images/).waitFor({ timeout: 60_000 });
@@ -321,12 +435,121 @@ async function main() {
       60_000,
       'compress ready',
     );
+    await page.getByRole('button', { name: /Strong compression/ }).click();
     await page.getByRole('button', { name: 'Compress PDF' }).click();
     await page.getByText(/Rebuilt as JPEG images/).waitFor({ timeout: 180_000 });
     const strongDl = await download(page, 'Download');
     check('strong compression output is a valid PDF', isPdf(strongDl.bytes), `${strongDl.name} ${strongDl.bytes.length}B`);
     check('strong compression reports before and after', await page.getByText('Before').isVisible());
     await page.screenshot({ path: path.join(ARTIFACTS, 'compress-result.png') });
+
+    /* 8. Compress -- smart (images shrink, text survives) */
+    console.log('\n8. Compress PDF (smart)');
+    await openTool('compress-pdf');
+    await upload(smartSource);
+    await waitFor(
+      async () => await page.getByRole('button', { name: 'Compress PDF' }).isEnabled(),
+      60_000,
+      'smart compress ready',
+    );
+    check(
+      'smart compression is the default',
+      (await page.getByRole('button', { name: /Smart compression/ }).getAttribute('aria-pressed')) ===
+        'true',
+    );
+    await page.getByRole('button', { name: 'Compress PDF' }).click();
+    await page.getByText(/text preserved/).waitFor({ timeout: 180_000 });
+    await page.getByText(/1 image re-encoded/).waitFor({ timeout: 30_000 });
+    const smartDl = await download(page, 'Download');
+    const originalBytes = (await readFile(smartSource)).length;
+    check('smart output is a valid PDF', isPdf(smartDl.bytes), `${smartDl.name} ${smartDl.bytes.length}B`);
+    check(
+      'smart output keeps the text layer',
+      pdfContainsText(smartDl.bytes, 'Smart compress text layer'),
+    );
+    check(
+      'smart output is smaller than the source',
+      smartDl.bytes.length < originalBytes * 0.9,
+      `${originalBytes}B -> ${smartDl.bytes.length}B`,
+    );
+    await page.screenshot({ path: path.join(ARTIFACTS, 'compress-smart-result.png') });
+
+    /* 8b. Smart compression on a document with a soft mask and vector text */
+    console.log('\n8b. Compress PDF (smart, soft-mask fixture)');
+    await page.getByRole('button', { name: 'Start over' }).click();
+    await upload(imaged);
+    await waitFor(
+      async () => await page.getByRole('button', { name: 'Compress PDF' }).isEnabled(),
+      60_000,
+      'soft-mask compress ready',
+    );
+    await page.getByRole('button', { name: 'Compress PDF' }).click();
+    await page.getByText(/text preserved/).waitFor({ timeout: 180_000 });
+    const maskDl = await download(page, 'Download');
+    check(
+      'smart soft-mask output is a valid PDF',
+      isPdf(maskDl.bytes),
+      `${maskDl.name} ${maskDl.bytes.length}B`,
+    );
+    check(
+      'smart soft-mask output keeps text and vector content',
+      pdfContainsText(maskDl.bytes, 'Page 1 - text and vector only'),
+    );
+    await page.screenshot({ path: path.join(ARTIFACTS, 'compress-smart-mask-result.png') });
+
+    /* 9. Protect -- real AES-256 encryption, verified with pdf.js */
+    console.log('\n9. Protect PDF (AES-256)');
+    await openTool('protect-pdf');
+    await upload(alpha);
+    const openPassword = page.getByLabel('Open password');
+    await openPassword.waitFor({ timeout: 30_000 });
+    await openPassword.fill('correct horse battery');
+    await page.getByLabel('Confirm password').fill('correct horse battery');
+    await page.getByRole('button', { name: 'Protect PDF' }).click();
+    await page.getByText(/Open password required/).waitFor({ timeout: 180_000 });
+    const protectDl = await download(page, 'Download');
+    const protectRaw = protectDl.bytes.toString('latin1');
+    check('protect output is a valid PDF', isPdf(protectDl.bytes), `${protectDl.name} ${protectDl.bytes.length}B`);
+    check('protect adds an /Encrypt entry', protectRaw.includes('/Encrypt'));
+    check('protect uses AES-256 (R6/V5)', protectRaw.includes('/AESV3') && protectRaw.includes('/V 5') && protectRaw.includes('/R 6'));
+    check('protect output does not contain plaintext page text', !protectRaw.includes('PDFShush Next page 2'));
+
+    const opened = await openPdfWithPassword(protectDl.bytes, 'correct horse battery');
+    try {
+      check('protect opens with the right password', opened.numPages === 3, `${opened.numPages} pages`);
+      check(
+        'protected text is intact after decryption',
+        (await pdfText(opened, 2)).includes('PDFShush Next page 2'),
+      );
+      const permissions = new Set(await opened.getPermissions());
+      check('defaults allow printing', permissions.has(4));
+      check('defaults block copying', !permissions.has(16));
+      check('defaults block editing', !permissions.has(8));
+      check('accessibility is always allowed', permissions.has(512));
+    } finally {
+      await opened.loadingTask.destroy();
+    }
+
+    let wrongAccepted = false;
+    try {
+      const wrong = await openPdfWithPassword(protectDl.bytes, 'wrong password');
+      wrongAccepted = true;
+      await wrong.loadingTask.destroy();
+    } catch {
+      wrongAccepted = false;
+    }
+    check('a wrong password is rejected', !wrongAccepted);
+
+    let noPasswordAccepted = false;
+    try {
+      const plain = await openPdfWithPassword(protectDl.bytes, undefined);
+      noPasswordAccepted = true;
+      await plain.loadingTask.destroy();
+    } catch {
+      noPasswordAccepted = false;
+    }
+    check('opening without the password is rejected', !noPasswordAccepted);
+    await page.screenshot({ path: path.join(ARTIFACTS, 'protect-result.png') });
 
     /* Console errors */
     console.log('\nConsole');

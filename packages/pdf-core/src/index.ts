@@ -257,6 +257,8 @@ export type {
   CreateBookmarksJobOutput,
   CreateBookmarksJobOptions,
 } from './jobs/createBookmarks.job.js';
+export { protectJob } from './jobs/protect.job.js';
+export type { ProtectJobInput, ProtectJobOutput, ProtectJobOptions } from './jobs/protect.job.js';
 export { batesNumberDocument, formatBatesNumber, BATES_LIMITS } from './ops/bates.js';
 export type { BatesOptions, BatesResult } from './ops/bates.js';
 export {
@@ -287,6 +289,10 @@ export { compressDocument, COMPRESS_DEFAULTS, COMPRESS_LIMITS } from './compress
 export type { CompressMode, CompressOptions, CompressResult } from './compress/compress.js';
 export { unlockDocument } from './ops/unlock.js';
 export type { UnlockResult } from './ops/unlock.js';
+export { protectDocument, validateProtectOptions, normalizePermissions } from './ops/protect.js';
+export type { ProtectOptions, ProtectResult } from './ops/protect.js';
+export { PROTECT_DEFAULT_PERMISSIONS, PROTECT_LIMITS } from './ops/protectConfig.js';
+export type { ProtectPermissions } from './ops/protectConfig.js';
 export { repairPdf } from './ops/repair.js';
 export type { RepairOptions, RepairResult } from './ops/repair.js';
 export { combineToPdf, isPdfBytes } from './ops/combine.js';

@@ -44,9 +44,13 @@ interface RawImageInfo {
   samples: Uint8Array;
   isJpeg: boolean;
   hasSMask: boolean;
+  /** Source spelling of the image's colour space, for callers that care. */
+  colorSpace: string | undefined;
+  /** Single filter in the stream's `/Filter` entry. */
+  filter: 'FlateDecode' | 'DCTDecode';
 }
 
-function isImageStream(obj: PDFObject): obj is PDFRawStream {
+export function isImageStream(obj: PDFObject): obj is PDFRawStream {
   if (!(obj instanceof PDFRawStream)) return false;
   return obj.dict.get(PDFName.of('Subtype')) === PDFName.of('Image');
 }
@@ -109,13 +113,14 @@ export function classifyImageStream(dict: PDFDict, raw: Uint8Array): RawImageInf
     filterName = asName(filter);
   }
   if (!filterName || !SUPPORTED_FILTERS.has(filterName)) return null;
+  const supportedFilter = filterName as 'FlateDecode' | 'DCTDecode';
 
   if (width === undefined || height === undefined || width < 1 || height < 1) return null;
   if (bits !== 8) return null;
 
   const hasSMask = dict.get(PDFName.of('SMask')) !== undefined;
 
-  if (filterName === 'DCTDecode') {
+  if (supportedFilter === 'DCTDecode') {
     // A JPEG needs no colour-space voyage; pass the bytes through untouched.
     return {
       width,
@@ -124,6 +129,8 @@ export function classifyImageStream(dict: PDFDict, raw: Uint8Array): RawImageInf
       samples: raw,
       isJpeg: true,
       hasSMask,
+      colorSpace: colorName,
+      filter: supportedFilter,
     };
   }
 
@@ -149,7 +156,16 @@ export function classifyImageStream(dict: PDFDict, raw: Uint8Array): RawImageInf
   } else if (samples.length !== width * height * components) {
     return null;
   }
-  return { width, height, components, samples, isJpeg: false, hasSMask };
+  return {
+    width,
+    height,
+    components,
+    samples,
+    isJpeg: false,
+    hasSMask,
+    colorSpace: colorName,
+    filter: supportedFilter,
+  };
 }
 
 /**

@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-26
+**Last updated:** 2026-10-27
 
 ---
 
@@ -30,7 +30,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Plain-tools batch** | Ten client-side tools over the existing engine in one wave: flip, watermark, edit-metadata, remove-annotations, pdf-to-text, grayscale, resize, extract-images, split-by-size, flatten | ✅ **shipped 2026-10-20** — see §8 first entry |
 | **Next-tools batch** | Six more client-side tools off the same engine: unlock, JPG to PDF, rename, Bates numbering, split by text, compress | ✅ **shipped 2026-10-21** — see §8 first entry |
 | **AI access pass** | Groq BYOK (free tier), cost-tier tags, managed default → OpenRouter free models, plain-English first-run onboarding overlay with anime.js motion | ✅ **shipped 2026-10-21** — see §26 |
-| **Authoring batch** | Two client-side authoring tools off the same engine: Create Forms (AcroForm text fields/checkboxes) and Create Bookmarks (`/Outlines` writer + heading detection) | ✅ **shipped 2026-10-26** — see §8 first entry |
+| **Authoring batch** | Two client-side authoring tools off the same engine: Create Forms (AcroForm text fields/checkboxes) and Create Bookmarks (`/Outlines` writer + heading detection) | ✅ **shipped 2026-10-26** — see §8 |
+| **Security batch** | Real AES-256 Protect PDF (open/owner passwords + permission flags) and a Smart Compress pass that re-encodes safe embedded images while preserving text, links and forms | ✅ **shipped 2026-10-27** — see §8 first entry |
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
 
@@ -55,38 +56,45 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-26 for the **authoring batch** (`pnpm test`, `pnpm typecheck`,
-`pnpm build`, `pnpm test:bundle`, `pnpm test:sweep`, and all nine browser suites; the smoke suite
-skipped its one API-stack step because no Redis was running). The last full-stack API smoke +
+**Current gate:** re-measured 2026-10-27 for the **security batch** (`pnpm typecheck`,
+`pnpm build`, `pnpm test:bundle`, the next-tools browser suite, and a serial full unit run — the
+default parallel run can still hit a pre-existing flaky API child-watchdog timing test, so the
+full suite was run with `--workspace-concurrency=1` and is 1079/1079 green; the other browser
+suites were last re-run green for the authoring batch). The last full-stack API smoke +
 hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
 of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
 still hold.
-**47 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**48 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
 `jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; seven on
 2026-10-25: `stamp`, `repair-pdf`, `combine-pdf`, `image-editor`, `batch-run`,
-`split-by-bookmarks`, `workflows`; two on 2026-10-26: `create-forms`, `create-bookmarks`; `redact-pdf` in
+`split-by-bookmarks`, `workflows`; three on 2026-10-26/27: `create-forms`, `create-bookmarks`,
+`protect-pdf`; `redact-pdf` in
 Security; `summarize-pdf` +
 `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1071/1071 unit** (**293 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
-**19 MCP**) — the engine total rose by 26 in the authoring batch (form-field creation, outline
-writing and heading detection); the web total is unchanged ·
+**1079/1079 unit** (**301 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
+**19 MCP**) — the engine total rose by 34 across the authoring and security batches (form-field
+creation, outline writing, heading detection, Protect encryption and smart-compress defaults);
+the web total is unchanged ·
 browser E2E: full
 smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
 `/api/health` reports Redis down) + **plain-tools suite, 13/13 checks**
 (`tests/e2e/plain-tools.mjs`, real downloads with magic-byte asserts: `%PDF-`, `PK`, inflated
-`FF D8` JPEG in the extract-images ZIP, page text inside the .txt) + **next-tools suite, 18/18 checks**
+`FF D8` JPEG in the extract-images ZIP, page text inside the .txt) + **next-tools suite, 36/36 checks**
 (`tests/e2e/next-tools.mjs`: decrypted PDF with no `/Encrypt` and its text intact, image-embedded
 PDF page count, renamed ZIP, stamped Bates numbers read back out of zlib streams, split parts,
-repack and a real raster compress) + **bookmark-batch suite, 29/29 checks**
+repack and a real raster compress, plus smart compression shrinking a 1.4 MB Flate photo while
+keeping its text, a soft-mask fixture staying valid, and Protect output carrying `/Encrypt` +
+`/AESV3`/R6 that pdf.js opens only with the right password, keeps the text and reports the
+expected permission bits) + **bookmark-batch suite, 29/29 checks**
 (`tests/e2e/bookmark-batch.mjs`: stamped text read back out of the PDF, repaired page count,
 mixed PDF+image+PDF ordering, a real `/Outlines` fixture split into three chapters, a two-file
 batch ZIP that downloads twice, and a rotated PNG whose exported IHDR dimensions are asserted) +
@@ -636,6 +644,70 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-27 — The security batch: Protect PDF (real AES-256) and Smart Compress, taking the
+  catalog from 47 to 48 live.** Both are browser-only, so `SERVER_SLUGS`, `/api/v1`, the MCP
+  surface and `NODE_JOBS` stay unchanged at eight slugs. No new dependencies: the encryption
+  write path already exists in `@cantoo/pdf-lib` 2.11.1, and smart compression reuses the
+  existing pdf-lib/OffscreenCanvas path.
+
+  **Protect (`ops/protect.ts` + `ops/protectConfig.ts` + `jobs/protect.job.ts` +
+  `protect-pdf-tool.tsx`).**
+  - The engine calls `PDFDocument.encrypt({ algorithm: 'AES-256' })` and saves with object
+    streams. It verifies `/Encrypt` **and** `/AESV3` in the output before returning; a missing
+    marker is a hard failure, not a toast. This is genuine R6/V5 encryption, not permission bits
+    over a plaintext file.
+  - The open password is required (8–256 characters). The optional owner password must also be
+    8+ characters and must differ from the open password. When omitted, 192 bits of
+    `crypto.getRandomValues` generate a separate owner key and it is never returned, so the
+    permission switches are real and cannot be turned off with the open password alone.
+    `/AESV3` uses SHA-256 and the password is encoded as UTF-8, so non-Latin passwords work.
+  - Permission defaults are useful rather than hostile: printing (high resolution), annotations
+    and form filling allowed; copying, editing and page assembly blocked. Accessibility
+    extraction is always granted. The UI states the honest limit: mainstream readers honour
+    these flags, but they do not stop screenshots or someone who already has the open password.
+  - Already-encrypted sources are refused with a pointer to Unlock instead of being double-locked
+    (the parse uses `ignoreEncryption` only to detect that case and is never saved). PDF/A's
+    prohibition is mapped to a clear message; passwords never enter a result, progress message or
+    filename. Output is `<stem>-protected.pdf`.
+  - Unlock was hardened alongside Protect: pdf-lib can leave the old encryption dictionary and
+    xref stream in the saved file even after decrypting. `unlockDocument` now deletes those dead
+    artefacts, so removing protection produces a genuinely unencrypted PDF with no `/Encrypt`
+    marker. The Protect test round-trips through Unlock and re-checks the text layer.
+  - UI: open/confirm fields with reveal controls, live strength and mismatch feedback, an optional
+    owner-password drawer, six permission checkboxes with a reset, an encrypted-source warning,
+    and a result panel that names AES-256 and summarizes the granted permissions. The limits and
+    defaults live in `ops/protectConfig.ts`, which has no pdf-lib import, so the lazy tool chunk
+    stays engine-free; `test:bundle` pins that boundary.
+
+  **Smart Compress (`compress/compress.ts` + the job + three-mode UI).**
+  - Smart is now the default. It walks image XObjects and re-encodes only 8-bit DeviceRGB /
+    DeviceGray Flate or JPEG images with `OffscreenCanvas`, then replaces the stream only when
+    the new JPEG is at least 3% smaller. Text, links, forms, annotations and vector content are
+    never rasterized.
+  - It refuses the cases where a round-trip changes meaning: images used as soft or colour-key
+    masks, `/ImageMask`, `/Decode`, external `/F` streams, JPEGs with `/DecodeParms`, CMYK/ICC/
+    indexed/16-bit content, and images over 16 million pixels or 3,000 px on the long edge.
+    Masked base images are never downscaled, so mask alignment survives. A declared-pixel check
+    runs before inflation to keep decompression bombs out of the worker; at most 200 image
+    objects are considered.
+  - The job returns measured image counts and byte totals; the UI shows how many images were
+    re-encoded, the image payload before/after, a “text preserved” badge, and an honest
+    no-saving message when the 3% threshold is not met. `raster` (strong, text becomes pixels)
+    and `lossless` (repack, may save nothing) remain available and are labelled as such; DPI is
+    shown only for raster.
+
+  **Verification.** `test/protect.test.ts` (7 tests) opens the encrypted output independently:
+  pdf-lib proves the password gate and non-Latin password, pdf.js proves permissions and text
+  extraction, and the raw bytes are checked for `/AESV3`, `/V 5` and `/R 6`. `next-tools.test.ts`
+  adds the smart default/Node-refusal contract. The browser suite independently opens Protect
+  output with pdf.js, checks the text and permission bits, and rejects both a wrong password and
+  no password; smart compression shrinks a generated 1,441,208-byte Flate photo to 225,497 bytes
+  while keeping its text, and leaves a soft-mask fixture valid. **Gates:** typecheck 7/7 projects ·
+  **1079/1079 unit** (engine 301, +8; serial full run) · `pnpm build` · bundle boundary green ·
+  **next-tools E2E 36/36** in real Edge. The default parallel unit run can still hit a
+  pre-existing API child-watchdog timing test; it passed on isolated rerun and in the full serial
+  run. The other browser suites were last green for the authoring batch.
 
 - **2026-10-26 — The authoring batch: Create Forms and Create Bookmarks, taking the catalog from
   45 to 47 live.** Both are browser-only pdf-lib jobs, so `SERVER_SLUGS`, `/api/v1`, the MCP surface
@@ -1901,8 +1973,9 @@ on PATH now — `docker compose up -d --build` works directly from the session.)
 10k-page files, interrupted jobs, cleanup verification), then P7.2 SEO prerender and P7.3 perf/a11y.
 **P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
 L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
-The 2026-10-26 authoring batch (§8) took the catalog to 47 of 57 live tools and the engine to
-293 tests with its own 49-check E2E; the 2026-10-25 bookmark batch left it at 45 with 267 tests,
+The 2026-10-27 security batch (§8) took the catalog to 48 of 57 live tools and the engine to
+301 tests with its own 36-check E2E; the 2026-10-26 authoring batch left it at 47 with 293
+tests, the 2026-10-25 bookmark batch at 45 with 267 tests,
 the 2026-10-21 next-tools batch at 38 with 251 tests, and the 2026-10-20 plain-tools batch added
 ten more plus the first dedicated tool suite.
 **P6.4, the hardening pass, has shipped** (§25.5: rotation drill, v1 multipart-sniff matrix,

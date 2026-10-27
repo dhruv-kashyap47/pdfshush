@@ -38,10 +38,9 @@ const QUICK_AI_ACTIONS = [
 ] as const;
 
 /* The eight jobs people open this site for. Every entry is a real route under
-   /tools — two of them (Compress, Protect) are still on the roadmap and say
-   so with the same "soon" badge the catalog uses, so the grid never lies
-   about what runs today. Descriptions stay short so a chip never wraps its
-   promise mid-sentence on a phone. */
+   /tools and every one runs today, so the grid never lies about what is live.
+   Descriptions stay short so a chip never wraps its promise mid-sentence on a
+   phone. */
 interface ToolShortcut {
   slug: string;
   label: string;
@@ -55,12 +54,12 @@ interface ToolShortcut {
 const HERO_TOOLS: ToolShortcut[] = [
   { slug: 'merge-pdf', label: 'Merge PDF', desc: 'Combine files in any order', icon: Merge, accent: 'green' },
   { slug: 'split-by-pages', label: 'Split PDF', desc: 'Cut into page ranges', icon: Scissors, accent: 'blue' },
-  { slug: 'compress-pdf', label: 'Compress PDF', desc: 'Smaller file, sharp text', icon: Minimize2, accent: 'orange', soon: true },
+  { slug: 'compress-pdf', label: 'Compress PDF', desc: 'Smaller file, sharp text', icon: Minimize2, accent: 'orange' },
   { slug: 'edit-pdf', label: 'Edit PDF', desc: 'Type right on the page', icon: PenTool, accent: 'green' },
   { slug: 'pdf-to-jpg', label: 'Convert PDF', desc: 'Export pages as images', icon: Image, accent: 'amber' },
   { slug: 'organize-pdf', label: 'Organize Pages', desc: 'Drag to reorder pages', icon: LayoutGrid, accent: 'blue' },
   { slug: 'fill-sign', label: 'Sign PDF', desc: 'Draw or type a signature', icon: Signature, accent: 'amber' },
-  { slug: 'protect-pdf', label: 'Protect PDF', desc: 'Add an open password', icon: Lock, accent: 'blue', soon: true },
+  { slug: 'protect-pdf', label: 'Protect PDF', desc: 'Add an open password', icon: Lock, accent: 'blue' },
 ];
 
 /* Icon tiles mirror the accents the registry already assigns these tools, so

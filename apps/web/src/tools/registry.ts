@@ -152,6 +152,8 @@ const LIVE = new Set([
   // Authoring batch (2026-10-26).
   'create-forms',
   'create-bookmarks',
+  // Security batch (2026-10-27).
+  'protect-pdf',
 ]);
 
 /**
@@ -206,6 +208,8 @@ const TOOL_NEXT: Record<string, string[]> = {
   // Authoring batch (2026-10-26).
   'create-forms': ['fill-sign', 'edit-pdf'],
   'create-bookmarks': ['split-by-bookmarks', 'merge-pdf'],
+  // Security batch (2026-10-27).
+  'protect-pdf': ['unlock-pdf', 'compress-pdf'],
 };
 
 const tool = (

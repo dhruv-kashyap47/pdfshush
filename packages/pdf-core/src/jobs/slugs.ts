@@ -51,6 +51,8 @@ export const JOB_SLUGS = [
   // Authoring batch (2026-10-26).
   'create-forms',
   'create-bookmarks',
+  // Security batch (2026-10-27).
+  'protect',
 ] as const;
 
 export type JobSlugLiteral = (typeof JOB_SLUGS)[number];

@@ -12,6 +12,7 @@ import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
 import { NUpTool } from '@/components/tools/n-up-tool';
 import { OrganizeTool } from '@/components/tools/organize-tool';
+import { ProtectPdfTool } from '@/components/tools/protect-pdf-tool';
 import { PdfToImagesTool } from '@/components/tools/pdf-to-images-tool';
 import { RotateTool } from '@/components/tools/rotate-tool';
 import { RedactTool } from '@/components/tools/redact-tool';
@@ -97,6 +98,7 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'bates-numbering': BatesNumberingTool,
   'split-by-text': SplitByTextTool,
   'compress-pdf': CompressPdfTool,
+  'protect-pdf': ProtectPdfTool,
   // Bookmark batch (2026-10-25).
   'split-by-bookmarks': SplitByBookmarksTool,
   stamp: StampMarkTool,

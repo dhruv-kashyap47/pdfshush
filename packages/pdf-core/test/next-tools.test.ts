@@ -22,7 +22,7 @@ import {
 import { expandRenamePattern, sanitizeStem } from '../src/ops/renamePattern.js';
 import { planSplitByText } from '../src/ops/splitByText.js';
 import { unlockDocument } from '../src/ops/unlock.js';
-import { compressDocument } from '../src/compress/compress.js';
+import { compressDocument, COMPRESS_DEFAULTS } from '../src/compress/compress.js';
 import { loadPdfDocument } from '../src/ops/pages.js';
 import { encodePng } from './png.js';
 import { makeFixturePdf, testContext } from './fixtures.js';
@@ -341,10 +341,23 @@ describe('compress', () => {
     expect(result.pageCount).toBe(3);
     expect(result.originalBytes).toBe(source.byteLength);
     expect(result.fileName).toBe('doc-compressed.pdf');
+    expect(result.imagesOptimized).toBe(0);
+    expect(result.imagesSkipped).toBe(0);
+    expect(result.imageBytesBefore).toBe(0);
+    expect(result.imageBytesAfter).toBe(0);
 
     const reopened = await PDFDocument.load(result.data);
     expect(reopened.getPageCount()).toBe(3);
     expect(pdfContainsText(new Uint8Array(result.data), 'PDFShush page 2')).toBe(true);
+  });
+
+  test('smart is the default and refuses Node with a clear message', async () => {
+    expect(COMPRESS_DEFAULTS.mode).toBe('smart');
+    expect(COMPRESS_DEFAULTS.quality).toBeCloseTo(0.72);
+    const source = await makeFixturePdf({ pages: 1 });
+    await expect(
+      compressDocument(source, { mode: 'smart' }, testContext()),
+    ).rejects.toThrow(/needs this browser/);
   });
 
   test('raster mode refuses Node with a clear message instead of degrading', async () => {
@@ -355,7 +368,9 @@ describe('compress', () => {
   });
 
   test('validates quality, resolution and mode', () => {
+    expect(compressJob.validate(inputFor(new Uint8Array(1), { mode: 'smart' }))).toMatchObject({ ok: true });
     expect(compressJob.validate(inputFor(new Uint8Array(1), { mode: 'raster' }))).toMatchObject({ ok: true });
+    expect(compressJob.validate(inputFor(new Uint8Array(1), { mode: 'lossless' }))).toMatchObject({ ok: true });
     expect(compressJob.validate(inputFor(new Uint8Array(1), { mode: 'tiny' as never }))).toMatchObject({
       ok: false,
     });

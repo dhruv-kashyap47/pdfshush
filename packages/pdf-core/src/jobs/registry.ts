@@ -24,6 +24,7 @@ import { metadataJob } from './metadata.job.js';
 import { nUpJob } from './nUp.job.js';
 import { organizeJob } from './organize.job.js';
 import { pdfToImagesJob } from './pdfToImages.job.js';
+import { protectJob } from './protect.job.js';
 import { redactJob } from './redact.job.js';
 import { renameJob } from './rename.job.js';
 import { repairJob } from './repair.job.js';
@@ -82,6 +83,8 @@ export const JOBS = {
   // Authoring batch (2026-10-26): build form fields and an outline.
   [createFormsJob.slug]: createFormsJob as AnyJob,
   [createBookmarksJob.slug]: createBookmarksJob as AnyJob,
+  // Security batch (2026-10-27): real AES-256 encryption, browser-only.
+  [protectJob.slug]: protectJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;
