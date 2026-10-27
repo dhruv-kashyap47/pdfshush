@@ -25,7 +25,18 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  FileUp,
+  Loader2,
+  MousePointer2,
+  X,
+} from 'lucide-react';
 import {
   JobAbortedError,
   LIMITS,
@@ -43,7 +54,7 @@ import {
 } from '@pdfshush/pdf-core';
 import { EditorInspector } from '@/components/editor/editor-inspector';
 import { EditorPage } from '@/components/editor/editor-page';
-import { EditorToolbar, type EditorTool } from '@/components/editor/editor-toolbar';
+import { EditorToolbar, stepZoom, type EditorTool } from '@/components/editor/editor-toolbar';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
 import { ResultPanel } from '@/components/tools/result-panel';
@@ -56,7 +67,8 @@ import {
 } from '@/lib/audit-sidecar';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBlob, downloadBytes } from '@/lib/download';
-import { readAsInputFiles } from '@/lib/files';
+import { formatPercent } from '@/lib/format';
+import { readAsInputFiles, PDF_ACCEPT } from '@/lib/files';
 import { useEditorDoc } from '@/lib/editor-state';
 import { jobPool } from '@/lib/job-pool';
 import {
@@ -221,6 +233,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const editor = useEditorDoc();
   const [tool, setTool] = useState<EditorTool>(isSign ? 'signature' : 'select');
   const [zoom, setZoom] = useState(1);
+  const [currentPage, setCurrentPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [rasters, setRasters] = useState<Record<number, { url: string; widthPx: number }>>({});
@@ -230,7 +243,9 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const editRunner = useJobRunner<TextEditJobOutput>('text-edit');
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pageScrollFrame = useRef<number | null>(null);
   const fileRef = useRef<File | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const infoRef = useRef<DocInfo | null>(null);
   const zoomRef = useRef(zoom);
   const toolRef = useRef(tool);
@@ -246,6 +261,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const nudgeCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => {
     if (nudgeCloseTimer.current !== undefined) clearTimeout(nudgeCloseTimer.current);
+    if (pageScrollFrame.current !== null) cancelAnimationFrame(pageScrollFrame.current);
   }, []);
   zoomRef.current = zoom;
   toolRef.current = tool;
@@ -563,6 +579,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     pendingImageRef.current = null;
     setTool('select');
     setZoom(1);
+    setCurrentPage(0);
     zoomTouchedRef.current = false;
     savedDocRef.current = null;
     pendingSignatureRef.current = null;
@@ -641,6 +658,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     setStage('editing');
     setSelectedId(null);
     setEditingId(null);
+    setCurrentPage(0);
     pendingImageRef.current = null;
     // First batch up front; deeper pages load when they scroll into view.
     const eager = Math.min(WARM_RASTER_PAGES, doc.pageCount);
@@ -650,10 +668,81 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     );
   };
 
+  /**
+   * A width-fit zoom from the canvas' real content box. The old calculation
+   * subtracted a hard-coded 40px while the canvas pads by up to 36px per side,
+   * so the page opened wider than its column and immediately had a horizontal
+   * scrollbar. Read the padding instead of guessing it.
+   */
+  const computeFitZoom = useCallback(
+    (container: HTMLElement, pages: ReadonlyArray<{ displayWidthPt: number; widthPt: number }>) => {
+      const styles = getComputedStyle(container);
+      const padding =
+        (Number.parseFloat(styles.paddingLeft) || 0) +
+        (Number.parseFloat(styles.paddingRight) || 0);
+      const widest = Math.max(
+        1,
+        ...pages.map((page) => page.displayWidthPt ?? page.widthPt),
+      );
+      return clampZoom((container.clientWidth - padding - 2) / widest);
+    },
+    [],
+  );
+
   // Re-request cached pages when the zoom changes, and reconcile after any raster lands. Both dependencies are load-bearing: the fit-width zoom is applied in a *layout* effect, which runs before the eager rasters have arrived, so at that instant there is nothing cached to re-request and every eagerly loaded page silently kept its initial (half-resolution) bitmap until the user touched the zoom again. Watching `rasters` closes that window; the requested-width guard inside `ensureRaster` stops it becoming a loop.
   const onZoomChange = useCallback((next: number) => {
     zoomTouchedRef.current = true;
     setZoom(clampZoom(next));
+  }, []);
+
+  /** Explicit "fit width" action from the toolbar or Ctrl+0. */
+  const fitWidth = useCallback(() => {
+    const container = scrollRef.current;
+    const pages = infoRef.current?.pages;
+    if (!container || !pages) return;
+    zoomTouchedRef.current = true;
+    setZoom(computeFitZoom(container, pages));
+  }, [computeFitZoom]);
+
+  /** Jump to a page by index, moving only the document canvas. */
+  const goToPage = useCallback((pageIndex: number) => {
+    const canvas = scrollRef.current;
+    const pageCount = infoRef.current?.pages.length ?? 0;
+    if (!canvas || pageCount === 0) return;
+    const target = Math.min(pageCount - 1, Math.max(0, pageIndex));
+    const anchor = canvas.querySelector<HTMLElement>(`[data-page-anchor="${target}"]`);
+    if (!anchor) return;
+    const delta = anchor.getBoundingClientRect().top - canvas.getBoundingClientRect().top;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    canvas.scrollTo({
+      top: canvas.scrollTop + delta - 8,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
+    setCurrentPage(target);
+  }, []);
+
+  /**
+   * Current page for the status bar. One rAF-throttled pass over the page
+   * wrappers per scroll frame; it never touches React state unless the page
+   * actually changed.
+   */
+  const syncCurrentPage = useCallback(() => {
+    if (pageScrollFrame.current !== null) return;
+    pageScrollFrame.current = requestAnimationFrame(() => {
+      pageScrollFrame.current = null;
+      const canvas = scrollRef.current;
+      if (!canvas) return;
+      const probe = canvas.getBoundingClientRect().top + 16;
+      let next = 0;
+      for (const anchor of canvas.querySelectorAll<HTMLElement>('[data-page-anchor]')) {
+        if (anchor.getBoundingClientRect().top <= probe) {
+          next = Number(anchor.dataset.pageAnchor);
+        } else {
+          break;
+        }
+      }
+      setCurrentPage((previous) => (previous === next ? previous : next));
+    });
   }, []);
 
   useEffect(() => {
@@ -678,12 +767,8 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     if (stage !== 'editing' || !info || zoomTouchedRef.current) return;
     const container = scrollRef.current;
     if (!container || container.clientWidth === 0) return;
-    const widest = Math.max(
-      1,
-      ...info.pages.map((page) => page.displayWidthPt ?? page.widthPt),
-    );
-    setZoom(clampZoom((container.clientWidth - 40) / widest));
-  }, [stage, info]);
+    setZoom(computeFitZoom(container, info.pages));
+  }, [stage, info, computeFitZoom]);
 
   // Warm run boxes for every page the first time the text tool is picked.
   useEffect(() => {
@@ -1227,6 +1312,30 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
         void onSave();
         return;
       }
+      // Desktop-editor zoom shortcuts. Relative to the current level, so they
+      // work from a fit-width zoom that is not one of the presets.
+      if (mod && (key === '=' || event.key === '+')) {
+        event.preventDefault();
+        const next = stepZoom(zoomRef.current, 'in');
+        if (next !== null) onZoomChange(next);
+        return;
+      }
+      if (mod && key === '-') {
+        event.preventDefault();
+        const next = stepZoom(zoomRef.current, 'out');
+        if (next !== null) onZoomChange(next);
+        return;
+      }
+      if (mod && key === '0') {
+        event.preventDefault();
+        fitWidth();
+        return;
+      }
+      if (event.key === 'PageDown' || event.key === 'PageUp') {
+        event.preventDefault();
+        goToPage(currentPage + (event.key === 'PageDown' ? 1 : -1));
+        return;
+      }
       if (mod && key === 'd' && !typing) {
         event.preventDefault();
         transformSelected('duplicate');
@@ -1261,11 +1370,15 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     selectedId,
     editingId,
     saving,
+    currentPage,
     editor,
     onSave,
     deleteSelected,
     endEdit,
     transformSelected,
+    onZoomChange,
+    fitWidth,
+    goToPage,
   ]);
 
   /* --------------------------------------------- unsaved-changes guard */
@@ -1285,12 +1398,28 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
 
   /* -------------------------------------------------------------- views */
 
+  const showingResult = editState.status === 'done';
+
+  /**
+   * The editor is rendered through a portal into <body>, so while it is open the
+   * route's marketing chrome is hidden and the window cannot scroll behind the
+   * fixed application surface. The result panel is not portalled, so this is
+   * released before it renders.
+   */
+  useEffect(() => {
+    if (stage !== 'editing' || showingResult || !info) return;
+    document.body.classList.add('editor-app-active');
+    return () => document.body.classList.remove('editor-app-active');
+  }, [stage, showingResult, info]);
+
   // Derived page data lives above the early return below: hooks must run in the
   // same order on every render, including after "continue editing" comes back
   // from the result panel.
   const objectsByPage = usePageBuckets(editor.doc.objects);
   const widgetsByPage = usePageBuckets<FormWidgetInfo>(info?.fields ?? NO_WIDGETS);
   const selectedObject = editor.doc.objects.find((object) => object.id === selectedId) ?? null;
+  const hasEdits = objectCount > 0 || Object.keys(editor.doc.formValues).length > 0;
+  const dirty = hasEdits && editor.doc !== savedDocRef.current;
 
   // Page-bound callbacks, stable per page: an inline arrow would change identity
   // on every parent render and defeat the memoized pages entirely.
@@ -1357,27 +1486,16 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <FileDropzone
-        files={files}
-        onFiles={(next) => void handleFiles(next)}
-        disabled={stage === 'preparing'}
-        hint={isSign ? 'one PDF to sign' : 'one PDF to edit'}
-        multiple={false}
-      />
-
-      {stage === 'preparing' && inspectState.status === 'running' && (
-        <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
-      )}
-
-      {stage === 'editing' && info && (
-        <div className="overflow-hidden rounded-xl border border-border bg-card" data-testid="editor">
+  const editorView =
+    stage === 'editing' && info ? (
+      <div className="editor-route-shell" data-testid="editor-route-shell">
+        <div className="editor-shell" data-testid="editor" aria-busy={saving}>
           <EditorToolbar
             tool={tool}
             onToolChange={setTool}
             zoom={zoom}
             onZoomChange={onZoomChange}
+            onFitWidth={fitWidth}
             canUndo={editor.canUndo}
             canRedo={editor.canRedo}
             onUndo={undo}
@@ -1395,104 +1513,278 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
 
           {isSign && (
             <div
-              className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/60 bg-secondary/50 px-4 py-2 dark:border-white/5"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-secondary/40 px-4 py-1.5 dark:border-white/5"
               data-testid="signer-strip"
             >
               <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                Signer name for the audit note (optional)
+                <span className="whitespace-nowrap">
+                  Signer name <span className="text-muted-foreground/70">(optional)</span>
+                </span>
                 <input
                   type="text"
                   value={signerLabel}
                   maxLength={SIGNATURE_LABEL_MAX_CHARS}
                   onChange={(event) => setSignerLabel(event.target.value)}
                   data-testid="signer-label-input"
-                  className="h-8 w-56 rounded-full bg-background px-3 text-sm text-foreground ring-1 ring-black/10 outline-none transition-shadow duration-300 focus:ring-2 focus:ring-primary/70 dark:ring-white/15"
+                  className="h-7 w-48 rounded-md border bg-background px-2.5 text-sm text-foreground shadow-xs outline-none transition-shadow focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 />
               </label>
-              <span className="text-[11px] text-muted-foreground">
-                The note records digests and placements honestly; it does not certify identity.
+              <span className="hidden text-[11px] text-muted-foreground md:inline">
+                Recorded in the local audit note; it does not certify identity.
               </span>
             </div>
           )}
 
-          <div
-            ref={scrollRef}
-            className="max-h-[72vh] overflow-y-auto bg-muted/40 p-4"
-            data-testid="editor-scroll"
-          >
-            {info.pages.map((page) => {
-              const widgets = widgetsByPage.get(page.index) ?? NO_WIDGETS;
-              const binding = pageBindings.get(page.index);
-              if (!binding) return null;
-              return (
-                <EditorPage
-                  key={page.index}
-                  pageIndex={page.index}
-                  width={page.displayWidthPt ?? page.widthPt}
-                  height={page.displayHeightPt ?? page.heightPt}
-                  zoom={zoom}
-                  rasterUrl={rasters[page.index]?.url ?? null}
-                  objects={objectsByPage.get(page.index) ?? NO_OBJECTS}
-                  selectedId={selectedId}
-                  editingId={editingId}
-                  tool={tool}
-                  runs={runsByPage[page.index] ?? null}
-                  widgets={widgets}
-                  // Only pages that actually own a field care about form values,
-                  // so keystrokes in one field cannot re-render the whole book.
-                  formValues={widgets.length > 0 ? editor.doc.formValues : NO_FORM_VALUES}
-                  readOnly={saving}
-                  onSelect={select}
-                  onStartEdit={startEdit}
-                  onEndEdit={endEdit}
-                  onEditText={editText}
-                  onAutoHeight={autoHeight}
-                  onCreate={createObject}
-                  onSeedReplace={binding.onSeedReplace}
-                  onImageRequested={binding.onImageRequested}
-                  onSignatureRequested={binding.onSignatureRequested}
-                  onVisible={binding.onVisible}
-                  onHidden={binding.onHidden}
-                  onMoveLive={moveLive}
-                  onResizeLive={resizeLive}
-                  onFormValue={setFormValue}
-                  onBeginTx={editor.beginTx}
-                  onEndTx={editor.endTx}
+          <div className="editor-workspace">
+            <div
+              ref={scrollRef}
+              className="editor-canvas"
+              data-testid="editor-scroll"
+              tabIndex={0}
+              aria-label="PDF document canvas"
+              onScroll={syncCurrentPage}
+            >
+              {info.pages.map((page) => {
+                const widgets = widgetsByPage.get(page.index) ?? NO_WIDGETS;
+                const binding = pageBindings.get(page.index);
+                if (!binding) return null;
+                return (
+                  <EditorPage
+                    key={page.index}
+                    pageIndex={page.index}
+                    width={page.displayWidthPt ?? page.widthPt}
+                    height={page.displayHeightPt ?? page.heightPt}
+                    zoom={zoom}
+                    rasterUrl={rasters[page.index]?.url ?? null}
+                    objects={objectsByPage.get(page.index) ?? NO_OBJECTS}
+                    selectedId={selectedId}
+                    editingId={editingId}
+                    tool={tool}
+                    runs={runsByPage[page.index] ?? null}
+                    widgets={widgets}
+                    // Only pages that actually own a field care about form values,
+                    // so keystrokes in one field cannot re-render the whole book.
+                    formValues={widgets.length > 0 ? editor.doc.formValues : NO_FORM_VALUES}
+                    readOnly={saving}
+                    onSelect={select}
+                    onStartEdit={startEdit}
+                    onEndEdit={endEdit}
+                    onEditText={editText}
+                    onAutoHeight={autoHeight}
+                    onCreate={createObject}
+                    onSeedReplace={binding.onSeedReplace}
+                    onImageRequested={binding.onImageRequested}
+                    onSignatureRequested={binding.onSignatureRequested}
+                    onVisible={binding.onVisible}
+                    onHidden={binding.onHidden}
+                    onMoveLive={moveLive}
+                    onResizeLive={resizeLive}
+                    onFormValue={setFormValue}
+                    onBeginTx={editor.beginTx}
+                    onEndTx={editor.endTx}
+                  />
+                );
+              })}
+            </div>
+
+            {/* The rail is always present on desktop so selecting an object does
+                not resize the canvas and reflow every page under the cursor. */}
+            <aside
+              className="editor-inspector-rail"
+              data-empty={!selectedObject || saving}
+              aria-label="Properties inspector"
+            >
+              {saving ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                  <Loader2 className="size-4 animate-spin text-primary" />
+                  <p className="text-sm font-medium">Saving changes</p>
+                  <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
+                    Editing resumes when the verified copy is ready.
+                  </p>
+                </div>
+              ) : selectedObject ? (
+                <EditorInspector
+                  object={selectedObject}
+                  onPatch={patchObject}
+                  onDelete={deleteSelected}
+                  onClose={() => select(null)}
+                  docked
                 />
-              );
-            })}
+              ) : (
+                <div
+                  className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
+                  data-testid="editor-inspector-empty"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <MousePointer2 className="size-4" />
+                  </span>
+                  <p className="text-sm font-medium">No object selected</p>
+                  <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
+                    Select an object on the page to edit its appearance and size.
+                  </p>
+                </div>
+              )}
+            </aside>
           </div>
 
-          {saving && (
-            <JobProgressPanel progress={editState.progress} onCancel={editRunner.cancel} />
+          <footer className="editor-status-bar" data-testid="editor-status-bar">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <FileText className="hidden size-3.5 shrink-0 sm:block" aria-hidden />
+              <span
+                className="hidden max-w-[16rem] truncate sm:block"
+                title={files[0]?.name}
+              >
+                {files[0]?.name ?? 'Document'}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 shrink-0 gap-1 px-1.5 text-xs font-normal"
+                aria-label="Change file"
+                title="Open another PDF"
+                onClick={() => pdfInputRef.current?.click()}
+              >
+                <FileUp className="size-3.5" />
+                <span className="hidden md:inline">Change file</span>
+              </Button>
+            </div>
+
+            <nav aria-label="Page navigation" className="flex shrink-0 items-center gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                aria-label="Previous page"
+                data-testid="editor-prev-page"
+                disabled={currentPage <= 0}
+                onClick={() => goToPage(currentPage - 1)}
+              >
+                <ChevronLeft className="size-3.5" />
+              </Button>
+              <span
+                className="min-w-20 text-center tabular-nums"
+                data-testid="editor-page-status"
+              >
+                Page {Math.min(currentPage + 1, info.pages.length)} of {info.pages.length}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                aria-label="Next page"
+                data-testid="editor-next-page"
+                disabled={currentPage >= info.pages.length - 1}
+                onClick={() => goToPage(currentPage + 1)}
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
+            </nav>
+
+            <div
+              className="ml-auto flex min-w-0 items-center gap-1.5"
+              role="status"
+              aria-live="polite"
+              data-testid="editor-save-status"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" aria-hidden />
+                  <span className="hidden max-w-48 truncate md:inline">
+                    {editState.progress?.phase ?? 'Saving and verifying'}
+                  </span>
+                  {editState.progress?.ratio !== undefined && (
+                    <span className="tabular-nums">
+                      {formatPercent(editState.progress.ratio)}
+                    </span>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="-mr-1 size-6 text-muted-foreground"
+                    aria-label="Cancel save"
+                    data-testid="editor-cancel-save"
+                    onClick={editRunner.cancel}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </>
+              ) : dirty ? (
+                <>
+                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
+                  <span className="truncate">Unsaved changes</span>
+                </>
+              ) : hasEdits ? (
+                <>
+                  <CheckCircle2 className="size-3.5 shrink-0 text-primary" aria-hidden />
+                  <span className="truncate">All changes saved</span>
+                </>
+              ) : (
+                <span className="truncate">No changes yet</span>
+              )}
+            </div>
+          </footer>
+
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept={PDF_ACCEPT}
+            className="hidden"
+            aria-hidden
+            tabIndex={-1}
+            onChange={(event) => {
+              const picked = event.target.files?.[0];
+              event.target.value = '';
+              if (picked) void handleFiles([picked]);
+            }}
+          />
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            aria-hidden
+            tabIndex={-1}
+            onChange={(event) => void onImageFile(event)}
+          />
+
+          {signatureDialogOpen && (
+            <Suspense fallback={null}>
+              <SignaturePadDialog
+                open
+                onOpenChange={setSignatureDialogOpen}
+                mode="insert"
+                onUse={(capture) => void onSignatureChosen(capture)}
+              />
+            </Suspense>
+          )}
+        </div>
+      </div>
+    ) : null;
+
+  return (
+    <>
+      {stage !== 'editing' && (
+        <div className="space-y-4">
+          <FileDropzone
+            files={files}
+            onFiles={(next) => void handleFiles(next)}
+            disabled={stage === 'preparing'}
+            hint={isSign ? 'one PDF to sign' : 'one PDF to edit'}
+            multiple={false}
+          />
+
+          {stage === 'preparing' && inspectState.status === 'running' && (
+            <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
           )}
         </div>
       )}
 
-      {selectedObject && stage === 'editing' && !saving && (
-        <EditorInspector object={selectedObject} onPatch={patchObject} onDelete={deleteSelected} />
-      )}
-
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/png,image/jpeg"
-        className="hidden"
-        aria-hidden
-        tabIndex={-1}
-        onChange={(event) => void onImageFile(event)}
-      />
-
-      {signatureDialogOpen && (
-        <Suspense fallback={null}>
-          <SignaturePadDialog
-            open
-            onOpenChange={setSignatureDialogOpen}
-            mode="insert"
-            onUse={(capture) => void onSignatureChosen(capture)}
-          />
-        </Suspense>
-      )}
-    </div>
+      {editorView ? createPortal(editorView, document.body) : null}
+    </>
   );
 }

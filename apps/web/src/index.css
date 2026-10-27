@@ -585,6 +585,124 @@ html {
   color: var(--doc-mark);
 }
 
+/* The editing surface deliberately escapes the marketing-oriented tool frame.
+   It is portalled to <body> while a document is open, below the persistent site
+   header, and manages its own viewport-sized application layout. */
+:root {
+  --site-header-height: 4rem;
+  --editor-canvas: oklch(0.947 0.002 92);
+}
+.dark {
+  --editor-canvas: oklch(0.055 0 0);
+}
+
+/* While editing, the route's marketing chrome (breadcrumbs, title, trust notes,
+   footer) is out of the document and out of the tab order. The portal lives on
+   <body>, so hiding <main> cannot hide the editor itself. */
+body.editor-app-active {
+  overflow: hidden;
+}
+body.editor-app-active main,
+body.editor-app-active #root footer {
+  display: none;
+}
+
+/* The editor owns the bottom edge with its status bar; keep transient toasts
+   above it so save progress and state stay readable. */
+body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
+  bottom: calc(2.25rem + 0.75rem);
+}
+
+.editor-route-shell {
+  position: fixed;
+  z-index: 30;
+  inset: var(--site-header-height) 0 0;
+  display: flex;
+  min-height: 0;
+  background: var(--background);
+}
+.editor-shell {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.editor-workspace {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--editor-canvas);
+}
+.editor-canvas {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: clamp(1rem, 2.25vw, 2.25rem);
+}
+.editor-canvas:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.editor-inspector-rail {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.editor-status-bar {
+  display: flex;
+  min-height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  padding-inline: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.editor-document-page > div {
+  border-color: oklch(0 0 0 / 8%);
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 6%),
+    0 18px 40px -26px oklch(0 0 0 / 45%);
+}
+.dark .editor-document-page > div {
+  border-color: oklch(1 0 0 / 10%);
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 55%),
+    0 20px 44px -24px oklch(0 0 0 / 90%);
+}
+@media (min-width: 1024px) {
+  .editor-workspace {
+    grid-template-columns: minmax(0, 1fr) clamp(19rem, 23vw, 23rem);
+  }
+  .editor-inspector-rail {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}
+@media (max-width: 1023px) {
+  .editor-workspace:has(.editor-inspector-rail[data-empty='false']) {
+    grid-template-rows: minmax(0, 1fr) minmax(0, min(20rem, 42svh));
+  }
+  .editor-inspector-rail[data-empty='true'] {
+    display: none;
+  }
+  .editor-inspector-rail {
+    max-height: min(20rem, 42svh);
+  }
+}
+
 /* ── 2c-c. Interactive demo primitives (anime.js drives all motion) ─────── */
 
 /* Flash overlay inside the active target run: cited-answer → document link.

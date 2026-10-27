@@ -734,7 +734,12 @@ async function main() {
       .catch(() => false);
   const imageDrew = await waitFor(imageRendered, 10_000, 'inserted image decodes');
   check('inserted image actually decodes', imageDrew === true);
-  await page.getByTestId('editor-zoom-in').click();
+  // Re-render via a zoom change. At the preset ceiling zoom-in is correctly
+  // disabled (a fit-width canvas can open close to it), so step out in that
+  // case; either direction proves the blob URL survived the re-render.
+  const editorZoomIn = page.getByTestId('editor-zoom-in');
+  if (await editorZoomIn.isEnabled()) await editorZoomIn.click();
+  else await page.getByTestId('editor-zoom-out').click();
   await page.waitForTimeout(600);
   check(
     'image blob URL survives an unrelated re-render',
@@ -1045,7 +1050,7 @@ async function main() {
   console.log('\n17. Routing');
   // A slug that is still planned; the batch tools now render their real UI, so
   // the placeholder check must point at something the catalog has not shipped.
-  await page.goto(`${BASE}/tools/protect-pdf`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/tools/pdf-to-word`, { waitUntil: 'networkidle' });
   check('planned tool page renders', await page.getByText('In development').isVisible());
   await page.goto(`${BASE}/tools/does-not-exist`, { waitUntil: 'networkidle' });
   check('404 page renders', await page.getByText('This page went missing').isVisible());

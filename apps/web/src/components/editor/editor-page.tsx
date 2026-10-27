@@ -501,10 +501,14 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
   );
 
   return (
-    <div className="mx-auto mb-6" data-testid={`editor-page-${pageIndex}`}>
+    <div
+      className="editor-document-page mx-auto mb-10"
+      data-testid={`editor-page-${pageIndex}`}
+      data-page-anchor={pageIndex}
+    >
       <div
         ref={containerRef}
-        className="relative select-none overflow-hidden border bg-white shadow-sm"
+        className="relative select-none overflow-hidden border bg-white"
         style={{ width: displayW, height: displayH, cursor: tool === 'select' ? 'default' : 'crosshair' }}
         onPointerDown={onPagePointerDown}
         onMouseDown={(event) => {
@@ -546,7 +550,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
           ? runs.map((run, index) => (
               <div
                 key={`run-${index}`}
-                className="pointer-events-none absolute border border-dashed border-blue-500/60 bg-blue-500/5"
+                className="pointer-events-none absolute rounded-[2px] bg-blue-500/[0.04] ring-1 ring-blue-500/25 ring-inset"
                 style={{ left: run.x * zoom, top: run.y * zoom, width: run.width * zoom, height: run.height * zoom }}
                 data-testid="editor-run"
               />
@@ -572,13 +576,13 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
 
         {ghost ? (
           <div
-            className="pointer-events-none absolute border-2 border-dashed border-blue-500 bg-blue-500/10"
+            className="pointer-events-none absolute rounded-[2px] border border-dashed border-blue-500/80 bg-blue-500/10"
             style={{ left: ghost.x * zoom, top: ghost.y * zoom, width: ghost.width * zoom, height: ghost.height * zoom }}
             data-testid="editor-ghost"
           />
         ) : null}
       </div>
-      <div className="mt-1 text-center text-xs text-muted-foreground">Page {pageIndex + 1}</div>
+      <div className="mt-2 text-center text-[11px] text-muted-foreground tabular-nums">Page {pageIndex + 1}</div>
     </div>
   );
 });
@@ -700,7 +704,13 @@ function ObjectView({
 
   return (
     <div
-      className={cn('absolute', selected && 'outline-2 outline-blue-500 outline-offset-2')}
+      className={cn(
+        'absolute rounded-[1px] transition-[box-shadow,outline-color] duration-150',
+        interactive && !selected && !editing &&
+          'hover:outline hover:outline-1 hover:outline-blue-500/40 hover:outline-offset-1',
+        selected && !editing &&
+          'outline-2 outline-blue-600 outline-offset-2 shadow-[0_0_0_4px_rgba(37,99,235,0.12)]',
+      )}
       style={style}
       data-testid={`editor-object-${object.kind}`}
       data-object-id={object.id}
@@ -877,14 +887,16 @@ function ResizeHandle({
   startGesture: (gesture: Gesture) => void;
 }) {
   const positions: Record<string, CSSProperties> = {
-    nw: { left: 0, top: 0 },
-    ne: { left: '100%', top: 0 },
-    sw: { left: 0, top: '100%' },
-    se: { left: '100%', top: '100%' },
+    // Sit just outside the selection box so handles do not cover the first or
+    // last glyph of tightly fitted text at low zoom.
+    nw: { left: -3, top: -3 },
+    ne: { left: 'calc(100% + 3px)', top: -3 },
+    sw: { left: -3, top: 'calc(100% + 3px)' },
+    se: { left: 'calc(100% + 3px)', top: 'calc(100% + 3px)' },
   };
   return (
     <div
-      className="absolute z-10 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-500 bg-white shadow"
+      className="absolute z-10 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border-[1.5px] border-blue-600 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.35)] transition-transform hover:scale-110"
       style={{ ...positions[corner], cursor }}
       data-testid={`editor-handle-${corner}`}
       onPointerDown={(event) => {

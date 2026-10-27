@@ -1,9 +1,10 @@
 /**
- * Editor toolbar: the three edit modes (Edit / Insert / Annotate), history
- * controls, zoom, and the save button. Purely presentational -- every control
- * is a callback the owning tool wires up.
+ * Editor toolbar: the edit / insert / annotate / shape tools, history, object
+ * arrangement, zoom and save. Purely presentational -- every control is a
+ * callback the owning tool wires up.
  */
 
+import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import {
   ArrowRight,
   BringToFront,
@@ -14,6 +15,7 @@ import {
   Loader2,
   Minus,
   MousePointer2,
+  MoveHorizontal,
   PenLine,
   Redo2,
   Save,
@@ -24,6 +26,8 @@ import {
   Type,
   Underline,
   Undo2,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -78,11 +82,24 @@ const SHAPE_TOOLS: ToolButton[] = [
 
 export const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
+/**
+ * Next preset in the requested direction. Shared with the owner's keyboard
+ * shortcuts so the buttons and Ctrl +/- can never disagree about the steps.
+ */
+export function stepZoom(zoom: number, direction: 'in' | 'out'): number | null {
+  if (direction === 'in') {
+    return ZOOM_LEVELS.find((level) => level > zoom + 0.001) ?? null;
+  }
+  return [...ZOOM_LEVELS].reverse().find((level) => level < zoom - 0.001) ?? null;
+}
+
 export interface EditorToolbarProps {
   tool: EditorTool;
   onToolChange: (tool: EditorTool) => void;
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  /** Reset the zoom so the widest page fits the canvas. */
+  onFitWidth?: () => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -137,9 +154,60 @@ function ToolButtonView({
 
 function GroupLabel({ children }: { children: string }) {
   return (
-    <span className="hidden select-none text-[10px] font-medium tracking-wide text-muted-foreground uppercase lg:block">
+    <span className="hidden shrink-0 select-none pl-1 text-[10px] font-semibold tracking-[0.08em] text-muted-foreground/80 uppercase min-[1400px]:block">
       {children}
     </span>
+  );
+}
+
+function ToolGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={`${label} tools`}>
+      <GroupLabel>{label}</GroupLabel>
+      {children}
+    </div>
+  );
+}
+
+function ToolbarButton({
+  label,
+  testId,
+  disabled,
+  onClick,
+  destructive = false,
+  children,
+}: {
+  label: string;
+  testId?: string;
+  disabled?: boolean;
+  onClick: () => void;
+  destructive?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={destructive ? 'size-8 text-destructive hover:text-destructive' : 'size-8'}
+          aria-label={label}
+          data-testid={testId}
+          disabled={disabled}
+          onClick={onClick}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -148,6 +216,7 @@ export function EditorToolbar({
   onToolChange,
   zoom,
   onZoomChange,
+  onFitWidth,
   canUndo,
   canRedo,
   onUndo,
@@ -163,203 +232,188 @@ export function EditorToolbar({
   showSave,
   saveLabel = 'Save changes',
 }: EditorToolbarProps) {
+  const toolbarRef = useRef<HTMLDivElement>(null);
   // Relative steps: the editor also opens at a fit-width zoom that is not one
   // of the presets, so +/- walk the preset list from wherever we actually are.
   const zoomIn = () => {
-    const next = ZOOM_LEVELS.find((level) => level > zoom + 0.001);
-    if (next) onZoomChange(next);
+    const next = stepZoom(zoom, 'in');
+    if (next !== null) onZoomChange(next);
   };
   const zoomOut = () => {
-    const previous = [...ZOOM_LEVELS].reverse().find((level) => level < zoom - 0.001);
-    if (previous) onZoomChange(previous);
+    const next = stepZoom(zoom, 'out');
+    if (next !== null) onZoomChange(next);
   };
   const locked = saving;
 
+  /**
+   * Arrow-key traversal over the real buttons. Without stopping propagation the
+   * document-level handler would treat the same arrow press as an object nudge.
+   */
+  const onToolbarKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    const buttons = Array.from(
+      toolbarRef.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? [],
+    );
+    if (buttons.length === 0) return;
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (index < 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown';
+    const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+    let next = index;
+    if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = buttons.length - 1;
+    else if (forward) next = (index + 1) % buttons.length;
+    else if (backward) next = (index - 1 + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+  };
+
   return (
     <div
-      className="sticky top-0 z-20 flex flex-wrap items-center gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur"
+      ref={toolbarRef}
+      className="relative z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b bg-card px-3 py-1.5"
       data-testid="editor-toolbar"
       role="toolbar"
       aria-label="Editor tools"
+      aria-orientation="horizontal"
+      onKeyDown={onToolbarKeyDown}
     >
-      <GroupLabel>Edit</GroupLabel>
-      {EDIT_TOOLS.map((entry) => (
-        <ToolButtonView
-          key={entry.id}
-          tool={entry}
-          active={tool === entry.id}
-          disabled={locked}
-          onToolChange={onToolChange}
-        />
-      ))}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
+        <ToolGroup label="Edit">
+          {EDIT_TOOLS.map((entry) => (
+            <ToolButtonView
+              key={entry.id}
+              tool={entry}
+              active={tool === entry.id}
+              disabled={locked}
+              onToolChange={onToolChange}
+            />
+          ))}
+        </ToolGroup>
 
-      <Separator orientation="vertical" className="mx-1 h-6" />
-      <GroupLabel>Insert</GroupLabel>
-      {INSERT_TOOLS.map((entry) => (
-        <ToolButtonView
-          key={entry.id}
-          tool={entry}
-          active={tool === entry.id}
-          disabled={locked}
-          onToolChange={onToolChange}
-        />
-      ))}
+        <Separator orientation="vertical" className="mx-0.5 hidden h-6 lg:block" />
 
-      <Separator orientation="vertical" className="mx-1 h-6" />
-      <GroupLabel>Annotate</GroupLabel>
-      {ANNOTATE_TOOLS.map((entry) => (
-        <ToolButtonView
-          key={entry.id}
-          tool={entry}
-          active={tool === entry.id}
-          disabled={locked}
-          onToolChange={onToolChange}
-        />
-      ))}
-      <Separator orientation="vertical" className="mx-1 h-6" />
-      {SHAPE_TOOLS.map((entry) => (
-        <ToolButtonView
-          key={entry.id}
-          tool={entry}
-          active={tool === entry.id}
-          disabled={locked}
-          onToolChange={onToolChange}
-        />
-      ))}
+        <ToolGroup label="Insert">
+          {INSERT_TOOLS.map((entry) => (
+            <ToolButtonView
+              key={entry.id}
+              tool={entry}
+              active={tool === entry.id}
+              disabled={locked}
+              onToolChange={onToolChange}
+            />
+          ))}
+        </ToolGroup>
 
-      <Separator orientation="vertical" className="mx-1 h-6" />
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            aria-label="Undo"
-            data-testid="editor-undo"
-            disabled={!canUndo}
-            onClick={onUndo}
-          >
+        <Separator orientation="vertical" className="mx-0.5 hidden h-6 lg:block" />
+
+        <ToolGroup label="Annotate">
+          {ANNOTATE_TOOLS.map((entry) => (
+            <ToolButtonView
+              key={entry.id}
+              tool={entry}
+              active={tool === entry.id}
+              disabled={locked}
+              onToolChange={onToolChange}
+            />
+          ))}
+        </ToolGroup>
+
+        <Separator orientation="vertical" className="mx-0.5 hidden h-6 lg:block" />
+
+        <ToolGroup label="Shapes">
+          {SHAPE_TOOLS.map((entry) => (
+            <ToolButtonView
+              key={entry.id}
+              tool={entry}
+              active={tool === entry.id}
+              disabled={locked}
+              onToolChange={onToolChange}
+            />
+          ))}
+        </ToolGroup>
+
+        <Separator orientation="vertical" className="mx-0.5 hidden h-6 lg:block" />
+
+        <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="History and arrangement">
+          <ToolbarButton label="Undo (Ctrl+Z)" testId="editor-undo" disabled={!canUndo} onClick={onUndo}>
             <Undo2 className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            aria-label="Redo"
-            data-testid="editor-redo"
+          </ToolbarButton>
+          <ToolbarButton
+            label="Redo (Ctrl+Shift+Z)"
+            testId="editor-redo"
             disabled={!canRedo}
             onClick={onRedo}
           >
             <Redo2 className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Redo (Ctrl+Shift+Z)</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 text-destructive hover:text-destructive"
-            aria-label="Delete selected object"
-            data-testid="editor-delete"
+          </ToolbarButton>
+          <ToolbarButton
+            label="Delete (Del)"
+            testId="editor-delete"
             disabled={!hasSelection}
             onClick={onDelete}
+            destructive
           >
             <Trash2 className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Delete (Del)</TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            aria-label="Bring forward"
-            data-testid="editor-bring-forward"
+          </ToolbarButton>
+          <ToolbarButton
+            label="Bring forward"
+            testId="editor-bring-forward"
             disabled={!canReorder}
             onClick={() => onReorder?.('forward')}
           >
             <BringToFront className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Bring forward</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            aria-label="Send backward"
-            data-testid="editor-send-backward"
+          </ToolbarButton>
+          <ToolbarButton
+            label="Send backward"
+            testId="editor-send-backward"
             disabled={!canSendBack}
             onClick={() => onReorder?.('backward')}
           >
             <SendToBack className="size-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Send backward</TooltipContent>
-      </Tooltip>
+          </ToolbarButton>
+        </div>
+      </div>
 
-      <div className="ml-auto flex items-center gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              aria-label="Zoom out"
-              data-testid="editor-zoom-out"
-              disabled={zoom <= ZOOM_LEVELS[0]!}
-              onClick={zoomOut}
-            >
-              <span className="text-sm leading-none">−</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Zoom out</TooltipContent>
-        </Tooltip>
+      <div className="ml-auto flex shrink-0 items-center gap-0.5 max-[1023px]:w-full max-[1023px]:justify-end max-[1023px]:border-t max-[1023px]:pt-1">
+        <ToolbarButton
+          label="Zoom out (Ctrl+-)"
+          testId="editor-zoom-out"
+          disabled={zoom <= ZOOM_LEVELS[0]!}
+          onClick={zoomOut}
+        >
+          <ZoomOut className="size-4" />
+        </ToolbarButton>
         <span
-          className="w-11 text-center text-xs text-muted-foreground tabular-nums"
+          className="w-10 text-center text-xs text-muted-foreground tabular-nums"
           data-testid="editor-zoom-level"
+          aria-live="polite"
         >
           {Math.round(zoom * 100)}%
         </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              aria-label="Zoom in"
-              data-testid="editor-zoom-in"
-              disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]!}
-              onClick={zoomIn}
-            >
-              <span className="text-sm leading-none">+</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Zoom in</TooltipContent>
-        </Tooltip>
+        <ToolbarButton
+          label="Zoom in (Ctrl++)"
+          testId="editor-zoom-in"
+          disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]!}
+          onClick={zoomIn}
+        >
+          <ZoomIn className="size-4" />
+        </ToolbarButton>
+        {onFitWidth && (
+          <ToolbarButton
+            label="Fit width (Ctrl+0)"
+            testId="editor-fit-width"
+            onClick={onFitWidth}
+          >
+            <MoveHorizontal className="size-4" />
+          </ToolbarButton>
+        )}
 
         {showSave && (
           <>
-            <Separator orientation="vertical" className="mx-1 h-6" />
+            <Separator orientation="vertical" className="mx-1.5 h-6" />
             <Button
               type="button"
               size="sm"
@@ -369,7 +423,7 @@ export function EditorToolbar({
               onClick={onSave}
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              {saving ? 'Saving…' : saveLabel}
+              <span>{saving ? 'Saving…' : saveLabel}</span>
             </Button>
           </>
         )}
