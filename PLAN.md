@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-27
+**Last updated:** 2026-10-28
 
 ---
 
@@ -486,6 +486,20 @@ Gates after the audit: **46/46** unit · **41/41** E2E · typecheck ✅ · build
   context → this is what makes **OffscreenCanvas** rendering work.
 - Worker URL injected by host: `configurePdfjsRuntime({ workerSrc })` with
   `import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'`.
+- **pdf.js cannot spawn a real nested worker from inside a Web Worker.** Its
+  `PDFWorker.#initialize` dereferences `window` (`_isSameOrigin(window.location,
+  workerSrc)`), which does not exist in a worker global, so every document load
+  falls back to the sanctioned in-thread path (`#setupFakeWorker` + `LoopbackPort`)
+  and logs `Setting up fake worker.` once per worker context. That is expected and
+  harmless when pdf.js already runs inside the job worker (work is off the main
+  thread either way) — silence it per load with `verbosity:
+  VerbosityLevel.ERRORS` threaded through `configurePdfjsRuntime` (see
+  `apps/web/src/workers/job-worker.ts` `PDFJS_DOC_OPTS`), never by disabling the
+  worker or running pdf.js on the main thread. Confirmed empirically 2026-10-28
+  with an instrumented Playwright capture: the warning originates in the job
+  workers, relayed to the page console by Vite 8's `server.forwardConsole`
+  (attribution shows as `@vite/client`), and `verbosity: ERRORS` removes it while
+  corrupt/encrypted-PDF failures still surface (witnessed by the pdf-core suite).
 
 **Rendering / workers**
 - Render inside the Web Worker via `OffscreenCanvas`; transfer `ArrayBuffer`s out.
@@ -617,6 +631,21 @@ never actually wired, and a stream with no error listener.*
   server-run workflow then submits to `/api/jobs` and dies. Gate server-side E2E on
   `/api/health` reporting `redis.status === 'connected'`, and skip loudly instead of waiting
   out a three-minute download timeout (smoke §19 does).
+- **Starting the web server standalone (`$ vite` inside `apps/web`) skips the root
+  `predev`,** so the API (and Redis auto-start) never boot and the Vite `/api` proxy floods
+  the log with `ECONNREFUSED` on every `/api/auth/me` + `/api/tools` poll. That is what
+  `dev2.log` was (2026-10-28): an environmental gap, not a code bug — from the repo root
+  use `pnpm dev`, which serialises predev → Redis → web+api. The API itself was verified
+  to boot clean and serve `/api/tools` (200) and `/api/auth/me` (204 unauthenticated).
+- **`pnpm test:hardening` only makes sense against the Dockerized stack.** Its first real
+  check refuses to run unless `/api/health` reports `retentionMs <= 120000` (short TTL for
+  the sweep assertions), and it SIGKILLs the compose `worker` container — against the
+  in-process `pnpm dev` stack there is no container to kill ("no worker container found").
+  Run `FILE_TTL_MS=20000; JANITOR_INTERVAL_MS=5000; docker compose up -d --build` first;
+  then the gate is 20/20 green. Caveat learned while running it: on Windows two API
+  processes can bind port 8080 simultaneously (SO_REUSEADDR-style co-binding), so a stale
+  `tsx watch` from an earlier session keeps serving with *old* config — verify which PID
+  owns 8080 (`Get-NetTCPConnection -LocalPort 8080`) before trusting a health payload.
 - Encrypted test fixtures: @cantoo/pdf-lib cannot *create* one, so
   `scripts/make-encrypted-fixtures.py` (dev-time pypdf, not a dependency) writes
   `test/fixtures/encrypted-aes128.pdf` (user password `shush123`) and
@@ -644,6 +673,43 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-28 — Debug session: pdf.js "fake worker" warnings traced and silenced; every
+  gate re-run green.** Evidence-first sweep over `dev2.log`, `.vite-dev.err.log` (empty),
+  and the full command surface.
+
+  - **Findings.** `dev2.log` contained ~2,000 `ECONNREFUSED` proxy errors for
+    `/api/auth/me` + `/api/tools` — the web server had been started standalone (`$ vite`)
+    so the root `predev` never ran and the API was simply down; the API was re-booted and
+    verified healthy (tools 200, auth/me 204, no boot errors). `test:hardening` "fails"
+    against the in-process dev stack by design (it needs the Docker `worker` container);
+    it is **20/20 green** under its documented Docker prerequisites. The one real code
+    finding: **pdf.js logged `Setting up fake worker.` from inside the job workers** — its
+    browser build cannot spawn a nested worker there (`window` is absent), so it always
+    fell back to in-thread parsing. Functionally benign (work already runs off the main
+    thread), but it meant the documented assumption in `pdfjsRuntime.ts` ("browsers
+    support nested workers") was wrong and the console was noisy. A stale 8080 bind was
+    also caught mid-session: two API processes co-bound port 8080 on Windows, serving
+    stale config.
+
+  - **Fix (commit `adf37af`, "chore(pdf): silence expected pdf.js fake-worker warning in
+    job workers").** `PdfjsRuntimeConfig` grew an optional `verbosity`
+    (`packages/pdf-core/src/render/pdfjsRuntime.ts`) that is spread into the single
+    `getDocument` call every job funnels through; the job-worker bootstrap defines
+    `PDFJS_DOC_OPTS = { verbosity: VerbosityLevel.ERRORS }` with a comment explaining the
+    fallback and passes it via `configurePdfjsRuntime`
+    (`apps/web/src/workers/job-worker.ts`). Global verbosity is not touched; the
+    main-thread pdf.js copy (dev tooling pages) is untouched; no nested-worker machinery
+    was added (no CSP/port-lifecycle risk on a tested path).
+
+  - **Verification.** Instrument Playwright capture: `fake-worker log origins: 0 distinct`
+    on the live dev app, thumbnails still render; typecheck (packages, strict) ✅; serial
+    unit run **1079/1079** (pdf-core's corrupt-PDF "too damaged", wrong-password, AES-128
+    and `loadPdfForRender({password})` suites prove errors still surface) ✅; full e2e
+    smoke `ALL CHECKS PASSED` incl. §20 console health ✅; `test:sweep` clean (6
+    breakpoints × 2 themes × 6 routes) ✅; `test:api` smoke `ALL CHECKS PASSED` ✅;
+    `test:hardening` **GATE PASSED** (Docker stack, 20/20) ✅; `pnpm build` + `test:bundle`
+    ("main chunk carries no PDF engine") ✅.
 
 - **2026-10-27 — The security batch: Protect PDF (real AES-256) and Smart Compress, taking the
   catalog from 47 to 48 live.** Both are browser-only, so `SERVER_SLUGS`, `/api/v1`, the MCP
