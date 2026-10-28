@@ -9,6 +9,7 @@
  */
 
 import { createApp } from './http/app.js';
+import { assertPortBindable } from './http/port-guard.js';
 import { createContext } from './context.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
@@ -73,6 +74,18 @@ async function main(): Promise<void> {
   janitor.start();
 
   const app = createApp(context);
+  // Fail fast if anything already holds the port: a second instance would
+  // otherwise co-bind on Windows (wildcard vs a specific address held by a
+  // stale process) and serve "healthy" traffic that the impostor answers.
+  try {
+    await assertPortBindable(config.http.port, config.http.host);
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      'cannot bind the api port',
+    );
+    process.exit(1);
+  }
   const server = app.listen(config.http.port, config.http.host, () => {
     context.logger.info(
       {
