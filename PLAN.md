@@ -112,7 +112,13 @@ E2E** (real API routes, in-memory counters, no Redis/docker) ·
 manage page; `tests/e2e/sign.mjs`) ·
 **37 API smoke checks incl. the §6 v1 flow** (21 base + 16 in the key→submit→poll→download→revoke
 walk; §6 needs `PSH_SMOKE_MONGODB_URI`; re-run 2026-10-25) · **19/19 hardening** (re-run 2026-10-25
-with a 20 s TTL and 5 s janitor) · renderer hosts CMaps + standard fonts and forces
+with a 20 s TTL and 5 s janitor)
+  · *2026-10-28 note: check totals here are a snapshot — the live count comes from
+  `pnpm test:hardening`. Verified today with `FILE_TTL_MS=20000` +
+  `JANITOR_INTERVAL_MS=5000` and `docker compose up -d --build`: the gate reports
+  **19 PASS / 0 FAIL — GATE PASSED**, matching the number above. When checks are
+  added or removed, re-run the gate instead of editing this line.*
+ · renderer hosts CMaps + standard fonts and forces
 glyph-path rendering off the `FontFace` path in the worker (§16, §17) · accounts live against
 Google + MongoDB Atlas (§18) · **secure redaction shipped and independently verified (§20)** ·
 **genuine in-place text editing shipped end to end (§22; AI replacements now use it too, §23.7.2)** ·
