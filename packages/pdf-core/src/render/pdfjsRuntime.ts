@@ -7,7 +7,7 @@
  * `configurePdfjsRuntime`.
  */
 
-import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions, VerbosityLevel, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist';
 import { hasOffscreenCanvas, PdfjsCanvasFactory } from './canvas.js';
 
 export interface PdfjsRuntimeConfig {
@@ -17,6 +17,15 @@ export interface PdfjsRuntimeConfig {
   cMapUrl?: string;
   cMapPacked?: boolean;
   standardFontDataUrl?: string;
+  /**
+   * Console verbosity for this context's pdf.js copy. Only ever passed by a
+   * host whose pdf.js runs inside a job worker, where pdf.js cannot spawn its
+   * own nested worker and falls back to parsing in-thread over a `LoopbackPort`
+   * (pdf.mjs's `#initialize` dereferences `window`, which does not exist in a
+   * worker global). Errors-only keeps the per-document "Setting up fake
+   * worker." warning quiet without hiding real failures.
+   */
+  verbosity?: (typeof VerbosityLevel)[keyof typeof VerbosityLevel];
 }
 
 let config: PdfjsRuntimeConfig = {};
@@ -82,6 +91,7 @@ export async function loadPdfForRender(
     // failure than a loud one. Revisit if print intent or selection styling lands.
     ...(hasOffscreenCanvas() ? { CanvasFactory: PdfjsCanvasFactory } : {}),
     ...(options.password !== undefined ? { password: options.password } : {}),
+    ...(config.verbosity !== undefined ? { verbosity: config.verbosity } : {}),
     ...(config.cMapUrl
       ? { cMapUrl: config.cMapUrl, cMapPacked: config.cMapPacked ?? true, useWorkerFetch: true }
       : {}),

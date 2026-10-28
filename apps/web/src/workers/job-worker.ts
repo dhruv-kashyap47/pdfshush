@@ -7,6 +7,7 @@
  */
 
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { VerbosityLevel } from 'pdfjs-dist';
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url';
 import {
   JobAbortedError,
@@ -27,8 +28,20 @@ const assetsBase =
   typeof self !== 'undefined' && self.location
     ? new URL(`${import.meta.env.BASE_URL}`, self.location.origin)
     : new URL('/', 'http://localhost');
+/**
+ * pdf.js cannot spawn its own nested worker from inside a dedicated worker:
+ * its bootstrap dereferences `window`, which does not exist in a worker
+ * global, so it deliberately falls back to parsing in-thread over a
+ * `LoopbackPort` and logs "Setting up fake worker." once per document. That
+ * fallback is expected and harmless here -- PDF work already runs inside this
+ * off-main-thread worker -- so errors-only verbosity keeps the expected
+ * fallback quiet while genuine failures still surface.
+ */
+const PDFJS_DOC_OPTS = { verbosity: VerbosityLevel.ERRORS };
+
 configurePdfjsRuntime({
   workerSrc,
+  ...PDFJS_DOC_OPTS,
   cMapUrl: new URL('cmaps/', assetsBase).toString(),
   cMapPacked: true,
   standardFontDataUrl: new URL('standard_fonts/', assetsBase).toString(),
