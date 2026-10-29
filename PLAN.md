@@ -32,6 +32,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **AI access pass** | Groq BYOK (free tier), cost-tier tags, managed default → OpenRouter free models, plain-English first-run onboarding overlay with anime.js motion | ✅ **shipped 2026-10-21** — see §26 |
 | **Authoring batch** | Two client-side authoring tools off the same engine: Create Forms (AcroForm text fields/checkboxes) and Create Bookmarks (`/Outlines` writer + heading detection) | ✅ **shipped 2026-10-26** — see §8 |
 | **Security batch** | Real AES-256 Protect PDF (open/owner passwords + permission flags) and a Smart Compress pass that re-encodes safe embedded images while preserving text, links and forms | ✅ **shipped 2026-10-27** — see §8 first entry |
+| **Dark-mode batch** | Dark Mode PDF: three pixel-remap kinds (theme / smart hue-preserving / invert) over a live before/after wipe preview, ported from the MIT-licensed `chizkiyahu/pdf-dark-mode-converter` | ✅ **shipped 2026-10-28** — see §8 first entry |
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
 
@@ -56,33 +57,33 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-27 for the **security batch** (`pnpm typecheck`,
-`pnpm build`, `pnpm test:bundle`, the next-tools browser suite, and a serial full unit run — the
-default parallel run can still hit a pre-existing flaky API child-watchdog timing test, so the
-full suite was run with `--workspace-concurrency=1` and is 1079/1079 green; the other browser
-suites were last re-run green for the authoring batch). The last full-stack API smoke +
-hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
+**Current gate:** re-measured 2026-10-28 for the **dark-mode batch** (`pnpm typecheck`,
+`pnpm build`, `pnpm test:bundle`, `test:sweep`, the full smoke suite, and the new dark-mode browser
+suite, all green; the parallel unit run again tripped the pre-existing flaky API child-watchdog
+timing test, which passed on an immediate serial re-run, so units are 1093/1093). The last
+full-stack API smoke + hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
 of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
 interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
 still hold.
-**48 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**49 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
 `jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; seven on
 2026-10-25: `stamp`, `repair-pdf`, `combine-pdf`, `image-editor`, `batch-run`,
 `split-by-bookmarks`, `workflows`; three on 2026-10-26/27: `create-forms`, `create-bookmarks`,
-`protect-pdf`; `redact-pdf` in
+`protect-pdf`; one on 2026-10-28: `dark-mode-pdf`; `redact-pdf` in
 Security; `summarize-pdf` +
 `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1079/1079 unit** (**301 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
+**1093/1093 unit** (**315 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
 **19 MCP**) — the engine total rose by 34 across the authoring and security batches (form-field
-creation, outline writing, heading detection, Protect encryption and smart-compress defaults);
-the web total is unchanged ·
+creation, outline writing, heading detection, Protect encryption and smart-compress defaults) and
+by 14 more for the dark-mode batch (exact theme/transform pins, job validation, the Node
+no-canvas refusal); the web total is unchanged ·
 browser E2E: full
 smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
@@ -104,6 +105,10 @@ navigation, drag/resize, numeric placement and duplicate-name blocking; a report
 headings are detected, reordered, edited, nested, and written as a real outline with all titles read
 back, including a non-Latin one, plus an excluded parent whose child is promoted instead of leaving a
 skipped level) · **8/8 focused text-edit E2E** ·
+**dark-mode suite, 8/8 checks** (`tests/e2e/dark-mode.mjs`, new root script `test:e2e:dark-mode`:
+the page-1 wipe-preview canvas shows the exact theme colours — its top-left pixel reads (0,0,0)
+on `ink` and (25,30,45) on `midnight` — a saturated-red page stays red under `smart` and flips to
+cyan under `invert`, and the download is `%PDF-`, carries `DCTDecode` inside and ends `-dark.pdf`) ·
 **22/22 AI E2E** (re-run 2026-10-25: chat + highlight apply + in-place replacement + key-handling,
 local SSE mock, plus the five keyless welcome-overlay checks in the same script, so the old
 "17 vs 18" drift is fully explained) · **11/11 managed AI
@@ -230,9 +235,9 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 57 tools (**47 live**), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 57 tools (**49 live**), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
-│   └── src/components/tools/*      44 tool-body files
+│   └── src/components/tools/*      45 tool-body files
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
 ├── packages/pdf-core               engine — same code path in worker and Node
 │   ├── src/node.ts                  Node-safe barrel: only the isomorphic surface (P3)
@@ -244,8 +249,8 @@ pdfshush/
 │   ├── src/render/                  pdfjsRuntime · canvas · renderPage · textRuns (P2) ·
 │   │                                suggestBookmarks
 │   ├── src/redact/                  R1 secure redaction: rasterize · rebuild · verify (§20)
-│   └── src/jobs/                    35 jobs: the original 29 + the bookmark batch four + the
-│                                    authoring batch two
+│   └── src/jobs/                    37 jobs: the original 29 + the bookmark batch four + the
+│                                    authoring batch two + protect + dark-mode
 ├── tests/e2e/smoke.mjs             Playwright (system Edge) driving all live tools (101 checks)
 ├── tests/e2e/plain-tools.mjs       the ten plain tools, magic-byte asserts (13 checks)
 ├── tests/e2e/next-tools.mjs        the six next tools, incl. a real raster compress (18 checks)
@@ -679,6 +684,45 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-28 — The dark-mode batch: Dark Mode PDF, taking the catalog from 48 to 49 live.**
+  Ported from the MIT-licensed `chizkiyahu/pdf-dark-mode-converter` (attribution and theme
+  provenance in `licenses/pdf-dark-mode-converter-MIT.txt`; the six theme colours are that
+  project's values under neutral ids `ink/warm/cool/sepia/midnight/forest`) and rebuilt on the
+  grayscale pipeline: rasterize on the product's pdf.js runtime → per-pixel transform → JPEG
+  rebuild, high quality (0.9 default) instead of the reference's heavyweight PNGs. Browser-only,
+  so `SERVER_SLUGS`, `/api/v1`, the MCP surface and `NODE_JOBS` stay unchanged at eight slugs
+  (server-side render without the rasterize pipeline would be a lie). No new dependencies.
+
+  - **Engine** (`darkmode/darkModes.ts` + `darkmode/dark.ts` + `jobs/darkMode.job.ts`, slug
+    `dark-mode`). Three transform kinds behind one pure, dependency-free module that the main
+    thread and the worker share so the preview and the output agree to the byte (the 2026-10-25
+    `IMAGE_LIMITS` lesson: value imports only from import-free modules): `theme` — the reference
+    remap (`factor = 1 − BT.601 brightness/255`; white paper lands on the theme background, black
+    ink on white), best for text documents; `smart` — new, an HSL lightness flip that keeps every
+    hue, so charts and photos survive; `invert` — the classic 255−channel negative. `dark-mode`
+    joined `WORKFLOW_OUTPUT_JOBS` (document-in, document-out), keeps the grayscale caps: the
+    150-page rasterize-rebuild ceiling (`LIMITS.tool.maxRedactPages`), width 320..4000 px,
+    password passthrough, `destroy()` in `finally`, progress + cancel.
+  - **Web** (`dark-mode-pdf-tool.tsx`, icon Moon, category Other). The feature the reference never
+    had: a live before/after wipe preview — page 1 renders through the `thumbnails` job at 1000 px,
+    pristine pixels are cached on the main thread, and the same pure transform repaints a canvas
+    clipped against the original (a `clip-path` wipe driven by a real range input, so the preview
+    is keyboard reachable). Three mode cards, six theme chips, the honest rebuild disclosure
+    (flat page images, like secure redaction), the over-cap card naming the 150-page gate,
+    progress + cancel, ResultPanel. `TOOL_NEXT` adds `dark-mode-pdf → ['compress-pdf',
+    'resize-pdf']` and `grayscale-pdf` now suggests Dark Mode first.
+  - **Verification.** 14 new engine tests in `test/darkMode.test.ts`: exact RGB pins for all six
+    themes, transform math (exact white→theme/black→white, mid-grey interpolation, hue
+    preservation on a saturated red, exact grey branch), all three kinds dispatched through
+    `applyDarkModeRgba`, job validation (one file, kind/theme membership, clamped width/quality),
+    `WORKFLOW_OUTPUT_JOBS` + `JOB_SLUGS`/`JOBS` membership, and the Node no-canvas refusal —
+    **1093/1093 unit**. Browser E2E `tests/e2e/dark-mode.mjs` (**8/8 checks**): the wipe preview's
+    top-left pixel reads (0,0,0) on `ink` and (25,30,45) on `midnight`, a saturated-red page stays
+    red under `smart` and flips to cyan under `invert`, the download is `%PDF-`, carries
+    `DCTDecode`, ends `-dark.pdf`. Gates on 2026-10-28: `pnpm typecheck` · `pnpm build` ·
+    `pnpm test:bundle` (0 engines outside the worker) · `test:sweep` clean (6 breakpoints ×
+    2 themes × 6 routes) · full smoke `ALL CHECKS PASSED`.
 
 - **2026-10-28 — Debug session: pdf.js "fake worker" warnings traced and silenced; every
   gate re-run green.** Evidence-first sweep over `dev2.log`, `.vite-dev.err.log` (empty),
@@ -1997,10 +2041,11 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all seven workspace projects
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1019 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1093 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
+pnpm test:e2e:dark-mode   # Dark Mode PDF: preview pixels exact, download checks (8 checks)
 pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (22 checks: 17 seeded + 5 keyless overlay)
@@ -2045,8 +2090,9 @@ on PATH now — `docker compose up -d --build` works directly from the session.)
 10k-page files, interrupted jobs, cleanup verification), then P7.2 SEO prerender and P7.3 perf/a11y.
 **P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
 L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
-The 2026-10-27 security batch (§8) took the catalog to 48 of 57 live tools and the engine to
-301 tests with its own 36-check E2E; the 2026-10-26 authoring batch left it at 47 with 293
+The 2026-10-28 dark-mode batch (§8) took the catalog to 49 of 57 live tools and the engine to
+315 tests with its own 8-check E2E; the 2026-10-27 security batch left it at 48 of 57 with 301
+tests and a 36-check E2E; the 2026-10-26 authoring batch left it at 47 with 293
 tests, the 2026-10-25 bookmark batch at 45 with 267 tests,
 the 2026-10-21 next-tools batch at 38 with 251 tests, and the 2026-10-20 plain-tools batch added
 ten more plus the first dedicated tool suite.

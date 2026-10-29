@@ -14,7 +14,7 @@ export function ModeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Toggle theme">
+        <Button variant="ghost" size="icon" className="theme-toggle" aria-label="Toggle theme">
           {theme === 'light' ? (
             <Sun className="h-4 w-4" />
           ) : theme === 'dark' ? (

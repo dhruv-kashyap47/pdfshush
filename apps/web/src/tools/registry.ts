@@ -34,6 +34,7 @@ import {
   Mail,
   Merge,
   MessageSquare,
+  Moon,
   Minimize2,
   PenTool,
   Presentation,
@@ -154,6 +155,9 @@ const LIVE = new Set([
   'create-bookmarks',
   // Security batch (2026-10-27).
   'protect-pdf',
+  // Dark-mode batch (2026-10-28): rasterize-remap-rebuild, ported from the
+  // MIT-licensed chizkiyahu/pdf-dark-mode-converter.
+  'dark-mode-pdf',
 ]);
 
 /**
@@ -185,7 +189,7 @@ const TOOL_NEXT: Record<string, string[]> = {
   'edit-metadata': ['organize-pdf', 'merge-pdf'],
   'remove-annotations': ['flatten-pdf', 'redact-pdf'],
   'pdf-to-text': ['summarize-pdf', 'extract-pages'],
-  'grayscale-pdf': ['pdf-to-jpg', 'organize-pdf'],
+  'grayscale-pdf': ['dark-mode-pdf', 'pdf-to-jpg', 'organize-pdf'],
   'resize-pdf': ['n-up', 'organize-pdf'],
   'extract-images': ['jpg-to-pdf', 'merge-pdf'],
   'split-by-size': ['merge-pdf', 'compress-pdf'],
@@ -210,6 +214,8 @@ const TOOL_NEXT: Record<string, string[]> = {
   'create-bookmarks': ['split-by-bookmarks', 'merge-pdf'],
   // Security batch (2026-10-27).
   'protect-pdf': ['unlock-pdf', 'compress-pdf'],
+  // Dark-mode batch (2026-10-28).
+  'dark-mode-pdf': ['compress-pdf', 'resize-pdf'],
 };
 
 const tool = (
@@ -307,6 +313,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       tool('bates-numbering', 'Bates Numbering', 'Sequential legal page numbering across a whole set.', 'other', Hash, 'violet'),
       tool('create-bookmarks', 'Create Bookmarks', 'Generate an outline from page content automatically.', 'other', Bookmark, 'blue'),
       tool('crop-pdf', 'Crop PDF', 'Trim margins or crop to a custom region on every page.', 'other', Crop, 'green'),
+      tool('dark-mode-pdf', 'Dark Mode PDF', 'Rewrite light pages for night reading with themes, not a raw negative.', 'other', Moon, 'violet'),
       tool('edit-metadata', 'Edit Metadata', 'Change title, author, subject and keywords.', 'other', Wrench, 'cyan'),
       tool('extract-images', 'Extract Images', 'Pull every embedded image out of a PDF.', 'other', Files, 'amber'),
       tool('flip-pdf', 'Flip PDF', 'Mirror pages horizontally or vertically.', 'other', FlipHorizontal, 'violet'),

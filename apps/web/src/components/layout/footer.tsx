@@ -92,8 +92,8 @@ export function SiteFooter() {
         <div className="mt-12 flex flex-col gap-3 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} PDFShush · AGPL-3.0 licensed · Not affiliated with Sejda</p>
           <p className="flex items-center gap-4">
-            <span className="transition-colors hover:text-foreground">Privacy (soon)</span>
-            <span className="transition-colors hover:text-foreground">Terms (soon)</span>
+            <span>Privacy (soon)</span>
+            <span>Terms (soon)</span>
             <Link to="/" className="transition-colors hover:text-foreground">
               Source
             </Link>

@@ -12,6 +12,7 @@ import { combineJob } from './combine.job.js';
 import { compressJob } from './compress.job.js';
 import { createBookmarksJob } from './createBookmarks.job.js';
 import { createFormsJob } from './createForms.job.js';
+import { darkModeJob } from './darkMode.job.js';
 import { editJob } from './edit.job.js';
 import { flattenJob } from './flatten.job.js';
 import { flipJob } from './flip.job.js';
@@ -85,6 +86,8 @@ export const JOBS = {
   [createBookmarksJob.slug]: createBookmarksJob as AnyJob,
   // Security batch (2026-10-27): real AES-256 encryption, browser-only.
   [protectJob.slug]: protectJob as AnyJob,
+  // Dark-mode batch (2026-10-28): every page rasterized, remapped, rebuilt.
+  [darkModeJob.slug]: darkModeJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;

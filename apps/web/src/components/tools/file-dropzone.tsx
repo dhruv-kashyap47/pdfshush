@@ -89,7 +89,7 @@ export function FileDropzone({
           }}
           // Centred and height-capped on purpose: stretched to the full tool frame the
           // empty target read as a large empty box rather than as an action.
-          className={`mx-auto flex w-full max-w-xl flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-11 text-center transition-colors ${
+          className={`dropzone mx-auto flex w-full max-w-xl flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-11 text-center transition-colors ${
             dragOver
               ? 'border-primary bg-primary/5'
               : 'border-border bg-muted/40 hover:border-primary/60 hover:bg-muted/70'

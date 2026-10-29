@@ -190,7 +190,7 @@ export function FeaturesSection() {
         </div>
 
         {/* Side-by-side comparison matrix — a real table keeps its rules. */}
-        <div className="mt-16 overflow-hidden rounded-xl bg-card" data-reveal data-reveal-delay="100">
+        <div className="trust-table mt-16 overflow-hidden rounded-xl bg-card" data-reveal data-reveal-delay="100">
           <div className="bg-muted/30 px-6 py-4">
             <h3 className="text-[15px] font-semibold text-foreground">
               Traditional cloud tools vs. PDFShush

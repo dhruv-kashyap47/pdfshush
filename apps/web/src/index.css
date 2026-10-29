@@ -50,42 +50,46 @@
     "Times New Roman", Times, serif;
   --radius: 0.625rem;
   color-scheme: light;
-  /* The page is a warm-neutral off-white, not paper-white. Cards sit at pure
-     white, so an elevated surface reads as a step up instead of relying on a
-     border to separate it. */
-  /* The muted ink still reads at ≥5:1 in both themes: it is the voice for
-     secondary notes, metas and captions, never for running paragraphs. */
-  --background: oklch(0.9865 0.0018 92);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.62 0.17 152);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.9665 0.0025 92);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.9665 0.0025 92);
-  --muted-foreground: oklch(0.46 0 0);
-  --accent: oklch(0.961 0.003 92);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.914 0.002 92);
-  --input: oklch(0.914 0.002 92);
-  --ring: oklch(0.62 0.17 152);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ── Light mode: warm porcelain, deep charcoal, restrained emerald ──────
+     The ground is a warm ivory rather than paper-white, so the page reads as
+     a surface the tools sit on instead of as a blank document. Cards sit one
+     step brighter than the ground, so an elevated surface reads as a step up
+     instead of relying on a border to separate it.
+     The muted ink still reads at ≥5:1 in both themes: it is the voice for
+     secondary notes, metas and captions, never for running paragraphs.
+     The accent is a deep emerald, not a neon one: 5.5:1 against white, so a
+     primary button keeps its label legible at every size. */
+  --background: oklch(0.978 0.0045 88);
+  --foreground: oklch(0.205 0.005 60);
+  --card: oklch(0.994 0.0025 92);
+  --card-foreground: oklch(0.205 0.005 60);
+  --popover: oklch(0.996 0.002 92);
+  --popover-foreground: oklch(0.205 0.005 60);
+  --primary: oklch(0.495 0.118 162);
+  --primary-foreground: oklch(0.99 0.004 150);
+  --secondary: oklch(0.962 0.006 88);
+  --secondary-foreground: oklch(0.235 0.006 60);
+  --muted: oklch(0.955 0.007 88);
+  --muted-foreground: oklch(0.505 0.008 65);
+  --accent: oklch(0.941 0.009 88);
+  --accent-foreground: oklch(0.235 0.006 60);
+  --destructive: oklch(0.558 0.205 27);
+  --border: oklch(0.898 0.008 85);
+  --input: oklch(0.885 0.009 85);
+  --ring: oklch(0.495 0.118 162);
+  --chart-1: oklch(0.6 0.13 152);
+  --chart-2: oklch(0.6 0.1 184);
+  --chart-3: oklch(0.45 0.06 227);
+  --chart-4: oklch(0.8 0.14 84);
+  --chart-5: oklch(0.72 0.15 60);
+  --sidebar: oklch(0.974 0.005 88);
+  --sidebar-foreground: oklch(0.205 0.005 60);
+  --sidebar-primary: oklch(0.235 0.006 60);
+  --sidebar-primary-foreground: oklch(0.985 0.003 92);
+  --sidebar-accent: oklch(0.955 0.007 88);
+  --sidebar-accent-foreground: oklch(0.235 0.006 60);
+  --sidebar-border: oklch(0.905 0.008 85);
+  --sidebar-ring: oklch(0.495 0.118 162);
 }
 
 .dark {
@@ -123,6 +127,599 @@
   --sidebar-accent-foreground: oklch(0.97 0 0);
   --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE — PORCELAIN & EMERALD
+
+   Every rule in this section is scoped to `:root:not(.dark)`. When the `dark`
+   class is on <html> these selectors simply never match, so the dark theme
+   is unreachable from here: the light redesign cannot leak into it.
+
+   The section owns the light-mode design primitives that Tailwind cannot
+   express well — translucent ivory surfaces, warm hairlines, soft directional
+   shadows and the focus treatment — so the component files stay free of
+   theme-specific colour soup and keep one shared markup for both themes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root:not(.dark) {
+  /* The corner scale is NOT overridden here: `--radius` drives every
+     `rounded-*` utility, so a light-only radius would make every rounded
+     surface a different size from its dark twin. Both themes share one
+     scale, which is what keeps the tool buttons geometrically identical. */
+
+  /* Porcelain: the translucent ivory used by the nav bar, the hero console
+     and the tiles that float over the Greek plate. */
+  --porcelain: oklch(0.995 0.003 92);
+  --porcelain-glass: oklch(0.995 0.003 92 / 0.72);
+  --porcelain-glass-strong: oklch(0.995 0.003 92 / 0.9);
+  --porcelain-sunk: oklch(0.955 0.007 88 / 0.62);
+  /* A hairline that reads against a photograph is white; against ivory it is
+     warm sand. Two hairlines, because one cannot do both jobs. */
+  --hairline-glass: oklch(1 0 0 / 52%);
+  --hairline-sand: oklch(0.866 0.01 85 / 0.9);
+  /* Shadows are warm, never neutral grey. Nothing rests with a shadow on it:
+     these are for surfaces that genuinely float (menus, dialogs, the console). */
+  --shadow-soft: 0 1px 2px oklch(0.42 0.025 70 / 0.04), 0 12px 26px -20px oklch(0.34 0.025 70 / 0.32);
+  --shadow-float: 0 2px 6px oklch(0.42 0.025 70 / 0.05), 0 28px 52px -28px oklch(0.3 0.025 70 / 0.34);
+  /* Emerald ink: the accent on small type over ivory, deep enough to stay
+     legible at 13px where the primary fill would not. */
+  --emerald-ink: oklch(0.44 0.105 162);
+}
+
+/* ── L1. Site navigation ───────────────────────────────────────────────────
+   A translucent ivory bar with a single warm hairline. Over the Greek plate
+   it frosts the photograph; over a tool page it reads as a sheet of paper
+   laid on the desk. Both states come from the same rule. */
+
+/* The wordmark is live text now, so it can carry the theme's ink. These two
+   lines reproduce exactly what the old `dark:invert` image did — black on
+   light, white on dark — so the dark theme's wordmark is unchanged; the
+   light theme's refinement is the single rule in the section below. */
+.brand-mark {
+  color: #000;
+}
+.dark .brand-mark {
+  color: #fff;
+}
+
+:root:not(.dark) .brand-mark {
+  color: oklch(0.205 0.005 60);
+}
+
+:root:not(.dark) .site-nav {
+  border-bottom-color: oklch(0.845 0.01 85 / 0.5);
+  background-color: oklch(0.996 0.003 92 / 0.66);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+}
+:root:not(.dark) .site-nav:hover {
+  background-color: oklch(0.996 0.003 92 / 0.78);
+}
+/* The mega panel is one wide sheet of porcelain. It stays opaque on purpose:
+   the headline underneath it must never compete with the catalog labels, and
+   the bar above it already carries the translucent-ivory treatment. */
+:root:not(.dark) .mega-panel {
+  border-bottom-color: oklch(0.845 0.01 85 / 0.6);
+  background-color: var(--porcelain);
+  backdrop-filter: blur(36px) saturate(150%);
+  -webkit-backdrop-filter: blur(36px) saturate(150%);
+  box-shadow: var(--shadow-float);
+}
+/* Menu surfaces: warm hairline, soft shadow, no heavy outline. */
+:root:not(.dark) [data-slot='dropdown-menu-content'],
+:root:not(.dark) [data-slot='select-content'],
+:root:not(.dark) [data-slot='popover-content'] {
+  border-color: var(--hairline-sand);
+  background-color: var(--porcelain);
+  box-shadow: var(--shadow-float);
+}
+/* A hairline inside the nav, not a filled pill: the active tool is marked by
+   the ink, not by a block of colour. */
+:root:not(.dark) .site-nav [data-nav-link][aria-current='page'] {
+  background-color: oklch(0.945 0.009 88 / 0.9);
+  color: var(--foreground);
+}
+:root:not(.dark) .site-nav [data-nav-link]:hover {
+  background-color: oklch(0.949 0.009 88 / 0.75);
+  color: var(--foreground);
+}
+/* Theme control: a hairline chip that belongs to the bar. The border is
+   declared here rather than in the component so dark mode keeps its
+   borderless ghost button exactly as it was. */
+:root:not(.dark) .theme-toggle {
+  border-width: 1px;
+  border-style: solid;
+  border-color: oklch(0.86 0.01 85 / 0.7);
+  background-color: oklch(0.995 0.003 92 / 0.55);
+  color: oklch(0.42 0.008 65);
+}
+:root:not(.dark) .theme-toggle:hover {
+  background-color: oklch(0.955 0.007 88 / 0.9);
+  color: var(--foreground);
+}
+
+/* ── L2. The Greek plate and the hero surfaces ─────────────────────────────
+
+   THE FULL-BLEED FIX, and the three root causes behind it:
+
+   1. `.hero-backdrop` was pinned `inset: 0` of the hero section, so its
+      height followed the *content* — 838 px on a laptop, 1 628 px on a
+      phone. The plate therefore stopped a third of the way down the page and
+      the rest of the hero floated on bare ivory. Light mode now gives the
+      band its own height — one viewport — capped by the section so it can
+      never overhang: `height: 100svh; max-height: 100%`.
+
+   2. The band sat *below* the sticky header, so the plate never reached the
+      top of the viewport and the navigation had nothing to frost. Light mode
+      pulls the hero up under the header (`margin-top: -header`) and gives it
+      the matching padding, so the photograph starts at y = 0 and the bar
+      floats over it.
+
+   3. `.hero-backdrop-image` was sized by its own aspect ratio — Tailwind's
+      preflight sets `height: auto`, and `max-width: 100%` caps the width —
+      so the plate could never fill the band it lived in, whatever the band's
+      height. Light mode gives the image explicit `width`/`height` and lets
+      `object-fit: cover` do the fitting: it fills the band exactly, never
+      distorts, and crops only where the frame is narrower than the plate.
+
+   The content is untouched by all of this: it stays inside its own
+   `max-w-7xl` container, so the background and the foreground have
+   independent layout constraints. */
+:root:not(.dark) .hero-section {
+  margin-top: calc(-1 * var(--site-header-height));
+  /* The section's own top padding (4.75rem / 5rem) is what clears the
+     sticky header, so the pull-up is added on top of it: the copy lands
+     exactly where it did before, and the plate now starts at y = 0. */
+  padding-top: calc(4.75rem + var(--site-header-height));
+}
+@media (min-width: 640px) {
+  :root:not(.dark) .hero-section {
+    padding-top: calc(5rem + var(--site-header-height));
+  }
+}
+:root:not(.dark) .hero-backdrop {
+  inset: 0 0 auto 0;
+  height: 100svh;
+  max-height: 100%;
+}
+:root:not(.dark) .hero-backdrop-image {
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+}
+/* The plate's focal point. On a wide frame the crop is a few per cent and
+   the whole panorama reads; on a narrow frame the cover crop becomes a tall
+   slice, so the focus moves to the colonnade and the marble terrace — the
+   part of the scene with vertical structure, which reads best in portrait
+   and keeps the Greek architecture on screen. */
+:root:not(.dark) .hero-backdrop-image--day {
+  /* The plate is a saturated golden-hour photograph: a hair of blur to push
+     it behind the type, a whisper more saturation so the marble and the sea
+     do not wash out under the ivory. */
+  filter: blur(0.6px) saturate(1.05) contrast(1.01) brightness(1.01);
+  object-position: 14% 42%;
+}
+@media (min-width: 1024px) {
+  :root:not(.dark) .hero-backdrop-image--day {
+    object-position: 38% 44%;
+  }
+}
+
+/* A restrained warm-ivory wash gives the copy a little separation without
+   bleaching the photograph. It fades out before the middle of the plate so
+   the architecture, sky and harbour retain their natural contrast. */
+:root:not(.dark) .hero-backdrop-wash {
+  background-image: linear-gradient(
+    98deg,
+    oklch(0.985 0.014 88 / 14%) 0%,
+    oklch(0.985 0.014 88 / 10%) 22%,
+    oklch(0.985 0.014 88 / 5%) 38%,
+    oklch(0.985 0.014 88 / 0%) 58%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    oklch(0 0 0 / 40%) 0%,
+    oklch(0 0 0 / 58%) 16%,
+    oklch(0 0 0 / 84%) 32%,
+    oklch(0 0 0 / 100%) 48%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    oklch(0 0 0 / 40%) 0%,
+    oklch(0 0 0 / 58%) 16%,
+    oklch(0 0 0 / 84%) 32%,
+    oklch(0 0 0 / 100%) 48%
+  );
+}
+/* Tablet and phone: the copy runs full-bleed, so a diagonal text-side wash
+   no longer matches the layout. It turns vertical instead. */
+@media (max-width: 1023px) {
+  :root:not(.dark) .hero-backdrop-wash {
+    background-image: linear-gradient(
+      to bottom,
+      oklch(0.985 0.014 88 / 16%) 0%,
+      oklch(0.985 0.014 88 / 10%) 18%,
+      oklch(0.985 0.014 88 / 4%) 36%,
+      oklch(0.985 0.014 88 / 0%) 56%
+    );
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  :root:not(.dark) .hero-backdrop-scrim {
+    background-image: linear-gradient(
+      to bottom,
+      oklch(0.99 0.008 90 / 0%) 0%,
+      oklch(0.99 0.008 90 / 0%) 58%,
+      oklch(0.99 0.008 90 / 18%) 78%,
+      var(--background) 100%
+    );
+  }
+}
+/* Desktop scrim: the dissolve starts late, so the middle of the photograph —
+   the colonnade, the terrace, the harbour — keeps its colour and only the
+   bottom edge melts into the paper the claims sit on. */
+@media (min-width: 1024px) {
+  :root:not(.dark) .hero-backdrop-scrim {
+    background-image: linear-gradient(
+      to bottom,
+      oklch(0.99 0.008 90 / 0%) 0%,
+      oklch(0.99 0.008 90 / 0%) 60%,
+      oklch(0.99 0.008 90 / 14%) 76%,
+      oklch(0.99 0.008 90 / 45%) 88%,
+      var(--background) 100%
+    );
+  }
+}
+
+/* The upload console is the hero's one product surface. It is intentionally
+   a quiet, near-solid sheet rather than another glass layer, so the action is
+   legible at a glance while the plate remains a clear photographic stage. */
+:root:not(.dark) .hero-console {
+  border-color: oklch(0.995 0.003 92 / 0.6);
+  background-color: oklch(0.992 0.004 92 / 0.58);
+  -webkit-backdrop-filter: blur(30px) saturate(155%);
+  backdrop-filter: blur(30px) saturate(155%);
+  box-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.62),
+    0 28px 56px -36px oklch(0.28 0.02 70 / 0.48);
+}
+:root:not(.dark) .hero-console:hover {
+  background-color: oklch(0.994 0.003 92 / 0.7);
+}
+/* On desktop the console stretches to match the copy panel: the row already
+   sizes both columns equal to the tallest (the copy column), so the wrapper
+   refunds the panel's breathing room and the two cards share one top edge and
+   one bottom edge. Inside the console only the upload dropzone is allowed to
+   grow, so the extra height is absorbed by the target rather than appearing
+   as dead space under the shortcuts. */
+@media (min-width: 1024px) {
+  :root:not(.dark) [data-motion='console'] {
+    /* items-start on the grid turns the default stretch off, so restore it:
+       the row is already sized by the copy column. */
+    align-self: stretch;
+    margin-block: -1.5rem;
+    display: flex;
+  }
+  :root:not(.dark) [data-motion='console'] .hero-console {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  :root:not(.dark) [data-motion='console'] .hero-console > div {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  :root:not(.dark) [data-motion='console'] .hero-dropzone {
+    flex: 1 1 auto;
+  }
+  /* Staged state: the file header pins to the top, the action cluster sinks to
+     the card's bottom — a clean two-block float, never a ragged middle. */
+  :root:not(.dark) [data-motion='console'] .hero-console > div > .pt-3 {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-top: 1.5rem;
+  }
+}
+:root:not(.dark) .hero-console[data-drag='true'] {
+  border-color: var(--primary);
+  background-color: oklch(0.995 0.003 92 / 0.78);
+  box-shadow:
+    0 1px 0 0 oklch(1 0 0 / 0.55) inset,
+    0 0 0 3px oklch(0.495 0.118 162 / 0.22),
+    0 34px 60px -34px oklch(0.28 0.02 70 / 0.42);
+}
+/* The plate is a saturated golden-hour photograph, so the copy needs a
+   dependable reading field, not a colour fight against it. The left column
+   wears the same porcelain glass the nav bar and the upload console already
+   wear: one surface language, two cards frosted over the same art. The hero
+   reads as one composed object — panel, panel, photograph — instead of dark
+   blobs pasted onto a picture.
+
+   The field is drawn on a ::before rather than on the column box so the
+   grid's alignment is untouched: the panel just breathes a fixed margin
+   around a column the CSS never measures. A hairline inside the top edge
+   gives the glass its refraction, and the radius is the shared --radius-xl
+   so the two cards are cut by the same corner. */
+:root:not(.dark) .hero-copy::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: -1.5rem -1.75rem;
+  border-radius: var(--radius-xl);
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    oklch(0.995 0.003 92 / 0.62) 0%,
+    oklch(0.991 0.005 92 / 0.52) 100%
+  );
+  -webkit-backdrop-filter: blur(36px) saturate(165%);
+  backdrop-filter: blur(36px) saturate(165%);
+  box-shadow:
+    inset 0 0 0 1px var(--hairline-sand),
+    inset 0 1px 0 0 oklch(1 0 0 / 0.65),
+    0 28px 56px -36px oklch(0.28 0.02 70 / 0.42);
+}
+:root:not(.dark) .hero-copy > * {
+  position: relative;
+  z-index: 1;
+}
+:root:not(.dark) .hero-copy-field {
+  color: var(--foreground);
+  text-shadow: none;
+}
+/* The subhead is the column's only secondary voice, so it steps down to warm
+   grey while the headline keeps full ink. Deep enough for a 0.8-alpha glass
+   panel over the brightest part of the photograph. */
+:root:not(.dark) .hero-copy > p.hero-copy-field {
+  color: oklch(0.42 0.012 70);
+}
+/* The light headline is set larger and looser than the dark one: on a
+   photograph a 68px line needs the extra air, and the deeper charcoal
+   weight keeps it from competing with the picture behind it. The dark
+   theme keeps its own type scale untouched. */
+:root:not(.dark) .hero-headline {
+  /* Two lines at every width: the second beat ("in one browser tab.") has to
+     fit a 320px screen, so the phone size is fluid rather than a fixed step. */
+  font-size: clamp(1.75rem, 8.6vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+@media (min-width: 640px) {
+  :root:not(.dark) .hero-headline {
+    font-size: clamp(2.5rem, 8.6vw, 3.75rem);
+  }
+}
+@media (min-width: 1024px) {
+  :root:not(.dark) .hero-headline {
+    font-size: clamp(3.25rem, 5.4vw, 4.8rem);
+    max-width: 17ch;
+  }
+  :root:not(.dark) .hero-copy-field:not(.hero-headline) {
+    max-width: 34rem;
+  }
+}
+/* Between 1024px and 1280px the copy column is narrow: the tool rail falls
+   back to three columns so a chip never has to wrap its own name. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root:not(.dark) .hero-rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+/* The tool rail is a compact index, not a second card grid. It keeps the
+   useful routes in the first screen without challenging the headline or the
+   upload console for attention. */
+:root:not(.dark) .hero-rail-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: oklch(0.42 0.012 70);
+}
+:root:not(.dark) .hero-chip {
+  border-color: var(--hairline-sand);
+  background-color: oklch(1 0 0 / 0.66);
+  box-shadow: 0 1px 2px oklch(0.42 0.025 70 / 0.05);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  min-height: 2.85rem;
+  padding: 0.625rem 0.6875rem;
+}
+:root:not(.dark) .hero-chip:hover {
+  border-color: oklch(0.58 0.09 162 / 0.55);
+  background-color: oklch(1 0 0 / 0.92);
+  box-shadow:
+    0 2px 4px oklch(0.42 0.025 70 / 0.06),
+    0 10px 22px -14px oklch(0.34 0.025 70 / 0.3);
+}
+:root:not(.dark) .hero-rail {
+  gap: 0.5rem;
+}
+:root:not(.dark) .hero-actions > :not(:first-child) {
+  background-color: oklch(1 0 0 / 0.62);
+  border-color: var(--hairline-sand);
+}
+:root:not(.dark) .hero-actions > :not(:first-child):hover {
+  background-color: oklch(1 0 0 / 0.9);
+  border-color: oklch(0.58 0.09 162 / 0.5);
+}
+
+/* The proof claims are product facts, so they get the same porcelain sheet as
+   the cards above them: dark ink over warm ivory with the emerald glyph as
+   the single colour — one band that closes the hero instead of a slab of
+   near-black dropped over the photographs. The band also spans the exact
+   left edge of the copy panel above it (the panel breathes 1.75rem outside
+   the content column, the band mirrors that), so the two cards and the band
+   share one composed bounding box; the right edge stays on the console's. */
+:root:not(.dark) .hero-proof {
+  margin-left: -1.75rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background-color: oklch(0.992 0.004 92 / 0.55);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  backdrop-filter: blur(30px) saturate(160%);
+  box-shadow:
+    inset 0 0 0 1px var(--hairline-sand),
+    inset 0 1px 0 0 oklch(1 0 0 / 0.6),
+    0 28px 56px -36px oklch(0.28 0.02 70 / 0.4);
+}
+:root:not(.dark) .hero-proof-item > p:first-child {
+  color: var(--foreground);
+}
+:root:not(.dark) .hero-proof-item > p:last-child {
+  color: oklch(0.42 0.012 70);
+}
+:root:not(.dark) .hero-proof-item svg {
+  color: var(--emerald-ink);
+}
+@media (max-width: 639px) {
+  :root:not(.dark) .hero-copy::before {
+    inset: -1rem -0.75rem;
+    border-radius: 1rem;
+  }
+  :root:not(.dark) .hero-proof {
+    padding: 1rem;
+    /* On phones the copy panel breathes 0.75rem instead of 1.75rem, so the
+       band centres on the panel's column instead of the console's. */
+    margin-inline: -0.75rem;
+  }
+}
+:root:not(.dark) .hero-dropzone {
+  border-color: oklch(0.866 0.01 85 / 0.9);
+  background-color: oklch(0.968 0.006 90 / 0.6);
+}
+:root:not(.dark) .hero-dropzone:hover {
+  border-color: oklch(0.58 0.09 162 / 0.7);
+  background-color: oklch(0.976 0.005 90 / 0.85);
+}
+/* The four AI shortcuts inside the console: quiet tiles, one hover step. The
+   hairline is drawn with an inset shadow so the tile keeps its exact box in
+   both themes — no border-width jump when the theme changes. */
+:root:not(.dark) .hero-ai-tile {
+  background-color: oklch(1 0 0 / 0.55);
+  box-shadow: inset 0 0 0 1px oklch(0.866 0.01 85 / 0.5);
+}
+:root:not(.dark) .hero-ai-tile:hover {
+  background-color: oklch(1 0 0 / 0.9);
+  box-shadow: inset 0 0 0 1px oklch(0.62 0.08 162 / 0.4);
+}
+
+/* ── L3. Catalog cards ────────────────────────────────────────────────────
+   One hairline, one soft shadow, one hover — and not one pixel of geometry.
+   The hairline is an inset ring, not a border: a border would add two pixels
+   to the card's box and make every light-mode card two pixels taller and
+   narrower than its dark twin. The card keeps the shared markup's padding,
+   gap, type sizes, radius and availability mark, so light and dark differ
+   only in surface, hairline and shadow. */
+:root:not(.dark) .tool-card {
+  background-color: var(--porcelain);
+  box-shadow:
+    inset 0 0 0 1px var(--hairline-sand),
+    0 1px 2px oklch(0.42 0.025 70 / 0.04),
+    0 12px 26px -20px oklch(0.34 0.025 70 / 0.32);
+}
+:root:not(.dark) .tool-card:hover {
+  background-color: var(--porcelain);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.62 0.08 162 / 0.5),
+    0 2px 4px oklch(0.42 0.025 70 / 0.05),
+    0 18px 32px -22px oklch(0.34 0.025 70 / 0.36);
+}
+/* Catalog filter: the selected tab is a raised chip of warm sand, not a
+   block of near-black. */
+:root:not(.dark) .tool-tab[aria-selected='true'] {
+  background-color: oklch(0.945 0.009 88);
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px oklch(0.858 0.01 85 / 0.9);
+}
+:root:not(.dark) .tool-tab:not([aria-selected='true']):hover {
+  background-color: oklch(0.955 0.007 88 / 0.75);
+  color: var(--foreground);
+}
+
+/* ── L4. Trust notes and other quiet panels ─────────────────────────────── */
+:root:not(.dark) .trust-note {
+  border-color: var(--hairline-sand);
+  background-color: oklch(0.995 0.003 92 / 0.72);
+}
+:root:not(.dark) .trust-table {
+  border: 1px solid var(--hairline-sand);
+  box-shadow: var(--shadow-soft);
+}
+:root:not(.dark) .dropzone {
+  border-color: oklch(0.8 0.012 85);
+  background-color: oklch(0.995 0.003 92 / 0.85);
+}
+:root:not(.dark) .dropzone:hover {
+  border-color: oklch(0.58 0.09 162 / 0.7);
+  background-color: var(--porcelain);
+}
+/* The tool-page title mark: a wash of emerald behind an emerald glyph. */
+:root:not(.dark) .tool-frame-icon {
+  background-color: oklch(0.93 0.05 162 / 0.8);
+  color: var(--emerald-ink);
+}
+/* Dialogs and sheets: a sheet of ivory lifted off the page, never a dark
+   hole with a heavy border. */
+:root:not(.dark) [data-slot='dialog-content'],
+:root:not(.dark) [data-slot='sheet-content'] {
+  border-color: var(--hairline-sand);
+  background-color: var(--porcelain);
+  box-shadow: var(--shadow-float);
+}
+:root:not(.dark) [data-slot='dialog-overlay'],
+:root:not(.dark) [data-slot='sheet-overlay'] {
+  background-color: oklch(0.32 0.015 70 / 0.34);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+/* Tabs: a segmented strip of warm sand with the active tab raised. */
+:root:not(.dark) [data-slot='tabs-list'] {
+  background-color: oklch(0.955 0.007 88 / 0.8);
+  box-shadow: inset 0 0 0 1px oklch(0.88 0.009 85 / 0.7);
+}
+:root:not(.dark) [data-slot='tabs-trigger'][data-state='active'] {
+  background-color: var(--porcelain);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px oklch(0.42 0.025 70 / 0.06), inset 0 0 0 1px oklch(0.87 0.01 85 / 0.7);
+}
+/* Form fields sit on ivory, with a warm hairline that darkens on focus. */
+:root:not(.dark) [data-slot='input'],
+:root:not(.dark) [data-slot='select-trigger'] {
+  border-color: oklch(0.868 0.01 85);
+  background-color: oklch(0.995 0.003 92);
+}
+:root:not(.dark) [data-slot='input']:hover,
+:root:not(.dark) [data-slot='select-trigger']:hover {
+  border-color: oklch(0.78 0.012 85);
+}
+
+/* The closing field: a deep, desaturated emerald rather than a bright one —
+   the accent reads as pigment, not as a traffic light, and the ivory type on
+   it keeps a very high contrast. */
+:root:not(.dark) .cta-field {
+  background-color: oklch(0.42 0.088 162);
+}
+/* The second action on the emerald field is an outlined ivory button, not a
+   second emerald one — two buttons of the same colour on the same field read
+   as one. */
+:root:not(.dark) .cta-secondary {
+  background-color: transparent;
+  border: 1px solid oklch(0.99 0.004 150 / 0.55);
+  color: var(--primary-foreground);
+}
+:root:not(.dark) .cta-secondary:hover {
+  background-color: oklch(0.99 0.004 150 / 0.14);
+  border-color: oklch(0.99 0.004 150 / 0.85);
+}
+/* ── L5. Focus and selection ──────────────────────────────────────────────
+   One emerald focus ring everywhere, with an ivory offset so it stays
+   visible on ivory, on sand and on the photograph alike. */
+:root:not(.dark) :focus-visible {
+  outline-color: var(--emerald-ink);
 }
 
 @layer base {
@@ -285,16 +882,16 @@ html {
 }
 
 /* Theme-specific directional grades. Two stacked veils, in this order:
-   1. the text-side wash — a 100deg gradient that keeps a calm ground under the
+   1. the text-side wash — a 98deg gradient that keeps a calm ground under the
       copy; a vertical mask lifts it off the top of the frame so the sky,
       sunlight and moonlight stay photographic instead of milky,
    2. the scrim — a top dissolve under the translucent header and one gentle
       bottom transition that keeps the supporting copy readable without creating
       a visible band at the edge of the hero.
 
-   The light wash is deliberately *neutral* white, not warm: tinting it yellow
-   is what turns a golden-hour photograph into a beige wash. The warmth has to
-   come from the plate. */
+   The wash's own values live in the light-mode section further down. What is
+   left here is the dark theme's, untouched: the base rule below is the one
+   the dark wash inherits, and the light override never reaches it. */
 .hero-backdrop-wash {
   position: absolute;
   inset: 0;
@@ -590,7 +1187,7 @@ html {
    header, and manages its own viewport-sized application layout. */
 :root {
   --site-header-height: 4rem;
-  --editor-canvas: oklch(0.947 0.002 92);
+  --editor-canvas: oklch(0.945 0.005 88);
 }
 .dark {
   --editor-canvas: oklch(0.055 0 0);
@@ -859,6 +1456,10 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
 }
 .dark .card-lift:hover {
   box-shadow: 0 8px 32px oklch(0 0 0 / 55%);
+}
+/* Light mode lifts with a warm shadow, not a neutral one. */
+:root:not(.dark) .card-lift:hover {
+  box-shadow: 0 2px 4px oklch(0.42 0.025 70 / 0.05), 0 16px 32px -22px oklch(0.34 0.025 70 / 0.42);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

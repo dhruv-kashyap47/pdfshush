@@ -77,6 +77,8 @@ export const WORKFLOW_OUTPUT_JOBS: ReadonlySet<string> = new Set([
   'compress',
   'rename',
   'unlock',
+  // Dark-mode batch (2026-10-28): document-in, document-out.
+  'dark-mode',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

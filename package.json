@@ -24,6 +24,7 @@
     "test:e2e:next-tools": "node tests/support/preflight.mjs && node tests/e2e/next-tools.mjs",
     "test:e2e:bookmark-batch": "node tests/support/preflight.mjs && node tests/e2e/bookmark-batch.mjs",
     "test:e2e:forms-bookmarks": "node tests/support/preflight.mjs && node tests/e2e/forms-bookmarks.mjs",
+    "test:e2e:dark-mode": "node tests/support/preflight.mjs && node tests/e2e/dark-mode.mjs",
     "test:bundle": "node tests/bundle-boundary.mjs",
     "test:sweep": "node tests/support/preflight.mjs && node tests/sweep.mjs",
     "test:api": "node tests/api/smoke.mjs",

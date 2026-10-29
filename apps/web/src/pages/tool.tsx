@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
 import { ChatWithPdfTool } from '@/components/tools/chat-with-pdf-tool';
 import { CropTool } from '@/components/tools/crop-tool';
+import { DarkModePdfTool } from '@/components/tools/dark-mode-pdf-tool';
 import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
 import { EditPdfTool } from '@/components/tools/edit-pdf-tool';
 import { EditPdfWithAiTool } from '@/components/tools/edit-pdf-with-ai-tool';
@@ -110,6 +111,8 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   // Authoring batch (2026-10-26).
   'create-forms': CreateFormsTool,
   'create-bookmarks': CreateBookmarksTool,
+  // Dark-mode batch (2026-10-28).
+  'dark-mode-pdf': DarkModePdfTool,
 };
 
 export function ToolPage() {

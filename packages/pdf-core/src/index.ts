@@ -119,6 +119,22 @@ export { encodeFlatPng } from './img/png.js';
 export { renderPageToCanvas } from './render/renderPage.js';
 export type { RenderedCanvas } from './render/renderPage.js';
 
+// Dark mode (2026-10-28): pure transforms so the main-thread preview and the
+// worker engine share identical math; the transformer itself is browser-only.
+export {
+  DARK_MODE_DEFAULT_THEME,
+  DARK_MODE_THEMES,
+  applyDarkModeRgba,
+  applyHuePreservingRgba,
+  applyInvertRgba,
+  applyThemeRgba,
+  darkModeTheme,
+  isDarkModeThemeId,
+} from './darkmode/darkModes.js';
+export type { DarkModeKind, DarkModeTheme, DarkModeThemeId } from './darkmode/darkModes.js';
+export { darkModeDocument } from './darkmode/dark.js';
+export type { DarkModeOptions, DarkModeResult } from './darkmode/dark.js';
+
 // Rendering
 export { configurePdfjsRuntime, loadPdfForRender } from './render/pdfjsRuntime.js';
 export type { PdfjsRuntimeConfig, LoadedPdf } from './render/pdfjsRuntime.js';
@@ -200,6 +216,8 @@ export { textJob } from './jobs/text.job.js';
 export type { TextJobInput, TextJobOutput, TextJobOptions } from './jobs/text.job.js';
 export { grayscaleJob } from './jobs/grayscale.job.js';
 export type { GrayscaleJobInput, GrayscaleJobOutput, GrayscaleJobOptions } from './jobs/grayscale.job.js';
+export { darkModeJob } from './jobs/darkMode.job.js';
+export type { DarkModeJobInput, DarkModeJobOutput, DarkModeJobOptions } from './jobs/darkMode.job.js';
 export { resizeJob } from './jobs/resize.job.js';
 export type { ResizeJobInput, ResizeJobOutput, ResizeJobOptions } from './jobs/resize.job.js';
 export { imagesJob } from './jobs/images.job.js';

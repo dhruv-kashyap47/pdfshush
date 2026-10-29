@@ -683,7 +683,7 @@ export function AiShowcase() {
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => selectMode(m.id, index)}
                 onKeyDown={(event) => handleTabKeyDown(event, index)}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-colors sm:text-sm ${
+                className={`tool-tab inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-colors sm:text-sm ${
                   isActive
                     ? 'bg-foreground text-background'
                     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'

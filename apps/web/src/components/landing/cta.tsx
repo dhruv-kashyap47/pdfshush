@@ -8,7 +8,7 @@ export function CtaSection() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* The designed close: one field of the accent colour, one action, */}
         {/* and the copied DevTools proof as the supporting line. */}
-        <div className="rounded-2xl bg-primary px-6 py-14 text-center sm:px-12 sm:py-20" data-reveal>
+        <div className="cta-field rounded-2xl bg-primary px-6 py-14 text-center sm:px-12 sm:py-20" data-reveal>
           <div className="mx-auto max-w-2xl">
             <h2 className="text-3xl font-bold tracking-tight text-primary-foreground sm:text-4xl">
               Open a PDF. Nothing leaves this tab.
@@ -32,7 +32,7 @@ export function CtaSection() {
               </Button>
               <Button
                 size="lg"
-                className="h-11 px-4 text-sm font-medium text-primary-foreground shadow-none hover:bg-primary/85"
+                className="cta-secondary h-11 px-4 text-sm font-medium text-primary-foreground shadow-none hover:bg-primary/85"
                 asChild
               >
                 <Link to="/tools/chat-with-pdf">

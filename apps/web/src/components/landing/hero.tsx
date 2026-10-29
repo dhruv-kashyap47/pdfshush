@@ -157,17 +157,21 @@ export function HeroSection() {
   return (
     // Top padding clears the sticky h-16 header, so the first line of copy is
     // never tucked underneath it on a phone.
-    <section className="relative overflow-hidden bg-background pb-16 pt-[4.75rem] sm:pb-24 sm:pt-20">
+    <section className="hero-section relative overflow-hidden bg-background pb-16 pt-[4.75rem] sm:pb-24 sm:pt-20">
       {/* Cinematic Greek plates — purely decorative, theme decides which paints.
-          Both live in the DOM so switching themes is a pure class swap. */}
+          The light plate is the brand's own `logo/greek light mode.png`, served
+          byte for byte from /hero/greek-light-mode.png. Both plates live in the
+          DOM so switching themes is a pure class swap. */}
       <div className="hero-backdrop" aria-hidden="true">
         <img
-          src="/hero/greek-day.webp"
-          srcSet="/hero/greek-day-sm.webp 1080w, /hero/greek-day.webp 1572w"
-          sizes="100vw"
+          src="/hero/greek-light-mode.png"
+          width={1672}
+          height={941}
           alt=""
           draggable={false}
           decoding="async"
+          fetchPriority="high"
+          loading="eager"
           className="hero-backdrop-image hero-backdrop-image--day block dark:hidden"
         />
         <img
@@ -186,88 +190,93 @@ export function HeroSection() {
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Headline block */}
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-12 lg:items-start">
-          <div ref={copyRef} className="lg:col-span-7">
-            {/* New headline: what it is, then why it is different. Two lines
-                max, no hidden meaning. The privacy promise moves to the sub. */}
-            <h1 data-motion="headline" className={`text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.05] ${gate}`}>
-              PDF tools.
-              <br />
-              Smarter document intelligence.
-            </h1>
-            {/* Privacy-first messaging stays: it is the reason to trust the
-                buttons above it. */}
-            <p
-              data-motion="subhead"
-              className={`mt-6 max-w-2xl text-base leading-relaxed text-foreground sm:text-lg ${gate}`}
-            >
-              Question, edit, merge and redact documents right in this tab. Every job runs in
-              local Web Workers; answers cite the exact page.
-            </p>
-
-            {/* Instant action bar — the two AI entry points, nothing else.
-                The merge CTA retired into the tool grid below. */}
-            <div data-motion="actions" className={`mt-8 flex flex-wrap items-center gap-3 ${gate}`}>
-              <Button size="lg" className="h-11 rounded-md px-5 text-sm font-semibold shadow-none" asChild>
-                <Link to="/tools/chat-with-pdf">
-                  <Bot className="mr-2 h-4 w-4" />
-                  Talk to a PDF
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" className="h-11 rounded-md px-5 text-sm font-medium shadow-none" asChild>
-                <Link to="/tools/edit-pdf-with-ai">
-                  <Wand2 className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Edit with AI
-                </Link>
-              </Button>
-              {/* Third door: the MCP server, for people whose agent does the
-                  work instead of their tab. Opens the in-page console. */}
-              <McpShowcaseButton />
-            </div>
-
-            {/* Jump-straight-in tool grid (replaces the plain "Start directly"
-                chips). Chips are opacity-only in anime so the CSS hover lift
-                owns their transform after the intro. */}
-            <div data-motion="tools" className={`mt-10 ${gate}`}>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Jump straight to a tool
+          <div ref={copyRef} className="hero-copy relative lg:col-span-7">
+            {/* New headline: what it is, then where it happens. Two lines
+                max, no hidden meaning. The privacy promise moves to the sub.
+                The headline and the sentence carry a soft ivory halo so they
+                lift off the photograph without a panel or an edge. */}
+            <h1
+                data-motion="headline"
+                className={`hero-headline hero-copy-field text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.05] ${gate}`}
+              >
+                Every PDF tool,
+                <br />
+                in one browser tab.
+              </h1>
+              {/* Privacy-first messaging stays: it is the reason to trust the
+                  buttons above it. */}
+              <p
+                data-motion="subhead"
+                className={`hero-copy-field mt-6 max-w-2xl text-base leading-relaxed text-foreground sm:text-lg ${gate}`}
+              >
+                Question, edit, merge and redact documents right in this tab. Every job runs in
+                local Web Workers; answers cite the exact page.
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {HERO_TOOLS.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.slug}
-                      to={`/tools/${item.slug}`}
-                      data-tool-chip
-                      className="group rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-card/62 dark:hover:border-primary/45"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ring-transparent transition-shadow duration-200 ${ACCENT_TILE[item.accent]} ${ACCENT_TILE_RING[item.accent]}`}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                        </span>
-                        <p className="whitespace-nowrap text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
-                          {item.label}
-                        </p>
-                      </div>
-                      {/* The promise, below the tool, in readable italics; the
-                          "soon" badge rides this row so it never forces the
-                          label to wrap. */}
-                      <p className="mt-1.5 text-[11px] italic leading-snug text-muted-foreground">
-                        {item.desc}
-                        {item.soon && (
-                          <span className="ml-1.5 inline-block -translate-y-px rounded-full bg-muted px-1.5 text-[9px] font-semibold not-italic uppercase tracking-wide text-muted-foreground">
-                            soon
-                          </span>
-                        )}
-                      </p>
-                    </Link>
-                  );
-                })}
+
+              {/* Instant action bar — the two AI entry points, nothing else.
+                  The merge CTA retired into the tool grid below. */}
+              <div data-motion="actions" className={`hero-actions mt-8 flex flex-wrap items-center gap-3 ${gate}`}>
+                <Button size="lg" className="h-11 rounded-md px-5 text-sm font-semibold shadow-none" asChild>
+                  <Link to="/tools/chat-with-pdf">
+                    <Bot className="mr-2 h-4 w-4" />
+                    Talk to a PDF
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button size="lg" variant="outline" className="h-11 rounded-md px-5 text-sm font-medium shadow-none" asChild>
+                  <Link to="/tools/edit-pdf-with-ai">
+                    <Wand2 className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    Edit with AI
+                  </Link>
+                </Button>
+                {/* Third door: the MCP server, for people whose agent does the
+                    work instead of their tab. Opens the in-page console. */}
+                <McpShowcaseButton />
               </div>
-            </div>
+
+              {/* Jump-straight-in tool grid (replaces the plain "Start directly"
+                  chips). Chips are opacity-only in anime so the CSS hover lift
+                  owns their transform after the intro. */}
+              <div data-motion="tools" className={`mt-10 ${gate}`}>
+                <p className="hero-rail-label text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Jump straight to a tool
+                </p>
+                <div className="hero-rail mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                  {HERO_TOOLS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.slug}
+                        to={`/tools/${item.slug}`}
+                        data-tool-chip
+                        className="hero-chip group rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-card/62 dark:hover:border-primary/45"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ring-transparent transition-shadow duration-200 ${ACCENT_TILE[item.accent]} ${ACCENT_TILE_RING[item.accent]}`}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          <p className="whitespace-nowrap text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
+                            {item.label}
+                          </p>
+                        </div>
+                        {/* The promise, below the tool, in readable italics; the
+                            "soon" badge rides this row so it never forces the
+                            label to wrap. */}
+                        <p className="mt-1.5 text-[11px] italic leading-snug text-muted-foreground">
+                          {item.desc}
+                          {item.soon && (
+                            <span className="ml-1.5 inline-block -translate-y-px rounded-full bg-muted px-1.5 text-[9px] font-semibold not-italic uppercase tracking-wide text-muted-foreground">
+                              soon
+                            </span>
+                          )}
+                        </p>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
           </div>
 
           {/* Right column: the working console — drop a file, stage it, pick an
@@ -281,11 +290,12 @@ export function HeroSection() {
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`relative overflow-hidden rounded-xl border bg-background/82 p-6 backdrop-blur-xl transition-colors dark:bg-card/62 ${gate} ${
+              className={`hero-console relative overflow-hidden rounded-xl border border-transparent bg-background/82 p-6 backdrop-blur-xl transition-colors dark:bg-card/62 ${gate} ${
                 dragActive
                   ? 'border-primary ring-2 ring-primary/20 bg-background/90 dark:bg-card/76'
-                  : 'border-transparent hover:border-foreground/20'
+                  : 'hover:border-foreground/20'
               }`}
+              data-drag={dragActive ? 'true' : undefined}
             >
               <input
                 ref={fileInputRef}
@@ -307,7 +317,7 @@ export function HeroSection() {
 
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 px-4 py-8 text-center transition-colors hover:border-primary/60 hover:bg-muted/50"
+                    className="hero-dropzone mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 px-4 py-8 text-center transition-colors hover:border-primary/60 hover:bg-muted/50"
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -335,7 +345,7 @@ export function HeroSection() {
                           <Link
                             key={item.slug}
                             to={`/tools/${item.slug}`}
-                            className="group rounded-lg bg-background/55 p-3 text-left transition-colors hover:bg-background/85 dark:bg-background/52 dark:hover:bg-background/72"
+                            className="hero-ai-tile group rounded-lg bg-background/55 p-3 text-left transition-colors hover:bg-background/85 dark:bg-background/52 dark:hover:bg-background/72"
                           >
                             <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary">
                               {item.name}
@@ -436,7 +446,7 @@ export function HeroSection() {
         {/* Four plain spec entries — sentence case, no icons on top of cards,
             no rules; reads as a quiet footnote strip under the photograph.
             Their reveal stays on the CSS/IO system (use-reveal). */}
-        <div className="mt-12 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 sm:gap-x-10">
+        <div className="hero-proof mt-12 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 sm:gap-x-10">
           {[
             { icon: Cpu, label: 'All client-side', desc: 'PDFium and pdf.js render and rebuild files inside sandboxed Web Workers.' },
             { icon: Lock, label: 'Keys stay put', desc: 'Bring your own API key. It lives in browser storage and never leaves this device.' },
@@ -449,7 +459,7 @@ export function HeroSection() {
                 key={item.label}
                 data-reveal
                 data-reveal-delay={i * 80}
-                className="space-y-1"
+                className="hero-proof-item space-y-1"
               >
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                   <Icon className="h-4 w-4 text-primary" />

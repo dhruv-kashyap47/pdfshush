@@ -88,7 +88,7 @@ export function AllToolsSection() {
   }, [search, activeTab]);
 
   return (
-    <section id="all-tools" className="bg-background py-16 sm:py-24">
+    <section id="all-tools" className="scroll-mt-16 bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between" data-reveal>
           <div>
@@ -136,7 +136,7 @@ export function AllToolsSection() {
                 role="tab"
                 aria-selected={isSelected}
                 onClick={() => setActiveTab(tab.id)}
-                className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                className={`tool-tab rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
                   isSelected
                     ? 'bg-foreground text-background'
                     : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'

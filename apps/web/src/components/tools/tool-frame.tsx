@@ -38,7 +38,7 @@ export function ToolFrame({ tool, children, wide = false, notes }: ToolFrameProp
       </nav>
 
       <div className="mb-6 flex items-start gap-3">
-        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <span className="tool-frame-icon mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />
         </span>
         <div>
@@ -51,14 +51,14 @@ export function ToolFrame({ tool, children, wide = false, notes }: ToolFrameProp
 
       {notes ?? (
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
+          <div className="trust-note flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Private by construction.</span> The file is
               parsed inside this browser tab. Nothing is uploaded, nothing is stored on a server.
             </p>
           </div>
-          <div className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
+          <div className="trust-note flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/20 p-3.5">
             <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">No limits.</span> No account, no watermarks,

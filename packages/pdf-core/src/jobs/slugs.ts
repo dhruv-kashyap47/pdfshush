@@ -53,6 +53,8 @@ export const JOB_SLUGS = [
   'create-bookmarks',
   // Security batch (2026-10-27).
   'protect',
+  // Dark-mode batch (2026-10-28).
+  'dark-mode',
 ] as const;
 
 export type JobSlugLiteral = (typeof JOB_SLUGS)[number];
