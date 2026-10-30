@@ -142,9 +142,15 @@ export function AiSettingsCard({
                   {AI_PROVIDERS.map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
                       {provider.label}
-                      {/* Cost story, declared by the catalog and rendered as-is */}
+                      {/* Cost story, declared by the catalog and rendered as-is;
+                          the title spells out what the one-word tag means. */}
                       {provider.tier ? (
                         <span
+                          title={
+                            provider.tier === 'free'
+                              ? "The default model here is free to run; other model ids may be paid."
+                              : 'Pay-as-you-go, far below frontier pricing.'
+                          }
                           className={`ml-2 text-[0.65rem] font-normal uppercase tracking-wide ${
                             provider.tier === 'free' ? 'text-emerald-600' : 'text-muted-foreground'
                           }`}

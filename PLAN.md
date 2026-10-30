@@ -685,6 +685,47 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-10-30 — OpenRouter defaults to the free-models router, and the PDF editing agent got a document-scale toolkit.**
+
+  **Provider (`packages/ai-provider`).** The OpenRouter entry carried `openrouter/auto` as its
+  default and first list item — OpenRouter's paid auto-router, which quietly contradicted the
+  provider's `tier: 'free'` tag. Replaced with **`openrouter/free`**
+  (https://openrouter.ai/openrouter/free, verified against its `llms.txt` catalogue): the
+  free-models router that routes every call to the best currently-serving `…:free` model, so no
+  hard-coded free slug churns and the "Free" tag is now factually true for the default path. A
+  one-line migration in `sanitizeAiSettings` maps a stored `openrouter/auto` model to
+  `openrouter/free` on load, so existing configs land on the router too. The provider picker's
+  tag gained a hover `title` spelling out what "Free" means (default model free, other ids may be
+  paid), and `AiProviderMeta.tier`'s doc comment notes where the tag is earned. Gates:
+  `pnpm --filter @pdfshush/ai-provider typecheck` ✅ · **370/370 provider unit** ✅.
+
+  **Agent skill (`apps/web/src/lib/ai/edit-skill.ts`).** Reviewed against the tool surfaces of
+  `@aryanbv/pdf-toolkit-mcp` (search/count, document-wide writes, explicit truncation envelopes)
+  and Open-Document-Alliance/PDF-Tools (page-level analysis, per-occurrence search). Changes are
+  additive and bounded, on the same propose-review-apply plan — no new engine jobs, no new
+  dependencies:
+
+  - `scan_document` — a one-line-per-page overview (text amount + first ~80 chars, budgeted at
+    18,000 characters with an explicit omission note it would trip), so a large document can be
+    triaged before `${MAX_PAGES_PER_READ}`-page reads, and image-only pages surface as "no
+    extractable text (may be a scan or image-only)" instead of an empty string.
+  - `replace_everywhere` — document-wide find/replace: tallies matches per page first and refuses
+    the whole batch if it would exceed the plan limit (never half-queues), then queues the exact
+    same rewrite-in-place intents via a shared `queueReplacement` helper extracted from
+    `replace_text` (behaviour byte-identical for the existing tool).
+  - `read_pages` says when it stopped early at the 24,000-character limit and names the last page
+    it emitted, instead of silently dropping the tail of the range.
+  - `search_text` counts every occurrence per page (shown when > 1, snippets bounded as before)
+    and reports matched-page totals; the no-hits branch now distinguishes
+    "document has no extractable text" from "nothing matches it literally".
+  - The system prompt teaches the triage-first rule, `replace_everywhere`,
+    `scan_document`, and the scanned-page honesty rule; the pending-edits context builder is
+    unchanged.
+
+  Gates: `pnpm --filter @pdfshush/web typecheck` ✅. The mocked-provider E2E (`tests/e2e/ai.mjs`,
+  22 checks) drives its own scripted tool calls, so the two new tools are invisible to it; no test
+  enumerates tool names or the old `openrouter/auto` id.
+
 - **2026-10-28 — The dark-mode batch: Dark Mode PDF, taking the catalog from 48 to 49 live.**
   Ported from the MIT-licensed `chizkiyahu/pdf-dark-mode-converter` (attribution and theme
   provenance in `licenses/pdf-dark-mode-converter-MIT.txt`; the six theme colours are that

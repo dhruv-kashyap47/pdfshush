@@ -264,11 +264,14 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     label: 'OpenRouter',
     // vendor-prefixed slugs exactly as openrouter.ai/api/v1/models lists them —
     // there is no `openai/gpt-5.6` alias there, only the per-tier ids. The
-    // free-tier routes (`…:free` suffix, e.g. minimax/minimax-m3.1-flash:free)
-    // are not hard-coded because the line-up rotates daily; anything typed
-    // against a live slug works as-is.
+    // default is OpenRouter's free-models router (`openrouter/free`), which
+    // routes every call to the best currently-serving `…:free` model — genuinely
+    // no-cost with any key, and the line-up rotates daily without this list
+    // churning. Specific free-tier routes (`…:free` suffix, e.g.
+    // minimax/minimax-m3.1-flash:free) are therefore not hard-coded; anything
+    // typed against a live slug, free or paid, works as-is.
     models: [
-      'openrouter/auto',
+      'openrouter/free',
       'anthropic/claude-opus-5.5',
       'anthropic/claude-sonnet-5',
       'openai/gpt-6-astra',
@@ -277,7 +280,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       'openai/gpt-5.6-sol',
       'moonshotai/kimi-k3',
     ],
-    defaultModel: 'openrouter/auto',
+    defaultModel: 'openrouter/free',
     keyPlaceholder: 'sk-or-...',
     tier: 'free',
   },

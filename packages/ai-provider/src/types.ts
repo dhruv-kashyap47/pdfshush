@@ -139,7 +139,9 @@ export interface AiProviderMeta {
    * Cost story shown as a small tag in the settings picker ('free' = a usable
    * no-card free tier, 'budget' = pay-as-you-go but far below frontier price).
    * Untagged = full-price frontier. Only tag what is factually current; the
-   * picker renders exactly what is declared.
+   * picker renders exactly what is declared. For openrouter the tag is earned
+   * by the default model itself: `openrouter/free`, OpenRouter's free-models
+   * router, routes every call to the best currently-serving `…:free` model.
    */
   tier?: 'free' | 'budget' | undefined
 }

@@ -52,6 +52,9 @@ const MAX_PAGES_PER_READ = 12;
 const MAX_CHARS_PER_READ = 24_000;
 const MAX_SEARCH_HITS = 20;
 const MAX_SNIPPET = 200;
+/** The one-line-per-page overview: same budget discipline, much shorter lines. */
+const SCAN_MAX_CHARS = 18_000;
+const SCAN_SNIPPET = 80;
 
 export type RotationDegrees = 0 | 90 | 180 | 270;
 
@@ -302,6 +305,63 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
 
   const orderBase = (): number[] => plan.order ?? pageNumbers(pageCount);
 
+  /**
+   * Queue one run rewrite (the shared body of replace_text and
+   * replace_everywhere): the overlay the engine draws *only* if the run cannot
+   * be rewritten in place (cover the old run, then draw the new text over it),
+   * plus the real change — an intent that rewrites the run the document
+   * already has. `find` is recorded as the run exactly as it was extracted
+   * (not the model's fragment), which is what PDFium's text objects can be
+   * matched against; the box picks between identical strings on the page.
+   * Caller is responsible for the plan-limit check and owns `added`.
+   */
+  const queueReplacement = (
+    page: number,
+    run: TextRun,
+    find: string,
+    replace: string,
+    color: string | undefined,
+    added: string[],
+  ): void => {
+    const coverId = nextId();
+    added.push(coverId);
+    plan.objects.push({
+      id: coverId,
+      kind: 'whiteout',
+      pageIndex: page - 1,
+      x: Math.max(0, run.x - 1),
+      y: Math.max(0, run.y - 1),
+      width: run.width + 2,
+      height: run.height + 2,
+    });
+    const textId = nextId();
+    added.push(textId);
+    plan.objects.push({
+      id: textId,
+      kind: 'text',
+      pageIndex: page - 1,
+      x: run.x,
+      y: run.y,
+      width: Math.max(run.width, 24),
+      height: Math.max(run.height, run.fontSize * 1.3),
+      text: replace,
+      fontSize: Math.min(72, Math.max(4, run.fontSize || 12)),
+      align: 'left',
+      ...(run.fontFamily ? { fontFamily: run.fontFamily } : {}),
+      ...(run.bold ? { bold: true } : {}),
+      ...(run.italic ? { italic: true } : {}),
+      ...(color ? { color } : {}),
+    });
+    plan.intents.push({
+      id: textId,
+      pageIndex: page - 1,
+      find: run.text || find,
+      replace,
+      box: { x: run.x, y: run.y, width: run.width, height: run.height },
+      fallbackIds: [coverId, textId],
+    });
+  };
+
   /* --------------------------------------------------------------- tools */
 
   const tools: AgentSkill['tools'] = [
@@ -322,6 +382,14 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
         required: ['start', 'end'],
         additionalProperties: false,
       },
+    },
+    {
+      name: 'scan_document',
+      description:
+        `Get a one-line overview of every page (text amount and its first words). ` +
+        'Use this on a large document to decide which pages to read_pages in detail, ' +
+        'and to spot pages with no extractable text (likely scans or images).',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     },
     {
       name: 'search_text',
@@ -385,6 +453,23 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
           color: { type: 'string', description: 'Hex text colour like #111111' },
         },
         required: ['page', 'find', 'replace'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'replace_everywhere',
+      description:
+        'Replace text on every page of the document at once (same rewrite-in-place ' +
+        'behaviour as replace_text, applied document-wide). Use search_text first to ' +
+        'confirm the spelling you are replacing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          find: { type: 'string', description: 'Verbatim text fragment to replace' },
+          replace: { type: 'string', description: 'Replacement text (may be empty to erase)' },
+          color: { type: 'string', description: 'Hex text colour like #111111' },
+        },
+        required: ['find', 'replace'],
         additionalProperties: false,
       },
     },
@@ -538,14 +623,50 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
         const to = Math.min(Math.max(start, end), from + MAX_PAGES_PER_READ - 1);
         const parts: string[] = [];
         let chars = 0;
+        let lastEmitted = from - 1;
         for (let page = from; page <= to; page += 1) {
           const text = doc.pages[page - 1] ?? '';
           const block = `${pageLabel(page - 1)}\n${text || '(no extractable text on this page)'}`;
           if (chars + block.length > MAX_CHARS_PER_READ) break;
           chars += block.length;
+          lastEmitted = page;
           parts.push(block);
         }
-        return { output: parts.join('\n\n') || '(no text in that range)', summary: `Read pages ${from}–${to}` };
+        const head = Math.max(start, end);
+        const tail =
+          parts.length === 0
+            ? '(no text in that range)'
+            : lastEmitted < head
+              ? `${parts.join('\n\n')}\n\n(Output stopped early at the ${MAX_CHARS_PER_READ}-character limit after page ${lastEmitted}; request a narrower range for the rest.)`
+              : parts.join('\n\n');
+        return { output: tail, summary: `Read pages ${from}–${lastEmitted < from ? from : lastEmitted}` };
+      }
+
+      case 'scan_document': {
+        const lines: string[] = [];
+        let chars = 0;
+        let pagesListed = 0;
+        for (let page = 1; page <= pageCount && chars < SCAN_MAX_CHARS; page += 1) {
+          const text = doc.pages[page - 1] ?? '';
+          const preview = text
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, SCAN_SNIPPET);
+          const line =
+            text.length === 0
+              ? `page ${page} · no extractable text (may be a scan or image-only)`
+              : `page ${page} · ${text.length} chars · "${preview}${text.length > SCAN_SNIPPET ? '…' : ''}"`;
+          if (chars + line.length > SCAN_MAX_CHARS) break;
+          chars += line.length;
+          pagesListed += 1;
+          lines.push(line);
+        }
+        const head = `${doc.fileName} — ${pageCount} page(s)`;
+        const tail =
+          pagesListed < pageCount
+            ? `\n(pages ${pagesListed + 1}-${pageCount} omitted at the ${SCAN_MAX_CHARS}-character limit; read them with read_pages)`
+            : '';
+        return { output: `${head}\n${lines.join('\n')}${tail}`, summary: `Scan all ${pageCount} pages` };
       }
 
       case 'search_text': {
@@ -553,16 +674,39 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
         if (!query) return { output: 'query is required.', isError: true, summary: 'search_text' };
         const needle = query.toLowerCase();
         const hits: string[] = [];
-        for (let page = 0; page < pageCount && hits.length < MAX_SEARCH_HITS; page += 1) {
+        let pagesMatched = 0;
+        let pagesSeen = 0;
+        for (let page = 0; page < pageCount; page += 1) {
           const text = doc.pages[page] ?? '';
-          const at = text.toLowerCase().indexOf(needle);
-          if (at < 0) continue;
-          const from = Math.max(0, at - 60);
-          hits.push(`${pageLabel(page)} …${text.slice(from, at + MAX_SNIPPET)}…`);
+          if (text.length === 0) continue;
+          pagesSeen += 1;
+          const lower = text.toLowerCase();
+          // Count every occurrence on the page, not just the first, so the
+          // model knows the scale before choosing to replace all of them.
+          let count = 0;
+          let at = lower.indexOf(needle);
+          let first = -1;
+          while (at >= 0) {
+            if (first < 0) first = at;
+            count += 1;
+            at = lower.indexOf(needle, at + needle.length);
+          }
+          if (first < 0) continue;
+          pagesMatched += 1;
+          if (hits.length < MAX_SEARCH_HITS) {
+            const from = Math.max(0, first - 60);
+            hits.push(
+              `${pageLabel(page)}${count > 1 ? ` (${count} occurrences)` : ''} …${text.slice(from, first + MAX_SNIPPET)}…`,
+            );
+          }
         }
+        const more = pagesMatched > MAX_SEARCH_HITS ? `\n(${pagesMatched - MAX_SEARCH_HITS} further matching pages omitted)` : '';
         return {
-          output: hits.length ? hits.join('\n') : `No page contains "${query}".`,
-          summary: `Search "${query}" (${hits.length} hit${hits.length === 1 ? '' : 's'})`,
+          output:
+            hits.length > 0
+              ? `${hits.join('\n')}${more}`
+              : `No page contains "${query}" (${pagesSeen === 0 ? 'the document has no extractable text; it may be a scan' : 'nothing matches it literally, character for character'}).`,
+          summary: `Search "${query}" (${pagesMatched} page${pagesMatched === 1 ? '' : 's'})`,
         };
       }
 
@@ -655,50 +799,7 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
         if (refused) return refused;
         const added: string[] = [];
         for (const index of chosen) {
-          const run = runs[index]!;
-          const coverId = nextId();
-          added.push(coverId);
-          // The overlay the engine draws *only* if the run cannot be rewritten in
-          // place: cover the old run, then draw the new text over it.
-          plan.objects.push({
-            id: coverId,
-            kind: 'whiteout',
-            pageIndex: page - 1,
-            x: Math.max(0, run.x - 1),
-            y: Math.max(0, run.y - 1),
-            width: run.width + 2,
-            height: run.height + 2,
-          });
-          const textId = nextId();
-          added.push(textId);
-          plan.objects.push({
-            id: textId,
-            kind: 'text',
-            pageIndex: page - 1,
-            x: run.x,
-            y: run.y,
-            width: Math.max(run.width, 24),
-            height: Math.max(run.height, run.fontSize * 1.3),
-            text: replace,
-            fontSize: Math.min(72, Math.max(4, run.fontSize || 12)),
-            align: 'left',
-            ...(run.fontFamily ? { fontFamily: run.fontFamily } : {}),
-            ...(run.bold ? { bold: true } : {}),
-            ...(run.italic ? { italic: true } : {}),
-            ...(color ? { color } : {}),
-          });
-          // The real change: rewrite the run the document already has. `find` is
-          // the run exactly as it was extracted (not the model's fragment), which
-          // is what PDFium's text objects can be matched against; the box picks
-          // between identical strings on the page.
-          plan.intents.push({
-            id: textId,
-            pageIndex: page - 1,
-            find: run.text || find,
-            replace,
-            box: { x: run.x, y: run.y, width: run.width, height: run.height },
-            fallbackIds: [coverId, textId],
-          });
+          queueReplacement(page, runs[index]!, find, replace, color, added);
         }
         const label = `Replace ${chosen.length} occurrence${chosen.length === 1 ? '' : 's'} of "${find}" on page ${page}`;
         pushEntry(
@@ -707,6 +808,55 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
             pages: [page],
             title: 'Replace text',
             detail: `“${find}” → “${replace || '∅'}”`,
+            objectIds: added,
+            action: `${label} with "${replace}"`,
+          },
+          () => removeObjects(added),
+        );
+        return { output: `${label}.`, summary: label, mutated: true };
+      }
+
+      case 'replace_everywhere': {
+        const find = asString(input.find);
+        const replace = asString(input.replace);
+        if (!find.trim()) {
+          return { output: 'find is required.', isError: true, summary: 'replace_everywhere' };
+        }
+        // Walk the whole document tallying matches first, so a batch that would
+        // exceed the plan limit is refused whole instead of half-queued.
+        const perPage: { page: number; indices: number[] }[] = [];
+        let total = 0;
+        for (let page = 1; page <= pageCount; page += 1) {
+          const indices = matchingRuns(runsOn(page), find);
+          if (indices.length === 0) continue;
+          perPage.push({ page, indices });
+          total += indices.length;
+        }
+        if (perPage.length === 0) {
+          return {
+            output: `No page contains "${find}". Use search_text first and quote a fragment exactly as it appears.`,
+            isError: true,
+            summary: 'replace_everywhere (no match)',
+          };
+        }
+        const color = hexColor(input.color);
+        const refused = refuseIfFull(total * 2);
+        if (refused) return refused;
+        const added: string[] = [];
+        for (const { page, indices } of perPage) {
+          const runs = runsOn(page);
+          for (const index of indices) {
+            queueReplacement(page, runs[index]!, find, replace, color, added);
+          }
+        }
+        const touchedPages = perPage.map((entry) => entry.page).join(', ');
+        const label = `Replace ${total} occurrence${total === 1 ? '' : 's'} of "${find}" ${perPage.length === 1 ? `on page ${touchedPages}` : `across ${perPage.length} pages (${touchedPages})`}`;
+        pushEntry(
+          {
+            kind: 'replace',
+            pages: perPage.map((entry) => entry.page),
+            title: 'Replace text',
+            detail: `“${find}” → “${replace || '∅'}” (document-wide)`,
             objectIds: added,
             action: `${label} with "${replace}"`,
           },
@@ -1001,11 +1151,14 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
     "You are PDFShush's PDF editor. You read one open PDF and queue edits; the user reviews and applies them.",
     `The document has ${pageCount} page(s). You cannot see it except through the tools.`,
     'Rules:',
+    '- On a large document, call scan_document first to find which pages matter, then read_pages those.',
     '- Read the page(s) you intend to change first, with read_pages or search_text, and quote text verbatim from the file.',
     '- Make changes with the edit tools; each one queues a change and returns a confirmation. Queue every change the request needs.',
+    '- For a replacement that should hit every page, use replace_everywhere instead of repeating replace_text.',
     '- Use list_pending_edits before adding more if you are unsure what is already queued.',
     '- Geometry stays in the tool: never invent coordinates. For markup/replace/delete, pass the page and the exact text.',
     '- For insert_text, get_document reports each page size in points; x/y are points from the top-left corner.',
+    '- Pages reported with no extractable text are likely scans or image-only; say so plainly instead of guessing their content.',
     '- When editing is done, reply in one or two short sentences saying what you changed. Do not describe the tools themselves.',
     '- If the request is a question about the document, just answer it with [page N] citations and queue nothing.',
     '- If text you need to change is not present, say so plainly instead of guessing.',

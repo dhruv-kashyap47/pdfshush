@@ -142,7 +142,14 @@ export function sanitizeAiSettings(input: unknown): AiSettings | null {
   const providers = {} as AiSettings['providers']
   for (const [id, config] of Object.entries(raw.providers as Record<string, unknown>)) {
     if (!PROVIDER_IDS.includes(id as AiProviderId)) continue
-    ;(providers as Record<string, AiProviderConfig>)[id] = sanitizeProviderConfig(config)
+    const sanitized = sanitizeProviderConfig(config)
+    // Migration, not validation: openrouter/auto was the catalog default before
+    // it became openrouter/free; map stored configs over so every openrouter
+    // user actually lands on the free-models router.
+    if (id === 'openrouter' && sanitized.model === 'openrouter/auto') {
+      sanitized.model = 'openrouter/free'
+    }
+    ;(providers as Record<string, AiProviderConfig>)[id] = sanitized
   }
   const settings: AiSettings = {
     provider: provider as AiProviderId,
