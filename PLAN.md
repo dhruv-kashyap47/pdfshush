@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-28
+**Last updated:** 2026-10-30
 
 ---
 
@@ -57,10 +57,9 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-28 for the **dark-mode batch** (`pnpm typecheck`,
-`pnpm build`, `pnpm test:bundle`, `test:sweep`, the full smoke suite, and the new dark-mode browser
-suite, all green; the parallel unit run again tripped the pre-existing flaky API child-watchdog
-timing test, which passed on an immediate serial re-run, so units are 1093/1093). The last
+**Current gate:** re-measured 2026-10-30 for the **AI editor pass** (`pnpm typecheck`,
+`pnpm test` — units 1096/1096 — and both browser suites, `tests/e2e/ai.mjs` 21 checks and
+`tests/e2e/text-edit.mjs`, all green against the running dev server). The last
 full-stack API smoke + hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
 of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
 pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
@@ -684,6 +683,69 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-30 — The AI editor's hard refusal is fixed in the engine, and the page became an agentic workspace.**
+
+  **Engine (`packages/pdf-core/src/textedit`).** The AI editor could refuse an entire apply with
+  `unresolvable: edit "ai-1" deletes text that could not be removed in place (no text object on the
+  page matches the selected run); refusing to cover it cosmetically`. The refusal itself was honest
+  (the product never covers a deletion cosmetically) — the *matching* behind it was too narrow. An
+  erase could only be grounded by comparing the editor's extracted text against PDFium's decoded
+  objects, so a document that segments or decodes the same run differently (a bullet glyph the
+  reader normalises away, objects split mid-word, a subset font whose `/ToUnicode` disagrees with
+  the reader) left the erase with no anchor at all: the engine refused to write anything, and the
+  user got a dead end instead of a deleted word.
+
+  - **Box-only erase matching (`matchEraseByBox`).** When no text comparison can anchor an erase,
+    the run's own geometry gets the last word: every PDFium text object whose display-space centre
+    sits inside the run's box *is* that run's glyphs, however they are chunked, and removing those
+    objects is a genuine deletion — the same content-stream removal the text-matched path gives,
+    never a cover. Only deletes qualify (a replacement keeps its own honest overlay fallback), and
+    the sweep is bounded to the run's band (`marginX = max(2, height·0.5)`,
+    `marginY = max(2, height·0.15)`; an object taller than 3× the run is a stacked multi-line
+    stream, not the run), so a neighbouring line can never be collateral damage.
+  - **A real geometry bug found on the way (`pdfium.ts`).** `readBox` ignored the boolean return of
+    `FPDFPage_GetCropBox` / `FPDFPage_GetMediaBox`: a page with **no** CropBox — pdf-lib writes
+    none — read *uninitialised WASM heap floats* as the page's crop box and handed them to
+    `geomFromBoxes`. Nothing depended on it before (the numbers only reached the display maths), but
+    the box matcher would have inherited the garbage. `readBox` now returns `null` on `false`, and
+    `geom()` falls through to the MediaBox (a NaN crop box is the existing "no crop box" signal).
+  - Three new tests in `test/textEdit.test.ts` (`describe('box-only erase matching')`): a run
+    removed by geometry alone while the neighbouring line survives, a guard that a line whose centre
+    falls outside the band is never removed, and the unchanged refusal for a deletion with neither a
+    text anchor nor a box. The pre-existing "refuses to cosmetically cover a deletion" test still
+    passes.
+
+  **Web (`apps/web/src/components/ai`).** Two separate problems: the refusal arrived as a raw red
+  error string with no way forward, and the page was flat — no motion, no feedback loop.
+
+  - **A refusal is now triage, not a dead end (`ai-workspace.tsx` + `edit-plan-panel.tsx`).** The
+    engine's report is parsed back into one reason per refused edit (its stable
+    `- kind: edit "id" detail` shape; each quoted id is an overlay object id an additive entry
+    owns, so id → entry is a membership check), and every refused change keeps its review card,
+    flagged amber, carrying the engine's own words. The card leads with the one thing that matters
+    — *nothing was written* — and offers two ways forward: **"Discard failed & apply N changes"**
+    (one click: drop the refused entries, apply the rest) and "Discard all". A "Why was it
+    refused?" disclosure keeps the raw report one click away. The blocked list is derived from the
+    *current* plan, so discarding a refused entry by hand shrinks the card live; anything that is
+    not a parseable refusal still surfaces as a plain error.
+  - **Motion, on the project's own system** (`lib/motion.ts` contract: transform + opacity only,
+    `prefers-reduced-motion` collapses every duration and delay to zero). The chat rows (messages,
+    tool steps, the running-tool chip) carry stable `data-motion-id`s and enter once each with the
+    shared enter ease and a short stagger — settled rows never re-animate while a stream is still
+    writing into them. The review panel's edit cards do the same, and the two workspace panes slide
+    in once per document (`data-ai-enter`; the hidden base is applied inside the effect, so a
+    cut-short run can never strand content invisible). The composer grows with its text now (capped
+    at 160 px, then it scrolls) instead of a fixed box that swallowed long prompts, and the
+    transcript follows the stream with a smooth scroll (instant under reduced motion). The activity
+    timeline gained the two new agent tools (`scan_document` → "Surveying every page",
+    `replace_everywhere` → "Queuing replacements across the document").
+
+  Gates: `pnpm typecheck` ✅ · **1096/1096 unit** ✅ (3 new engine tests) · `tests/e2e/ai.mjs`
+  (21 checks) ✅ · `tests/e2e/text-edit.mjs` ✅. Browser-verified against a mocked provider: the
+  erase now applies and the erased run is *genuinely* gone from the exported bytes (the
+  neighbouring line survives) — and with the refusal re-created on purpose, the amber card appears
+  with the engine's reason and "Discard failed & apply 1 change" applies the remaining change.
 
 - **2026-10-30 — OpenRouter defaults to the free-models router, and the PDF editing agent got a document-scale toolkit.**
 

@@ -229,7 +229,63 @@ function matchObjects(
       if (key.length >= targetKey.length) break;
     }
   }
-  return best;
+  if (best || edit.replace.length !== 0) return best;
+
+  // A replacement that found nothing resolves honestly through its own overlay
+  // (cover and redraw, reported per edit). A *deletion* that found nothing has
+  // no such fallback to protect, so its clicked geometry gets the last word.
+  return matchEraseByBox(doc, objects, used, edit);
+}
+
+/**
+ * Box-only erase matching, the last resort for a deletion the text comparison
+ * cannot see.
+ *
+ * The editor's `find` is what the reading order extracts, but a document can
+ * segment or decode the same line differently (a bullet glyph the reader
+ * normalises away, objects split mid-word, a font that decodes to control
+ * codes): when no concatenation equals it, an erase has no text anchor at all.
+ * The run's own geometry is still the truth the user saw: every
+ * text object whose ink sits inside the run's box *is* the run's glyphs no
+ * matter how they are chunked, and removing those objects is a genuine
+ * deletion -- the same guarantee the text-matched path gives, not a cover.
+ *
+ * Only deletes qualify for this path (the caller already filtered for them),
+ * and the candidates are bounded to the run's own band so a stray or oversized
+ * object -- a whole-paragraph stream, another line overhanging the box -- can
+ * never be cleared by one tight selection.
+ */
+function matchEraseByBox(
+  doc: PdfiumTextDocument,
+  objects: PdfiumTextObject[],
+  used: Set<number>,
+  edit: TextEdit,
+): ObjectMatch | undefined {
+  const box = edit.box;
+  if (!box || !(box.width > 0) || !(box.height > 0)) return undefined;
+  // Both spaces are display-normalised (top-left, y down, positive sides), so
+  // centre-in-box holds on rotated pages too. The margins stay tight on
+  // purpose: the box and a PDFium object's bounds derive from the same glyph
+  // metrics, so matched ink centres should agree within a couple of points.
+  // A loose tolerance would reach the *neighbouring* line whenever one run
+  // sits close under the other -- the box has to earn every object it takes.
+  const marginX = Math.max(2, box.height * 0.5);
+  const marginY = Math.max(2, box.height * 0.15);
+  const members: PdfiumTextObject[] = [];
+  for (const object of objects) {
+    if (used.has(object.ptr)) continue;
+    const rect = doc.objectDisplayRect(edit.pageIndex, object.bounds);
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    // An object many times taller than the run is a stacked multi-line
+    // stream, not the run; erasing it would be collateral damage.
+    if (rect.height > box.height * 3) continue;
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    if (cx < box.x - marginX || cx > box.x + box.width + marginX) continue;
+    if (cy < box.y - marginY || cy > box.y + box.height + marginY) continue;
+    members.push(object);
+  }
+  return members.length > 0 ? { members, loose: true } : undefined;
 }
 
 /** Groups edits by page, preserving request order within each page. */

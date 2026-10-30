@@ -94,8 +94,14 @@ export class PdfiumTextDocument {
     const page = this.page(pageIndex);
     const crop = this.readBox(page, 'FPDFPage_GetCropBox');
     const media = this.readBox(page, 'FPDFPage_GetMediaBox');
-    const rotation = this.m.FPDFPage_GetRotation(page) * 90;
-    return geomFromBoxes(crop, rotation, media);
+    // No CropBox is the common case (pdf-lib writes none): a `false` return
+    // must fall through to the MediaBox, not hand `geomFromBoxes` whatever
+    // bytes lay in the freshly-allocated buffer.
+    return geomFromBoxes(
+      crop ?? { x: Number.NaN, y: Number.NaN, width: Number.NaN, height: Number.NaN },
+      this.m.FPDFPage_GetRotation(page) * 90,
+      media ?? undefined,
+    );
   }
 
   /** Full extracted text of a page, in reading order. Empty for image-only pages. */
@@ -336,13 +342,17 @@ export class PdfiumTextDocument {
   private readBox(
     page: number,
     method: 'FPDFPage_GetCropBox' | 'FPDFPage_GetMediaBox',
-  ): { x: number; y: number; width: number; height: number } {
+  ): { x: number; y: number; width: number; height: number } | null {
     const left = this.alloc(4);
     const bottom = this.alloc(4);
     const right = this.alloc(4);
     const top = this.alloc(4);
     try {
-      this.m[method](page, left, bottom, right, top);
+      // The API reports which box it actually wrote: `false` means the page
+      // carries none, and the four one-float allocations still hold whatever
+      // previous heap activity left there. Return null and let the caller
+      // fall back -- never read out a box the document does not have.
+      if (!this.m[method](page, left, bottom, right, top)) return null;
       const l = this.m.pdfium.getValue(left, 'float');
       const b = this.m.pdfium.getValue(bottom, 'float');
       const r = this.m.pdfium.getValue(right, 'float');

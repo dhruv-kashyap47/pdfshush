@@ -25,17 +25,24 @@ import { createByokTransport } from '@/lib/ai/transport';
 import { createManagedTransport } from '@/lib/ai/managed';
 import type { AiMode } from '@/lib/ai/mode';
 import { citedPages, splitCitations } from '@/lib/ai/citations';
+import { useMotionScope } from '@/hooks/use-motion';
 import { cn } from '@/lib/utils';
+import { EASE, dur, staggerUI, prefersReducedMotion } from '@/lib/motion';
+
+/** Composer growth cap in px; beyond it the textarea scrolls internally. */
+const COMPOSER_MAX_HEIGHT = 160;
 
 /** Friendly verbs for the tools the skills expose, for the activity timeline. */
 const TOOL_COPY: Record<string, string> = {
   get_document: 'Reading the document',
   read_pages: 'Reading the pages',
+  scan_document: 'Surveying every page',
   search_text: 'Searching the text',
   goto_page: 'Showing a page',
   list_pending_edits: 'Checking the queued changes',
   markup_text: 'Queuing a highlight',
   replace_text: 'Queuing a replacement',
+  replace_everywhere: 'Queuing replacements across the document',
   delete_text: 'Queuing an erasure',
   insert_text: 'Queuing new text',
   rotate_pages: 'Queuing a rotation',
@@ -275,11 +282,59 @@ export function AiChat({
   // file remounting the chat): the loop is aborted with the component.
   useEffect(() => () => loop.cancel(), [loop]);
 
-  // Keep the newest message in view as it streams.
+  // Keep the newest message in view as it streams — smoothly when motion is
+  // welcome, instantly when it is not.
   useEffect(() => {
     const node = scrollRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
+    if (!node) return;
+    node.scrollTo({
+      top: node.scrollHeight,
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    });
   }, [messages, runningTool]);
+
+  /**
+   * Entrance choreography. Every row (message, tool step, running tool) carries
+   * a stable `data-motion-id`; those seen for the first time slide in with the
+   * shared enter ease. The seen-set is what keeps re-renders from re-animating
+   * settled rows — the stream updates the last message's text many times a
+   * second, and only genuinely new rows ever move. Ids reset with the component
+   * (the workspace remounts the chat per document).
+   */
+  const motion = useMotionScope();
+  const seenMotionRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || prefersReducedMotion()) return;
+    const fresh: HTMLElement[] = [];
+    for (const node of root.querySelectorAll<HTMLElement>('[data-motion-id]')) {
+      const id = node.dataset.motionId;
+      if (!id || seenMotionRef.current.has(id)) continue;
+      seenMotionRef.current.add(id);
+      fresh.push(node);
+    }
+    if (fresh.length === 0) return;
+    motion.animate(fresh, {
+      translateY: [8, 0],
+      opacity: [0, 1],
+      duration: dur(320),
+      ease: EASE.out,
+      delay: staggerUI(45),
+    });
+  }, [messages, runningTool, motion]);
+  // StrictMode's dev remount never sees the seen-set: clearing it on the final
+  // unmount keeps a re-mounted chat animating its first turn again.
+  useEffect(() => () => seenMotionRef.current.clear(), []);
+
+  // The composer grows with its text (capped, then it scrolls) instead of a
+  // fixed height that swallows long prompts.
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const node = composerRef.current;
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${Math.min(node.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+  }, [input]);
 
   const lastAssistantId = [...messages].reverse().find((message) => message.role === 'assistant')?.id;
   const statusLine = runningTool
@@ -297,19 +352,20 @@ export function AiChat({
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <span data-motion-id="welcome:icon" className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Sparkles className="h-5 w-5" />
             </span>
-            <p className="text-sm text-muted-foreground">
+            <p data-motion-id="welcome:copy" className="text-sm text-muted-foreground">
               Ask anything about <span className="font-medium text-foreground">{doc.fileName}</span>.
               Answers cite the pages they came from.
             </p>
             {suggestions?.length ? (
               <div className="mt-1 flex flex-wrap justify-center gap-2">
-                {suggestions.map((suggestion) => (
+                {suggestions.map((suggestion, index) => (
                   <button
                     key={suggestion}
                     type="button"
+                    data-motion-id={`welcome:suggestion:${index}`}
                     onClick={() => send(suggestion)}
                     className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
                   >
@@ -322,7 +378,11 @@ export function AiChat({
         ) : null}
 
         {messages.map((message) => (
-          <div key={message.id} className={cn('flex gap-3', message.role === 'user' && 'justify-end')}>
+          <div
+            key={message.id}
+            data-motion-id={`msg:${message.id}`}
+            className={cn('flex gap-3', message.role === 'user' && 'justify-end')}
+          >
             {message.role === 'assistant' ? (
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                 <Bot className="h-4 w-4" />
@@ -343,6 +403,7 @@ export function AiChat({
                       {message.steps.map((step, index) => (
                         <li
                           key={index}
+                          data-motion-id={`${message.id}:step:${index}`}
                           className={cn(
                             'flex items-center gap-2 rounded-md border px-2 py-1 text-xs',
                             step.ok
@@ -359,7 +420,10 @@ export function AiChat({
                         </li>
                       ))}
                       {message.id === lastAssistantId && runningTool ? (
-                        <li className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary">
+                        <li
+                          data-motion-id={`${message.id}:running:${runningTool}`}
+                          className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary"
+                        >
                           <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
                           <span className="truncate">{TOOL_COPY[runningTool] ?? 'Working'}…</span>
                         </li>
@@ -368,7 +432,11 @@ export function AiChat({
                   ) : null}
 
                   {message.text ? (
-                    <div data-testid="ai-message-assistant" className={message.error ? 'text-destructive' : undefined}>
+                    <div
+                      data-testid="ai-message-assistant"
+                      data-motion-id={`${message.id}:text`}
+                      className={message.error ? 'text-destructive' : undefined}
+                    >
                       <AnswerText text={message.text} activePage={activePage} onShowPage={onShowPage} />
                     </div>
                   ) : message.id === lastAssistantId && busy ? (
@@ -409,6 +477,7 @@ export function AiChat({
         }}
       >
         <textarea
+          ref={composerRef}
           data-testid="ai-composer"
           value={input}
           onChange={(event) => setInput(event.target.value)}

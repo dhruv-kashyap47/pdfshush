@@ -232,6 +232,76 @@ describe('fallback honesty', () => {
   });
 });
 
+describe('box-only erase matching', () => {
+  it('removes a run by geometry when no text comparison can anchor it', async () => {
+    const source = await makeTextFixture();
+    // `find` is deliberately a string no concatenation of the page's objects
+    // can ever equal — the shape of a run whose glyphs the document decodes
+    // differently than the editor's extractor reads them — so the only way to
+    // locate the selection is its own box. The box wraps Hello World in the
+    // fixture's display space (400x300 page, text drawn at PDF y = 240).
+    const result = await editPdfText(
+      source,
+      {
+        edits: [
+          {
+            id: 'geo',
+            pageIndex: 0,
+            find: 'unmatchable glyph-stream',
+            replace: '',
+            box: { x: 32, y: 34, width: 180, height: 34 },
+          },
+        ],
+      },
+      testContext(),
+    );
+
+    expect(result.outcomes[0]!.mode).toBe('in-place');
+    const text = await pageText(result.bytes, 0);
+    // The run is genuinely gone from the content stream, not covered.
+    expect(text).not.toContain('Hello World');
+    expect(pdfContainsText(result.bytes, 'Hello')).toBe(false);
+    // The unrelated run below it survives the sweep.
+    expect(text).toContain('KEEP THIS LINE');
+  });
+
+  it('never removes a neighbouring line whose centre falls outside the box band', async () => {
+    const source = await makeTextFixture();
+    // Two stacked runs, one tight selection: the box wraps Hello World, and
+    // KEEP THIS LINE sits just below it — close enough that a loose tolerance
+    // would reach across. The band's margins must keep the neighbour.
+    const result = await editPdfText(
+      source,
+      {
+        edits: [
+          {
+            id: 'geo-guard',
+            pageIndex: 0,
+            find: 'whatever the extractor could not anchor',
+            replace: '',
+            box: { x: 32, y: 36, width: 200, height: 22 },
+          },
+        ],
+      },
+      testContext(),
+    );
+
+    const text = await pageText(result.bytes, 0);
+    expect(text).toContain('KEEP THIS LINE');
+  });
+
+  it('refuses a deletion with no text anchor and no box geometry', async () => {
+    const source = await makeTextFixture();
+    await expect(
+      editPdfText(
+        source,
+        { edits: [{ id: 'del-no-box', pageIndex: 0, find: 'Not present', replace: '' }] },
+        testContext(),
+      ),
+    ).rejects.toBeInstanceOf(TextEditUnsafeError);
+  });
+});
+
 describe('overlay-only documents', () => {
   it('applies extra objects without touching PDFium when there are no edits', async () => {
     const source = await makeTextFixture();

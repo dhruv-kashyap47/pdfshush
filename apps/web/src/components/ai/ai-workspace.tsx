@@ -9,7 +9,7 @@
  * it, and only the path the user chose (their key in this tab, or the trial).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   FileText,
   KeyRound,
@@ -27,11 +27,12 @@ import { AiChat } from '@/components/ai/ai-chat';
 import { AiDocumentPane, type OverlayMarker } from '@/components/ai/ai-document-pane';
 import { AiSettingsCard } from '@/components/ai/ai-settings-card';
 import { AiWelcomeOverlay } from '@/components/ai/ai-welcome-overlay';
-import { EditPlanPanel } from '@/components/ai/edit-plan-panel';
+import { EditPlanPanel, type BlockedEditChange } from '@/components/ai/edit-plan-panel';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { ResultPanel } from '@/components/tools/result-panel';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { useMotionScope } from '@/hooks/use-motion';
 import { usePageThumbnails } from '@/hooks/use-page-thumbnails';
 import { downloadBytes } from '@/lib/download';
 import { aiReady, clearAiSettings, loadAiSettings, loadAiState, saveAiSettings, storedKeyPresent } from '@/lib/ai/settings';
@@ -46,6 +47,7 @@ import {
   type ApplyStep,
 } from '@/lib/ai/edit-skill';
 import { extractDocumentText, extractEditDocument, type AiDocument } from '@/lib/ai/pdf-session';
+import { EASE, DUR, dur, staggerUI } from '@/lib/motion';
 import { recordRecent } from '@/tools/recent';
 
 /** Which AI surface this is; only the copy, the skill and the extra panel differ. */
@@ -121,6 +123,16 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const [applyStep, setApplyStep] = useState<ApplyStep | null>(null);
   const [applyProgress, setApplyProgress] = useState(0);
   const [applyError, setApplyError] = useState<string | null>(null);
+  /**
+   * What the last apply refused, keyed by the engine's edit ids. A refusal is
+   * not an error state: nothing was written, each refused edit keeps its card
+   * (flagged amber, with its reason), and the plan is still triageable —
+   * discard the failed entries and the rest applies. Cleared by a successful
+   * apply, by picking another file, and by starting over.
+   */
+  const [refused, setRefused] = useState<{ failed: Map<string, string>; message: string } | null>(
+    null,
+  );
   const [result, setResult] = useState<AiPlanApplyResult | null>(null);
   const applyAbort = useRef<AbortController | null>(null);
   const runIdRef = useRef(0);
@@ -174,6 +186,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
       setResult(null);
       setError(null);
       setApplyError(null);
+      setRefused(null);
       setPageSizes(null);
       setCited([]);
       setActivePage(1);
@@ -237,6 +250,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     setResult(null);
     setError(null);
     setApplyError(null);
+    setRefused(null);
     setPageSizes(null);
     setCited([]);
     setActivePage(1);
@@ -292,6 +306,38 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, planVersion]);
 
+  /**
+   * The engine's refusal report, parsed back into one reason per refused edit.
+   * The format is the engine's own stable shape ("  - kind: edit "id" detail"),
+   * and each quoted edit id is an overlay object id an additive entry owns —
+   * so id → entry is a membership check, and ids no queued entry claims (from
+   * a stale or unrelated failure) simply contribute nothing.
+   */
+  const classifyRefusal = useCallback((message: string): Map<string, string> => {
+    const failed = new Map<string, string>();
+    for (const line of message.split('\n')) {
+      const match = line.match(/^\s*-\s*[\w-]+:\s*edit "([^"]+)"\s*(.+)$/);
+      if (match) failed.set(match[1]!, match[2]!.trim());
+    }
+    return failed;
+  }, []);
+
+  /** Derived from the *current* entries, so manual discards shrink it live. */
+  const blockedChanges: BlockedEditChange[] = useMemo(() => {
+    if (!editor || !refused || refused.failed.size === 0) return [];
+    const out: BlockedEditChange[] = [];
+    for (const entry of editor.plan().entries) {
+      const failedId = entry.objectIds.find((id) => refused.failed.has(id));
+      if (failedId !== undefined) {
+        const reason = refused.failed.get(failedId);
+        if (reason) out.push({ entry, reason });
+      }
+    }
+    return out;
+    // `plan()` mutates in place; planVersion gates the read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, refused, planVersion]);
+
   const apply = useCallback(async () => {
     const target = file;
     const active = editor;
@@ -314,6 +360,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
       });
       setResult(output);
       active.clear();
+      setRefused(null);
       void recordRecent({
         toolSlug: 'edit-pdf-with-ai',
         toolName: 'Edit PDF with AI',
@@ -322,15 +369,31 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
         sizeBytes: output.data.byteLength,
       });
     } catch (cause) {
-      if (!controller.signal.aborted) {
-        setApplyError(cause instanceof Error ? cause.message : String(cause));
-      }
+      if (controller.signal.aborted) return;
+      const message = cause instanceof Error ? cause.message : String(cause);
+      // A parseable refusal becomes per-entry triage (amber card + reasons),
+      // not a dead end. Anything unparseable stays a plain error.
+      const failed = classifyRefusal(message);
+      if (failed.size > 0) setRefused({ failed, message });
+      else setApplyError(message);
     } finally {
       setApplying(false);
       applyAbort.current = null;
       setApplyStep(null);
     }
-  }, [editor, file, doc]);
+  }, [editor, file, doc, classifyRefusal]);
+
+  /** One click forward: drop every refused change, then apply what remains. */
+  const retryWithoutFailed = useCallback(() => {
+    const active = editor;
+    const failed = refused?.failed;
+    if (!active || !failed || failed.size === 0) return;
+    for (const entry of active.plan().entries) {
+      if (entry.objectIds.some((id) => failed.has(id))) active.discard(entry.id);
+    }
+    setRefused(null);
+    void apply();
+  }, [editor, refused, apply]);
 
   const onSaveSettings = (next: AiSettings) => {
     setSettings(saveAiSettings(next));
@@ -353,6 +416,30 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   // A stored "managed" choice is ignored on a deployment that does not offer it.
   const effectiveMode: AiMode = mode === 'managed' && managedOk ? 'managed' : 'byok';
   const ready = effectiveMode === 'managed' ? true : aiReady(settings);
+
+  /**
+   * The two panes enter with the shared choreography, once per document. The
+   * hidden base is applied here rather than in markup so a run cut short —
+   * or a reduced-motion browser — can never strand the panes invisible: if
+   * this effect never completes, nothing was ever hidden.
+   */
+  const motion = useMotionScope();
+  const panesRef = useRef<HTMLDivElement>(null);
+  const enteredFor = useRef(-1);
+  useLayoutEffect(() => {
+    const root = panesRef.current;
+    if (!root || !doc || !ready || enteredFor.current === docKey) return;
+    enteredFor.current = docKey;
+    const nodes = root.querySelectorAll<HTMLElement>('[data-ai-enter]');
+    for (const node of nodes) node.style.opacity = '0';
+    motion.animate(nodes, {
+      translateY: [12, 0],
+      opacity: [0, 1],
+      duration: dur(DUR.slow),
+      ease: EASE.out,
+      delay: staggerUI(80),
+    });
+  }, [doc, ready, docKey, motion]);
 
   /* ------------------------------------------------------------- welcome */
   //
@@ -522,8 +609,8 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
       ) : null}
 
       {doc && ready ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="h-[34rem]">
+        <div ref={panesRef} className="grid gap-4 lg:grid-cols-2">
+          <div data-ai-enter className="h-[34rem]">
             <AiDocumentPane
               fileName={doc.fileName}
               pageCount={pageCount}
@@ -538,7 +625,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
             />
           </div>
 
-          <div className="flex h-[34rem] flex-col gap-4">
+          <div data-ai-enter className="flex h-[34rem] flex-col gap-4">
             <div className="min-h-0 flex-1">
               <AiChat
                 key={docKey}
@@ -561,9 +648,12 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
                 step={applyStep}
                 progress={applyProgress}
                 error={applyError}
+                blocked={blockedChanges.length > 0 ? blockedChanges : undefined}
+                blockedDetail={refused?.message ?? null}
                 onDiscard={(id) => editor.discard(id)}
                 onDiscardAll={() => editor.clear()}
                 onApply={() => void apply()}
+                onRetryWithoutFailed={retryWithoutFailed}
                 onStop={() => applyAbort.current?.abort()}
                 onShowPage={setActivePage}
               />
