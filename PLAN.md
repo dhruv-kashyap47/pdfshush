@@ -59,14 +59,14 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-30 for the **AI editor pass** (`pnpm typecheck`,
-`pnpm test` — units 1096/1096 — and both browser suites, `tests/e2e/ai.mjs` 21 checks and
-`tests/e2e/text-edit.mjs`, all green against the running dev server). The last
-full-stack API smoke + hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21 entry) sits on top
-of **P6.4 hardening over the new surface** plus the **landing MCP console** — the P5 AI port (§23), the gap-closing
-pass (§23.7), the Phase 1-5 security review + `redactSecrets` hardening (§24), the P6.9 hardening
-interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API (§25.3) and P6.3 MCP server (§25.4) all
-still hold.
+**Current gate:** re-measured 2026-10-31 for **Text editing Phase 2** (`pnpm -r typecheck`,
+`pnpm test` - **1165/1165 unit** - and `tests/e2e/text-edit.mjs` plus `tests/e2e/text-model.mjs`,
+both green against the running dev server). `pnpm build` is green. The last full-stack API smoke +
+hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21
+entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
+P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
+hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API
+(§25.3) and P6.3 MCP server (§25.4) all still hold.
 **49 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
@@ -80,12 +80,10 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1093/1093 unit** (**315 engine** · **208 API** · 370 provider · 152 agent · **29 web** ·
-**19 MCP**) — the engine total rose by 34 across the authoring and security batches (form-field
-creation, outline writing, heading detection, Protect encryption and smart-compress defaults) and
-by 14 more for the dark-mode batch (exact theme/transform pins, job validation, the Node
-no-canvas refusal); the web total is unchanged ·
-browser E2E: full
+**1165/1165 unit** (**362 engine** · **208 API** · 370 provider · 152 agent · **39 web** ·
+**19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
+export/pixel verification) and 10 web tests (font mapping, native-plan metadata).
+**Browser E2E:** full
 smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
 `/api/health` reports Redis down) + **plain-tools suite, 13/13 checks**
@@ -685,6 +683,28 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-31 — Phase 2 hardening: partial rewrites now fail closed, collisions include text, and export verification covers the original line region.**
+
+  Four bugs found and fixed after the initial Phase 2 pass:
+
+  - **Partial native reflow is refused, not overlaid.** A failure after the first original
+    line had been rewritten or removed could leave native glyphs plus fallback text. A
+    `LayoutMutationError` now marks that state and `editPdfText` refuses the export instead of
+    applying an overlay on top of a partially rewritten paragraph.
+  - **Reflow collisions now include neighbouring text objects.** The planner previously checked
+    only images, paths and forms; an expanded paragraph could overlap another text block. All
+    non-consumed text objects participate in the collision test.
+  - **Content-stream parsing no longer promotes unexpected array tokens to operators.**
+    Unsupported tokens now raise `UnsupportedStream` and take the safe fallback instead of
+    risking a corrupted operation stream.
+  - **Visual verification covers shrinking paragraphs.** The declared edited region is the union
+    of the original and replacement line boxes, not only the new lines.
+
+  The browser E2E now generates its fixture with pdf-lib and asserts both the “replaced in place”
+  toast and the disappearance of the original glyphs from the downloaded PDF. Verified: typecheck,
+  362 engine tests, 39 web tests, 208 API, 19 MCP, 152 agent, 370 provider, production build, and
+  both text browser suites. Commit `fb1c598`.
 
 - **2026-10-31 — Text editing Phase 2: the editing ladder, real reflow, font metrics and pixel verification.**
 
@@ -4415,3 +4435,18 @@ Licence: `licenses/napi-rs-canvas-MIT.txt` (new dev-only dependency).
 - **Licensing:** `@napi-rs/canvas` is MIT and dev-only; PDFium/embedpdf notices
   already exist in `licenses/`. No PDF Chisel code was copied (no licence file
   was present upstream), and no AGPL/GPL dependency was introduced.
+
+### 28.9 Hardening pass (2026-10-31)
+
+- Partial native reflow failures are now `LayoutMutationError`s and fail the
+  export instead of allowing an overlay to duplicate surviving lines.
+- Text objects are included in reflow collision checks.
+- Content-stream array parsing refuses unexpected tokens.
+- Visual verification declares the union of original and replacement line boxes.
+- The browser paragraph E2E uses a pdf-lib fixture and asserts native replacement
+  (`replaced in place`) and original-glyph removal.
+- Security review: no injection sinks, secrets, path leakage, or redaction-path
+  changes; `pnpm audit --prod` still reports only the pre-existing `zod` and
+  `body-parser` advisories.
+- Commit: `fb1c598` (`feat(editor): native reflow, content-stream fallback and
+  export verification`).
