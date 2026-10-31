@@ -281,6 +281,10 @@ describe('paragraph edit objects', () => {
     expect(built.textObject?.fontFamily).toBe('helvetica');
     expect(built.textObject?.fontSize).toBe(10);
     expect(built.textObject?.x).toBe(entry.bbox.x);
+    expect(built.textObject?.native?.beforeLines).toHaveLength(2);
+    expect(built.textObject?.native?.after).toBe('Hello brave new world');
+    expect(built.textObject?.native?.reflow.width).toBeGreaterThan(0);
+    expect(built.textObject?.native?.coverIds).toHaveLength(2);
   });
 
   it('keeps only the covers when the paragraph is cleared', () => {
@@ -289,6 +293,7 @@ describe('paragraph edit objects', () => {
     const built = buildParagraphEditObjects(entry, page, '', { makeId: () => `o${++next}` });
     expect(built.textObject).toBeNull();
     expect(built.whiteouts).toHaveLength(2);
+    expect((built.whiteouts[0] as { native?: { after?: string } }).native?.after).toBe('');
   });
 });
 

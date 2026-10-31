@@ -9,21 +9,30 @@
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import { PDFDocument, StandardFonts, rgb } from '@cantoo/pdf-lib';
+import { createCanvas } from '@napi-rs/canvas';
 import {
   TextEditUnsafeError,
   applyNativeTextEdits,
   configurePdfiumRuntime,
   configurePdfjsRuntime,
   editPdfText,
+  extractPageLayouts,
   extractTextRuns,
+  applyContentStreamEdits,
+  analyzeEditCapability,
+  inspectDocumentCapabilities,
+  readFontCharcodes,
   loadPdfiumModule,
   verifyTextEdits,
+  verifyExportArtifact,
   type EditorObject,
   type TextEdit,
+  type CanvasFactory,
 } from '../src/index.js';
 import { sameText } from '../src/textedit/engine.js';
 import { testContext } from './fixtures.js';
 import { pdfContainsText } from './helpers.js';
+import { encodePng } from './png.js';
 
 /** Reads the WASM bytes without importing `node:*` types (pdf-core has none). */
 function readPdfiumWasm(): Uint8Array {
@@ -459,5 +468,381 @@ describe('text-edit verification', () => {
     const pageCount = result.checks.find((check) => check.name === 'page-count');
     expect(pageCount?.ok).toBe(false);
     expect(result.ok).toBe(false);
+  });
+});
+
+async function makeReflowFixture(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  page.drawText(
+    'Reflow this paragraph starts here and keeps going across the page before the second',
+    { x: 72, y: 700, size: 12, font },
+  );
+  page.drawText('and continues on the second line', { x: 72, y: 686, size: 12, font });
+  page.drawText('KEEP THIS NEIGHBOUR', { x: 72, y: 620, size: 12, font });
+  return doc.save({ useObjectStreams: false });
+}
+
+async function layoutEditFor(
+  source: Uint8Array,
+  replace: string,
+  needle = 'Reflow',
+): Promise<{ edit: TextEdit; paragraphText: string }> {
+  const layouts = await extractPageLayouts(source, { pageIndexes: [0] });
+  const page = layouts[0]!;
+  const paragraph = page.paragraphs.find((entry) => entry.text.includes(needle))!;
+  const lines = paragraph.lineIds
+    .map((id) => page.lines.find((line) => line.id === id)!)
+    .filter(Boolean);
+  const first = lines[0]!;
+  const width = Math.max(...lines.map((line) => line.bbox.width)) + 40;
+  const edit: TextEdit = {
+    id: 'reflow-1',
+    pageIndex: 0,
+    find: paragraph.text,
+    replace,
+    box: paragraph.bbox,
+    layout: {
+      paragraphId: paragraph.id,
+      fontFamily: 'helvetica',
+      beforeLines: lines.map((line) => ({ text: line.text, box: line.bbox })),
+      reflow: {
+        width,
+        lineHeight: first.typography.fontSize * 1.25,
+        firstBaselineY: first.bbox.y + first.typography.fontSize * 0.82,
+        x: paragraph.bbox.x,
+      },
+    },
+  };
+  return { edit, paragraphText: paragraph.text };
+}
+
+describe('native multi-line reflow', () => {
+  it('wraps a longer paragraph using the original font and creates extra lines', async () => {
+    const source = await makeReflowFixture();
+    // The editor inspects capabilities before the save; make sure that read pass
+    // does not invalidate the font pointers used by native line creation.
+    inspectDocumentCapabilities(source, { module: await loadPdfiumModule() });
+    const replacement =
+      'Reflow this paragraph starts here and continues on the second line with enough extra words to require a third and fourth line while the neighbour stays untouched.';
+    const { edit } = await layoutEditFor(source, replacement);
+    const result = await editPdfText(source, { edits: [edit] }, testContext());
+
+    expect(result.outcomes[0]!.mode).toBe('in-place');
+    expect(result.inPlace).toBe(1);
+    const text = await pageText(result.bytes, 0);
+    expect(text).toContain('enough extra words');
+    expect(text).toContain('KEEP THIS NEIGHBOUR');
+    const runs = await extractTextRuns(result.bytes, [0]);
+    expect(runs[0]!.filter((run) => run.y < 200).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('removes extra original lines when the paragraph becomes shorter', async () => {
+    const source = await makeReflowFixture();
+    const { edit } = await layoutEditFor(source, 'Short.');
+    const result = await editPdfText(source, { edits: [edit] }, testContext());
+    expect(result.outcomes[0]!.mode).toBe('in-place');
+    const text = await pageText(result.bytes, 0);
+    expect(text).toContain('Short.');
+    expect(text).not.toContain('and continues');
+    expect(text).toContain('KEEP THIS NEIGHBOUR');
+  });
+
+  it('refuses a reflow that would leave the page instead of clipping it', async () => {
+    const source = await makeReflowFixture();
+    const { edit } = await layoutEditFor(
+      source,
+      `${'overflow '.repeat(120)}end`,
+    );
+    edit.layout!.reflow.width = 120;
+    edit.layout!.reflow.lineHeight = 18;
+    await expect(
+      editPdfText(source, { edits: [edit] }, testContext()),
+    ).rejects.toThrow(/Refusing to export|layout edit|reflow/i);
+  });
+
+  it('keeps an invisible OCR layer invisible when its text is rewritten', async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([400, 300]);
+    page.drawText('ocr source line with enough width to anchor', {
+      x: 30,
+      y: 240,
+      size: 10,
+      font,
+      renderMode: 3,
+    } as Parameters<typeof page.drawText>[1]);
+    const source = await doc.save({ useObjectStreams: false });
+    const { edit } = await layoutEditFor(source, 'ocr source line rewritten', 'ocr');
+    const result = await editPdfText(source, { edits: [edit] }, testContext());
+    expect(result.outcomes[0]!.mode).toBe('in-place');
+    const caps = inspectDocumentCapabilities(result.bytes, { module: await loadPdfiumModule() });
+    expect(caps.pages[0]!.textLayer).toBe('ocr');
+    expect(caps.pages[0]!.textObjects.every((object) => object.renderMode === 3)).toBe(true);
+    expect(caps.pages[0]!.textObjects.map((object) => object.text).join(' ')).toContain('rewritten');
+  });
+});
+
+describe('content-stream replacement', () => {
+  it('rewrites a show operator when native matching is bypassed', async () => {
+    const source = await makeTextFixture();
+    const fonts = await readFontCharcodes(source);
+    const result = await applyContentStreamEdits(
+      source,
+      [
+        {
+          id: 'stream-1',
+          pageIndex: 0,
+          find: 'Hello World',
+          replace: 'Jello Wurld',
+          box: { x: 40, y: 40, width: 300, height: 40 },
+        },
+      ],
+      fonts,
+      testContext(),
+    );
+    expect(result.outcomes[0]!.mode).toBe('content-stream');
+    const text = await pageText(result.bytes, 0);
+    expect(text).toContain('Jello Wurld');
+    expect(text).toContain('KEEP THIS LINE');
+    expect(text).not.toContain('Hello World');
+  });
+
+  it('refuses an ambiguous replacement instead of changing the wrong line', async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([400, 300]);
+    page.drawText('SAME TEXT', { x: 40, y: 240, size: 14, font });
+    page.drawText('SAME TEXT', { x: 40, y: 200, size: 14, font });
+    const source = await doc.save({ useObjectStreams: false });
+    const fonts = await readFontCharcodes(source);
+    const result = await applyContentStreamEdits(
+      source,
+      [{ id: 'ambiguous', pageIndex: 0, find: 'SAME TEXT', replace: 'CHANGED' }],
+      fonts,
+      testContext(),
+    );
+    expect(result.outcomes[0]!.mode).toBe('manual-review');
+    expect(result.applied).toBe(0);
+    expect(await pageText(result.bytes, 0)).toContain('SAME TEXT');
+  });
+
+  it('is used by the engine when the requested strategy is content-stream', async () => {
+    const source = await makeTextFixture();
+    const result = await editPdfText(
+      source,
+      {
+        edits: [
+          {
+            id: 'stream-engine',
+            pageIndex: 0,
+            find: 'Hello World',
+            replace: 'Stream Edit',
+            box: { x: 40, y: 30, width: 260, height: 40 },
+            strategy: 'content-stream',
+          },
+        ],
+      },
+      testContext(),
+    );
+    expect(result.outcomes[0]!.mode).toBe('content-stream');
+    expect(result.contentStream).toBe(1);
+    expect(result.inPlace).toBe(0);
+    const text = await pageText(result.bytes, 0);
+    expect(text).toContain('Stream Edit');
+    expect(text).not.toContain('Hello World');
+  });
+
+  it('keeps both replacements and the bytes between them when two edits target one page', async () => {
+    const source = await makeTextFixture();
+    const fonts = await readFontCharcodes(source);
+    const result = await applyContentStreamEdits(
+      source,
+      [
+        { id: 'a', pageIndex: 0, find: 'Hello World', replace: 'First' },
+        { id: 'b', pageIndex: 0, find: 'KEEP THIS LINE', replace: 'Second' },
+      ],
+      fonts,
+      testContext(),
+    );
+    expect(result.outcomes.filter((outcome) => outcome.mode === 'content-stream')).toHaveLength(2);
+    const text = await pageText(result.bytes, 0);
+    expect(text).toContain('First');
+    expect(text).toContain('Second');
+  });
+});
+
+describe('export verification', () => {
+  const canvasFactory: CanvasFactory = (width, height) => {
+    const canvas = createCanvas(width, height);
+    return {
+      width,
+      height,
+      get context() {
+        return canvas.getContext('2d');
+      },
+      async toBlob(type: string): Promise<Blob> {
+        return new Blob([canvas.toBuffer('image/png')], { type });
+      },
+      release() {
+        canvas.width = 0;
+        canvas.height = 0;
+      },
+    };
+  };
+
+  it('checks structure, font resources and text expectations', async () => {
+    const source = await makeTextFixture();
+    const result = await editPdfText(
+      source,
+      {
+        edits: [{ id: 'e1', pageIndex: 0, find: 'Hello World', replace: 'Verified Text' }],
+        verifyVisual: false,
+      },
+      testContext(),
+    );
+    const verification = await verifyExportArtifact({
+      original: source,
+      output: result.bytes,
+      expectedPageCount: 2,
+      expectations: [{ label: 'e1', pageIndex: 0, expect: 'Verified Text' }],
+      editedRegions: [{ pageIndex: 0, box: { x: 40, y: 30, width: 220, height: 40 } }],
+      visual: false,
+    });
+    expect(verification.ok).toBe(true);
+    expect(verification.checks.find((check) => check.name === 'font-resources')?.ok).toBe(true);
+    expect(verification.checks.find((check) => check.name === 'page-geometry')?.ok).toBe(true);
+    expect(verification.checks.find((check) => check.name === 'annotations-and-links')?.ok).toBe(
+      true,
+    );
+  });
+
+  it('fails page geometry when the output was resized', async () => {
+    const source = await makeTextFixture();
+    const doc = await PDFDocument.create();
+    doc.addPage([200, 200]);
+    const resized = await doc.save();
+    const verification = await verifyExportArtifact({
+      original: source,
+      output: resized,
+      expectedPageCount: 1,
+      expectations: [],
+      visual: false,
+    });
+    expect(verification.checks.find((check) => check.name === 'page-geometry')?.ok).toBe(false);
+    expect(verification.ok).toBe(false);
+  });
+
+  it('detects a rendered change outside the declared edit region', async () => {
+    const source = await makeTextFixture();
+    const doc = await PDFDocument.load(source);
+    const first = doc.getPage(0);
+    first.drawRectangle({
+      x: 20,
+      y: 20,
+      width: 200,
+      height: 40,
+      color: rgb(1, 0, 0),
+    });
+    const changed = new Uint8Array(await doc.save());
+    const verification = await verifyExportArtifact({
+      original: source,
+      output: changed,
+      expectedPageCount: 2,
+      expectations: [],
+      editedRegions: [{ pageIndex: 0, box: { x: 40, y: 30, width: 220, height: 40 } }],
+      canvasFactory,
+      renderWidthPx: 500,
+      visual: true,
+    });
+    const visual = verification.checks.find((check) => check.name === 'visual-unchanged:page-1');
+    expect(visual?.ok).toBe(false);
+    expect(verification.ok).toBe(false);
+  });
+
+  it('passes the visual check when only the declared edit region changes', async () => {
+    const source = await makeTextFixture();
+    const result = await editPdfText(
+      source,
+      {
+        edits: [{ id: 'e1', pageIndex: 0, find: 'Hello World', replace: 'Visual Text' }],
+        verifyVisual: false,
+      },
+      testContext(),
+    );
+    const verification = await verifyExportArtifact({
+      original: source,
+      output: result.bytes,
+      expectedPageCount: 2,
+      expectations: [{ label: 'e1', pageIndex: 0, expect: 'Visual Text' }],
+      editedRegions: [{ pageIndex: 0, box: { x: 40, y: 30, width: 300, height: 60 } }],
+      canvasFactory,
+      renderWidthPx: 500,
+      visual: true,
+    });
+    expect(verification.checks.find((check) => check.name === 'visual-unchanged:page-1')?.ok).toBe(
+      true,
+    );
+    expect(verification.ok).toBe(true);
+  });
+});
+
+describe('capability inspection', () => {
+  it('distinguishes native text, invisible OCR layers and image-only scans', async () => {
+    const module = await loadPdfiumModule();
+    const native = await makeTextFixture();
+    const nativeCaps = inspectDocumentCapabilities(native, { module, pageIndexes: [0] });
+    const nativePage = nativeCaps.pages[0]!;
+    expect(nativePage.textLayer).toBe('native');
+    expect(nativePage.likelyScanned).toBe(false);
+    expect(nativePage.textObjects.some((object) => object.text.includes('Hello'))).toBe(true);
+    expect(nativePage.fonts.length).toBeGreaterThan(0);
+
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const ocrPage = doc.addPage([400, 300]);
+    ocrPage.drawText('OCR TEXT', {
+      x: 40,
+      y: 240,
+      size: 14,
+      font,
+      renderMode: 3,
+    } as Parameters<typeof ocrPage.drawText>[1]);
+    const image = await doc.embedPng(encodePng(40, 40, []));
+    const scannedPage = doc.addPage([400, 300]);
+    scannedPage.drawImage(image, { x: 40, y: 100, width: 200, height: 200 });
+    const source = await doc.save({ useObjectStreams: false });
+    const caps = inspectDocumentCapabilities(source, { module });
+    expect(caps.pages[0]!.textLayer).toBe('ocr');
+    expect(caps.pages[0]!.textObjects[0]!.renderMode).toBe(3);
+    expect(caps.pages[1]!.textLayer).toBe('none');
+    expect(caps.pages[1]!.likelyScanned).toBe(true);
+    expect(caps.warnings.some((warning) => warning.includes('image-only'))).toBe(true);
+
+    const nativeEdit: TextEdit = {
+      id: 'native',
+      pageIndex: 0,
+      find: 'OCR TEXT',
+      replace: 'OCR EDITED',
+    };
+    const assessment = analyzeEditCapability(nativeEdit, caps.pages[0]!);
+    expect(assessment.strategy).toBe('native-object');
+    expect(assessment.reasons.some((reason) => reason.includes('render mode'))).toBe(true);
+
+    const scannedEdit: TextEdit = {
+      id: 'scan',
+      pageIndex: 1,
+      find: 'not present',
+      replace: 'image text',
+    };
+    expect(analyzeEditCapability(scannedEdit, caps.pages[1]!).strategy).toBe('manual-review');
+    const withFallback: TextEdit = {
+      ...scannedEdit,
+      fallback: fallbackOverlay(1, { x: 40, y: 100, width: 200, height: 40 }, 'image text'),
+    };
+    expect(analyzeEditCapability(withFallback, caps.pages[1]!).strategy).toBe(
+      'localized-reconstruction',
+    );
   });
 });

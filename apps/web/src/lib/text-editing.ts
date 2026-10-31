@@ -20,6 +20,7 @@ import {
   TEXT_LINE_HEIGHT,
   type BBox,
   type EditTextObject,
+  type EditTextNativePlan,
   type EditorObject,
   type PageInteractionModel,
   type PageLayout,
@@ -343,6 +344,8 @@ export interface ParagraphEditObjectOptions {
   coverPadding?: number;
   /** Overrides the measured line height (ratio of font size). */
   lineHeightRatio?: number;
+  /** Capability-planned strategy for the native save path. */
+  strategy?: 'native-object' | 'content-stream' | 'localized-reconstruction' | 'manual-review';
 }
 
 export interface ParagraphEditObjects {
@@ -359,6 +362,25 @@ export interface ParagraphEditObjects {
  * erase the leading between lines, and on sewn/undersized boxes could clip a
  * neighbouring paragraph. Covering exactly what was extracted is safer.
  */
+function maxLinesInSpace(paragraph: Paragraph, layout: PageLayout, lineHeight: number): number {
+  const top = paragraph.bbox.y;
+  const right = paragraph.bbox.x + paragraph.bbox.width;
+  let bottom = layout.heightPt - 4;
+  const ownLines = new Set(paragraph.lineIds);
+  for (const line of layout.lines) {
+    if (ownLines.has(line.id)) continue;
+    if (line.bbox.y < paragraph.bbox.y + paragraph.bbox.height - 0.5) continue;
+    if (line.bbox.x + line.bbox.width <= paragraph.bbox.x || line.bbox.x >= right) continue;
+    bottom = Math.min(bottom, line.bbox.y);
+  }
+  for (const table of layout.tables) {
+    if (table.bbox.y < paragraph.bbox.y + paragraph.bbox.height - 0.5) continue;
+    if (table.bbox.x + table.bbox.width <= paragraph.bbox.x || table.bbox.x >= right) continue;
+    bottom = Math.min(bottom, table.bbox.y);
+  }
+  return Math.max(1, Math.floor((bottom - top) / Math.max(1, lineHeight)));
+}
+
 export function buildParagraphEditObjects(
   paragraph: Paragraph,
   layout: PageLayout,
@@ -379,13 +401,51 @@ export function buildParagraphEditObjects(
     height: box.height + pad * 2,
   }));
 
-  if (displayText.trim() === '') return { whiteouts, textObject: null };
-
   const typography = paragraph.typography;
   const fontSize = Math.min(72, Math.max(4, Math.round(typography.fontSize * 2) / 2));
   const lineHeightRatio = options.lineHeightRatio ?? paragraphLineHeightRatio(paragraph, layout);
   const widthPadding = fontSize * (options.widthPaddingFactor ?? 0.6);
   const width = Math.max(options.minWidth ?? 40, paragraph.bbox.width + widthPadding);
+  const lineHeight = fontSize * lineHeightRatio;
+  const firstLine = lines[0];
+  const native: EditTextNativePlan = {
+    paragraphId: paragraph.id,
+    before: paragraphDisplayText(paragraph),
+    after: displayText,
+    fontFamily: resolvedFontFamily(typography),
+    beforeLines: lines.map((line) => ({
+      text: line.text,
+      box: {
+        x: line.bbox.x,
+        y: line.bbox.y,
+        width: line.bbox.width,
+        height: line.bbox.height,
+      },
+    })),
+    coverIds: whiteouts.map((object) => object.id),
+    reflow: {
+      width,
+      lineHeight,
+      firstBaselineY: (firstLine?.bbox.y ?? paragraph.bbox.y) + fontSize * 0.82,
+      x: paragraph.bbox.x,
+      maxLines: maxLinesInSpace(paragraph, layout, lineHeight),
+    },
+    ...(options.strategy ? { strategy: options.strategy } : {}),
+  };
+
+  if (displayText.trim() === '') {
+    // A paragraph deletion still needs a native intent; otherwise the save path
+    // would have nothing to do but paint a whiteout. Carry the plan on the
+    // first cover and let the engine remove the original text objects.
+    const [firstCover, ...rest] = whiteouts;
+    return {
+      whiteouts: firstCover
+        ? [{ ...(firstCover as EditorObject), native } as EditorObject, ...rest]
+        : whiteouts,
+      textObject: null,
+    };
+  }
+
   const height = Math.max(
     paragraph.bbox.height,
     estimateTextHeight(displayText, { ...typography, fontSize }, width, lineHeightRatio),
@@ -410,6 +470,7 @@ export function buildParagraphEditObjects(
     fontFamily: resolvedFontFamily(typography),
     color: '#111827',
     align,
+    native,
   };
   return { whiteouts, textObject };
 }

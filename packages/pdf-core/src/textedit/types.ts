@@ -28,6 +28,117 @@ export interface TextEditBox {
   height: number;
 }
 
+/** Editing strategies in descending order of fidelity. */
+export type EditStrategy =
+  | 'native-object'
+  | 'content-stream'
+  | 'localized-reconstruction'
+  | 'manual-review';
+
+/** How closely an edit preserves the original appearance. */
+export type EditFidelity = 'exact' | 'high' | 'approximate' | 'none';
+
+/** One original line and its display-space box. */
+export interface TextLineTarget {
+  text: string;
+  box: TextEditBox;
+}
+
+/** Reflow parameters supplied by the Phase 1 layout/capability analysis. */
+export interface TextReflowRequest {
+  /** Available display-space width in points. */
+  width: number;
+  /** Baseline-to-baseline distance in points. */
+  lineHeight: number;
+  /** Display-space y of the first baseline. */
+  firstBaselineY: number;
+  /** Maximum number of lines allowed before the edit is refused. */
+  maxLines?: number;
+  /** Horizontal offset of every line from the paragraph origin. */
+  x?: number;
+}
+
+/**
+ * Multi-line native edit. The engine matches `beforeLines` to existing text
+ * objects, measures the replacement in the document's own font, reflows it to
+ * `request.width`, rewrites the original lines and creates/removes line objects
+ * as needed. This is the path for real paragraph editing.
+ */
+export interface TextLayoutEdit {
+  paragraphId?: string;
+  /** Standard family to reload when the original font pointer cannot create lines. */
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+  beforeLines: TextLineTarget[];
+  reflow: TextReflowRequest;
+}
+
+/** Serialisable font facts returned by capability inspection. */
+export interface TextFontDescriptor {
+  baseName: string;
+  familyName: string;
+  embedded: boolean;
+  weight: number;
+  italicAngle: number;
+  flags: number;
+  ascent: number;
+  descent: number;
+  monospace: boolean;
+  serif: boolean;
+}
+
+/** One existing text object on a page, in display space. */
+export interface TextObjectInfo {
+  text: string;
+  box: TextEditBox;
+  fontSize: number;
+  /** PDF render mode: 3 = invisible (OCR layer). */
+  renderMode: number;
+  font: TextFontDescriptor | null;
+}
+
+export type TextLayerKind = 'native' | 'ocr' | 'mixed' | 'none';
+
+export interface PageObjectCounts {
+  text: number;
+  image: number;
+  path: number;
+  form: number;
+  unknown: number;
+}
+
+/** Capability snapshot for one page, produced by PDFium. */
+export interface PageTextCapability {
+  pageIndex: number;
+  widthPt: number;
+  heightPt: number;
+  rotation: 0 | 90 | 180 | 270;
+  objectCounts: PageObjectCounts;
+  textObjects: TextObjectInfo[];
+  fonts: TextFontDescriptor[];
+  textLayer: TextLayerKind;
+  /** True when the page has ink images but no visible text layer. */
+  likelyScanned: boolean;
+}
+
+export interface DocumentTextCapability {
+  pages: PageTextCapability[];
+  pdfium: boolean;
+  warnings: string[];
+}
+
+/** Per-edit strategy/fidelity assessment exposed to the frontend. */
+export interface EditCapability {
+  strategy: EditStrategy;
+  fidelity: EditFidelity;
+  missingGlyphs: string[];
+  reasons: string[];
+  font: {
+    descriptor: TextFontDescriptor | null;
+    substitute: 'helvetica' | 'times' | 'courier' | null;
+    fidelity: EditFidelity;
+  };
+}
+
 /**
  * One requested replacement of an existing run.
  *
@@ -47,17 +158,31 @@ export interface TextEdit {
   box?: TextEditBox;
   /** Overlay objects (typically a whiteout plus a text box) applied on fallback. */
   fallback?: EditorObject[];
+  /** Multi-line paragraph reflow request; when present, the engine uses layout mode. */
+  layout?: TextLayoutEdit;
+  /** Preferred first strategy; the engine may still demote for safety. */
+  strategy?: EditStrategy;
 }
 
 /** How an individual edit was finally applied. */
-export type TextEditMode = 'in-place' | 'fallback';
+export type TextEditMode =
+  | 'in-place'
+  | 'content-stream'
+  | 'fallback'
+  | 'manual-review';
 
 export interface TextEditOutcome {
   id: string;
   pageIndex: number;
   mode: TextEditMode;
-  /** Present exactly when `mode` is `fallback`: why in-place editing was not used. */
+  /** Present when the edit was not applied natively: why. */
   reason?: string;
+  /** Strategy actually attempted first. */
+  attempted?: EditStrategy;
+  /** Fidelity of the applied result. */
+  fidelity?: EditFidelity;
+  /** Display-space region the applied edit occupied (used by visual verification). */
+  box?: TextEditBox;
 }
 
 export interface TextEditCheck {
@@ -75,9 +200,13 @@ export interface TextEditReport {
   outcomes: TextEditOutcome[];
   /** Edits applied by mutating the document's own text objects. */
   inPlace: number;
+  /** Edits applied by rewriting a content-stream show operator. */
+  contentStream: number;
   /** Edits applied by the pdf-lib overlay fallback. */
   fallback: number;
-  /** True when at least one edit was applied in place. */
+  /** Edits that were deliberately left for manual review. */
+  manualReview: number;
+  /** True when at least one edit was applied without a cosmetic cover. */
   usedNativeEngine: boolean;
   verification: TextEditVerification;
   warnings: string[];

@@ -26,6 +26,8 @@ export type TextEditJobOptions = {
   formValues?: Record<string, string | boolean>;
   /** Output filename; defaults to `<stem>-edited.pdf`. */
   outputName?: string;
+  /** Render edited pages and compare unchanged pixels. Default true. */
+  verifyVisual?: boolean;
 };
 
 export interface TextEditJobInput {
@@ -36,7 +38,9 @@ export interface TextEditJobInput {
 export interface TextEditJobReport {
   outcomes: TextEditOutcome[];
   inPlace: number;
+  contentStream: number;
   fallback: number;
+  manualReview: number;
   usedNativeEngine: boolean;
   verification: TextEditVerification;
   warnings: string[];
@@ -91,6 +95,7 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         ...(options.objects ? { objects: options.objects } : {}),
         ...(options.formValues ? { formValues: options.formValues } : {}),
         outputName: name,
+        ...(options.verifyVisual !== undefined ? { verifyVisual: options.verifyVisual } : {}),
       },
       ctx,
       defaultPdfiumEnvironment(),
@@ -107,7 +112,9 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
       report: {
         outcomes: result.outcomes,
         inPlace: result.inPlace,
+        contentStream: result.contentStream,
         fallback: result.fallback,
+        manualReview: result.manualReview,
         usedNativeEngine: result.usedNativeEngine,
         verification: result.verification,
         warnings: result.warnings,

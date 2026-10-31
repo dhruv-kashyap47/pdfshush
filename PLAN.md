@@ -36,6 +36,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
 | **Text editing Phase 1** | Serializable glyph→word→line→paragraph→block→region model, centralized geometry, hit testing, inline paragraph editing | ✅ **done 2026-10-31** — engine 339 tests, web 39; see §27 |
+| **Text editing Phase 2** | Native object editing ladder, content-stream fallback, font metrics/substitution, layout reflow, OCR-layer/scan capability, export + pixel verification | ✅ **done 2026-10-31** — engine 362 tests, web 39, both text E2Es; see §28 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -684,6 +685,59 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-31 — Text editing Phase 2: the editing ladder, real reflow, font metrics and pixel verification.**
+
+  **Native strategy ladder.** `text-edit` now chooses in order: native PDFium object
+  rewrite → content-stream show-operator rewrite (simple fonts only) → declared
+  localized reconstruction → manual review. `TextEdit` gained
+  `strategy` and `layout`; outcomes report `in-place`, `content-stream`,
+  `fallback` or `manual-review` with fidelity. Manual-review edits fail closed;
+  they are never silently covered.
+
+  **Native paragraph reflow.** The PDFium adapter now inspects fonts, metrics,
+  matrices, fill colours, render modes and page-object bounds, and can create
+  new text objects in the original font (with a standard-font reload fallback).
+  A layout edit matches every original line, measures the replacement with the
+  document font's glyph advances, wraps against the available width, checks page
+  bounds and collisions with non-text objects, rewrites original line objects,
+  removes surplus lines and creates overflow lines. OCR text keeps render mode 3.
+  If a build cannot create the overflow object atomically, the edit demotes to
+  the declared overlay rather than leaving a half-rewritten paragraph.
+
+  **Content-stream strategy.** New `textedit/contentStream.ts` decodes page
+  content streams, tracks `Tf` and rewrites a single grounded `Tj`/`TJ` string
+  with document-derived charcodes. It preserves all surrounding operators and
+  refuses ambiguous matches, CID fonts, deletions, inline images, reflow and
+  wider-than-box replacements. After serialization the result is reopened and
+  re-extracted like every other path.
+
+  **Fonts.** New `textedit/fonts.ts` classifies families from descriptor flags
+  and names, computes explicit substitutes and fidelity, detects missing glyphs,
+  and marks non-embedded custom fonts as high/unknown rather than exact.
+
+  **Reflow/overflow.** New `document/reflow.ts` provides deterministic wrapping,
+  height calculation, first-line indent, hard breaks, max-line limits, overflow
+  and collision assessment against text, tables and extra page objects.
+
+  **Capability API.** `inspectDocumentCapabilities` returns per-page text objects,
+  fonts, render modes, object counts and `native`/`ocr`/`mixed`/`none` text-layer
+  classification. `text-runs` can return `capabilities` alongside layouts; the
+  editor shows the status in the block inspector.
+
+  **Export verification.** New `textedit/exportVerify.ts` reopens output,
+  checks page count/geometry, annotations/links and font resources, re-extracts
+  text, renders edited pages and compares pixels outside the declared edit
+  regions. A pure export with a changed region fails the gate. `@napi-rs/canvas`
+  (MIT, test-only) makes the pixel path testable in Node; browser workers use
+  OffscreenCanvas.
+
+  **Results.** `pnpm -r typecheck`; `pnpm test` — pdf-core **362**, web 39, api 208,
+  mcp 19, ai-agent 152, ai-provider 370 (one transient Windows `EPERM` on an API
+  temp-dir cleanup; rerun green); `pnpm build` green. `tests/e2e/text-edit.mjs`
+  and `tests/e2e/text-model.mjs` pass, the latter proving a browser paragraph
+  edit is a native rewrite (toast "replaced in place", original glyphs absent).
+  Benchmark: 20 pages / 100 native edits in **240 ms** in Node.
 
 - **2026-10-31 — Structured text editing, Phase 1: the editor now understands text, not just boxes.**
 
@@ -4232,6 +4286,132 @@ Tests: `packages/pdf-core/test/textModel.test.ts` (19 checks) and
 7. **Confidence-driven review:** `ambiguous` / low-confidence paragraphs are already flagged; surface
    them in the inspector rather than guessing.
 
-**Next move:** Phase 2 is *not* started. The natural first slice is the native-rewrite sink for a
-single paragraph, gated by the same round-trip verification the text-edit engine already uses, with
-the Phase 1 overlay retained as fallback.
+**Next move:** Phase 2 is now implemented — see §28. The Phase 1 overlay remains the declared
+fallback and the reconstruction path.
+
+## 28. Native PDF editing, reflow and fidelity engine — Phase 2 (2026-10-31)
+
+**Goal:** turn the Phase 1 model into a dependable editing engine with an explicit
+fidelity ladder, not a universal whiteout. The existing PDFium engine (§22) was
+extended, not replaced.
+
+### 28.1 Editing ladder
+
+`TextEdit` now carries an optional `strategy` and multi-line `layout`. The engine
+resolves every edit in this order:
+
+1. **Native object** (`in-place`): PDFium rewrites the document's own text
+   object(s) with their font, matrix, size, colour and render mode.
+2. **Content stream** (`content-stream`): when native matching is impossible and
+   the font encoding is fully understood, rewrite the grounded `Tj`/`TJ` string
+   in the page content stream, preserving every surrounding operator.
+3. **Localized reconstruction** (`fallback`): the caller's whiteout + text box,
+   with the substitute font and fidelity disclosed in the report.
+4. **Manual review** (`manual-review`): no safe path; the save fails closed.
+
+Deletions are special: a failed native/content-stream deletion is refused, never
+covered cosmetically.
+
+### 28.2 Native adapter and reflow
+
+- `textedit/pdfium.ts` now exposes font facts (`FPDFFont_*`), object matrices,
+  fill colours, render modes, page-object bounds and a safe text-object creator.
+  It records `lastCreateError` so a refusal is explainable.
+- `textedit/engine.ts` adds `planLayoutEdit` + `applyLayoutEdit`: match every
+  original line, measure the replacement with the document font's glyph widths,
+  wrap to the requested width, reject page/collision violations, rewrite original
+  lines, remove surplus lines and create overflow lines with the original font.
+  Creation is all-or-nothing; a failed overflow line demotes the edit instead of
+  leaving a half-paragraph.
+- `textedit/fonts.ts` classifies fonts from descriptor flags/names, computes
+  explicit standard-font substitutes and fidelity, detects missing glyphs, and
+  never calls a non-embedded custom font exact.
+- `document/reflow.ts` is the pure wrapping/overflow/collision layer.
+
+### 28.3 Capability and OCR/scanned support
+
+`inspectDocumentCapabilities` reports per page:
+
+- text objects in display space, font descriptors, font sizes and render modes;
+- object counts (text/image/path/form/unknown);
+- text layer classification `native` / `ocr` / `mixed` / `none`;
+- `likelyScanned` when images exist and no text layer does.
+
+`text-runs` can return these alongside layouts; the editor's block inspector
+shows native/OCR/scan status. Invisible OCR text is rewritten natively with
+render mode 3 preserved. For an image-only page, the capability is manual review:
+there is no text object to rewrite. The repository has no OCRmyPDF/Tesseract
+runtime, so full image-to-text OCR is **not** claimed here.
+
+### 28.4 Content-stream safety rules
+
+`textedit/contentStream.ts` deliberately supports a narrow, provable subset:
+
+- simple fonts with a document-derived charcode map (Type0/CID refused);
+- a single matching show operation per edit (ambiguity is refused);
+- single-string `Tj`/`TJ`/`'`/`"` forms, no inline images;
+- no deletions and no reflow (those need native object creation);
+- replacement must fit the original box; wider text is refused.
+
+The original operator bytes outside the replaced string are copied verbatim, and
+the result is reopened/re-extracted by the final gate.
+
+### 28.5 Export and visual verification
+
+`verifyExportArtifact` reopens both documents and checks:
+
+- page count and page geometry;
+- annotation/link entry counts;
+- font resources (base names preserved; no invalid references);
+- replacement text via the product's own reader;
+- rendered pixels outside declared edit regions (when a canvas exists).
+
+The native layout planner records the applied region (including new lines) so
+safe reflow is not mistaken for outside-page damage. Node tests use
+`@napi-rs/canvas` (MIT, dev-only) for a real pixel diff; browser workers use
+OffscreenCanvas.
+
+### 28.6 Files
+
+Engine: `textedit/{pdfium,engine,types,fonts,capabilities,contentStream,exportVerify}.ts`,
+`document/reflow.ts`, `jobs/{textEdit,textRuns}.job.ts`, `ops/edit.ts`, root exports.
+Web: `lib/text-editing.ts`, `components/tools/edit-pdf-tool.tsx` (native plan
+metadata, save-path derivation, capability status).
+Tests: `test/{textEdit,reflow,fonts}.test.ts`, `tests/e2e/text-model.mjs`.
+Licence: `licenses/napi-rs-canvas-MIT.txt` (new dev-only dependency).
+
+### 28.7 Verified
+
+- `pnpm -r typecheck` — green.
+- `pnpm test` — pdf-core 362/362, web 39/39, api 208/208, mcp 19/19,
+  ai-agent 152/152, ai-provider 370/370.
+- `pnpm build` — green (existing >500 kB chunk warning).
+- `node tests/e2e/text-model.mjs` — Select-tool hover/select/edit/save; native
+  replacement, original glyphs absent.
+- `node tests/e2e/text-edit.mjs` — existing run-level true in-place path.
+- Benchmark (Node): 20 pages / 100 native edits, **240 ms**, 100% in-place.
+
+### 28.8 Known limitations and remaining risks
+
+- **Overflow line creation is not universal.** Some PDFium builds reject
+  `FPDFPageObj_CreateTextObj` for a document-standard font pointer even though
+  the same font rewrites existing objects. The edit then demotes to the declared
+  overlay; the report says so. The PDFium engine has no embedded-font test corpus
+  beyond generated fixtures yet.
+- **Content-stream support is intentionally narrow**: simple fonts only, no
+  CID/CMap rewriting, no font-resource creation, no deletions/reflow, and no
+  inline images.
+- **OCR engine absent.** OCR layers are detected and protected; image-only scans
+  are manual-review. No Tesseract/OCRmyPDF binary exists in this repo.
+- **Visual verification is browser/Node-with-canvas only.** In a canvas-free
+  runtime it reports the check as skipped rather than pretending.
+- **Export pixel tolerance**: 0.5% outside the declared regions, 24/255 channel
+  tolerance. A deliberate change outside the region fails; heavy font raster
+  re-encoding could still be a false positive on exotic pages.
+- **Cross-page selection and downstream block reflow** remain out of scope; the
+  engine does not move neighbouring paragraphs.
+- **PDFium heap safety** is worker-isolated; a WASM abort terminates that job,
+  not the tab. The PDFium adapter owns/frees every pointer it allocates.
+- **Licensing:** `@napi-rs/canvas` is MIT and dev-only; PDFium/embedpdf notices
+  already exist in `licenses/`. No PDF Chisel code was copied (no licence file
+  was present upstream), and no AGPL/GPL dependency was introduced.

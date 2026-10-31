@@ -10,6 +10,9 @@ import { extractTextRuns, type TextRun } from '../render/textRuns.js';
 import { extractTextRunsAndLayouts } from '../render/textLayout.js';
 import type { LayoutBuildOptions } from '../document/group.js';
 import type { PageLayout } from '../document/types.js';
+import { inspectDocumentCapabilities } from '../textedit/capabilities.js';
+import { loadPdfiumModule } from '../textedit/runtime.js';
+import type { PageTextCapability } from '../textedit/types.js';
 import { totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -21,6 +24,8 @@ export type TextRunsOptions = {
    * One pdf.js load produces both, so opting in does not re-parse the file.
    */
   includeLayout?: boolean;
+  /** Also inspect PDFium text objects/fonts/render modes for editing capability. */
+  includeCapabilities?: boolean;
   /** Overrides for the layout heuristics; mainly for diagnostics and tests. */
   layout?: LayoutBuildOptions;
 };
@@ -35,6 +40,10 @@ export interface TextRunsOutput {
   runs: TextRun[][];
   /** Present when `options.includeLayout` was true, aligned with `runs`. */
   layouts?: PageLayout[];
+  /** Present when `options.includeCapabilities` was true, aligned with `runs`. */
+  capabilities?: PageTextCapability[];
+  /** Set when capability inspection was requested but PDFium was unavailable/failed. */
+  capabilityWarning?: string;
 }
 
 export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
@@ -54,22 +63,45 @@ export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
 
   async run(input, ctx) {
     const file = input.files[0]!;
+    const pageIndexes = input.options?.pageIndexes ?? [];
+    let runs: TextRun[][];
+    let layouts: PageLayout[] | undefined;
     if (input.options?.includeLayout) {
-      const { runs, layouts } = await extractTextRunsAndLayouts(
+      const result = await extractTextRunsAndLayouts(
         file.data,
-        input.options.pageIndexes ?? [],
+        pageIndexes,
         ctx,
         file.password,
         input.options.layout,
       );
-      return { runs, layouts };
+      runs = result.runs;
+      layouts = result.layouts;
+    } else {
+      runs = await extractTextRuns(file.data, pageIndexes, ctx, file.password);
     }
-    const runs = await extractTextRuns(
-      file.data,
-      input.options?.pageIndexes ?? [],
-      ctx,
-      file.password,
-    );
-    return { runs };
+
+    let capabilities: PageTextCapability[] | undefined;
+    let capabilityWarning: string | undefined;
+    if (input.options?.includeCapabilities) {
+      try {
+        const module = await loadPdfiumModule();
+        const inspected = inspectDocumentCapabilities(file.data, {
+          module,
+          pageIndexes: pageIndexes.length > 0 ? pageIndexes : undefined,
+          ...(file.password ? { password: file.password } : {}),
+        });
+        capabilities = inspected.pages;
+        if (inspected.warnings.length > 0) capabilityWarning = inspected.warnings.join(' ');
+      } catch (error) {
+        capabilityWarning = error instanceof Error ? error.message : String(error);
+      }
+    }
+
+    return {
+      runs,
+      ...(layouts ? { layouts } : {}),
+      ...(capabilities ? { capabilities } : {}),
+      ...(capabilityWarning ? { capabilityWarning } : {}),
+    };
   },
 };

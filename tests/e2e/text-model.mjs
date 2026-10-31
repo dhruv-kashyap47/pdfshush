@@ -14,7 +14,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { buildPdf, extractText, waitFor } from '../support/e2e-util.mjs';
+import { PDFDocument, StandardFonts } from '../../apps/web/node_modules/@cantoo/pdf-lib/es/index.js';
+import { extractText, waitFor } from '../support/e2e-util.mjs';
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -31,12 +32,18 @@ function check(name, condition, detail = '') {
 async function main() {
   await mkdir(WORK, { recursive: true });
   const fixture = path.join(WORK, 'paragraph.pdf');
-  await writeFile(fixture, buildPdf(ORIGINAL));
+  const fixtureDoc = await PDFDocument.create();
+  const fixtureFont = await fixtureDoc.embedFont(StandardFonts.Helvetica);
+  const fixturePage = fixtureDoc.addPage([595, 842]);
+  fixturePage.drawText(ORIGINAL, { x: 72, y: 770, size: 18, font: fixtureFont });
+  await writeFile(fixture, await fixtureDoc.save({ useObjectStreams: false }));
 
   const browser = await chromium.launch({ channel: 'msedge' });
   const page = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
   const consoleErrors = [];
+  const consoleNotes = [];
   page.on('console', (message) => {
+    if (message.type() === 'warning') consoleNotes.push(message.text());
     if (message.type() === 'error' && !/Failed to load resource|net::|ERR_/i.test(message.text())) {
       consoleErrors.push(message.text());
     }
@@ -107,7 +114,22 @@ async function main() {
     check('text object holds the replacement', objectText === REPLACEMENT);
 
     await page.getByTestId('editor-save').click();
-    await page.getByText('-edited.pdf').first().waitFor({ timeout: 90_000 });
+    try {
+      await page.getByText('-edited.pdf').first().waitFor({ timeout: 90_000 });
+    } catch (error) {
+      const toasts = await page.locator('[data-sonner-toast]').allInnerTexts().catch(() => []);
+      const status = await page.getByTestId('editor-save-status').innerText().catch(() => '');
+      throw new Error(
+        `save did not finish: ${toasts.join(' | ') || 'no toast'} / status: ${status} / console: ${consoleErrors.join(' | ')} / notes: ${consoleNotes.join(' | ')}`,
+      );
+    }
+
+    const toastText = await page.locator('[data-sonner-toast]').allInnerTexts();
+    check(
+      'save reports a native in-place replacement',
+      toastText.some((entry) => entry.includes('replaced in place')),
+      toastText.join(' | '),
+    );
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
@@ -117,6 +139,11 @@ async function main() {
     const text = await extractText(saved);
     check('saved file re-parses', saved.byteLength > 0, `${saved.byteLength} bytes`);
     check('saved file contains the replacement', text.includes(REPLACEMENT));
+    check(
+      'native replacement removed the original glyphs',
+      !text.includes(ORIGINAL),
+      text.replace(/\s+/g, ' ').slice(0, 160),
+    );
     check('no console errors during the run', consoleErrors.length === 0, consoleErrors.join(' | '));
   } finally {
     await browser.close();

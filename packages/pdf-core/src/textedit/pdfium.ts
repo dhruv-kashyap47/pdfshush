@@ -17,10 +17,40 @@
  */
 
 import type { WrappedPdfiumModule } from '@embedpdf/pdfium';
-import { geomFromBoxes, pdfRectToView, type DisplayRect, type PageGeom } from '../ops/geometry.js';
+import {
+  geomFromBoxes,
+  pdfRectToView,
+  viewToPdf,
+  type DisplayRect,
+  type PageGeom,
+} from '../ops/geometry.js';
 
 /** `FPDF_PAGEOBJ_TEXT` from `fpdf_edit.h`. */
 const FPDF_PAGEOBJ_TEXT = 1;
+
+/** Affine matrix in PDF order `[a, b, c, d, e, f]`. */
+export type PdfiumMatrix = readonly [number, number, number, number, number, number];
+
+export interface PdfiumColor {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+/** Font facts PDFium exposes for an existing text object. */
+export interface PdfiumFontInfo {
+  baseName: string;
+  familyName: string;
+  embedded: boolean;
+  weight: number;
+  italicAngle: number;
+  flags: number;
+  ascent: number;
+  descent: number;
+  monospace: boolean;
+  serif: boolean;
+}
 
 /**
  * The WASM linear-memory view. The emscripten type surface does not declare
@@ -45,6 +75,14 @@ export interface PdfiumTextObject {
   bounds: PdfiumTextBounds;
   /** Nominal font size in points, or 0 when the font reports none. */
   fontSize: number;
+  /** PDF text render mode (3 = invisible, the usual OCR-layer marker). */
+  renderMode: number;
+  /** Object matrix in PDF space. */
+  matrix: PdfiumMatrix | null;
+  /** Font pointer captured while the page's text page is open. */
+  fontPtr: number;
+  /** Font facts, or null when this build has no font introspection. */
+  font: PdfiumFontInfo | null;
 }
 
 export class PdfiumTextDocument {
@@ -52,7 +90,10 @@ export class PdfiumTextDocument {
   private readonly docPtr: number;
   private readonly dataPtr: number;
   private readonly pagePtrs = new Map<number, number>();
+  private readonly standardFontPtrs = new Map<string, number>();
   private closed = false;
+  /** Last createTextObject failure, for a non-vague engine error. */
+  lastCreateError = '';
 
   private constructor(m: WrappedPdfiumModule, docPtr: number, dataPtr: number) {
     this.m = m;
@@ -124,9 +165,69 @@ export class PdfiumTextDocument {
     }
   }
 
-  /** Every non-empty text object on a page, in content-stream order. */
-  listTextObjects(pageIndex: number): PdfiumTextObject[] {
+  /** Count page objects by kind; used for scanned/OCR capability reports. */
+  objectCounts(pageIndex: number): {
+    text: number;
+    image: number;
+    path: number;
+    form: number;
+    unknown: number;
+  } {
     const page = this.page(pageIndex);
+    const counts = { text: 0, image: 0, path: 0, form: 0, unknown: 0 };
+    const count = this.m.FPDFPage_CountObjects(page);
+    for (let i = 0; i < count; i += 1) {
+      const object = this.m.FPDFPage_GetObject(page, i);
+      if (!object) {
+        counts.unknown += 1;
+        continue;
+      }
+      switch (this.m.FPDFPageObj_GetType(object)) {
+        case 1: // FPDF_PAGEOBJ_TEXT
+          counts.text += 1;
+          break;
+        case 2: // FPDF_PAGEOBJ_PATH
+          counts.path += 1;
+          break;
+        case 3: // FPDF_PAGEOBJ_IMAGE
+          counts.image += 1;
+          break;
+        case 5: // FPDF_PAGEOBJ_FORM
+          counts.form += 1;
+          break;
+        default:
+          counts.unknown += 1;
+      }
+    }
+    return counts;
+  }
+
+  /** Every page object's display-space bounds, for collision checks. */
+  listPageObjectBounds(pageIndex: number): {
+    ptr: number;
+    kind: 'text' | 'image' | 'path' | 'form' | 'unknown';
+    bounds: PdfiumTextBounds;
+  }[] {
+    const page = this.page(pageIndex);
+    const count = this.m.FPDFPage_CountObjects(page);
+    const objects: {
+      ptr: number;
+      kind: 'text' | 'image' | 'path' | 'form' | 'unknown';
+      bounds: PdfiumTextBounds;
+    }[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const ptr = this.m.FPDFPage_GetObject(page, i);
+      if (!ptr) continue;
+      const type = this.m.FPDFPageObj_GetType(ptr);
+      const kind =
+        type === 1 ? 'text' : type === 2 ? 'path' : type === 3 ? 'image' : type === 5 ? 'form' : 'unknown';
+      objects.push({ ptr, kind, bounds: this.objectBounds(ptr) });
+    }
+    return objects;
+  }
+
+  /** Every non-empty text object on a page, in content-stream order. */
+  listTextObjects(pageIndex: number): PdfiumTextObject[] {    const page = this.page(pageIndex);
     const textPage = this.m.FPDFText_LoadPage(page);
     if (!textPage) return [];
     try {
@@ -143,6 +244,10 @@ export class PdfiumTextDocument {
           text,
           bounds: this.objectBounds(ptr),
           fontSize: this.objectFontSize(ptr),
+          renderMode: this.objectRenderMode(ptr),
+          matrix: this.objectMatrix(ptr),
+          fontPtr: this.fontPtrOf(ptr),
+          font: this.fontInfoOf(ptr),
         });
       }
       return objects;
@@ -233,6 +338,251 @@ export class PdfiumTextDocument {
       }
     } catch {
       return null;
+    }
+  }
+
+  /** Font pointer for a text object, or 0. The pointer is owned by the document
+   * and stays valid until close; it can be reused to create reflowed lines in
+   * the original font.
+   */
+  fontPtrOf(objPtr: number): number {
+    const raw = this.m as unknown as {
+      FPDFTextObj_GetFont?: (obj: number) => number;
+    };
+    if (!raw.FPDFTextObj_GetFont) return 0;
+    try {
+      return raw.FPDFTextObj_GetFont(objPtr) || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * Load one of PDFium's standard fonts for a **new** text object.
+   *
+   * A standard Type1 font may be usable for rewriting an existing object but
+   * not for `FPDFPageObj_CreateTextObj` in every build; reloading the standard
+   * font by base name is an exact font for the standard-14 case, not a
+   * substitution. Returns 0 for non-standard/custom fonts.
+   */
+  loadStandardFont(name: string): number {
+    const normalized = name.replace(/^[A-Z]{6}\+/, '');
+    if (!/^(helvetica|times|courier)/i.test(normalized)) return 0;
+    const cached = this.standardFontPtrs.get(normalized);
+    if (cached) return cached;
+    try {
+      const ptr = this.m.FPDFText_LoadStandardFont(this.docPtr, normalized);
+      if (ptr) this.standardFontPtrs.set(normalized, ptr);
+      return ptr || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Font facts for a text object, or null when introspection is unavailable. */
+  fontInfoOf(objPtr: number): PdfiumFontInfo | null {
+    const font = this.fontPtrOf(objPtr);
+    if (!font) return null;
+    const raw = this.m as unknown as {
+      FPDFFont_GetBaseFontName?: (font: number, buffer: number, length: number) => number;
+      FPDFFont_GetFamilyName?: (font: number, buffer: number, length: number) => number;
+      FPDFFont_GetIsEmbedded?: (font: number) => number;
+      FPDFFont_GetWeight?: (font: number) => number;
+      FPDFFont_GetItalicAngle?: (font: number, out: number) => boolean;
+      FPDFFont_GetFlags?: (font: number) => number;
+      FPDFFont_GetAscent?: (font: number, out: number) => boolean;
+      FPDFFont_GetDescent?: (font: number, out: number) => boolean;
+    };
+    try {
+      const readName = (
+        method: ((font: number, buffer: number, length: number) => number) | undefined,
+      ): string => {
+        if (!method) return '';
+        const length = method(font, 0, 0);
+        if (length <= 1) return '';
+        const buffer = this.alloc(length);
+        try {
+          method(font, buffer, length);
+          return this.m.pdfium.UTF8ToString(buffer);
+        } finally {
+          this.free(buffer);
+        }
+      };
+      const baseName = readName(raw.FPDFFont_GetBaseFontName).replace(/^[A-Z]{6}\+/, '');
+      const familyName = readName(raw.FPDFFont_GetFamilyName);
+      const readFloat = (
+        method: ((font: number, out: number) => boolean) | undefined,
+      ): number => {
+        if (!method) return 0;
+        const out = this.alloc(4);
+        try {
+          return method(font, out) ? this.m.pdfium.getValue(out, 'float') : 0;
+        } finally {
+          this.free(out);
+        }
+      };
+      const flags = raw.FPDFFont_GetFlags?.(font) ?? 0;
+      return {
+        baseName,
+        familyName,
+        embedded: Boolean(raw.FPDFFont_GetIsEmbedded?.(font)),
+        weight: raw.FPDFFont_GetWeight?.(font) || 400,
+        italicAngle: readFloat(raw.FPDFFont_GetItalicAngle),
+        flags,
+        ascent: readFloat(raw.FPDFFont_GetAscent),
+        descent: readFloat(raw.FPDFFont_GetDescent),
+        // PDF font descriptor flags: bit 1 fixed-pitch, bit 2 serif,
+        // bit 7 italic.
+        monospace: (flags & 0x01) !== 0,
+        serif: (flags & 0x02) !== 0,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Advance width of one charcode in the document's font, or null when the
+   * glyph is not available. This is the metric native reflow must use: the
+   * editor's CSS font is not the document's font.
+   */
+  glyphWidth(fontPtr: number, charcode: number, fontSize: number): number | null {
+    const raw = this.m as unknown as {
+      FPDFFont_GetGlyphWidth?: (
+        font: number,
+        code: number,
+        size: number,
+        out: number,
+      ) => boolean;
+    };
+    if (!raw.FPDFFont_GetGlyphWidth || !fontPtr) return null;
+    const out = this.alloc(4);
+    try {
+      if (!raw.FPDFFont_GetGlyphWidth(fontPtr, charcode, fontSize, out)) return null;
+      return this.m.pdfium.getValue(out, 'float');
+    } catch {
+      return null;
+    } finally {
+      this.free(out);
+    }
+  }
+
+  objectRenderMode(objPtr: number): number {
+    const raw = this.m as unknown as {
+      FPDFTextObj_GetTextRenderMode?: (obj: number) => number;
+    };
+    try {
+      return raw.FPDFTextObj_GetTextRenderMode?.(objPtr) ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  objectMatrix(objPtr: number): PdfiumMatrix | null {
+    const out = this.alloc(24);
+    try {
+      if (!this.m.FPDFPageObj_GetMatrix(objPtr, out)) return null;
+      const values = Array.from({ length: 6 }, (_, index) =>
+        this.m.pdfium.getValue(out + index * 4, 'float'),
+      ) as unknown as PdfiumMatrix;
+      return values;
+    } catch {
+      return null;
+    } finally {
+      this.free(out);
+    }
+  }
+
+  objectFillColor(objPtr: number): PdfiumColor {
+    const out = [this.alloc(4), this.alloc(4), this.alloc(4), this.alloc(4)];
+    try {
+      if (!this.m.FPDFPageObj_GetFillColor(objPtr, out[0]!, out[1]!, out[2]!, out[3]!)) {
+        return { r: 0, g: 0, b: 0, a: 1 };
+      }
+      return {
+        r: this.m.pdfium.getValue(out[0]!, 'float'),
+        g: this.m.pdfium.getValue(out[1]!, 'float'),
+        b: this.m.pdfium.getValue(out[2]!, 'float'),
+        a: this.m.pdfium.getValue(out[3]!, 'float'),
+      };
+    } catch {
+      return { r: 0, g: 0, b: 0, a: 1 };
+    } finally {
+      for (const ptr of out) this.free(ptr);
+    }
+  }
+
+  /** Display-space point -> PDF user-space point for this page. */
+  viewPointToPdf(pageIndex: number, point: { x: number; y: number }): [number, number] {
+    return viewToPdf(this.geom(pageIndex), point.x, point.y);
+  }
+
+  /**
+   * Create a text object using an existing document font, position it with a
+   * PDF matrix and append it to the page. Used by native reflow for lines that
+   * are longer than the original paragraph. Returns 0 on failure.
+   */
+  createTextObject(
+    pageIndex: number,
+    fontPtr: number,
+    fontSize: number,
+    text: string,
+    matrix: PdfiumMatrix,
+    color?: PdfiumColor,
+    renderMode = 0,
+    charcodes?: number[] | null,
+  ): number {
+    this.lastCreateError = '';
+    if (!fontPtr || text.length === 0) {
+      this.lastCreateError = !fontPtr ? 'source font pointer is null' : 'line text is empty';
+      return 0;
+    }
+    let obj = 0;
+    try {
+      // Create visible and switch the render mode afterwards: some PDFium
+      // builds reject the third argument for an invisible text object.
+      obj = this.m.FPDFPageObj_CreateTextObj(fontPtr, fontSize, 0);
+      if (!obj) {
+        this.lastCreateError = 'FPDFPageObj_CreateTextObj returned 0';
+        return 0;
+      }
+      // Set the transform before writing: some builds derive the text object's
+      // encoding context from the matrix.
+      this.setObjectMatrix(obj, matrix);
+      const written =
+        this.setText(obj, text) ||
+        (charcodes !== null && charcodes !== undefined && this.setCharcodes(obj, charcodes));
+      if (!written) {
+        this.lastCreateError = 'FPDFText_SetText refused the new line';
+        this.m.FPDFPageObj_Destroy(obj);
+        return 0;
+      }
+      if (color) this.m.FPDFPageObj_SetFillColor(obj, color.r, color.g, color.b, color.a);
+      this.m.FPDFTextObj_SetTextRenderMode(obj, renderMode);
+      this.m.FPDFPage_InsertObject(this.page(pageIndex), obj);
+      return obj;
+    } catch (error) {
+      this.lastCreateError = error instanceof Error ? error.message : String(error);
+      if (obj) {
+        try {
+          this.m.FPDFPageObj_Destroy(obj);
+        } catch {
+          /* already owned by the page */
+        }
+      }
+      return 0;
+    }
+  }
+
+  private setObjectMatrix(objPtr: number, matrix: PdfiumMatrix): boolean {
+    const out = this.alloc(24);
+    try {
+      for (let index = 0; index < 6; index += 1) {
+        this.m.pdfium.setValue(out + index * 4, matrix[index]!, 'float');
+      }
+      return Boolean(this.m.FPDFPageObj_SetMatrix(objPtr, out));
+    } finally {
+      this.free(out);
     }
   }
 

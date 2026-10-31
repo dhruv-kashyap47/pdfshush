@@ -125,6 +125,20 @@ export type {
 } from './hitTest.js';
 
 export {
+  wrapText,
+  assessReflow,
+  paragraphBox,
+} from './reflow.js';
+export type {
+  MeasureText,
+  ReflowRequest,
+  ReflowLine,
+  ReflowResult,
+  ReflowObstacle,
+  ReflowAssessment,
+} from './reflow.js';
+
+export {
   TextEditSession,
   previousCodePointIndex,
   nextCodePointIndex,

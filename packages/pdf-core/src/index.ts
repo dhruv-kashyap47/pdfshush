@@ -81,6 +81,7 @@ export type {
   EditorObject,
   EditObjectBase,
   EditTextObject,
+  EditTextNativePlan,
   EditImageObject,
   EditRectObject,
   EditLineObject,
@@ -344,7 +345,36 @@ export type {
   TextEditRunResult,
 } from './textedit/engine.js';
 export { PdfiumTextDocument } from './textedit/pdfium.js';
-export type { PdfiumTextBounds, PdfiumTextObject } from './textedit/pdfium.js';
+export type {
+  PdfiumTextBounds,
+  PdfiumTextObject,
+  PdfiumFontInfo,
+  PdfiumMatrix,
+  PdfiumColor,
+} from './textedit/pdfium.js';
+export {
+  inspectDocumentCapabilities,
+  analyzeEditCapability,
+} from './textedit/capabilities.js';
+export type { CapabilityInspectionOptions } from './textedit/capabilities.js';
+export {
+  applyContentStreamEdits,
+} from './textedit/contentStream.js';
+export type { ContentStreamResult } from './textedit/contentStream.js';
+export {
+  fontCategory,
+  fontLikeFromPdfium,
+  missingGlyphs,
+  nativeFontFidelity,
+  standardStyle,
+  substituteStandardFont,
+} from './textedit/fonts.js';
+export type {
+  FontFidelity,
+  FontLike,
+  FontSubstitution,
+  StandardFontFamily,
+} from './textedit/fonts.js';
 export {
   configurePdfiumRuntime,
   isPdfiumConfigured,
@@ -363,9 +393,26 @@ export type {
   TextEditResult,
   TextEditUnsafeReason,
   TextEditVerification,
+  EditStrategy,
+  EditFidelity,
+  TextLineTarget,
+  TextReflowRequest,
+  TextLayoutEdit,
+  TextFontDescriptor,
+  TextObjectInfo,
+  TextLayerKind,
+  PageObjectCounts,
+  PageTextCapability,
+  DocumentTextCapability,
+  EditCapability,
 } from './textedit/types.js';
 export { verifyTextEdits } from './textedit/verify.js';
 export type { TextEditExpectation, TextEditVerificationInput } from './textedit/verify.js';
+export { verifyExportArtifact } from './textedit/exportVerify.js';
+export type {
+  ExportVerifyOptions,
+  VisualEditRegion,
+} from './textedit/exportVerify.js';
 export {
   encodeWithMap,
   glyphNameToUnicode,

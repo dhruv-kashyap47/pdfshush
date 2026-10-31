@@ -27,7 +27,11 @@ import { LIMITS } from '../limits.js';
 import { applyEdits, validateExport, type EditorObject } from '../ops/edit.js';
 import { applyFormValues } from '../ops/forms.js';
 import { loadPdfDocument } from '../ops/pages.js';
+import { wrapText } from '../document/reflow.js';
+import type { BBox } from '../document/types.js';
 import { encodeWithMap, readFontCharcodes, type FontCharcodesByPage } from './charcodes.js';
+import { applyContentStreamEdits } from './contentStream.js';
+import { verifyExportArtifact, type VisualEditRegion } from './exportVerify.js';
 import {
   PdfiumTextDocument,
   type PdfiumTextBounds,
@@ -60,6 +64,8 @@ export interface TextEditOptions {
   /** AcroForm values applied in the final pass. */
   formValues?: Record<string, string | boolean>;
   outputName?: string;
+  /** Render edited pages and compare unchanged pixels. Default true. */
+  verifyVisual?: boolean;
 }
 
 /** Result of the PDFium pass alone, before any verification or overlay. */
@@ -75,7 +81,9 @@ export interface TextEditRunResult {
   pageCount: number;
   outcomes: TextEditOutcome[];
   inPlace: number;
+  contentStream: number;
   fallback: number;
+  manualReview: number;
   /** True when at least one edit went through PDFium. */
   usedNativeEngine: boolean;
   verification: TextEditVerification;
@@ -288,9 +296,22 @@ function matchEraseByBox(
   return members.length > 0 ? { members, loose: true } : undefined;
 }
 
+/**
+ * A failure after the first original line has been mutated.
+ *
+ * Such an edit cannot be demoted to an overlay: the surviving native lines
+ * would print alongside the overlay text. The engine refuses the whole export
+ * instead.
+ */
+class LayoutMutationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LayoutMutationError';
+  }
+}
+
 /** Groups edits by page, preserving request order within each page. */
-function groupByPage(edits: TextEdit[]): Map<number, TextEdit[]> {
-  const byPage = new Map<number, TextEdit[]>();
+function groupByPage(edits: TextEdit[]): Map<number, TextEdit[]> {  const byPage = new Map<number, TextEdit[]>();
   for (const edit of edits) {
     const list = byPage.get(edit.pageIndex);
     if (list) list.push(edit);
@@ -298,6 +319,259 @@ function groupByPage(edits: TextEdit[]): Map<number, TextEdit[]> {
   }
   return byPage;
 }
+
+/** Measure one string with the document font, or null when a glyph is missing. */
+function measureWithFont(
+  doc: PdfiumTextDocument,
+  fontPtr: number,
+  map: ReadonlyMap<number, number> | null | undefined,
+  text: string,
+  fontSize: number,
+): number | null {
+  if (!map) return null;
+  let width = 0;
+  for (const character of text) {
+    const code = map.get(character.codePointAt(0)!);
+    if (code === undefined) {
+      if (character === ' ') {
+        width += fontSize * 0.25;
+        continue;
+      }
+      return null;
+    }
+    const advance = doc.glyphWidth(fontPtr, code, fontSize);
+    if (advance === null) return null;
+    width += advance;
+  }
+  return width;
+}
+
+interface LayoutMetrics {
+  lines: { text: string; widthPt: number; bbox: BBox }[];
+  lineHeight: number;
+  x: number;
+  fontPtr: number;
+  fontSize: number;
+  source: PdfiumTextObject;
+  matrix: readonly [number, number, number, number, number, number];
+  map: Map<number, number>;
+  fontName: string;
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+}
+
+/** Printable ASCII maps one-to-one in the standard PDF fonts. */
+function asciiCharcodeMap(): Map<number, number> {
+  const map = new Map<number, number>();
+  for (let code = 0x20; code <= 0x7e; code += 1) map.set(code, code);
+  return map;
+}
+
+/**
+ * Preflight a multi-line edit: match every original line, measure the new text
+ * in the document's own font, reflow it, and verify the result fits the page and
+ * does not overlap another page object. Nothing is mutated here.
+ */
+function planLayoutEdit(
+  doc: PdfiumTextDocument,
+  pageIndex: number,
+  objects: PdfiumTextObject[],
+  used: Set<number>,
+  edit: TextEdit,
+  fonts: FontCharcodesByPage | undefined,
+): { metrics: LayoutMetrics; targets: ObjectMatch[] } | { reason: string } {
+  const plan = edit.layout!;
+  if (plan.beforeLines.length === 0) return { reason: 'paragraph has no original lines to anchor' };
+  const layoutUsed = new Set(used);
+  const targets: ObjectMatch[] = [];
+  for (const line of plan.beforeLines) {
+    const match = matchObjects(doc, objects, layoutUsed, {
+      ...edit,
+      find: line.text,
+      replace: 'x',
+      box: line.box,
+    });
+    if (!match) return { reason: `no text object matches original line "${line.text.slice(0, 40)}"` };
+    for (const member of match.members) layoutUsed.add(member.ptr);
+    targets.push(match);
+  }
+  const source = targets[0]!.members[0]!;
+  const fontPtr = source.fontPtr;
+  const fontName = doc.fontNameOf(source.ptr);
+  const documentMap = fontName ? fonts?.get(pageIndex)?.get(fontName) : undefined;
+  const standardFont = fontName
+    ? /^(helvetica|times|courier|arial|symbol|zapfdingbats)/i.test(fontName)
+    : false;
+  const map = documentMap ?? (standardFont ? asciiCharcodeMap() : undefined);
+  if (!fontPtr || !map) {
+    return { reason: 'original font has no document-derived encoding map' };
+  }
+  const fontSize = source.fontSize || plan.reflow.lineHeight || 12;
+  const measure = (text: string): number | null => measureWithFont(doc, fontPtr, map, text, fontSize);
+  const wrapped =
+    edit.replace.length === 0
+      ? {
+          lines: [] as { text: string; widthPt: number; index: number }[],
+          overflow: false,
+          exceedsMaxLines: false,
+        }
+      : wrapText(
+          {
+            text: edit.replace,
+            width: plan.reflow.width,
+            fontSize,
+            lineHeightPt: plan.reflow.lineHeight,
+            ...(plan.reflow.maxLines ? { maxLines: plan.reflow.maxLines } : {}),
+          },
+          (text) => measure(text) ?? Number.POSITIVE_INFINITY,
+        );
+  if (wrapped.overflow || wrapped.exceedsMaxLines) {
+    return { reason: 'reflowed text does not fit the paragraph width/line budget' };
+  }
+  const x = plan.reflow.x ?? plan.beforeLines[0]!.box.x;
+  const top = plan.reflow.firstBaselineY - fontSize * 0.82;
+  const geom = doc.geom(pageIndex);
+  const pageWidth = geom.x1 - geom.x0;
+  const pageHeight = geom.y1 - geom.y0;
+  const created: { text: string; widthPt: number; bbox: BBox }[] = [];
+  for (let index = 0; index < wrapped.lines.length; index += 1) {
+    const line = wrapped.lines[index]!;
+    const bbox: BBox = {
+      x,
+      y: top + index * plan.reflow.lineHeight,
+      width: Math.max(1, line.widthPt),
+      height: plan.reflow.lineHeight * 0.9,
+    };
+    if (bbox.x < -0.5 || bbox.y < -0.5 || bbox.x + bbox.width > pageWidth + 0.5 || bbox.y + bbox.height > pageHeight + 0.5) {
+      return { reason: 'reflowed paragraph would leave the page' };
+    }
+    created.push({ text: line.text, widthPt: line.widthPt, bbox });
+  }
+
+  const consumed = new Set(targets.flatMap((target) => target.members.map((member) => member.ptr)));
+  const otherObjects = doc.listPageObjectBounds(pageIndex);
+  for (const object of otherObjects) {
+    if (consumed.has(object.ptr)) continue;
+    const rect = doc.objectDisplayRect(pageIndex, object.bounds);
+    for (const line of created) {
+      const overlap =
+        Math.min(rect.x + rect.width, line.bbox.x + line.bbox.width) -
+        Math.max(rect.x, line.bbox.x);
+      const vertical =
+        Math.min(rect.y + rect.height, line.bbox.y + line.bbox.height) -
+        Math.max(rect.y, line.bbox.y);
+      if (overlap > 0.5 && vertical > 0.5) {
+        return { reason: `reflow would collide with a ${object.kind} object on page ${pageIndex + 1}` };
+      }
+    }
+  }
+
+  return {
+    metrics: {
+      lines: created,
+      lineHeight: plan.reflow.lineHeight,
+      x,
+      fontPtr,
+      fontSize,
+      source,
+      matrix: source.matrix ?? [fontSize, 0, 0, fontSize, 0, 0],
+      map,
+      fontName: fontName ?? '',
+      ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
+    },
+    targets,
+  };
+}
+
+/** Apply a preflighted multi-line edit. Throws rather than leaving half a paragraph. */
+function applyLayoutEdit(
+  doc: PdfiumTextDocument,
+  pageIndex: number,
+  edit: TextEdit,
+  plan: { metrics: LayoutMetrics; targets: ObjectMatch[] },
+): void {
+  const { metrics, targets } = plan;
+  const map = metrics.map;
+  const created: number[] = [];
+  try {
+    // Create overflow lines first. If this fails, nothing has been rewritten.
+    for (let index = targets.length; index < metrics.lines.length; index += 1) {
+      const line = metrics.lines[index]!;
+      const baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
+      const [x, y] = doc.viewPointToPdf(pageIndex, { x: metrics.x, y: baselineY });
+      const matrix = [metrics.matrix[0], metrics.matrix[1], metrics.matrix[2], metrics.matrix[3], x, y] as const;
+      const charcodes = encodeWithMap(map, line.text);
+      const standardName =
+        metrics.fontFamily === 'times'
+          ? 'Times-Roman'
+          : metrics.fontFamily === 'courier'
+            ? 'Courier'
+            : metrics.fontFamily === 'helvetica'
+              ? 'Helvetica'
+              : '';
+      const standard = standardName ? doc.loadStandardFont(standardName) : 0;
+      // For a standard-14 source font, a freshly loaded standard font is exact
+      // and avoids reusing a document font pointer that some PDFium builds only
+      // allow for rewriting existing objects.
+      let ptr = doc.createTextObject(
+        pageIndex,
+        standard || metrics.fontPtr,
+        metrics.fontSize,
+        line.text,
+        matrix,
+        doc.objectFillColor(metrics.source.ptr),
+        metrics.source.renderMode,
+        charcodes,
+      );
+      if (!ptr && standard) {
+        ptr = doc.createTextObject(
+          pageIndex,
+          metrics.fontPtr,
+          metrics.fontSize,
+          line.text,
+          matrix,
+          doc.objectFillColor(metrics.source.ptr),
+          metrics.source.renderMode,
+          charcodes,
+        );
+      }
+      if (!ptr) throw new Error(`PDFium refused to create a reflowed line (${doc.lastCreateError})`);
+      created.push(ptr);
+    }
+
+    for (let index = 0; index < targets.length; index += 1) {
+      const target = targets[index]!;
+      if (index >= metrics.lines.length) {
+        const failed = target.members.filter((member) => !doc.removeObject(pageIndex, member.ptr));
+        if (failed.length > 0) {
+          throw new LayoutMutationError('PDFium refused to remove an unused original line');
+        }
+        continue;
+      }
+      const replacement = metrics.lines[index]!.text;
+      const first = target.members[0]!;
+      const charcodes = encodeWithMap(map, replacement);
+      const written =
+        (charcodes !== null && doc.setCharcodes(first.ptr, charcodes)) ||
+        doc.setText(first.ptr, replacement);
+      if (!written) throw new LayoutMutationError('PDFium refused to rewrite a reflowed line');
+      const tails = target.members.slice(1);
+      const failed = tails.filter((tail) => !doc.removeObject(pageIndex, tail.ptr));
+      if (failed.length > 0) {
+        throw new LayoutMutationError('PDFium refused to remove a split line object');
+      }
+    }
+  } catch (error) {
+    for (const ptr of created) {
+      try {
+        doc.removeObject(pageIndex, ptr);
+      } catch {
+        /* best effort before the whole document is discarded */
+      }
+    }
+    throw error;
+  }
+}
+
 
 /**
  * Runs the PDFium native pass only, returning the serialized bytes and a
@@ -314,7 +588,10 @@ export function applyNativeTextEdits(
 ): NativeTextEditResult {
   const doc = PdfiumTextDocument.open(module, data, password ?? '');
   const progress = createProgressReporter(ctx);
-  const provisional = new Map<string, { mode: TextEditMode; reason?: string }>();
+  const provisional = new Map<
+    string,
+    { mode: TextEditMode; reason?: string; box?: import('./types.js').TextEditBox }
+  >();
   try {
     const pageCount = doc.pageCount();
     const byPage = [...groupByPage(edits).entries()].sort((a, b) => a[0] - b[0]);
@@ -330,6 +607,76 @@ export function applyNativeTextEdits(
       const objects = doc.listTextObjects(pageIndex);
       const used = new Set<number>();
       for (const edit of pageEdits) {
+        if (edit.strategy === 'manual-review') {
+          throw new TextEditUnsafeError([
+            {
+              kind: 'unresolvable',
+              detail: `edit "${edit.id}" is marked for manual review; fidelity cannot be guaranteed`,
+            },
+          ]);
+        }
+        if (edit.strategy && edit.strategy !== 'native-object' && !edit.layout) {
+          provisional.set(edit.id, {
+            mode: edit.strategy === 'content-stream' ? 'fallback' : 'fallback',
+            reason: `requested strategy: ${edit.strategy}`,
+          });
+          done += 1;
+          progress.step(done, edits.length, `Editing page ${pageIndex + 1}`);
+          continue;
+        }
+        if (edit.layout) {
+          const plan = planLayoutEdit(doc, pageIndex, objects, used, edit, fonts);
+          if ('reason' in plan) {
+            provisional.set(edit.id, { mode: 'fallback', reason: plan.reason });
+          } else {
+            try {
+              applyLayoutEdit(doc, pageIndex, edit, plan);
+            } catch (error) {
+              const detail = error instanceof Error ? error.message : String(error);
+              if (error instanceof LayoutMutationError) {
+                throw new TextEditUnsafeError([
+                  {
+                    kind: 'unresolvable',
+                    detail: `layout edit "${edit.id}" failed after rewriting part of page ${pageIndex + 1}: ${detail}; refusing to overlay a partially rewritten paragraph`,
+                  },
+                ]);
+              }
+              provisional.set(edit.id, {
+                mode: 'fallback',
+                reason: `native reflow could not create a line atomically: ${detail}`,
+              });
+              done += 1;
+              progress.step(done, edits.length, `Editing page ${pageIndex + 1}`);
+              continue;
+            }
+            for (const target of plan.targets) {
+              for (const member of target.members) used.add(member.ptr);
+            }
+            const xs = plan.metrics.lines.map((line) => line.bbox.x);
+            const ys = plan.metrics.lines.map((line) => line.bbox.y);
+            const rights = plan.metrics.lines.map((line) => line.bbox.x + line.bbox.width);
+            const bottoms = plan.metrics.lines.map((line) => line.bbox.y + line.bbox.height);
+            for (const line of edit.layout!.beforeLines) {
+              xs.push(line.box.x);
+              ys.push(line.box.y);
+              rights.push(line.box.x + line.box.width);
+              bottoms.push(line.box.y + line.box.height);
+            }
+            const box =
+              xs.length > 0
+                ? {
+                    x: Math.min(...xs),
+                    y: Math.min(...ys),
+                    width: Math.max(...rights) - Math.min(...xs),
+                    height: Math.max(...bottoms) - Math.min(...ys),
+                  }
+                : edit.box;
+            provisional.set(edit.id, { mode: 'in-place', ...(box ? { box } : {}) });
+          }
+          done += 1;
+          progress.step(done, edits.length, `Editing page ${pageIndex + 1}`);
+          continue;
+        }
         const target = matchObjects(doc, objects, used, edit);
         if (!target) {
           provisional.set(edit.id, {
@@ -422,6 +769,7 @@ export function applyNativeTextEdits(
         pageIndex: edit.pageIndex,
         mode: state.mode,
         ...(state.reason ? { reason: state.reason } : {}),
+        ...(state.box ? { box: state.box } : edit.box ? { box: edit.box } : {}),
       };
     });
     return { bytes, pageCount, outcomes };
@@ -457,6 +805,12 @@ function assertEditsValid(edits: TextEdit[]): void {
         detail: `edit "${edit.id}" exceeds the ${LIMITS.tool.maxTextEditChars}-character limit`,
       });
     }
+    if (edit.strategy === 'manual-review') {
+      reasons.push({
+        kind: 'unresolvable',
+        detail: `edit "${edit.id}" is marked for manual review; fidelity cannot be guaranteed`,
+      });
+    }
   }
   if (reasons.length > 0) throw new TextEditUnsafeError(reasons);
 }
@@ -488,7 +842,9 @@ export async function editPdfText(
       pageCount: await pageCountOf(bytes, password),
       outcomes: [],
       inPlace: 0,
+      contentStream: 0,
       fallback: 0,
+      manualReview: 0,
       usedNativeEngine: false,
       verification: { ok: true, checks: [] },
       warnings,
@@ -542,9 +898,72 @@ export async function editPdfText(
     );
     for (const outcome of outcomes) {
       if (outcome.mode === 'in-place' && failed.has(outcome.id)) {
+        const sourceEdit = edits.find((edit) => edit.id === outcome.id);
+        if (sourceEdit?.layout) {
+          // A multi-line edit may already have rewritten some lines. Falling back
+          // to an overlay would duplicate the surviving text, so this is a hard
+          // verification failure rather than a demotion.
+          throw new TextEditUnsafeError([
+            {
+              kind: 'verification',
+              detail: `layout edit "${outcome.id}" did not survive re-extraction; refusing to overlay a partially rewritten paragraph`,
+            },
+          ]);
+        }
         outcome.mode = 'fallback';
         outcome.reason = 'in-place write did not survive re-extraction';
       }
+    }
+  }
+
+  // Strategy B: a native fallback may still be safely editable by rewriting the
+  // original show operator, provided the font encoding is fully understood. It
+  // is attempted only for single-line replacements and is verified again below.
+  let workingBytes = native.bytes;
+  const contentCandidates = outcomes.filter((outcome) => {
+    const edit = edits.find((candidate) => candidate.id === outcome.id);
+    return (
+      outcome.mode === 'fallback' &&
+      Boolean(edit) &&
+      !edit!.layout &&
+      (edit!.strategy === undefined || edit!.strategy === 'content-stream') &&
+      edit!.replace.length > 0
+    );
+  });
+  if (contentCandidates.length > 0) {
+    try {
+      const stream = await applyContentStreamEdits(
+        workingBytes,
+        contentCandidates
+          .map((outcome) => edits.find((edit) => edit.id === outcome.id))
+          .filter((edit): edit is TextEdit => Boolean(edit)),
+        fonts,
+        ctx,
+        password,
+      );
+      const applied = new Map(
+        stream.outcomes
+          .filter((outcome) => outcome.mode === 'content-stream')
+          .map((outcome) => [outcome.id, outcome] as const),
+      );
+      if (applied.size > 0) {
+        workingBytes = stream.bytes;
+        for (const outcome of outcomes) {
+          const replacement = applied.get(outcome.id);
+          if (!replacement) continue;
+          outcome.mode = 'content-stream';
+          outcome.fidelity = 'high';
+          delete outcome.reason;
+        }
+        warnings.push(
+          `${applied.size} of ${edits.length} edits were written through the page content stream because no native text object could be rewritten.`,
+        );
+      } else {
+        warnings.push('content-stream fallback found no safely anchored show operator');
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      warnings.push(`content-stream fallback was not used: ${detail}`);
     }
   }
 
@@ -581,13 +1000,13 @@ export async function editPdfText(
   const hasOverlay = fallbackObjects.length > 0 || overlayObjects.length > 0;
   const finalBytes = hasOverlay
     ? await applyOverlayPass(
-        native.bytes,
+        workingBytes,
         [...overlayObjects, ...fallbackObjects],
         options.formValues,
         ctx,
         password,
       )
-    : native.bytes;
+    : workingBytes;
 
   if (fallbackObjects.length > 0) {
     warnings.push(
@@ -596,14 +1015,58 @@ export async function editPdfText(
     );
   }
 
-  // Final gate: reopen the bytes we are about to hand back and confirm every
-  // replacement is extractable.
+  // Final gate: reopen the bytes we are about to hand back, verify structure and
+  // font resources, confirm every replacement is extractable, and compare the
+  // rendered page outside the edited regions. A replacement string being present
+  // is necessary but not sufficient.
   const finalExpectations: TextEditExpectation[] = edits
     .filter((edit) => edit.replace.length > 0)
     .map((edit) => ({ label: edit.id, pageIndex: edit.pageIndex, expect: edit.replace }));
-  const verification = await verifyTextEdits(finalBytes, {
+  const editedRegions: VisualEditRegion[] = [];
+  for (const edit of edits) {
+    const outcomeBox = outcomes.find((outcome) => outcome.id === edit.id)?.box;
+    const fallbackBoxes = (edit.fallback ?? []).map((object) => ({
+      x: object.x,
+      y: object.y,
+      width: object.width,
+      height: object.height,
+    }));
+    if (fallbackBoxes.length > 0 || outcomeBox || edit.box) {
+      const boxes = [
+        ...fallbackBoxes,
+        ...(outcomeBox ? [outcomeBox] : edit.box ? [edit.box] : []),
+      ];
+      const x = Math.min(...boxes.map((box) => box.x));
+      const y = Math.min(...boxes.map((box) => box.y));
+      const right = Math.max(...boxes.map((box) => box.x + box.width));
+      const bottom = Math.max(...boxes.map((box) => box.y + box.height));
+      editedRegions.push({
+        pageIndex: edit.pageIndex,
+        box: { x, y, width: right - x, height: bottom - y },
+      });
+      continue;
+    }
+    const lines = edit.layout?.beforeLines ?? [];
+    if (lines.length > 0) {
+      const x = Math.min(...lines.map((line) => line.box.x));
+      const y = Math.min(...lines.map((line) => line.box.y));
+      const right = Math.max(...lines.map((line) => line.box.x + line.box.width));
+      const bottom = Math.max(...lines.map((line) => line.box.y + line.box.height));
+      editedRegions.push({
+        pageIndex: edit.pageIndex,
+        box: { x, y, width: right - x, height: bottom - y },
+      });
+    }
+  }
+  const verification = await verifyExportArtifact({
+    original: data,
+    output: finalBytes,
     expectedPageCount: native.pageCount,
     expectations: finalExpectations,
+    editedRegions,
+    ...(options.verifyVisual !== undefined ? { visual: options.verifyVisual } : {}),
+    ctx,
+    ...(password ? { password } : {}),
   });
   if (!verification.ok) {
     throw new TextEditUnsafeError([
@@ -618,14 +1081,19 @@ export async function editPdfText(
   }
 
   const inPlace = outcomes.filter((outcome) => outcome.mode === 'in-place').length;
+  const contentStream = outcomes.filter((outcome) => outcome.mode === 'content-stream').length;
+  const fallback = outcomes.filter((outcome) => outcome.mode === 'fallback').length;
+  const manualReview = outcomes.filter((outcome) => outcome.mode === 'manual-review').length;
   return {
     bytes: finalBytes,
     nativeBytes: native.bytes,
     pageCount: native.pageCount,
     outcomes,
     inPlace,
-    fallback: outcomes.length - inPlace,
-    usedNativeEngine: true,
+    contentStream,
+    fallback,
+    manualReview,
+    usedNativeEngine: inPlace > 0 || contentStream > 0,
     verification,
     warnings,
     name: options.outputName ?? 'edited.pdf',

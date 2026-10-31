@@ -48,6 +48,7 @@ import {
   type FormWidgetInfo,
   type InspectOutput,
   type PageLayout,
+  type PageTextCapability,
   type Paragraph,
   type TextEdit,
   type TextEditJobOutput,
@@ -261,6 +262,10 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const [runsByPage, setRunsByPage] = useState<Record<number, TextRun[]>>({});
   /** Structured page layouts, fetched alongside the legacy runs. */
   const [layoutsByPage, setLayoutsByPage] = useState<Record<number, PageLayout>>({});
+  /** PDFium capability snapshot per page (fonts, OCR layer, scans). */
+  const [capabilitiesByPage, setCapabilitiesByPage] = useState<
+    Record<number, PageTextCapability>
+  >({});
   const [textSelection, setTextSelection] = useState<TextSelectionState | null>(null);
   const [selectedTextBlock, setSelectedTextBlock] = useState<{
     pageIndex: number;
@@ -301,6 +306,8 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   /** Mirror of the structured layouts for pointer/keyboard callbacks. */
   const layoutsByPageRef = useRef(layoutsByPage);
   layoutsByPageRef.current = layoutsByPage;
+  const capabilitiesByPageRef = useRef(capabilitiesByPage);
+  capabilitiesByPageRef.current = capabilitiesByPage;
   /**
    * Active inline paragraph session. Kept in a ref as well as state because a
    * blur can arrive in the same tick as a save, and commit must read the latest
@@ -570,6 +577,9 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
           // One pdf.js pass produces both the legacy runs (click-to-replace
           // fallback) and the structured layout the text overlay uses.
           includeLayout: true,
+          // PDFium capability inspection runs alongside the layout so the
+          // editor can say "native", "OCR layer" or "scan/review" before a save.
+          includeCapabilities: true,
         });
         // Runs belong to the document they were read from; writing them into a
         // newer one would let "click to replace" quote a different PDF.
@@ -584,6 +594,16 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
             chunk.forEach((page, i) => {
               const layout = result.layouts?.[i];
               if (layout) next[page] = layout;
+            });
+            return next;
+          });
+        }
+        if (result.capabilities) {
+          setCapabilitiesByPage((prev) => {
+            const next = { ...prev };
+            chunk.forEach((page, i) => {
+              const capability = result.capabilities?.[i];
+              if (capability) next[page] = capability;
             });
             return next;
           });
@@ -627,6 +647,8 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     setRunsByPage({});
     setLayoutsByPage({});
     layoutsByPageRef.current = {};
+    setCapabilitiesByPage({});
+    capabilitiesByPageRef.current = {};
     setTextSelection(null);
     setSelectedTextBlock(null);
     setParagraphEdit(null);
@@ -1014,8 +1036,29 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
         if (!layout || !paragraph) continue;
         const key = paragraphEditKey(mutation.pageIndex, mutation.paragraphId);
         for (const id of paragraphObjectIds.current.get(key) ?? []) removed.add(id);
+        const capability = capabilitiesByPageRef.current[mutation.pageIndex];
+        let strategy:
+          | 'native-object'
+          | 'content-stream'
+          | 'localized-reconstruction'
+          | 'manual-review'
+          | undefined;
+        if (capability?.likelyScanned) {
+          strategy = 'manual-review';
+        } else if (capability && capability.textObjects.length > 0) {
+          const normalized = (value: string): string => value.replace(/\s+/gu, ' ').trim();
+          const matched = layout.lines
+            .filter((line) => paragraph.lineIds.includes(line.id))
+            .every((line) =>
+              capability.textObjects.some(
+                (object) => normalized(object.text) === normalized(line.text),
+              ),
+            );
+          if (!matched) strategy = 'localized-reconstruction';
+        }
         const built = buildParagraphEditObjects(paragraph, layout, mutation.text, {
           makeId: newObjectId,
+          ...(strategy ? { strategy } : {}),
         });
         additions.push(...built.whiteouts);
         if (built.textObject) additions.push(built.textObject);
@@ -1522,6 +1565,48 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     // job applies them only if the in-place rewrite does not work.
     const edits: TextEdit[] = [];
     const linked = new Set<string>();
+    // Paragraph edits carry a native reflow plan. Prefer PDFium (original font,
+    // created/removed lines); the whiteouts + preview text are only the fallback.
+    for (const object of snapshot.objects) {
+      if (object.kind !== 'text' && object.kind !== 'whiteout') continue;
+      const plan = object.native;
+      if (!plan) continue;
+      const covers = (plan.coverIds ?? [])
+        .map((id) => snapshot.objects.find((candidate) => candidate.id === id))
+        .filter((candidate): candidate is EditorObject => Boolean(candidate));
+      const fallback = [...covers];
+      if (object.kind === 'text') fallback.push(object);
+      const xs = plan.beforeLines.map((line) => line.box.x);
+      const ys = plan.beforeLines.map((line) => line.box.y);
+      const rights = plan.beforeLines.map((line) => line.box.x + line.box.width);
+      const bottoms = plan.beforeLines.map((line) => line.box.y + line.box.height);
+      edits.push({
+        id: object.id,
+        pageIndex: object.pageIndex,
+        find: plan.before,
+        replace: plan.after,
+        ...(xs.length > 0
+          ? {
+              box: {
+                x: Math.min(...xs),
+                y: Math.min(...ys),
+                width: Math.max(...rights) - Math.min(...xs),
+                height: Math.max(...bottoms) - Math.min(...ys),
+              },
+            }
+          : {}),
+        layout: {
+          ...(plan.paragraphId ? { paragraphId: plan.paragraphId } : {}),
+          ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
+          beforeLines: plan.beforeLines,
+          reflow: plan.reflow,
+        },
+        ...(plan.strategy ? { strategy: plan.strategy } : {}),
+        ...(fallback.length > 0 ? { fallback } : {}),
+      });
+      linked.add(object.id);
+      for (const cover of covers) linked.add(cover.id);
+    }
     for (const object of snapshot.objects) {
       if (object.kind !== 'text' || !object.inPlace) continue;
       const cover = object.inPlace.coverId
@@ -1559,9 +1644,10 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     // Tell the user honestly which edits were genuine rewrites and which were
     // overlays, rather than implying every edit replaced the original text.
     const report = outcome.result.report;
-    if (report.inPlace > 0 || report.fallback > 0) {
+    if (report.inPlace > 0 || report.contentStream > 0 || report.fallback > 0) {
       const parts: string[] = [];
       if (report.inPlace > 0) parts.push(`${report.inPlace} replaced in place`);
+      if (report.contentStream > 0) parts.push(`${report.contentStream} via content stream`);
       if (report.fallback > 0) parts.push(`${report.fallback} drawn as an overlay`);
       toast.success(`Text edits: ${parts.join(', ')}`);
     }
@@ -1853,6 +1939,18 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     .map((paragraph) => paragraphDisplayText(paragraph))
     .join(' ')
     .slice(0, 220);
+  const selectedBlockCapability = selectedTextBlock
+    ? capabilitiesByPage[selectedTextBlock.pageIndex] ?? null
+    : null;
+  const selectedBlockEditStatus = selectedBlockCapability
+    ? selectedBlockCapability.likelyScanned
+      ? 'Manual review: image-only page has no text layer'
+      : selectedBlockCapability.textLayer === 'ocr'
+        ? 'Native edit: invisible OCR text layer (render mode preserved)'
+        : selectedBlockCapability.textLayer === 'mixed'
+          ? 'Native edit: mixed visible/invisible text layer'
+          : 'Native edit: document text objects and fonts'
+    : 'Inspecting fonts and page objects…';
   const hasEdits = objectCount > 0 || Object.keys(editor.doc.formValues).length > 0;
   const dirty = hasEdits && editor.doc !== savedDocRef.current;
 
@@ -2100,6 +2198,9 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
                     <p className="text-xs capitalize text-muted-foreground">
                       {selectedBlockModel.kind} · {selectedBlockParagraphs.length} paragraph
                       {selectedBlockParagraphs.length === 1 ? '' : 's'}
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      {selectedBlockEditStatus}
                     </p>
                   </div>
                   {selectedBlockPreview && (

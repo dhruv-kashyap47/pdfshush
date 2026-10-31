@@ -41,6 +41,33 @@ export interface EditObjectBase {
 
 export type EditorTextFontFamily = 'helvetica' | 'times' | 'courier';
 
+/**
+ * Native paragraph edit intent carried by a text overlay object.
+ *
+ * The overlay is still the visual preview and the fallback, but the save path
+ * can promote the object into a layout-aware PDFium edit: the original line
+ * objects are matched, the new text is measured in the original font and
+ * extra lines are created/removed. Kept as plain data so it survives the
+ * worker boundary and history snapshots.
+ */
+export interface EditTextNativePlan {
+  paragraphId?: string;
+  before: string;
+  after: string;
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+  beforeLines: { text: string; box: { x: number; y: number; width: number; height: number } }[];
+  /** Whiteout ids created for this paragraph (excluded from the overlay when native wins). */
+  coverIds?: string[];
+  reflow: {
+    width: number;
+    lineHeight: number;
+    firstBaselineY: number;
+    x: number;
+    maxLines?: number;
+  };
+  strategy?: 'native-object' | 'content-stream' | 'localized-reconstruction' | 'manual-review';
+}
+
 export interface EditTextObject extends EditObjectBase {
   kind: 'text';
   text: string;
@@ -59,6 +86,8 @@ export interface EditTextObject extends EditObjectBase {
    * when that is not possible or does not survive verification.
    */
   inPlace?: { find: string; box: { x: number; y: number; width: number; height: number }; coverId?: string };
+  /** Multi-line paragraph edit intent for the native reflow path. */
+  native?: EditTextNativePlan;
 }
 
 export interface EditImageObject extends EditObjectBase {
@@ -88,6 +117,8 @@ export interface EditMarkObject extends EditObjectBase {
   kind: 'highlight' | 'strikeout' | 'underline' | 'whiteout';
   color?: string;
   strokeWidth?: number;
+  /** Paragraph deletion intent; only meaningful on a whiteout cover. */
+  native?: EditTextNativePlan;
 }
 
 export type EditorObject =
