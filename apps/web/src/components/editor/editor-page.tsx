@@ -10,9 +10,18 @@
  */
 
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { TEXT_LINE_HEIGHT, type EditorObject, type FormWidgetInfo, type TextRun } from '@pdfshush/pdf-core';
+import {
+  PageInteractionModel,
+  TEXT_LINE_HEIGHT,
+  type EditorObject,
+  type FormWidgetInfo,
+  type PageLayout,
+  type TextRun,
+} from '@pdfshush/pdf-core';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TextLayer } from '@/components/editor/text-layer';
 import type { EditorTool } from '@/components/editor/editor-toolbar';
+import type { ParagraphEditState, TextSelectionState } from '@/lib/text-editing';
 import { cn } from '@/lib/utils';
 
 interface Rect {
@@ -34,6 +43,13 @@ export interface EditorPageProps {
   editingId: string | null;
   tool: EditorTool;
   runs: TextRun[] | null;
+  /** Structured text model for this page, when extraction has finished. */
+  layout: PageLayout | null;
+  /** Selection owned by the editor, or null when it belongs to another page. */
+  textSelection: TextSelectionState | null;
+  selectedTextBlockId: string | null;
+  /** Inline paragraph edit state, or null when another page is being edited. */
+  paragraphEdit: ParagraphEditState | null;
   widgets: FormWidgetInfo[];
   formValues: Record<string, string | boolean>;
   /** True while a save is in flight: the document is frozen, not lost. */
@@ -47,6 +63,15 @@ export interface EditorPageProps {
   onAutoHeight?: (id: string, height: number) => void;
   onCreate: (object: EditorObject) => void;
   onSeedReplace: (run: TextRun) => void;
+  onTextBlockSelect: (blockId: string | null) => void;
+  onParagraphEdit: (
+    paragraphId: string,
+    selection: { start: number; end: number } | null,
+  ) => void;
+  onTextSelectionChange: (selection: TextSelectionState | null) => void;
+  onParagraphTextInput: (text: string, paragraphId: string, token: number) => void;
+  onParagraphCommit: (text: string, paragraphId: string, token: number) => void;
+  onParagraphCancel: (paragraphId: string, token: number) => void;
   onImageRequested: (point: { x: number; y: number }) => void;
   /** Signature tool: opens the pad dialog anchored at the click. */
   onSignatureRequested: (point: { x: number; y: number }) => void;
@@ -280,10 +305,21 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     editingId,
     tool,
     runs,
+    layout,
+    textSelection,
+    selectedTextBlockId,
+    paragraphEdit,
     widgets,
     formValues,
     readOnly = false,
   } = props;
+
+  // One spatial model per extracted layout. Memoized here (rather than in the
+  // tool) so a newly fetched page does not rebuild every other page's indexes.
+  const textModel = useMemo(
+    () => (layout ? new PageInteractionModel(layout) : null),
+    [layout],
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
@@ -495,6 +531,18 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     () => objects.filter((object) => object.pageIndex === pageIndex),
     [objects, pageIndex],
   );
+  const claimedTextBoxes = useMemo(
+    () =>
+      pageObjects
+        .filter((object) => object.kind === 'text')
+        .map((object) => ({
+          x: object.x,
+          y: object.y,
+          width: object.width,
+          height: object.height,
+        })),
+    [pageObjects],
+  );
   const pageWidgets = useMemo(
     () => widgets.filter((widget) => widget.pageIndex === pageIndex),
     [widgets, pageIndex],
@@ -532,6 +580,31 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
           <Skeleton className="absolute inset-0 h-full w-full rounded-none" data-testid="editor-page-loading" />
         )}
 
+        {/* Structured text: hover, block/paragraph selection, drag selection and
+            the inline paragraph editor. It sits below widgets and objects so
+            those keep winning a click that lands on them. The Text tool keeps
+            its legacy single-run replacement + Add Text behaviour, so this
+            layer is active for Select only. */}
+        {layout && textModel && tool === 'select' ? (
+          <TextLayer
+            layout={layout}
+            model={textModel}
+            zoom={zoom}
+            tool={tool}
+            readOnly={readOnly}
+            selection={textSelection}
+            selectedBlockId={selectedTextBlockId}
+            editing={paragraphEdit}
+            claimedTextBoxes={claimedTextBoxes}
+            onBlockSelect={props.onTextBlockSelect}
+            onParagraphEdit={props.onParagraphEdit}
+            onSelectionChange={props.onTextSelectionChange}
+            onTextInput={props.onParagraphTextInput}
+            onCommitEdit={props.onParagraphCommit}
+            onCancelEdit={props.onParagraphCancel}
+          />
+        ) : null}
+
         {/* Live AcroForm inputs, laid over their widget rectangles. With a
             drawing tool active they step aside so markup can go over a field. */}
         {pageWidgets.map((widget, index) => (
@@ -545,7 +618,8 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
           />
         ))}
 
-        {/* Text-tool affordance: show the clickable runs. */}
+        {/* Text-tool affordance: the legacy single-run replacement boxes. The
+            Select tool uses paragraph hover instead. */}
         {tool === 'text' && runs
           ? runs.map((run, index) => (
               <div

@@ -18,6 +18,7 @@
     "test:e2e": "node tests/support/preflight.mjs && node tests/e2e/smoke.mjs",
     "test:e2e:sign": "node tests/support/preflight.mjs && node tests/e2e/sign.mjs",
     "test:e2e:text-edit": "node tests/support/preflight.mjs && node tests/e2e/text-edit.mjs",
+    "test:e2e:text-model": "node tests/support/preflight.mjs && node tests/e2e/text-model.mjs",
     "test:e2e:ai": "node tests/support/preflight.mjs && node tests/e2e/ai.mjs",
     "test:e2e:ai-managed": "node tests/support/preflight.mjs && node tests/e2e/ai-managed.mjs",
     "test:e2e:plain-tools": "node tests/support/preflight.mjs && node tests/e2e/plain-tools.mjs",

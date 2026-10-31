@@ -40,12 +40,15 @@ import {
 import {
   JobAbortedError,
   LIMITS,
+  TextEditSession,
   rasterWidthWithinBudget,
   timeoutForPageCount,
   type EditorObject,
   type EditTextObject,
   type FormWidgetInfo,
   type InspectOutput,
+  type PageLayout,
+  type Paragraph,
   type TextEdit,
   type TextEditJobOutput,
   type TextRun,
@@ -70,11 +73,22 @@ import { downloadBlob, downloadBytes } from '@/lib/download';
 import { formatPercent } from '@/lib/format';
 import { readAsInputFiles, PDF_ACCEPT } from '@/lib/files';
 import { useEditorDoc } from '@/lib/editor-state';
+import type { EditorDoc } from '@/lib/editor-state';
 import { jobPool } from '@/lib/job-pool';
 import {
   SIGNATURE_LABEL_MAX_CHARS,
   sanitizeSignatureLabel,
 } from '@/lib/signature-assets';
+import {
+  bodySelectionToDisplay,
+  buildParagraphEditObjects,
+  mutateParagraphText,
+  paragraphDisplayText,
+  paragraphEditKey,
+  type ParagraphEditState,
+  type ParagraphTextMutation,
+  type TextSelectionState,
+} from '@/lib/text-editing';
 import { recordRecent } from '@/tools/recent';
 import type { SignatureCapture } from '@/components/signature/signature-pad-dialog';
 
@@ -123,6 +137,7 @@ const RUN_PAGE_CHUNK = 40;
 const NO_OBJECTS: EditorObject[] = [];
 const NO_WIDGETS: FormWidgetInfo[] = [];
 const NO_FORM_VALUES: Record<string, string | boolean> = {};
+const NO_PARAGRAPHS: Paragraph[] = [];
 
 const KEY_TOOLS: Record<string, EditorTool> = { s: 'select', t: 'text', i: 'image', h: 'highlight' };
 
@@ -164,6 +179,12 @@ function isAbort(error: unknown): boolean {
 
 interface PageBinding {
   onSeedReplace: (run: TextRun) => void;
+  onTextBlockSelect: (blockId: string | null) => void;
+  onParagraphEdit: (
+    paragraphId: string,
+    selection: { start: number; end: number } | null,
+  ) => void;
+  onTextSelectionChange: (selection: TextSelectionState | null) => void;
   onImageRequested: (point: { x: number; y: number }) => void;
   onSignatureRequested: (point: { x: number; y: number }) => void;
   onVisible: () => void;
@@ -238,6 +259,14 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const [editingId, setEditingId] = useState<string | null>(null);
   const [rasters, setRasters] = useState<Record<number, { url: string; widthPx: number }>>({});
   const [runsByPage, setRunsByPage] = useState<Record<number, TextRun[]>>({});
+  /** Structured page layouts, fetched alongside the legacy runs. */
+  const [layoutsByPage, setLayoutsByPage] = useState<Record<number, PageLayout>>({});
+  const [textSelection, setTextSelection] = useState<TextSelectionState | null>(null);
+  const [selectedTextBlock, setSelectedTextBlock] = useState<{
+    pageIndex: number;
+    blockId: string;
+  } | null>(null);
+  const [paragraphEdit, setParagraphEdit] = useState<ParagraphEditState | null>(null);
 
   const inspectRunner = useJobRunner<InspectOutput>('inspect');
   const editRunner = useJobRunner<TextEditJobOutput>('text-edit');
@@ -269,6 +298,35 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   /** Mirror of `runsByPage` for the eviction pass, which must not re-run on it. */
   const runsByPageRef = useRef(runsByPage);
   runsByPageRef.current = runsByPage;
+  /** Mirror of the structured layouts for pointer/keyboard callbacks. */
+  const layoutsByPageRef = useRef(layoutsByPage);
+  layoutsByPageRef.current = layoutsByPage;
+  /**
+   * Active inline paragraph session. Kept in a ref as well as state because a
+   * blur can arrive in the same tick as a save, and commit must read the latest
+   * text rather than whatever React last rendered.
+   */
+  const paragraphEditRef = useRef<{
+    key: string;
+    token: number;
+    session: TextEditSession;
+    baseline: string;
+    paragraph: Paragraph;
+    layout: PageLayout;
+    pageIndex: number;
+  } | null>(null);
+  /** Objects created for each paragraph edit, so a re-edit replaces its own. */
+  const paragraphObjectIds = useRef(new Map<string, string[]>());
+  const editToken = useRef(0);
+  const textSelectionRef = useRef(textSelection);
+  textSelectionRef.current = textSelection;
+  const savingRef = useRef(false);
+  /**
+   * Latest overlay document for callbacks that must read it without taking a
+   * dependency on every keystroke (which would rebuild every page binding).
+   */
+  const editorDocRef = useRef(editor.doc);
+  editorDocRef.current = editor.doc;
 
   const rasterPending = useRef(new Set<number>());
   const rasterRequested = useRef(new Map<number, number>());
@@ -344,6 +402,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const inspectState = inspectRunner.state;
   const editState = editRunner.state;
   const saving = editState.status === 'running';
+  savingRef.current = saving;
 
   /* ------------------------------------------------------------ rasters */
 
@@ -508,6 +567,9 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
         const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
         const result = await jobPool.run<TextRunsOutput>('text-runs', input, {
           pageIndexes: chunk,
+          // One pdf.js pass produces both the legacy runs (click-to-replace
+          // fallback) and the structured layout the text overlay uses.
+          includeLayout: true,
         });
         // Runs belong to the document they were read from; writing them into a
         // newer one would let "click to replace" quote a different PDF.
@@ -516,6 +578,16 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
           ...prev,
           ...Object.fromEntries(chunk.map((page, i) => [page, result.runs[i] ?? []])),
         }));
+        if (result.layouts) {
+          setLayoutsByPage((prev) => {
+            const next = { ...prev };
+            chunk.forEach((page, i) => {
+              const layout = result.layouts?.[i];
+              if (layout) next[page] = layout;
+            });
+            return next;
+          });
+        }
         for (const index of chunk) runsFetched.current.add(index);
       }
     } catch {
@@ -553,6 +625,13 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     rastersRef.current = {};
     setRasters({});
     setRunsByPage({});
+    setLayoutsByPage({});
+    layoutsByPageRef.current = {};
+    setTextSelection(null);
+    setSelectedTextBlock(null);
+    setParagraphEdit(null);
+    paragraphEditRef.current = null;
+    paragraphObjectIds.current.clear();
     runsFetched.current.clear();
     runsInflight.current.clear();
     rasterRequested.current.clear();
@@ -770,11 +849,18 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     setZoom(computeFitZoom(container, info.pages));
   }, [stage, info, computeFitZoom]);
 
-  // Warm run boxes for every page the first time the text tool is picked.
+  // Warm the structured text model around the current page. Extraction is
+  // incremental by page: opening a 500-page book must not parse every page just
+  // because the Select or Text tool is active. Pages near the viewport are
+  // requested by the IntersectionObserver as well.
   useEffect(() => {
-    if (stage !== 'editing' || tool !== 'text' || !info) return;
-    void ensureRuns(Array.from({ length: info.pageCount }, (_, index) => index));
-  }, [tool, stage, info, ensureRuns]);
+    if (stage !== 'editing' || !info) return;
+    if (tool !== 'select' && tool !== 'text') return;
+    const wanted = [currentPage - 1, currentPage, currentPage + 1, currentPage + 2].filter(
+      (index) => index >= 0 && index < info.pageCount,
+    );
+    void ensureRuns(wanted);
+  }, [tool, currentPage, stage, info, ensureRuns]);
 
   /* ----------------------------------------------------------- editing */
 
@@ -789,6 +875,8 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
       }
       editor.apply((doc) => ({ ...doc, objects: [...doc.objects, object] }));
       setSelectedId(object.id);
+      setTextSelection(null);
+      setSelectedTextBlock(null);
     },
     [atObjectLimit, editor.apply],
   );
@@ -849,6 +937,8 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const startEdit = useCallback(
     (id: string) => {
       setSelectedId(id);
+      setTextSelection(null);
+      setSelectedTextBlock(null);
       setEditingId(id);
       editor.beginTx();
     },
@@ -894,7 +984,271 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     [editor.live],
   );
 
-  const select = useCallback((id: string | null) => setSelectedId(id), []);
+  const select = useCallback((id: string | null) => {
+    setSelectedId(id);
+    // An object and a text block are never selected at the same time: the
+    // inspector would otherwise describe two things and Delete would be
+    // ambiguous. Clicking empty page space also lands here with `null`.
+    setTextSelection(null);
+    setSelectedTextBlock(null);
+  }, []);
+
+  /* ------------------------------------------------------ structured text */
+
+  /**
+   * Applies paragraph mutations to a snapshot, replacing any objects a previous
+   * edit of the same paragraph produced.
+   *
+   * This is the single place text edits enter the overlay document. Commit,
+   * cut, paste and Delete all go through it, so they all become one undo step
+   * and a paragraph can be edited repeatedly without stacking whiteouts.
+   */
+  const appendMutationObjects = useCallback(
+    (doc: EditorDoc, mutations: readonly ParagraphTextMutation[]): EditorDoc | null => {
+      const additions: EditorObject[] = [];
+      const removed = new Set<string>();
+      const pendingIds: Array<[string, string[]]> = [];
+      for (const mutation of mutations) {
+        const layout = layoutsByPageRef.current[mutation.pageIndex];
+        const paragraph = layout?.paragraphs.find((item) => item.id === mutation.paragraphId);
+        if (!layout || !paragraph) continue;
+        const key = paragraphEditKey(mutation.pageIndex, mutation.paragraphId);
+        for (const id of paragraphObjectIds.current.get(key) ?? []) removed.add(id);
+        const built = buildParagraphEditObjects(paragraph, layout, mutation.text, {
+          makeId: newObjectId,
+        });
+        additions.push(...built.whiteouts);
+        if (built.textObject) additions.push(built.textObject);
+        pendingIds.push([
+          key,
+          [
+            ...built.whiteouts.map((object) => object.id),
+            ...(built.textObject ? [built.textObject.id] : []),
+          ],
+        ]);
+      }
+      if (additions.length === 0 && removed.size === 0) return null;
+      const remaining = doc.objects.filter((object) => !removed.has(object.id));
+      if (remaining.length + additions.length > LIMITS.tool.maxEditObjects) {
+        toast.error(
+          `This document already has ${LIMITS.tool.maxEditObjects.toLocaleString()} objects`,
+        );
+        return null;
+      }
+      // Only record the new objects once the document is certain to receive
+      // them; otherwise a rejected edit would make the next edit try to remove
+      // ids that were never added.
+      for (const [key, ids] of pendingIds) paragraphObjectIds.current.set(key, ids);
+      return { ...doc, objects: [...remaining, ...additions] };
+    },
+    [],
+  );
+
+  const applyTextMutations = useCallback(
+    (mutations: readonly ParagraphTextMutation[]) => {
+      const next = appendMutationObjects(editorDocRef.current, mutations);
+      if (next) editor.apply(next);
+    },
+    [appendMutationObjects, editor.apply],
+  );
+
+  const commitParagraphEdit = useCallback(
+    (text?: string, paragraphId?: string, token?: number) => {
+      const active = paragraphEditRef.current;
+      if (!active) return;
+      // A stale blur from a textarea that has already been replaced must not
+      // commit into the new session. The token identifies the mount.
+      if (
+        paragraphId !== undefined &&
+        (active.paragraph.id !== paragraphId || active.token !== token)
+      ) {
+        return;
+      }
+      // Clear first: a blur caused by the commit itself must not commit twice.
+      paragraphEditRef.current = null;
+      setParagraphEdit(null);
+      const finalText = text ?? active.session.text;
+      if (finalText === active.baseline) return;
+      applyTextMutations([
+        {
+          pageIndex: active.pageIndex,
+          paragraphId: active.paragraph.id,
+          text: finalText,
+        },
+      ]);
+      // The paragraph is now represented by an object; let the object inspector
+      // take over instead of showing two overlapping selections.
+      setSelectedTextBlock(null);
+    },
+    [applyTextMutations],
+  );
+
+  const cancelParagraphEdit = useCallback((paragraphId?: string, token?: number) => {
+    const active = paragraphEditRef.current;
+    if (paragraphId !== undefined) {
+      if (!active || active.paragraph.id !== paragraphId || active.token !== token) return;
+    }
+    paragraphEditRef.current = null;
+    setParagraphEdit(null);
+  }, []);
+
+  /**
+   * Opens the inline editor for one extracted paragraph.
+   *
+   * `selection` is in body offsets. List paragraphs get their marker prepended
+   * for display, so the offsets are shifted before they reach the textarea.
+   */
+  const startParagraphEdit = useCallback(
+    (pageIndex: number, paragraphId: string, selection: { start: number; end: number } | null) => {
+      if (savingRef.current) return;
+      const layout = layoutsByPageRef.current[pageIndex];
+      const paragraph = layout?.paragraphs.find((item) => item.id === paragraphId);
+      if (!layout || !paragraph) return;
+      // The overlay/save path can place upright text only (the exporter has no
+      // per-object rotation). Text that is rotated in *display* space -- a
+      // rotated page, or rotated content on an upright page -- stays
+      // selectable/copyable, but opening the editor would replace it with
+      // horizontal text at the same box. Defer that to the Phase 2 native
+      // rewrite instead of silently damaging the page.
+      const rotation = ((paragraph.typography.rotationDeg % 360) + 360) % 360;
+      const displayRotated = layout.rotation !== 0 || (rotation > 1 && rotation < 359);
+      if (displayRotated) {
+        toast.error('Rotated text can be selected and copied, but editing it is not supported yet.');
+        return;
+      }
+      const key = paragraphEditKey(pageIndex, paragraphId);
+      if (paragraphEditRef.current?.key === key) return;
+      if (paragraphEditRef.current) commitParagraphEdit();
+
+      const displayText = paragraphDisplayText(paragraph);
+      const displaySelection = selection
+        ? bodySelectionToDisplay(paragraph, selection)
+        : { start: 0, end: displayText.length };
+      const session = TextEditSession.fromParagraph(paragraph, {
+        selection: displaySelection,
+      });
+      if (displayText !== paragraph.text) {
+        // `Paragraph.text` omits the list marker; the editor shows it and must
+        // commit it, or a list item would lose its bullet.
+        session.setText(displayText);
+        session.setSelection(displaySelection.start, displaySelection.end);
+      }
+      editToken.current += 1;
+      const token = editToken.current;
+      paragraphEditRef.current = {
+        key,
+        token,
+        session,
+        baseline: displayText,
+        paragraph,
+        layout,
+        pageIndex,
+      };
+      setParagraphEdit({
+        pageIndex,
+        paragraphId,
+        initialText: displayText,
+        initialSelection: displaySelection,
+        token,
+      });
+      setTextSelection(null);
+      setSelectedId(null);
+    },
+    [commitParagraphEdit],
+  );
+
+  const handleParagraphTextInput = useCallback(
+    (text: string, paragraphId?: string, token?: number) => {
+      const active = paragraphEditRef.current;
+      if (!active) return;
+      if (
+        paragraphId !== undefined &&
+        (active.paragraph.id !== paragraphId || active.token !== token)
+      ) {
+        return;
+      }
+      active.session.setText(text);
+    },
+    [],
+  );
+
+  const changeTextSelection = useCallback((selection: TextSelectionState | null) => {
+    setTextSelection(selection);
+  }, []);
+
+  const selectTextBlock = useCallback((pageIndex: number, blockId: string | null) => {
+    setSelectedTextBlock(blockId ? { pageIndex, blockId } : null);
+    if (blockId) setSelectedId(null);
+  }, []);
+
+  /** Deletes the current non-edit selection, used by Delete/Backspace and Cut. */
+  const deleteTextSelection = useCallback(() => {
+    const selection = textSelectionRef.current;
+    if (!selection || selection.ranges.length === 0) return;
+    const layout = layoutsByPageRef.current[selection.pageIndex];
+    if (!layout) return;
+    const paragraphs = new Map(layout.paragraphs.map((paragraph) => [paragraph.id, paragraph]));
+    const mutations = mutateParagraphText(selection.ranges, paragraphs, '');
+    applyTextMutations(mutations);
+    setTextSelection(null);
+    setSelectedTextBlock(null);
+  }, [applyTextMutations]);
+
+  /** Replaces the current selection with clipboard text (Paste). */
+  const replaceTextSelection = useCallback(
+    (replacement: string) => {
+      const selection = textSelectionRef.current;
+      if (!selection || selection.ranges.length === 0 || replacement.length === 0) return;
+      const layout = layoutsByPageRef.current[selection.pageIndex];
+      if (!layout) return;
+      const paragraphs = new Map(layout.paragraphs.map((paragraph) => [paragraph.id, paragraph]));
+      const mutations = mutateParagraphText(selection.ranges, paragraphs, replacement);
+      applyTextMutations(mutations);
+      setTextSelection(null);
+      setSelectedTextBlock(null);
+    },
+    [applyTextMutations],
+  );
+
+  const copyTextSelection = useCallback(async (): Promise<boolean> => {
+    const selection = textSelectionRef.current;
+    if (!selection || selection.text.length === 0) return false;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(selection.text);
+      return true;
+    } catch {
+      toast.error('Could not copy the selected text.');
+      return false;
+    }
+  }, []);
+
+  const cutTextSelection = useCallback(async () => {
+    if (!(await copyTextSelection())) return;
+    deleteTextSelection();
+  }, [copyTextSelection, deleteTextSelection]);
+
+  const pasteTextSelection = useCallback(async () => {
+    try {
+      if (!navigator.clipboard?.readText) throw new Error('Clipboard unavailable');
+      const text = await navigator.clipboard.readText();
+      if (text) replaceTextSelection(text);
+    } catch {
+      toast.error('Could not read the clipboard.');
+    }
+  }, [replaceTextSelection]);
+
+  // Leaving the text tools retires any transient selection. An open paragraph
+  // editor unmounts with the overlay, so commit it rather than losing the last
+  // typed characters to an unmounted textarea.
+  useEffect(() => {
+    if (tool === 'select' || tool === 'text') return;
+    setTextSelection(null);
+    setSelectedTextBlock(null);
+    if (paragraphEditRef.current) {
+      commitParagraphEdit(paragraphEditRef.current.session.text);
+    }
+  }, [tool, commitParagraphEdit]);
 
   // Undo and redo move objects in and out of the document; a selection pointing
   // at an object that no longer exists would leave the inspector and z-order
@@ -946,6 +1300,8 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
       editor.apply((doc) => ({ ...doc, objects: [...doc.objects, whiteout, text] }));
       setSelectedId(text.id);
       setEditingId(text.id);
+      setTextSelection(null);
+      setSelectedTextBlock(null);
       editor.beginTx();
     },
     [atObjectLimit, editor.apply, editor.beginTx],
@@ -1138,7 +1494,29 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     // "unsaved changes" baseline only advances once the write succeeds --
     // marking it up front meant a failed save silently disabled the
     // beforeunload guard, so the user's edits could be lost on navigation.
-    const snapshot = editor.doc;
+    let snapshot = editor.doc;
+    // An inline paragraph edit is intentionally not in the document until it
+    // commits. Saving while a textarea still has focus must not drop the last
+    // typed sentence, so fold it into the snapshot synchronously.
+    const activeParagraphEdit = paragraphEditRef.current;
+    if (activeParagraphEdit) {
+      paragraphEditRef.current = null;
+      setParagraphEdit(null);
+      const finalText = activeParagraphEdit.session.text;
+      if (finalText !== activeParagraphEdit.baseline) {
+        const committed = appendMutationObjects(snapshot, [
+          {
+            pageIndex: activeParagraphEdit.pageIndex,
+            paragraphId: activeParagraphEdit.paragraph.id,
+            text: finalText,
+          },
+        ]);
+        if (committed) {
+          snapshot = committed;
+          editor.apply(committed);
+        }
+      }
+    }
     // Text boxes that replace an existing run become in-place edit intents. Their
     // whiteout and the box itself are excluded from the overlay pass, because the
     // job applies them only if the in-place rewrite does not work.
@@ -1235,7 +1613,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
       pageCount: outcome.result.pageCount,
       sizeBytes: outcome.result.data.byteLength,
     });
-  }, [editor, editRunner, isSign, signerLabel]);
+  }, [editor, editRunner, isSign, signerLabel, appendMutationObjects]);
 
   const continueEditing = useCallback(() => {
     editRunner.reset();
@@ -1342,11 +1720,45 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
         return;
       }
       if (event.key === 'Escape') {
+        if (paragraphEditRef.current) {
+          cancelParagraphEdit();
+          return;
+        }
+        if (textSelectionRef.current) {
+          setTextSelection(null);
+          setSelectedTextBlock(null);
+          return;
+        }
         if (editingId) endEdit();
         else setSelectedId(null);
         return;
       }
       if (typing) return;
+      // Structured text selection: clipboard operations act on the extracted
+      // text, not on the overlay objects. Editing a paragraph uses native
+      // textarea clipboard handling above.
+      if (mod && textSelectionRef.current) {
+        if (key === 'c') {
+          event.preventDefault();
+          void copyTextSelection();
+          return;
+        }
+        if (key === 'x') {
+          event.preventDefault();
+          void cutTextSelection();
+          return;
+        }
+        if (key === 'v') {
+          event.preventDefault();
+          void pasteTextSelection();
+          return;
+        }
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && textSelectionRef.current) {
+        event.preventDefault();
+        deleteTextSelection();
+        return;
+      }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
         event.preventDefault();
         deleteSelected();
@@ -1379,6 +1791,11 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     onZoomChange,
     fitWidth,
     goToPage,
+    cancelParagraphEdit,
+    copyTextSelection,
+    cutTextSelection,
+    pasteTextSelection,
+    deleteTextSelection,
   ]);
 
   /* --------------------------------------------- unsaved-changes guard */
@@ -1386,7 +1803,9 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   useEffect(() => {
     if (stage !== 'editing') return;
     const hasWork =
-      editor.doc.objects.length > 0 || Object.keys(editor.doc.formValues).length > 0;
+      editor.doc.objects.length > 0 ||
+      Object.keys(editor.doc.formValues).length > 0 ||
+      paragraphEdit !== null;
     if (!hasWork || editor.doc === savedDocRef.current) return;
     const handler = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -1394,7 +1813,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [stage, editor.doc]);
+  }, [stage, editor.doc, paragraphEdit]);
 
   /* -------------------------------------------------------------- views */
 
@@ -1418,6 +1837,22 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   const objectsByPage = usePageBuckets(editor.doc.objects);
   const widgetsByPage = usePageBuckets<FormWidgetInfo>(info?.fields ?? NO_WIDGETS);
   const selectedObject = editor.doc.objects.find((object) => object.id === selectedId) ?? null;
+  const selectedBlockLayout = selectedTextBlock
+    ? layoutsByPage[selectedTextBlock.pageIndex] ?? null
+    : null;
+  const selectedBlockModel = selectedTextBlock
+    ? selectedBlockLayout?.blocks.find((block) => block.id === selectedTextBlock.blockId) ?? null
+    : null;
+  const selectedBlockParagraphs = selectedBlockModel
+    ? selectedBlockModel.paragraphIds
+        .map((id) => selectedBlockLayout?.paragraphs.find((paragraph) => paragraph.id === id))
+        .filter((paragraph): paragraph is Paragraph => Boolean(paragraph))
+    : NO_PARAGRAPHS;
+  const selectedBlockPreview = selectedBlockParagraphs
+    .slice(0, 4)
+    .map((paragraph) => paragraphDisplayText(paragraph))
+    .join(' ')
+    .slice(0, 220);
   const hasEdits = objectCount > 0 || Object.keys(editor.doc.formValues).length > 0;
   const dirty = hasEdits && editor.doc !== savedDocRef.current;
 
@@ -1428,15 +1863,39 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     for (const page of info?.pages ?? []) {
       map.set(page.index, {
         onSeedReplace: (run: TextRun) => seedReplace(page.index, run),
+        onTextBlockSelect: (blockId: string | null) => selectTextBlock(page.index, blockId),
+        onParagraphEdit: (
+          paragraphId: string,
+          selection: { start: number; end: number } | null,
+        ) => startParagraphEdit(page.index, paragraphId, selection),
+        onTextSelectionChange: changeTextSelection,
         onImageRequested: (point: { x: number; y: number }) => onImageRequested(page.index, point),
         onSignatureRequested: (point: { x: number; y: number }) =>
           onSignatureRequested(page.index, point),
-        onVisible: () => void ensureRaster(page.index),
+        onVisible: () => {
+          void ensureRaster(page.index);
+          // Layouts are needed before the first click, so fetch this page's
+          // text model when it approaches the viewport rather than eagerly
+          // parsing a 500-page book.
+          if (toolRef.current === 'select' || toolRef.current === 'text') {
+            void ensureRunsRef.current([page.index]);
+          }
+        },
         onHidden: () => releaseDistantRasters(page.index),
       });
     }
     return map;
-  }, [info, seedReplace, onImageRequested, onSignatureRequested, ensureRaster, releaseDistantRasters]);
+  }, [
+    info,
+    seedReplace,
+    selectTextBlock,
+    startParagraphEdit,
+    changeTextSelection,
+    onImageRequested,
+    onSignatureRequested,
+    ensureRaster,
+    releaseDistantRasters,
+  ]);
 
   if (editState.status === 'done') {
     const { result } = editState;
@@ -1500,8 +1959,11 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
             canRedo={editor.canRedo}
             onUndo={undo}
             onRedo={redo}
-            hasSelection={selectedObject !== null}
-            onDelete={deleteSelected}
+            hasSelection={selectedObject !== null || textSelection !== null}
+            onDelete={() => {
+              if (textSelection) deleteTextSelection();
+              else deleteSelected();
+            }}
             onSave={() => void onSave()}
             saving={saving}
             saveLabel={isSign ? 'Sign & export' : undefined}
@@ -1561,6 +2023,18 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
                     editingId={editingId}
                     tool={tool}
                     runs={runsByPage[page.index] ?? null}
+                    layout={layoutsByPage[page.index] ?? null}
+                    textSelection={
+                      textSelection?.pageIndex === page.index ? textSelection : null
+                    }
+                    selectedTextBlockId={
+                      selectedTextBlock?.pageIndex === page.index
+                        ? selectedTextBlock.blockId
+                        : null
+                    }
+                    paragraphEdit={
+                      paragraphEdit?.pageIndex === page.index ? paragraphEdit : null
+                    }
                     widgets={widgets}
                     // Only pages that actually own a field care about form values,
                     // so keystrokes in one field cannot re-render the whole book.
@@ -1573,6 +2047,12 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
                     onAutoHeight={autoHeight}
                     onCreate={createObject}
                     onSeedReplace={binding.onSeedReplace}
+                    onTextBlockSelect={binding.onTextBlockSelect}
+                    onParagraphEdit={binding.onParagraphEdit}
+                    onTextSelectionChange={binding.onTextSelectionChange}
+                    onParagraphTextInput={handleParagraphTextInput}
+                    onParagraphCommit={commitParagraphEdit}
+                    onParagraphCancel={cancelParagraphEdit}
                     onImageRequested={binding.onImageRequested}
                     onSignatureRequested={binding.onSignatureRequested}
                     onVisible={binding.onVisible}
@@ -1610,6 +2090,40 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
                   onClose={() => select(null)}
                   docked
                 />
+              ) : selectedBlockModel ? (
+                <div
+                  className="flex h-full flex-col gap-3 overflow-auto px-4 py-4"
+                  data-testid="editor-text-inspector"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Text block</p>
+                    <p className="text-xs capitalize text-muted-foreground">
+                      {selectedBlockModel.kind} · {selectedBlockParagraphs.length} paragraph
+                      {selectedBlockParagraphs.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  {selectedBlockPreview && (
+                    <p className="line-clamp-5 text-xs leading-relaxed text-muted-foreground">
+                      {selectedBlockPreview}
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-testid="editor-edit-block-text"
+                    disabled={selectedBlockParagraphs.length === 0}
+                    onClick={() => {
+                      const first = selectedBlockParagraphs[0];
+                      if (!first || !selectedTextBlock) return;
+                      startParagraphEdit(selectedTextBlock.pageIndex, first.id, null);
+                    }}
+                  >
+                    Edit text
+                  </Button>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Double-click a paragraph to edit it. Drag across text to select and copy.
+                  </p>
+                </div>
               ) : (
                 <div
                   className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
@@ -1620,7 +2134,8 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
                   </span>
                   <p className="text-sm font-medium">No object selected</p>
                   <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
-                    Select an object on the page to edit its appearance and size.
+                    Select an object to edit its appearance and size. Click text to select a
+                    paragraph; double-click it to edit.
                   </p>
                 </div>
               )}

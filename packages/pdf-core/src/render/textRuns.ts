@@ -130,6 +130,42 @@ function sameLine(a: RunItem, b: RunItem): boolean {
   return overlapX >= cross * 0.6 && gapY <= Math.min(a.fontSize, b.fontSize) * 0.8;
 }
 
+export interface TextContentLike {
+  items: readonly {
+    str?: string;
+    transform?: number[];
+    width?: number;
+    fontName?: string;
+  }[];
+  styles?: Record<
+    string,
+    { fontFamily?: string; fontWeight?: string | number; fontStyle?: string } | undefined
+  >;
+}
+
+/** Converts pdf.js text content into display-space items, before clustering. */
+export function runItemsFromTextContent(
+  content: TextContentLike,
+  viewport: { convertToViewportPoint(x: number, y: number): number[] },
+): RunItem[] {
+  const items: RunItem[] = [];
+  for (const item of content.items) {
+    if (typeof item.str !== 'string' || item.str.length === 0) continue;
+    if (!Array.isArray(item.transform)) continue;
+    const style = content.styles && item.fontName ? content.styles[item.fontName] : undefined;
+    const converted = toRunItem(
+      item.str,
+      item.transform,
+      item.width ?? 0,
+      viewport,
+      style,
+      item.fontName,
+    );
+    if (converted) items.push(converted);
+  }
+  return items;
+}
+
 /**
  * Extracts display-space text runs for the given pages (0-based; empty/missing
  * means every page). Returns one run list per requested page, in order.
@@ -160,29 +196,9 @@ export async function extractTextRuns(
       try {
         const viewport = page.getViewport({ scale: 1 });
         const content = await page.getTextContent();
-        const items: RunItem[] = [];
-
-        for (const raw of content.items) {
-          const item = raw as {
-            str?: string;
-            transform?: number[];
-            width?: number;
-            fontName?: string;
-          };
-          if (typeof item.str !== 'string' || item.str.length === 0) continue;
-          if (!Array.isArray(item.transform)) continue;
-          const style = (content.styles && item.fontName ? content.styles[item.fontName] : undefined) as
-            | {
-                fontFamily?: string;
-                fontWeight?: string | number;
-                fontStyle?: string;
-              }
-            | undefined;
-          const converted = toRunItem(item.str, item.transform, item.width ?? 0, viewport, style, item.fontName);
-          if (converted) items.push(converted);
-        }
-
-        results.push(clusterTextRuns(items));
+        results.push(
+          clusterTextRuns(runItemsFromTextContent(content as unknown as TextContentLike, viewport)),
+        );
       } finally {
         // Text content buffers are the biggest per-page allocation here; on a
         // 500-page run, holding them all is how you kill a tab.

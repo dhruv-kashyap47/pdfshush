@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-30
+**Last updated:** 2026-10-31
 
 ---
 
@@ -35,6 +35,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Dark-mode batch** | Dark Mode PDF: three pixel-remap kinds (theme / smart hue-preserving / invert) over a live before/after wipe preview, ported from the MIT-licensed `chizkiyahu/pdf-dark-mode-converter` | ✅ **shipped 2026-10-28** — see §8 first entry |
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
+| **Text editing Phase 1** | Serializable glyph→word→line→paragraph→block→region model, centralized geometry, hit testing, inline paragraph editing | ✅ **done 2026-10-31** — engine 339 tests, web 39; see §27 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -683,6 +684,37 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-10-31 — Structured text editing, Phase 1: the editor now understands text, not just boxes.**
+
+  **Engine (`packages/pdf-core/src/document`).** A framework-independent, serializable six-level model
+  (`glyph → word → line → paragraph → block → region`) with display *and* PDF-space geometry, stable
+  FNV-1a ids, reading order, typography, headings, list nesting, columns, tables, repeated
+  headers/footers and confidence flags. Extraction is adaptive: baselines, alignment, gap, indent,
+  font and column heuristics decide grouping; ambiguous structures are preserved rather than
+  discarded. `PageInteractionModel` adds spatial grids, deepest-target hit testing, caret/offset
+  mapping, word/paragraph/cross-paragraph selection and caret rectangles. `TextEditSession` keeps
+  typing state (draft, selection, undo) separate from the immutable document. `PageGeometry`
+  centralizes PDF↔view↔screen↔DPR↔CropBox/MediaBox/rotation maths. `text-runs` keeps its old shape
+  and gains optional `includeLayout` output produced from the same pdf.js parse.
+
+  **Web (`apps/web`).** `TextLayer` adds hover highlighting, single-click block selection,
+  triple-click paragraph selection, drag selection, double-click inline editing, copy/cut/paste and
+  Delete on the extracted text, with the native textarea owning caret/word/selection/undo while
+  typing. Commits become one whiteout-per-line + text object through the existing save path and one
+  document undo step. Add Text is preserved, layouts are fetched per visible page, and pages remain
+  memoized. Rotated text is selectable/copyable but editing is refused with an explanation until the
+  Phase 2 native rewrite.
+
+  **Bug found by the browser pass:** `normalizeFontFamily('sans-serif')` matched the `serif`
+  substring first, so every generic sans-serif face was exported as Times. Fixed, with a regression
+  test; this was invisible in the model tests but obvious the moment replacement text rendered.
+
+  **Gates:** `pnpm -r typecheck`, `pnpm test` (pdf-core 339, web 39, api 208, mcp 19, ai-agent 152,
+  ai-provider 370), `pnpm build`; `tests/e2e/text-edit.mjs` still passes the genuine in-place path,
+  and the new `tests/e2e/text-model.mjs` passes the structured Select-tool flow. The manual browser
+  pass additionally covered multi-line paragraphs, lists, columns, copy/cut/undo, Add Text, save +
+  re-parse, and a rotated page.
 
 - **2026-10-30 — The AI editor's hard refusal is fixed in the engine, and the page became an agentic workspace.**
 
@@ -4087,3 +4119,119 @@ decision; the walkthrough merely presents a free path. No media/image-generation
 none). `openrouter/free` was specified by the product owner but does not exist (404); the recorded
 resolution is the live free-slug fallback above.
 
+## 27. Structured text editing — Phase 1 (2026-10-31)
+
+**Goal:** replace “hit a raster run, paint a box over it” with a real document model the editor can
+reason about — without starting the Phase 2 native content-stream rewrite.
+
+### 27.1 Architecture
+
+- **Model in `@pdfshush/pdf-core`, not React.** `packages/pdf-core/src/document/` has no DOM,
+  Fabric, pdf-lib or pdf.js import. It is plain serializable data, safe to send across the worker
+  boundary and to snapshot in history.
+- **Two coordinate frames on every object.** `bbox`/`quad` are display space (top-left, y down,
+  points at 100% zoom); `pdfBox`/`pdfQuad` are PDF user space (y up). `PageGeometry` is the only
+  conversion engine (PDF↔view→screen, zoom, DPR, rotation, CropBox/MediaBox), reusing the tested
+  `ops/geometry.ts` formulas.
+- **Deterministic ids.** FNV-1a over page/text/quantized geometry, so re-extracting a page yields the
+  same ids and an edit still points at the same logical object.
+- **Six-level hierarchy.** `glyph → word → line → paragraph → block → region`, with reading order,
+  per-level confidence and an `ambiguous` flag. Low-confidence groupings are preserved and flagged,
+  never silently flattened.
+- **Extraction is adaptive.** Baseline/alignment/gap/indent/font/column heuristics; heading levels;
+  nested list levels clustered from real marker indents; table cells; repeated header/footer
+  classification across pages; rotated text; multi-column gutters guarded by vertical span so a table
+  is not mistaken for a column.
+- **Interaction model.** `PageInteractionModel` builds spatial grids for glyphs/words/lines/
+  paragraphs/blocks/regions, resolves the deepest target first, maps carets to paragraph offsets and
+  back, and produces rects for word/paragraph/cross-paragraph selection.
+- **Editing state is separate.** `TextEditSession` owns draft text, selection, and its own undo
+  stack; the document model stays immutable. Committing produces a serializable edit intent.
+- **One parse, two outputs.** `text-runs` keeps its existing `{ runs }` contract and gains optional
+  `{ layouts }` when `includeLayout: true`, produced from the same `getTextContent` pass.
+- **Frontend overlay, not Fabric.** `TextLayer` uses the model for hover/selection/hit testing; the
+  actual typing surface is a native `<textarea>` (caret, word/character selection, drag selection,
+  clipboard and native undo come for free). Commits reuse the existing whiteout + text-object save
+  path, so redaction, AI and every other tool are untouched.
+
+### 27.2 Files
+
+Engine: `packages/pdf-core/src/document/{types,geometry,ids,glyphs,group,document,hitTest,editing,index}.ts`,
+`packages/pdf-core/src/render/textLayout.ts`; refactor in `src/render/textRuns.ts`; job extension in
+`src/jobs/textRuns.job.ts`; root exports in `src/index.ts`.
+
+Web: `apps/web/src/components/editor/text-layer.tsx`,
+`apps/web/src/lib/text-editing.ts` (+ `.test.ts`), integration in
+`apps/web/src/components/editor/editor-page.tsx` and
+`apps/web/src/components/tools/edit-pdf-tool.tsx`.
+
+Tests: `packages/pdf-core/test/textModel.test.ts` (19 checks) and
+`apps/web/src/lib/text-editing.test.ts` (10 checks).
+
+### 27.3 Capabilities shipped
+
+- Hover highlighting; single-click block select; triple-click paragraph select; double-click inline
+  edit; drag selection; word selection; cross-paragraph selection. These live in the **Select** tool.
+- Copy / cut / paste / Delete on the extracted selection; Enter/Backspace/Delete in the inline editor;
+  native textarea undo; document-level undo/redo for commits, cuts, pastes and destructive deletes.
+- Add Text is preserved: empty-space drag still creates a new text object, and an existing text
+  object still wins over the paragraph underneath. The **Text** tool also keeps its legacy
+  single-run replacement path (genuine in-place rewrite when possible).
+- Paragraph edits become one whiteout per original line plus one text object, replacing previous
+  objects for the same paragraph, in one undo step.
+- Layouts are fetched incrementally per visible page (and warmed around the current page); pages stay
+  memoized; no full-document scan just to open the Select tool.
+- Rotated text is detected, selectable and copyable. Inline editing is refused with an explanation
+  rather than drawing horizontal text over vertical text.
+
+### 27.4 Verified
+
+- `pnpm -r typecheck` — all workspace packages.
+- `pnpm test` — pdf-core 339/339, web 39/39, api 208/208, mcp 19/19, ai-agent 152/152,
+  ai-provider 370/370.
+- `pnpm build` — production web build succeeds (existing >500 kB chunk warning only).
+- `node tests/e2e/text-edit.mjs` — the legacy true in-place rewrite path still passes every check
+  (run replacement, no overlay claim, original gone from the exported bytes).
+- `node tests/e2e/text-model.mjs` — hover, block select, inspector preview, double-click editor,
+  prefilled text, commit objects, save + download + re-parse, no console errors.
+- Manual browser pass: multi-line paragraph hover/edit/commit, list item marker preservation,
+  two-column page, text drag selection, Ctrl+C/Ctrl+X/Ctrl+Z, Add Text, save + re-parse + download,
+  and a `/Rotate 90` page (hover alignment works; edit is refused).
+
+### 27.5 Honest limitations
+
+- Paragraph commits are **overlay replacements**, not native rewrites: the original text remains in
+  the content stream under the whiteout (verified in the exported file). Search/selection can still
+  find both strings until Phase 2.
+- Whiteouts are white; coloured/tinted backgrounds and coloured text are not sampled. Replacement
+  colour is dark by default.
+- The exporter has no per-object rotation, so rotated text editing is deliberately blocked.
+- Cross-page drag selection is not implemented (within-page cross-paragraph is).
+- Justified paragraphs are approximated as left-aligned; line height for the overlay follows the
+  extracted leading while the exporter draws at its own 1.2 line-height.
+- Glyph positions are estimated by distributing pdf.js item widths; caret placement is stable but
+  not glyph-exact for exotic fonts/kerning.
+- `pdf-chisel` was not confirmed MIT (no licence file/SPDX detected); only `pdf-edit-engine` and
+  `PdfZero` were confirmed MIT. No donor code was copied wholesale.
+
+### 27.6 Phase 2 integration points
+
+1. **Native rewrite sink.** `ParagraphTextEdit` (`before`, `after`, `bbox`, `pdfBox`, `typography`,
+   `role`) is the intended input to the existing PDFium text-edit engine. Replace the
+   whiteout+overlay commit in `appendMutationObjects` with a native rewrite when the paragraph can be
+   anchored, keeping the overlay as the verified fallback.
+2. **In-place run fallback already exists.** `EditTextObject.inPlace` remains wired in the save path;
+   per-run replace can use it while paragraph-level work moves to the native sink.
+3. **Extend the model, not the UI, for tables/lists.** Table/list metadata is already on paragraphs,
+   blocks and regions; a Phase 2 table editor can address cells by id without re-parsing.
+4. **Rotated/vertical text** becomes editable once the exporter or native sink carries rotation.
+5. **Visual fidelity:** sample local background colour for covers and text colour from the raster or
+   content stream; carry line-height/justification into the export object.
+6. **Cross-page selection** can reuse `DocumentLayout.readingOrder`; the current interaction model is
+   page-local by design.
+7. **Confidence-driven review:** `ambiguous` / low-confidence paragraphs are already flagged; surface
+   them in the inspector rather than guessing.
+
+**Next move:** Phase 2 is *not* started. The natural first slice is the native-rewrite sink for a
+single paragraph, gated by the same round-trip verification the text-edit engine already uses, with
+the Phase 1 overlay retained as fallback.

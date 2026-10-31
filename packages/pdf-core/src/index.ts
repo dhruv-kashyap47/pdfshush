@@ -148,8 +148,17 @@ export {
 export type { CanvasFactory, PdfjsCanvasEntry, RenderCanvas } from './render/canvas.js';
 export { renderPageToImage, renderPages, renderThumbnails } from './render/renderPage.js';
 export type { ImageFormat, RenderedImage, RenderPageOptions } from './render/renderPage.js';
-export { extractTextRuns, clusterTextRuns } from './render/textRuns.js';
-export type { TextRun, RunItem } from './render/textRuns.js';
+export { extractTextRuns, clusterTextRuns, runItemsFromTextContent } from './render/textRuns.js';
+export type { TextRun, RunItem, TextContentLike } from './render/textRuns.js';
+export {
+  extractPageLayouts,
+  extractDocumentLayout,
+  extractTextRunsAndLayouts,
+} from './render/textLayout.js';
+export type { ExtractLayoutsOptions } from './render/textLayout.js';
+
+// Structured document model, hit testing and editing sessions
+export * from './document/index.js';
 export { suggestBookmarks, BOOKMARK_SUGGESTION_LIMITS } from './render/suggestBookmarks.js';
 export type {
   BookmarkSuggestion,
