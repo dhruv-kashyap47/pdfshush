@@ -73,6 +73,14 @@ export interface NativeTextEditResult {
   bytes: Uint8Array;
   pageCount: number;
   outcomes: TextEditOutcome[];
+  /**
+   * Base names (subset prefix stripped) of fonts whose last text object on some
+   * page was removed by this pass. A legitimate edit can consume a font entirely --
+   * collapsing a two-font run into one rewrite, or deleting the only run that used
+   * it -- and the export verifier must tolerate those fonts disappearing without
+   * tolerating the disappearance of a font no edit touched.
+   */
+  consumedFonts: Set<string>;
 }
 
 export interface TextEditRunResult {
@@ -482,12 +490,30 @@ function planLayoutEdit(
   };
 }
 
+/**
+ * Record the base font of every object about to be removed, so the export verifier
+ * can tolerate a font that an edit legitimately consumed (its last text object is
+ * gone) without tolerating the loss of a font no edit touched. The name is read
+ * before removal because the pointer is invalid afterwards.
+ */
+function noteConsumedFonts(
+  doc: PdfiumTextDocument,
+  ptrs: Iterable<number>,
+  consumedFonts: Set<string>,
+): void {
+  for (const ptr of ptrs) {
+    const name = doc.fontNameOf(ptr);
+    if (name) consumedFonts.add(name);
+  }
+}
+
 /** Apply a preflighted multi-line edit. Throws rather than leaving half a paragraph. */
 function applyLayoutEdit(
   doc: PdfiumTextDocument,
   pageIndex: number,
   edit: TextEdit,
   plan: { metrics: LayoutMetrics; targets: ObjectMatch[] },
+  consumedFonts: Set<string>,
 ): void {
   const { metrics, targets } = plan;
   const map = metrics.map;
@@ -541,6 +567,7 @@ function applyLayoutEdit(
     for (let index = 0; index < targets.length; index += 1) {
       const target = targets[index]!;
       if (index >= metrics.lines.length) {
+        noteConsumedFonts(doc, target.members.map((member) => member.ptr), consumedFonts);
         const failed = target.members.filter((member) => !doc.removeObject(pageIndex, member.ptr));
         if (failed.length > 0) {
           throw new LayoutMutationError('PDFium refused to remove an unused original line');
@@ -555,6 +582,7 @@ function applyLayoutEdit(
         doc.setText(first.ptr, replacement);
       if (!written) throw new LayoutMutationError('PDFium refused to rewrite a reflowed line');
       const tails = target.members.slice(1);
+      noteConsumedFonts(doc, tails.map((tail) => tail.ptr), consumedFonts);
       const failed = tails.filter((tail) => !doc.removeObject(pageIndex, tail.ptr));
       if (failed.length > 0) {
         throw new LayoutMutationError('PDFium refused to remove a split line object');
@@ -592,6 +620,7 @@ export function applyNativeTextEdits(
     string,
     { mode: TextEditMode; reason?: string; box?: import('./types.js').TextEditBox }
   >();
+  const consumedFonts = new Set<string>();
   try {
     const pageCount = doc.pageCount();
     const byPage = [...groupByPage(edits).entries()].sort((a, b) => a[0] - b[0]);
@@ -617,7 +646,7 @@ export function applyNativeTextEdits(
         }
         if (edit.strategy && edit.strategy !== 'native-object' && !edit.layout) {
           provisional.set(edit.id, {
-            mode: edit.strategy === 'content-stream' ? 'fallback' : 'fallback',
+            mode: 'fallback',
             reason: `requested strategy: ${edit.strategy}`,
           });
           done += 1;
@@ -630,7 +659,7 @@ export function applyNativeTextEdits(
             provisional.set(edit.id, { mode: 'fallback', reason: plan.reason });
           } else {
             try {
-              applyLayoutEdit(doc, pageIndex, edit, plan);
+              applyLayoutEdit(doc, pageIndex, edit, plan, consumedFonts);
             } catch (error) {
               const detail = error instanceof Error ? error.message : String(error);
               if (error instanceof LayoutMutationError) {
@@ -687,6 +716,7 @@ export function applyNativeTextEdits(
           // Deletion is a removal, not a rewrite: FPDFText_SetText refuses an
           // empty string, and a whiteout would leave the text recoverable. A run
           // has to disappear whole, so every member is removed.
+          noteConsumedFonts(doc, target.members.map((member) => member.ptr), consumedFonts);
           const failed = target.members.filter(
             (member) => !doc.removeObject(pageIndex, member.ptr),
           );
@@ -730,6 +760,7 @@ export function applyNativeTextEdits(
             // refused outright rather than left to a best effort: a document
             // that says the text twice is worse than one that fails loudly.
             const tails = target.members.slice(1);
+            noteConsumedFonts(doc, tails.map((tail) => tail.ptr), consumedFonts);
             const failed = tails.filter((tail) => !doc.removeObject(pageIndex, tail.ptr));
             if (failed.length > 0) {
               throw new TextEditUnsafeError([
@@ -772,7 +803,7 @@ export function applyNativeTextEdits(
         ...(state.box ? { box: state.box } : edit.box ? { box: edit.box } : {}),
       };
     });
-    return { bytes, pageCount, outcomes };
+    return { bytes, pageCount, outcomes, consumedFonts };
   } finally {
     doc.close();
   }
@@ -868,22 +899,34 @@ export async function editPdfText(
 
   // Stage 2: reopen the serialized native bytes and look for each replacement.
   const outcomes: TextEditOutcome[] = native.outcomes.map((outcome) => ({ ...outcome }));
+  // Carrying `find` makes verification also confirm the original text was consumed,
+  // not just that the replacement is present. A native write can be reported as a
+  // success while leaving the original run intact (e.g. the replacement string
+  // already existed on the page), and a "present" check alone would pass it. Only
+  // non-layout in-place replacements are checked here: a reflowed paragraph rewrites
+  // many objects, so its `find` string is not a reliable absence oracle.
   const expectations: TextEditExpectation[] = outcomes
     .filter(
       (outcome) =>
         outcome.mode === 'in-place' &&
         (edits.find((edit) => edit.id === outcome.id)?.replace.length ?? 0) > 0,
     )
-    .map((outcome) => ({
-      label: outcome.id,
-      pageIndex: outcome.pageIndex,
-      expect: edits.find((edit) => edit.id === outcome.id)!.replace,
-    }));
+    .map((outcome) => {
+      const edit = edits.find((candidate) => candidate.id === outcome.id)!;
+      return {
+        label: outcome.id,
+        pageIndex: outcome.pageIndex,
+        expect: edit.replace,
+        ...(edit.layout ? {} : { find: edit.find }),
+      };
+    });
 
   if (expectations.length > 0) {
     const roundTrip = await verifyTextEdits(native.bytes, {
       expectedPageCount: native.pageCount,
       expectations,
+      original: data,
+      ...(password ? { password } : {}),
     });
     const reopens = roundTrip.checks.find((check) => check.name === 'reopens');
     if (reopens && !reopens.ok) {
@@ -893,8 +936,17 @@ export async function editPdfText(
     }
     const failed = new Set(
       roundTrip.checks
-        .filter((check) => !check.ok && check.name.startsWith('replacement-present:'))
-        .map((check) => check.name.slice('replacement-present:'.length)),
+        .filter(
+          (check) =>
+            !check.ok &&
+            (check.name.startsWith('replacement-present:') ||
+              check.name.startsWith('residual-original:')),
+        )
+        .map((check) =>
+          check.name.startsWith('replacement-present:')
+            ? check.name.slice('replacement-present:'.length)
+            : check.name.slice('residual-original:'.length),
+        ),
     );
     for (const outcome of outcomes) {
       if (outcome.mode === 'in-place' && failed.has(outcome.id)) {
@@ -1019,9 +1071,28 @@ export async function editPdfText(
   // font resources, confirm every replacement is extractable, and compare the
   // rendered page outside the edited regions. A replacement string being present
   // is necessary but not sufficient.
+  //
+  // Carrying `find` for natively-applied edits (in-place and content-stream) makes
+  // the gate also confirm the original text was consumed -- this is what catches a
+  // no-op write whose replacement string already existed on the page, and what gives
+  // deletions a real post-export absence check for the first time. Overlay-fallback
+  // edits do not carry `find`: the original is still extractable underneath the
+  // whiteout, so requiring its absence there would be a false failure. Layout edits
+  // also do not: a reflowed paragraph rewrites many objects, so its `find` string is
+  // not a reliable absence oracle.
+  const outcomeModeById = new Map(outcomes.map((outcome) => [outcome.id, outcome.mode] as const));
+  const nativelyApplied = (id: string): boolean => {
+    const mode = outcomeModeById.get(id);
+    return mode === 'in-place' || mode === 'content-stream';
+  };
   const finalExpectations: TextEditExpectation[] = edits
-    .filter((edit) => edit.replace.length > 0)
-    .map((edit) => ({ label: edit.id, pageIndex: edit.pageIndex, expect: edit.replace }));
+    .filter((edit) => edit.replace.length > 0 || nativelyApplied(edit.id))
+    .map((edit) => ({
+      label: edit.id,
+      pageIndex: edit.pageIndex,
+      expect: edit.replace,
+      ...(nativelyApplied(edit.id) && !edit.layout ? { find: edit.find } : {}),
+    }));
   const editedRegions: VisualEditRegion[] = [];
   for (const edit of edits) {
     const outcomeBox = outcomes.find((outcome) => outcome.id === edit.id)?.box;
@@ -1064,6 +1135,7 @@ export async function editPdfText(
     expectedPageCount: native.pageCount,
     expectations: finalExpectations,
     editedRegions,
+    consumedFonts: native.consumedFonts,
     ...(options.verifyVisual !== undefined ? { visual: options.verifyVisual } : {}),
     ctx,
     ...(password ? { password } : {}),

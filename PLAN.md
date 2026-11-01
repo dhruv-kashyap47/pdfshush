@@ -37,6 +37,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
 | **Text editing Phase 1** | Serializable glyph→word→line→paragraph→block→region model, centralized geometry, hit testing, inline paragraph editing | ✅ **done 2026-10-31** — engine 339 tests, web 39; see §27 |
 | **Text editing Phase 2** | Native object editing ladder, content-stream fallback, font metrics/substitution, layout reflow, OCR-layer/scan capability, export + pixel verification | ✅ **done 2026-10-31** — engine 362 tests, web 39, both text E2Es; see §28 |
+| **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -59,9 +60,12 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-10-31 for **Text editing Phase 2** (`pnpm -r typecheck`,
-`pnpm test` - **1165/1165 unit** - and `tests/e2e/text-edit.mjs` plus `tests/e2e/text-model.mjs`,
-both green against the running dev server). `pnpm build` is green. The last full-stack API smoke +
+**Current gate:** re-measured 2026-11-01 for **Text editing Phase 2.5** (`pnpm -r typecheck`,
+`pnpm test` - **1177/1177 unit** - and `pnpm build` all green; the adversarial audit and
+its four verification fixes are recorded in §28.10). The Phase 2 browser E2Es
+(`tests/e2e/text-edit.mjs`, `tests/e2e/text-model.mjs`) were last green on 2026-10-31
+against the running dev server; the Phase 2.5 audit is engine-level and needed no UI
+change. The last full-stack API smoke +
 hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -80,9 +84,10 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1165/1165 unit** (**362 engine** · **208 API** · 370 provider · 152 agent · **39 web** ·
+**1177/1177 unit** (**389 engine** · **208 API** · 370 provider · 152 agent · **39 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
-export/pixel verification) and 10 web tests (font mapping, native-plan metadata).
+export/pixel verification), and Phase 2.5 added 27 more (adversarial corpus + verification/
+robustness gates), plus 10 web tests (font mapping, native-plan metadata).
 **Browser E2E:** full
 smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
@@ -4450,3 +4455,83 @@ Licence: `licenses/napi-rs-canvas-MIT.txt` (new dev-only dependency).
   `body-parser` advisories.
 - Commit: `fb1c598` (`feat(editor): native reflow, content-stream fallback and
   export verification`).
+
+### 28.10 Adversarial reliability audit — Phase 2.5 (2026-11-01)
+
+Phase 2 shipped the ladder; Phase 2.5 attacked it. The pass built an adversarial
+corpus, probed real PDFium behaviour before trusting documentation, and fixed only
+defects the probes actually reproduced. Phase 3 was not started.
+
+**Method.** Baseline first (`pnpm -r typecheck`, `pnpm test` green). Then throwaway
+probe tests exercised each ambiguous behaviour on the real WASM build before any
+deliverable test or fix was written — the probes established *actual* PDFium
+behaviour (e.g. a `/Differences`-only subset font round-trips natively, so the
+"PDFium mis-encodes `setText`" suspicion was **not** reproducible and nothing was
+"fixed" for it). Probes were deleted before delivery; their fixtures were folded
+into the corpus.
+
+**Confirmed defects fixed.**
+
+1. **Verification could pass a no-op artifact (D1, highest risk).** `verifyTextEdits`
+   only checked that the replacement string was *present*. If that string already
+   existed on the page (a common redaction target, e.g. `REDACTED`), handing back the
+   *original* bytes passed. Deletions had **no** post-export absence check at all.
+   Fix: `TextEditExpectation` gained an optional `find`, and `verifyTextEdits` gained
+   an optional `original`; a new `residual-original:<label>` check counts occurrences
+   of the original text before and after and fails when the edit did not consume it.
+   The engine now passes `find` + `original` at both the stage-2 and final gates, so a
+   no-op in-place write is demoted (non-layout) or hard-failed (layout), and a deletion
+   that left its text behind fails the export. Overlay edits do not carry `find` (the
+   original is still readable under the whiteout) and reflow edits do not either (a
+   paragraph rewrites many objects), so neither produces a false failure.
+2. **Legitimate multi-font collapse was refused (D2).** A line split across two fonts
+   (`Invoice ` in Helvetica + `number 42` in Courier) is correctly rewritten as one
+   run in the first font, which removes the Courier object; the `font-resources` check
+   then flagged "missing Courier" and refused a correct edit. Fix: the native pass now
+   records the base names of fonts whose last text object it removed
+   (`NativeTextEditResult.consumedFonts`), and `verifyExportArtifact` tolerates exactly
+   those. A font no edit touched disappearing still fails (negative-control test).
+3. **Deleting the only run on a page was refused (D3).** Same root cause: after a
+   correct deletion the page legitimately has no fonts left, which the check read as
+   "no font resources". Fixed by the same consumed-font tolerance.
+4. **Encrypted documents could not be edited (D4).** The final gate reopened the
+   output with `loadPdfDocument` *without* the password, so verification always failed
+   with "the exported document did not load: No password given". `verifyTextEdits` now
+   accepts a `password`, uses it for both the original and the output reintroduction
+   (and for the residual re-read), and the engine forwards it at both gates. A
+   password-protected fixture now edits in place and verifies.
+
+**Verified boundaries (probed, not changed).** CID/Type0 fonts with a `/ToUnicode`
+are natively editable via charcode inversion; a CID font *without* `/ToUnicode`, and
+non-embedded custom fonts (`createTextObject` fails), demote honestly; opaque
+content-stream string forms (escaped parens, octal, hex) are refused by the
+content-stream strategy but still edit natively; rotated (90°) and `CropBox` pages
+edit in place; translucent text keeps its `ExtGState` alpha through the native
+rewrite (darkest pixel 204/204 before and after).
+
+**Cosmetic/latent fixes.** Removed a dead ternary (`… ? 'fallback' : 'fallback'`) in
+the strategy branch, and fixed the pixel-difference loop to index each render with its
+own row stride instead of the shared minimum (latent, only bites if the two renders
+ever differ in width).
+
+**Regression tests added (27).** `test/textEditCorpus.test.ts` (12): subset fonts with
+and without `/ToUnicode`, unencodable CJK refusal, CID with/without `/ToUnicode`,
+rotation, `CropBox`, the three opaque string forms (content-stream refusal + native
+success), multi-font collapse incl. consumed-font assertion, and sole-run deletion.
+`test/textEditGates.test.ts` (15): no-op artifact detection, deletion absence
+(positive + negative), replacement-contains-find skip, uncountable-original skip,
+multi-consumption counting, the D2/D3 font tolerances with a negative control,
+encrypted-document edit + verification, concurrent runs, cancellation before WASM
+work, and 20 open/edit/close cycles.
+
+**Result.** `pnpm -r typecheck` green, `pnpm test` **1177/1177** (pdf-core 389, api
+208, web 39, provider 370, agent 152, mcp 19), `pnpm build` green, `pnpm test:bundle`
+green. (The api `v1` suite hit a one-off Windows `EPERM … rmdir` on a temp dir during
+a full run; it passes in isolation and on a clean re-run — a filesystem flake, not a
+logic change.)
+
+**Remaining limitations (unchanged by this pass).** No OCR engine; CID fonts without
+`/ToUnicode` cannot be rewritten natively; content-stream matching is byte-literal so
+escaped/octal/hex show operators fall through to native rather than being rewritten
+in the stream; visual verification needs a canvas and reports *skipped* otherwise;
+cross-page selection and neighbouring-block reflow stay out of scope.

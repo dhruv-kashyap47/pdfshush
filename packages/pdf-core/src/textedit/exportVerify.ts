@@ -39,6 +39,14 @@ export interface ExportVerifyOptions {
   outsideToleranceRatio?: number;
   ctx?: JobContext;
   password?: string;
+  /**
+   * Base names of fonts the edit legitimately consumed (their last text object was
+   * removed in place). The font-resources check tolerates these disappearing -- a
+   * two-font run collapsed into one rewrite, or a deleted sole run, can leave a page
+   * with fewer fonts than it started with, which is correct, not corruption. A font
+   * no edit touched that goes missing still fails the check.
+   */
+  consumedFonts?: Set<string>;
   /** Canvas implementation for the visual comparison (browser worker or Node test). */
   canvasFactory?: CanvasFactory;
 }
@@ -91,13 +99,17 @@ function differences(
   let total = 0;
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const index = (y * width + x) * 4;
+      // Each buffer is addressed with its own row stride: if the two renders ever
+      // differ in width, using the shared minimum for both would read the wrong
+      // pixels and compare unrelated regions of the image.
+      const originalIndex = (y * original.width + x) * 4;
+      const editedIndex = (y * edited.width + x) * 4;
       if (insideAny(regions, x, y)) continue;
       total += 1;
-      const dr = Math.abs((original.data[index] ?? 0) - (edited.data[index] ?? 0));
-      const dg = Math.abs((original.data[index + 1] ?? 0) - (edited.data[index + 1] ?? 0));
-      const db = Math.abs((original.data[index + 2] ?? 0) - (edited.data[index + 2] ?? 0));
-      const da = Math.abs((original.data[index + 3] ?? 0) - (edited.data[index + 3] ?? 0));
+      const dr = Math.abs((original.data[originalIndex] ?? 0) - (edited.data[editedIndex] ?? 0));
+      const dg = Math.abs((original.data[originalIndex + 1] ?? 0) - (edited.data[editedIndex + 1] ?? 0));
+      const db = Math.abs((original.data[originalIndex + 2] ?? 0) - (edited.data[editedIndex + 2] ?? 0));
+      const da = Math.abs((original.data[originalIndex + 3] ?? 0) - (edited.data[editedIndex + 3] ?? 0));
       if (Math.max(dr, dg, db, da) > tolerance) outside += 1;
     }
   }
@@ -216,13 +228,21 @@ export async function verifyExportArtifact(
 
   const originalFonts = collectFonts(originalDoc);
   const outputFonts = collectFonts(outputDoc);
-  const missingFonts = originalFonts.names.filter((font) => !outputFonts.names.includes(font));
+  // A font the edit consumed (its last text object was removed in place) may
+  // legitimately be gone from the output. Tolerate only those; a font no edit
+  // touched that disappears is still a failure.
+  const consumed = options.consumedFonts ?? new Set<string>();
+  const missingFonts = originalFonts.names.filter(
+    (font) => !outputFonts.names.includes(font) && !consumed.has(font),
+  );
   add(
     checks,
     'font-resources',
     missingFonts.length === 0 && outputFonts.invalid.length === 0,
     outputFonts.names.length === 0
-      ? 'no font resources'
+      ? consumed.size > 0
+        ? `no font resources remain (edits consumed ${[...consumed].sort().join(', ')})`
+        : 'no font resources'
       : `${outputFonts.names.length} font family/families` +
         (missingFonts.length > 0 ? `; missing ${missingFonts.join(', ')}` : '') +
         (outputFonts.invalid.length > 0 ? `; invalid ${outputFonts.invalid.join(', ')}` : ''),
@@ -231,6 +251,13 @@ export async function verifyExportArtifact(
   const textVerification = await verifyTextEdits(options.output, {
     expectedPageCount: options.expectedPageCount,
     expectations: options.expectations,
+    // Forward the pre-edit bytes so the residual-original absence checks can run:
+    // they are what catch a no-op write whose replacement string already existed on
+    // the page, and what give deletions a real post-export absence check.
+    original: options.original,
+    // Encrypted documents must be reopened with their password in both the original
+    // and the output, or verification fails with "No password given".
+    ...(options.password ? { password: options.password } : {}),
   });
   checks.push(...textVerification.checks);
 
