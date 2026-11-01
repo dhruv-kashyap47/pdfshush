@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { providerUsable } from '@/lib/ai/settings';
 import type { AiMode } from '@/lib/ai/mode';
+import { cn } from '@/lib/utils';
 
 interface AiSettingsCardProps {
   settings: AiSettings;
@@ -31,6 +32,13 @@ interface AiSettingsCardProps {
   onModeChange?(mode: AiMode): void;
   /** Whether this deployment offers the managed trial. */
   managedAvailable?: boolean;
+  /**
+   * `card` is the standalone surface; `plain` drops the outer chrome when the
+   * card is already inside a popover, a setup section or a rail.
+   */
+  surface?: 'card' | 'plain';
+  /** Hide the internal heading when the parent already sets the context. */
+  showHead?: boolean;
 }
 
 const EMPTY_CONFIG: AiProviderConfig = { apiKey: '', model: '' };
@@ -48,6 +56,8 @@ export function AiSettingsCard({
   mode = 'byok',
   onModeChange,
   managedAvailable = false,
+  surface = 'card',
+  showHead = true,
 }: AiSettingsCardProps) {
   const [draft, setDraft] = useState<AiSettings>(settings);
   const [showKey, setShowKey] = useState(false);
@@ -78,52 +88,60 @@ export function AiSettingsCard({
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-      <div className="mb-4 flex items-start gap-3">
-        <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
-          <KeyRound className="h-4 w-4" />
+    <div
+      className={cn(
+        'studio-settings',
+        surface === 'plain' && 'is-plain',
+        !showHead && 'is-headless',
+      )}
+    >
+      {showHead ? (
+        <div className="studio-settings-head">
+          <span className="studio-glyph" aria-hidden>
+            <KeyRound className="h-3.5 w-3.5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="studio-settings-title">AI provider</h3>
+            <p className="studio-settings-copy">
+              Bring your own key. The request goes straight from this browser to the provider, or
+              use the PDFShush trial.
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-sm font-semibold">AI provider</h3>
-          <p className="text-sm text-muted-foreground">
-            Bring your own key (the request goes straight from this browser to the provider), or use
-            the PDFShush trial.
-          </p>
-        </div>
-      </div>
+      ) : null}
 
       {onModeChange ? (
-        <div className="mb-5 grid gap-2">
-          <Label>Mode</Label>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="AI mode">
-            <Button
+        <div className="studio-settings-mode">
+          <span className="studio-field-label">Mode</span>
+          <div className="studio-segment" role="group" aria-label="AI mode">
+            <button
               type="button"
-              size="sm"
-              variant={mode === 'byok' ? 'default' : 'outline'}
+              aria-pressed={mode === 'byok'}
               onClick={() => onModeChange('byok')}
+              className={cn('studio-segment-btn', mode === 'byok' && 'is-active')}
               data-testid="ai-mode-byok"
             >
-              <KeyRound className="mr-1.5 h-4 w-4" /> Use my own key
-            </Button>
-            <Button
+              <KeyRound className="h-3.5 w-3.5" /> Use my own key
+            </button>
+            <button
               type="button"
-              size="sm"
-              variant={mode === 'managed' ? 'default' : 'outline'}
+              aria-pressed={mode === 'managed'}
               disabled={!managedAvailable}
               onClick={() => onModeChange('managed')}
+              className={cn('studio-segment-btn', mode === 'managed' && 'is-active')}
               data-testid="ai-mode-managed"
               title={managedAvailable ? undefined : 'Not offered by this deployment'}
             >
-              <Sparkles className="mr-1.5 h-4 w-4" /> PDFShush trial
-            </Button>
+              <Sparkles className="h-3.5 w-3.5" /> PDFShush trial
+            </button>
           </div>
         </div>
       ) : null}
 
       {mode === 'managed' ? (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
+        <div className="studio-settings-managed">
           <p className="font-medium">Using the PDFShush trial</p>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1">
             Requests go through PDFShush and are metered against a daily allowance. This is the one
             mode where the text you ask about reaches our server. Switch to “Use my own key” to keep
             everything in this browser.
@@ -131,10 +149,15 @@ export function AiSettingsCard({
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="ai-provider">Provider</Label>
-              <Select value={providerId} onValueChange={(value) => pickProvider(value as AiProviderId)}>
+          <div className="studio-settings-fields">
+            <div className="studio-field">
+              <Label htmlFor="ai-provider" className="studio-field-label">
+                Provider
+              </Label>
+              <Select
+                value={providerId}
+                onValueChange={(value) => pickProvider(value as AiProviderId)}
+              >
                 <SelectTrigger id="ai-provider">
                   <SelectValue placeholder="Choose a provider" />
                 </SelectTrigger>
@@ -148,11 +171,13 @@ export function AiSettingsCard({
                         <span
                           title={
                             provider.tier === 'free'
-                              ? "The default model here is free to run; other model ids may be paid."
+                              ? 'The default model here is free to run; other model ids may be paid.'
                               : 'Pay-as-you-go, far below frontier pricing.'
                           }
                           className={`ml-2 text-[0.65rem] font-normal uppercase tracking-wide ${
-                            provider.tier === 'free' ? 'text-emerald-600' : 'text-muted-foreground'
+                            provider.tier === 'free'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-muted-foreground'
                           }`}
                         >
                           {provider.tier === 'free' ? 'Free' : 'Budget'}
@@ -164,8 +189,10 @@ export function AiSettingsCard({
               </Select>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="ai-model">Model</Label>
+            <div className="studio-field">
+              <Label htmlFor="ai-model" className="studio-field-label">
+                Model
+              </Label>
               <Input
                 id="ai-model"
                 list="ai-model-options"
@@ -180,9 +207,11 @@ export function AiSettingsCard({
               </datalist>
             </div>
 
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="ai-key">{meta?.needsBaseUrl ? 'API key (optional)' : 'API key'}</Label>
-              <div className="flex gap-2">
+            <div className="studio-field studio-field--wide">
+              <Label htmlFor="ai-key" className="studio-field-label">
+                {meta?.needsBaseUrl ? 'API key (optional)' : 'API key'}
+              </Label>
+              <div className="flex gap-1.5">
                 <Input
                   id="ai-key"
                   type={showKey ? 'text' : 'password'}
@@ -196,6 +225,7 @@ export function AiSettingsCard({
                   type="button"
                   variant="outline"
                   size="icon"
+                  className="h-9 w-9 shrink-0"
                   aria-label={showKey ? 'Hide key' : 'Show key'}
                   onClick={() => setShowKey((shown) => !shown)}
                 >
@@ -205,43 +235,53 @@ export function AiSettingsCard({
             </div>
 
             {meta?.needsBaseUrl ? (
-              <div className="grid gap-2 sm:col-span-2">
-                <Label htmlFor="ai-baseurl">Base URL</Label>
+              <div className="studio-field studio-field--wide">
+                <Label htmlFor="ai-baseurl" className="studio-field-label">
+                  Base URL
+                </Label>
                 <Input
                   id="ai-baseurl"
                   value={config.baseUrl ?? ''}
                   placeholder="https://api.example.com/v1"
                   onChange={(event) => patchConfig({ baseUrl: event.target.value })}
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[0.7rem] text-muted-foreground">
                   Point at any OpenAI-compatible server (OpenAI, Ollama, LM Studio, vLLM…).
                 </p>
               </div>
             ) : null}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+          <div className="studio-settings-foot">
+            <p className="studio-settings-note">
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               Stored in this browser only; never sent to PDFShush.
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {onForget ? (
-                <Button type="button" variant="ghost" size="sm" onClick={onForget} data-testid="ai-forget-key">
-                  <Trash2 className="mr-1.5 h-4 w-4" /> Forget key
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={onForget}
+                  data-testid="ai-forget-key"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Forget key
                 </Button>
               ) : null}
               {/* A disabled save must not keep the primary treatment: at 50% opacity a
-                  saturated green button still reads as the page's main action.
-                  It steps down to a neutral surface instead. */}
+                  saturated green button still reads as the page's main action. */}
               <Button
                 type="button"
                 variant={dirty ? 'default' : 'secondary'}
+                size="sm"
+                className="h-8"
                 onClick={save}
                 disabled={!dirty}
                 data-testid="ai-save-settings"
               >
-                {dirty ? null : <Check className="mr-1.5 h-4 w-4" />}
+                {dirty ? null : <Check className="mr-1.5 h-3.5 w-3.5" />}
                 {dirty ? 'Save settings' : ready ? 'Saved' : 'Nothing to save'}
               </Button>
             </div>

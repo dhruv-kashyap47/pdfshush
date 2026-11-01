@@ -1,17 +1,23 @@
 /**
- * Review panel for the AI editor.
+ * The change ledger.
  *
- * Every change the model queued is one card, named in the user's terms and
- * individually discardable. "Apply" is the only thing that writes a file, and it
- * reports each engine step as it runs (text rewrites & overlays → page order →
- * header/footer). Nothing here trusts the model: the numbers on these cards come
- * from the same plan the engine is handed.
+ * Every change the model proposed is one line in the ledger, named in the
+ * user's terms, individually discardable, and traceable back to its page.
+ * "Apply" is the only thing that writes a file, and it reports each engine step
+ * as it runs (text rewrites & overlays, then page order, then header/footer).
+ * Nothing here trusts the model: the numbers come from the same plan the engine
+ * is handed.
+ *
+ * The ledger is collapsed to a single line when empty and expands with a single
+ * height transition the first time a change arrives — the one place a layout
+ * transition is the correct answer, because the panel is genuinely changing size.
  */
 
 import { useEffect, useRef } from 'react';
 import {
   AlertTriangle,
   ArrowUpDown,
+  ArrowUpRight,
   Eraser,
   Highlighter,
   Loader2,
@@ -26,7 +32,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { useMagnetic } from '@/hooks/use-magnetic';
 import { useMotionScope } from '@/hooks/use-motion';
 import type { AiEditEntry, AiEditKind, ApplyStep } from '@/lib/ai/edit-skill';
 import { cn } from '@/lib/utils';
@@ -48,6 +54,9 @@ const KIND_ICON: Record<AiEditKind, LucideIcon> = {
   reorder: ArrowUpDown,
   stamp: Printer,
 };
+
+const COLLAPSED_HEIGHT = 68;
+const LEDGER_CAP = 336;
 
 interface EditPlanPanelProps {
   entries: AiEditEntry[];
@@ -87,15 +96,49 @@ export function EditPlanPanel({
 }: EditPlanPanelProps) {
   const motion = useMotionScope();
   const seenRef = useRef<Set<string>>(new Set());
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const applyRef = useMagnetic<HTMLButtonElement>(3);
 
-  /**
-   * Card entrances: the same choreography the chat pane uses, applied to the
-   * review list — each edit card the model queues slides in individually, and
-   * settled cards never re-animate on re-render.
-   */
+  const blockedCount = blocked?.length ?? 0;
+  const remaining = Math.max(0, entries.length - blockedCount);
+  const expanded = entries.length > 0 || blockedCount > 0;
+
+  /* One deliberate height transition when the ledger fills or empties. */
+  const heightRef = useRef<number | null>(null);
   useEffect(() => {
-    const root = rootRef.current;
+    const node = rootRef.current;
+    if (!node) return;
+    const wide = window.matchMedia?.('(min-width: 640px)').matches ?? true;
+    const cap = wide ? LEDGER_CAP : 300;
+    // Header + rows + footer, capped. A one-change ledger should not steal the
+    // whole thread; a long one scrolls internally.
+    const content =
+      136 +
+      entries.length * 50 +
+      (blockedCount > 0 ? 128 + blockedCount * 42 : 0) +
+      (applying ? 14 : 0);
+    const target = expanded ? Math.min(cap, content) : COLLAPSED_HEIGHT;
+    const from = heightRef.current;
+    heightRef.current = target;
+    if (from === null || from === target) {
+      node.style.height = `${target}px`;
+      return;
+    }
+    if (prefersReducedMotion()) {
+      node.style.height = `${target}px`;
+      return;
+    }
+    motion.animate(node, {
+      height: [from, target],
+      duration: dur(480),
+      ease: EASE.out,
+    });
+  }, [expanded, blockedCount, entries.length, applying, motion]);
+
+  /* Row entrance: the same choreography the chat uses, applied to the ledger. */
+  useEffect(() => {
+    const root = bodyRef.current;
     if (!root || prefersReducedMotion()) return;
     const fresh: HTMLElement[] = [];
     for (const node of root.querySelectorAll<HTMLElement>('[data-motion-id]')) {
@@ -105,101 +148,89 @@ export function EditPlanPanel({
       fresh.push(node);
     }
     if (fresh.length === 0) return;
+    for (const node of fresh) node.style.opacity = '0';
     motion.animate(fresh, {
-      translateY: [8, 0],
+      translateY: [7, 0],
       opacity: [0, 1],
-      duration: dur(320),
+      duration: dur(340),
       ease: EASE.out,
-      delay: staggerUI(45),
+      delay: staggerUI(50),
     });
   }, [entries, blocked, motion]);
   useEffect(() => () => seenRef.current.clear(), []);
 
-  const blockedCount = blocked?.length ?? 0;
-  const remaining = Math.max(0, entries.length - blockedCount);
   return (
-    <div
+    <section
+      ref={rootRef}
       data-testid="ai-edit-plan"
-      className={cn(
-        'flex shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card',
-        // A refusal needs room for its card and its two ways forward; the
-        // chat pane above gives the space up (it is the flexible one).
-        blockedCount > 0 ? 'max-h-[26rem]' : 'max-h-72',
-      )}
+      aria-label="Proposed changes"
+      className="studio-ledger shrink-0 overflow-hidden"
+      style={{ height: COLLAPSED_HEIGHT }}
     >
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Wand2 className="h-4 w-4 shrink-0 text-primary" />
-        <p className="text-sm font-semibold">Changes to apply</p>
-        {entries.length > 0 ? (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary tabular-nums">
-            {entries.length}
-          </span>
-        ) : null}
+      <header className="studio-ledger-head">
+        <span className="studio-glyph" aria-hidden>
+          <Wand2 className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="studio-ledger-title">
+            Changes to apply
+            {entries.length > 0 ? (
+              <span className="studio-ledger-count tabular-nums">{entries.length}</span>
+            ) : null}
+          </p>
+          <p className="studio-ledger-sub">
+            {entries.length === 0
+              ? 'Every proposed edit lands here before it touches the file.'
+              : `${entries.length} proposed, nothing written yet`}
+          </p>
+        </div>
         {entries.length > 0 && !applying ? (
-          <button
-            type="button"
-            onClick={onDiscardAll}
-            className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <button type="button" onClick={onDiscardAll} className="studio-text-btn">
             Discard all
           </button>
         ) : null}
-      </div>
+      </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div className="studio-ledger-body" ref={bodyRef}>
         {blockedCount > 0 ? (
           <div
             data-testid="ai-edit-blocked"
             data-motion-id="blocked-card"
-            className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3"
+            role="alert"
+            className="studio-blocked"
           >
             <div className="flex items-start gap-2">
-              <ShieldX className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <ShieldX className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                  The engine refused {blockedCount === 1 ? 'this change' : `${blockedCount} changes`} on the
-                  last apply
+                <p className="text-xs font-semibold">
+                  The engine refused {blockedCount === 1 ? 'this change' : `${blockedCount} changes`} on
+                  the last apply
                 </p>
-                <p className="mt-0.5 text-xs text-amber-700/80 dark:text-amber-300/80">
+                <p className="mt-0.5 text-[0.7rem] leading-snug opacity-80">
                   Nothing was written. Discard the refused changes and the rest can still be applied.
                 </p>
               </div>
             </div>
-            <ul className="mt-2 space-y-1.5">
+            <ul className="mt-2 space-y-1">
               {blocked!.map((change) => {
                 const Icon = KIND_ICON[change.entry.kind];
                 return (
                   <li
                     key={change.entry.id}
                     data-motion-id={`blocked:${change.entry.id}`}
-                    className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-background/60 px-2 py-1.5"
+                    className="studio-blocked-row"
                   >
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                      <Icon className="h-3 w-3" />
-                    </span>
+                    <Icon className="h-3 w-3 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="text-xs font-medium">{change.entry.title}</p>
-                        {change.entry.pages.slice(0, 3).map((page) => (
-                          <button
-                            key={page}
-                            type="button"
-                            onClick={() => onShowPage(page)}
-                            className="rounded bg-violet-500/10 px-1 py-px text-[0.65rem] font-medium tabular-nums text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-300"
-                            title={`Show page ${page}`}
-                          >
-                            p.{page}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="mt-0.5 text-[0.7rem] leading-snug text-muted-foreground">{change.reason}</p>
+                      <p className="truncate text-[0.7rem] font-medium">{change.entry.title}</p>
+                      <p className="text-[0.68rem] leading-snug opacity-75">{change.reason}</p>
                     </div>
                     {!applying ? (
                       <button
                         type="button"
                         onClick={() => onDiscard(change.entry.id)}
                         aria-label={`Discard: ${change.entry.title}`}
-                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        className="studio-blocked-x"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -208,44 +239,36 @@ export function EditPlanPanel({
                 );
               })}
             </ul>
-            <details className="group mt-2">
-              <summary className="flex cursor-pointer items-center gap-1 text-[0.7rem] font-medium text-amber-700 transition-colors hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200">
+            <details className="mt-2">
+              <summary className="flex cursor-pointer items-center gap-1 text-[0.68rem] font-medium">
                 <AlertTriangle className="h-3 w-3" /> Why was it refused?
               </summary>
-              <p className="mt-1 whitespace-pre-wrap break-words rounded bg-background/60 px-2 py-1.5 text-[0.7rem] leading-snug text-muted-foreground">
-                {blockedDetail}
-              </p>
+              <p className="studio-blocked-detail">{blockedDetail}</p>
             </details>
             {!applying && onRetryWithoutFailed ? (
-              <div className="mt-2.5 flex gap-2">
+              <div className="mt-2 flex gap-1.5">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 flex-1 border-amber-500/50 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+                  className="h-7 flex-1 border-amber-500/40 text-[0.7rem] text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
                   onClick={onRetryWithoutFailed}
                   data-testid="ai-edit-retry-without-failed"
                 >
-                  <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                  <Wand2 className="mr-1.5 h-3 w-3" />
                   {remaining > 0
-                    ? `Discard failed & apply ${remaining} change${remaining === 1 ? '' : 's'}`
+                    ? `Discard failed & apply ${remaining}`
                     : `Discard the refused change${blockedCount === 1 ? '' : 's'}`}
                 </Button>
-                <Button size="sm" variant="ghost" className="h-7" onClick={onDiscardAll}>
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Discard all
+                <Button size="sm" variant="ghost" className="h-7 text-[0.7rem]" onClick={onDiscardAll}>
+                  <Trash2 className="mr-1 h-3 w-3" /> All
                 </Button>
               </div>
             ) : null}
           </div>
         ) : null}
 
-        {entries.length === 0 ? (
-          <p className="px-2 py-3 text-xs text-muted-foreground">
-            Describe a change and every edit the assistant proposes appears here for review before
-            anything is written. Highlighting, rewriting, erasing, inserting, rotating, reordering
-            and stamping are all supported.
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
+        {entries.length === 0 ? null : (
+          <ul className="space-y-px">
             {entries.map((entry) => {
               const Icon = KIND_ICON[entry.kind];
               const isBlocked = blocked?.some((change) => change.entry.id === entry.id);
@@ -253,37 +276,34 @@ export function EditPlanPanel({
                 <li
                   key={entry.id}
                   data-motion-id={`entry:${entry.id}`}
-                  className={cn(
-                    'flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2',
-                    isBlocked
-                      ? 'border-amber-500/40 bg-amber-500/5'
-                      : 'border-border/70',
-                  )}
+                  className={cn('studio-change group', isBlocked && 'is-blocked')}
                 >
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <span className="studio-change-glyph" aria-hidden>
                     <Icon className="h-3.5 w-3.5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="text-sm font-medium">{entry.title}</p>
-                      {entry.pages.slice(0, 4).map((page) => (
-                        <button
-                          key={page}
-                          type="button"
-                          onClick={() => onShowPage(page)}
-                          className="rounded bg-violet-500/10 px-1 py-px text-[0.7rem] font-medium tabular-nums text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-300"
-                          title={`Show page ${page}`}
-                        >
-                          p.{page}
-                        </button>
-                      ))}
-                      {entry.pages.length > 4 ? (
-                        <span className="text-[0.7rem] text-muted-foreground">
-                          +{entry.pages.length - 4}
-                        </span>
-                      ) : null}
+                    <div className="flex items-baseline gap-2">
+                      <p className="studio-change-title">{entry.title}</p>
+                      <span className="studio-change-pages">
+                        {entry.pages.slice(0, 4).map((page) => (
+                          <button
+                            key={page}
+                            type="button"
+                            onClick={() => onShowPage(page)}
+                            className="studio-page-chip tabular-nums"
+                            title={`Show page ${page}`}
+                          >
+                            p.{page}
+                          </button>
+                        ))}
+                        {entry.pages.length > 4 ? (
+                          <span className="text-[0.65rem] text-muted-foreground">
+                            +{entry.pages.length - 4}
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground" title={entry.detail}>
+                    <p className="studio-change-detail" title={entry.detail}>
                       {entry.detail}
                     </p>
                   </div>
@@ -292,9 +312,9 @@ export function EditPlanPanel({
                       type="button"
                       onClick={() => onDiscard(entry.id)}
                       aria-label={`Discard: ${entry.title}`}
-                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      className="studio-change-discard"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-3 w-3" />
                     </button>
                   ) : null}
                 </li>
@@ -304,17 +324,17 @@ export function EditPlanPanel({
         )}
       </div>
 
-      <div className="border-t border-border p-3">
+      <footer className="studio-ledger-foot">
         {error ? (
-          <p className="mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <p className="studio-error mb-2" role="alert">
             {error}
           </p>
         ) : null}
 
         {applying ? (
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            <div className="flex items-center gap-2 text-[0.72rem] text-muted-foreground">
+              <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
               <span className="truncate">
                 {step ? `${step.label} (${step.index + 1}/${step.total})` : 'Applying changes…'}
               </span>
@@ -326,22 +346,33 @@ export function EditPlanPanel({
                 Stop
               </button>
             </div>
-            <Progress value={Math.round(progress * 100)} />
+            <div
+              className="studio-progress"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress * 100)}
+            >
+              <span style={{ transform: `scaleX(${Math.max(0.02, progress)})` }} />
+            </div>
           </div>
         ) : (
           <Button
-            className={cn('w-full')}
+            ref={applyRef}
+            className="studio-apply w-full"
             disabled={entries.length === 0}
             onClick={onApply}
             data-testid="ai-edit-apply"
           >
-            <Wand2 className="mr-1.5 h-4 w-4" />
-            {entries.length === 0
-              ? 'No changes queued'
-              : `Apply ${entries.length} change${entries.length === 1 ? '' : 's'} & download`}
+            <span>
+              {entries.length === 0
+                ? 'No changes queued'
+                : `Apply ${entries.length} change${entries.length === 1 ? '' : 's'} & download`}
+            </span>
+            <ArrowUpRight className="ml-auto h-4 w-4" />
           </Button>
         )}
-      </div>
-    </div>
+      </footer>
+    </section>
   );
 }

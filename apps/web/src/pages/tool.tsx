@@ -56,6 +56,9 @@ import { NotFoundPage } from '@/pages/not-found';
 import { WorkflowsPage } from '@/pages/workflows';
 import { AiTrustNotes } from '@/components/ai/ai-trust-notes';
 import { getTool, liveTools, type ToolDef } from '@/tools/registry';
+// The studio visual system is tool-page-only: it ships in this lazy chunk, so
+// the landing page never pays for it.
+import '@/studio.css';
 
 /** Live tool bodies, keyed by slug. Add a tool here when its job lands. */
 const LIVE_BODIES: Record<string, ComponentType> = {
@@ -125,7 +128,12 @@ export function ToolPage() {
   const isAi = tool.category === 'ai';
 
   return (
-    <ToolFrame tool={tool} wide={isAi} notes={isAi ? <AiTrustNotes /> : undefined}>
+    <ToolFrame
+      tool={tool}
+      wide={isAi}
+      chrome={isAi ? 'studio' : 'default'}
+      notes={isAi ? <AiTrustNotes /> : undefined}
+    >
       {Body ? <Body /> : <PlannedNotice tool={tool} />}
     </ToolFrame>
   );

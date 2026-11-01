@@ -1,15 +1,27 @@
 /**
- * The AI assistant pane: streaming answers, a live activity timeline, and
- * citations that jump the document pane.
+ * The assistant rail.
  *
- * The loop owns conversation history, so follow-up questions keep context
- * without this component resending anything. What this adds is the reading
- * experience: every tool the model runs is shown as it happens, every `[page N]`
- * becomes a chip you can click, and the run reports what it cost.
+ * Not a chatbot bolted onto an editor: it is the margin beside the document.
+ * Instructions are set as short notes, the assistant answers in full-width
+ * prose, every tool it runs is a line in a quiet timeline, and every `[page N]`
+ * is a citation you can press to move the page. The loop still owns the
+ * conversation history, so follow-ups keep context.
+ *
+ * Motion: new rows rise once, the composer grows with its text, and streaming
+ * never re-animates settled rows. Auto-scroll is pinned only while the reader is
+ * already at the foot of the thread, so reading back is never yanked away.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Check, Loader2, Send, Sparkles, Square, User } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  ArrowUp,
+  Check,
+  Loader2,
+  Sparkles,
+  Square,
+} from 'lucide-react';
 import {
   AgentLoop,
   type AgentRunResult,
@@ -30,7 +42,7 @@ import { cn } from '@/lib/utils';
 import { EASE, dur, staggerUI, prefersReducedMotion } from '@/lib/motion';
 
 /** Composer growth cap in px; beyond it the textarea scrolls internally. */
-const COMPOSER_MAX_HEIGHT = 160;
+const COMPOSER_MAX_HEIGHT = 148;
 
 /** Friendly verbs for the tools the skills expose, for the activity timeline. */
 const TOOL_COPY: Record<string, string> = {
@@ -84,6 +96,13 @@ interface AiChatProps {
   placeholder?: string | undefined;
   /** Starter prompts shown before the first turn. */
   suggestions?: string[] | undefined;
+  /** Rail heading and one-line explanation. */
+  title?: string;
+  hint?: string;
+  /** Empty-state lead line. */
+  emptyLead?: string;
+  /** Empty-state explanatory sentence; include the document name. */
+  emptyCopy?: string;
 }
 
 let nextMessageId = 1;
@@ -108,7 +127,7 @@ function AnswerText({
 }) {
   const segments = useMemo(() => splitCitations(text), [text]);
   return (
-    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+    <p className="studio-answer">
       {segments.map((segment, index) =>
         segment.kind === 'text' ? (
           <span key={index}>{segment.text}</span>
@@ -121,12 +140,7 @@ function AnswerText({
                 data-testid="ai-citation"
                 onClick={() => onShowPage?.(page)}
                 title={`Show page ${page}`}
-                className={cn(
-                  'mx-0.5 inline-flex items-center rounded px-1 py-px text-[0.7rem] font-medium tabular-nums transition-colors',
-                  page === activePage
-                    ? 'bg-violet-500 text-white'
-                    : 'bg-violet-500/10 text-violet-600 hover:bg-violet-500/20 dark:text-violet-300',
-                )}
+                className={cn('studio-cite tabular-nums', page === activePage && 'is-active')}
               >
                 p.{page}
               </button>
@@ -153,6 +167,10 @@ export function AiChat({
   autoPrompt,
   placeholder,
   suggestions,
+  title = 'Instructions',
+  hint = 'The assistant proposes; you decide.',
+  emptyLead = 'Describe the change you want.',
+  emptyCopy,
 }: AiChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -162,6 +180,7 @@ export function AiChat({
   const [turnCount, setTurnCount] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
@@ -179,12 +198,14 @@ export function AiChat({
   }, []);
 
   const transport = useMemo(
-    () => (mode === 'managed' ? createManagedTransport() : createByokTransport(() => settingsRef.current)),
+    () =>
+      mode === 'managed' ? createManagedTransport() : createByokTransport(() => settingsRef.current),
     [mode],
   );
 
   const loop = useMemo(() => {
-    const resolved = skill ?? createPdfSkill(doc, { onGotoPage: (page) => showPageRef.current?.(page) });
+    const resolved =
+      skill ?? createPdfSkill(doc, { onGotoPage: (page) => showPageRef.current?.(page) });
     let lastCum = '';
     let runUsage: AgentTokenUsage | null = null;
     return new AgentLoop({
@@ -247,6 +268,13 @@ export function AiChat({
     });
   }, [doc, skill, transport, updateAssistant]);
 
+  /**
+   * Auto-follow the stream only while the reader is at the foot of the thread.
+   * Scrolling up to re-read an earlier answer must not be undone on the next
+   * token.
+   */
+  const pinnedRef = useRef(true);
+
   const send = useCallback(
     (instruction: string) => {
       const text = instruction.trim();
@@ -263,6 +291,7 @@ export function AiChat({
       setInput('');
       setBusy(true);
       setTurnCount(0);
+      pinnedRef.current = true;
       loop.run(text);
     },
     [busy, loop],
@@ -282,11 +311,19 @@ export function AiChat({
   // file remounting the chat): the loop is aborted with the component.
   useEffect(() => () => loop.cancel(), [loop]);
 
-  // Keep the newest message in view as it streams — smoothly when motion is
-  // welcome, instantly when it is not.
-  useEffect(() => {
+  /**
+   * Auto-follow the stream only while the reader is at the foot of the thread.
+   * Scrolling up to re-read an earlier answer must not be undone on the next
+   * token.
+   */
+  const onScroll = useCallback(() => {
     const node = scrollRef.current;
     if (!node) return;
+    pinnedRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 96;
+  }, []);
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node || !pinnedRef.current) return;
     node.scrollTo({
       top: node.scrollHeight,
       behavior: prefersReducedMotion() ? 'auto' : 'smooth',
@@ -294,12 +331,26 @@ export function AiChat({
   }, [messages, runningTool]);
 
   /**
+   * The thread changes height when the ledger expands or a panel is resized.
+   * If the reader was at the foot, keep them there; if they had scrolled up,
+   * leave their position untouched.
+   */
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (!pinnedRef.current) return;
+      node.scrollTop = node.scrollHeight;
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  /**
    * Entrance choreography. Every row (message, tool step, running tool) carries
-   * a stable `data-motion-id`; those seen for the first time slide in with the
-   * shared enter ease. The seen-set is what keeps re-renders from re-animating
-   * settled rows — the stream updates the last message's text many times a
-   * second, and only genuinely new rows ever move. Ids reset with the component
-   * (the workspace remounts the chat per document).
+   * a stable `data-motion-id`; those seen for the first time rise in with the
+   * shared enter ease. The seen-set keeps the streaming text from re-animating
+   * settled rows many times a second.
    */
   const motion = useMotionScope();
   const seenMotionRef = useRef<Set<string>>(new Set());
@@ -314,21 +365,18 @@ export function AiChat({
       fresh.push(node);
     }
     if (fresh.length === 0) return;
+    for (const node of fresh) node.style.opacity = '0';
     motion.animate(fresh, {
       translateY: [8, 0],
       opacity: [0, 1],
-      duration: dur(320),
+      duration: dur(340),
       ease: EASE.out,
       delay: staggerUI(45),
     });
   }, [messages, runningTool, motion]);
-  // StrictMode's dev remount never sees the seen-set: clearing it on the final
-  // unmount keeps a re-mounted chat animating its first turn again.
   useEffect(() => () => seenMotionRef.current.clear(), []);
 
-  // The composer grows with its text (capped, then it scrolls) instead of a
-  // fixed height that swallows long prompts.
-  const composerRef = useRef<HTMLTextAreaElement>(null);
+  // The composer grows with its text (capped, then it scrolls).
   useEffect(() => {
     const node = composerRef.current;
     if (!node) return;
@@ -344,32 +392,52 @@ export function AiChat({
       : null;
   const usageLabel =
     usage && (usage.inputTokens || usage.outputTokens)
-      ? `${usage.inputTokens ?? 0} in · ${usage.outputTokens ?? 0} out`
+      ? `${usage.inputTokens ?? 0} in, ${usage.outputTokens ?? 0} out`
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+    <section className="studio-chat" aria-label={title}>
+      <header className="studio-chat-head">
+        <div className="min-w-0 flex-1">
+          <p className="studio-chat-title">{title}</p>
+          <p className="studio-chat-hint">{hint}</p>
+        </div>
+        <span
+          className={cn('studio-live', busy ? 'is-busy' : 'is-quiet')}
+          title={busy ? 'The assistant is working' : 'The assistant is idle'}
+        >
+          <span className="studio-live-dot" aria-hidden />
+          {busy ? 'Working' : 'Ready'}
+        </span>
+      </header>
+
+      <div ref={scrollRef} onScroll={onScroll} className="studio-thread">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
-            <span data-motion-id="welcome:icon" className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <p data-motion-id="welcome:copy" className="text-sm text-muted-foreground">
-              Ask anything about <span className="font-medium text-foreground">{doc.fileName}</span>.
-              Answers cite the pages they came from.
+          <div className="studio-empty">
+            <p data-motion-id="welcome:lead" className="studio-empty-lead">
+              {emptyLead}
+            </p>
+            <p data-motion-id="welcome:copy" className="studio-empty-copy">
+              {emptyCopy ?? (
+                <>
+                  It reads <span className="font-medium text-foreground">{doc.fileName}</span> page
+                  by page. Every proposed change waits for your approval.
+                </>
+              )}
             </p>
             {suggestions?.length ? (
-              <div className="mt-1 flex flex-wrap justify-center gap-2">
+              <div className="mt-4 space-y-px">
                 {suggestions.map((suggestion, index) => (
                   <button
                     key={suggestion}
                     type="button"
                     data-motion-id={`welcome:suggestion:${index}`}
                     onClick={() => send(suggestion)}
-                    className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                    className="studio-suggestion group"
                   >
-                    {suggestion}
+                    <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="min-w-0 flex-1 truncate text-left">{suggestion}</span>
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100" />
                   </button>
                 ))}
               </div>
@@ -381,126 +449,140 @@ export function AiChat({
           <div
             key={message.id}
             data-motion-id={`msg:${message.id}`}
-            className={cn('flex gap-3', message.role === 'user' && 'justify-end')}
+            className={cn('studio-turn', message.role === 'user' ? 'is-user' : 'is-assistant')}
           >
-            {message.role === 'assistant' ? (
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <Bot className="h-4 w-4" />
-              </span>
-            ) : null}
-
-            <div className={cn('min-w-0 flex-1', message.role === 'user' && 'flex justify-end')}>
-              {message.role === 'user' ? (
-                // Neutral, not the primary fill: the page's primary action is
-                // Apply, and a saturated bubble here would out-shout it.
-                <div className="max-w-[85%] rounded-2xl rounded-tr-sm border border-border bg-muted px-3.5 py-2 text-sm text-foreground">
-                  {message.text}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {message.steps.length > 0 || (message.id === lastAssistantId && runningTool) ? (
-                    <ul className="space-y-1">
-                      {message.steps.map((step, index) => (
-                        <li
-                          key={index}
-                          data-motion-id={`${message.id}:step:${index}`}
-                          className={cn(
-                            'flex items-center gap-2 rounded-md border px-2 py-1 text-xs',
-                            step.ok
-                              ? 'border-border/60 bg-muted/40 text-muted-foreground'
-                              : 'border-destructive/30 bg-destructive/10 text-destructive',
-                          )}
-                        >
-                          {step.ok ? (
-                            <Check className="h-3 w-3 shrink-0 text-emerald-500" />
-                          ) : (
-                            <AlertTriangle className="h-3 w-3 shrink-0" />
-                          )}
-                          <span className="truncate">{step.summary}</span>
-                        </li>
-                      ))}
-                      {message.id === lastAssistantId && runningTool ? (
-                        <li
-                          data-motion-id={`${message.id}:running:${runningTool}`}
-                          className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary"
-                        >
-                          <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                          <span className="truncate">{TOOL_COPY[runningTool] ?? 'Working'}…</span>
-                        </li>
-                      ) : null}
-                    </ul>
-                  ) : null}
-
-                  {message.text ? (
-                    <div
-                      data-testid="ai-message-assistant"
-                      data-motion-id={`${message.id}:text`}
-                      className={message.error ? 'text-destructive' : undefined}
-                    >
-                      <AnswerText text={message.text} activePage={activePage} onShowPage={onShowPage} />
-                    </div>
-                  ) : message.id === lastAssistantId && busy ? (
-                    <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> {statusLine ?? 'Working…'}
-                    </span>
-                  ) : null}
-                </div>
-              )}
-            </div>
+            <p className="studio-turn-label">{message.role === 'user' ? 'You' : 'Assistant'}</p>
 
             {message.role === 'user' ? (
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <User className="h-4 w-4" />
-              </span>
-            ) : null}
+              <div className="studio-instruction">{message.text}</div>
+            ) : (
+              <div className="space-y-2">
+                {message.steps.length > 0 || (message.id === lastAssistantId && runningTool) ? (
+                  <ol className="studio-steps">
+                    {message.steps.map((step, index) => (
+                      <li
+                        key={index}
+                        data-motion-id={`${message.id}:step:${index}`}
+                        className={cn('studio-step', !step.ok && 'is-error')}
+                      >
+                        <span className="studio-step-dot" aria-hidden>
+                          {step.ok ? (
+                            <Check className="h-2.5 w-2.5" />
+                          ) : (
+                            <AlertTriangle className="h-2.5 w-2.5" />
+                          )}
+                        </span>
+                        <span className="truncate">{step.summary}</span>
+                      </li>
+                    ))}
+                    {message.id === lastAssistantId && runningTool ? (
+                      <li
+                        data-motion-id={`${message.id}:running:${runningTool}`}
+                        className="studio-step is-running"
+                      >
+                        <span className="studio-step-dot" aria-hidden>
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        </span>
+                        <span className="truncate">{TOOL_COPY[runningTool] ?? 'Working'}…</span>
+                      </li>
+                    ) : null}
+                  </ol>
+                ) : null}
+
+                {message.text ? (
+                  <div
+                    data-testid="ai-message-assistant"
+                    data-motion-id={`${message.id}:text`}
+                    className={message.error ? 'text-destructive' : undefined}
+                  >
+                    <AnswerText
+                      text={message.text}
+                      activePage={activePage}
+                      onShowPage={onShowPage}
+                    />
+                  </div>
+                ) : message.id === lastAssistantId && busy ? (
+                  <p className="studio-thinking">
+                    <span className="studio-thinking-rule" aria-hidden />
+                    {statusLine ?? 'Working…'}
+                  </p>
+                ) : null}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
       {usageLabel || (busy && turnCount > 1) ? (
-        <div className="flex items-center gap-3 border-t border-border/60 px-4 py-1.5 text-[0.7rem] text-muted-foreground">
+        <div className="studio-thread-foot">
           {busy && statusLine ? (
             <span className="inline-flex items-center gap-1.5">
-              <Loader2 className="h-3 w-3 animate-spin" /> {statusLine}
+              <Loader2 className="h-2.5 w-2.5 animate-spin" /> {statusLine}
             </span>
           ) : null}
-          {busy && turnCount > 1 ? <span>· turn {turnCount + 1}</span> : null}
-          {usageLabel ? <span className="ml-auto tabular-nums">{usageLabel} tokens</span> : null}
+          {busy && turnCount > 1 ? <span>, pass {turnCount + 1}</span> : null}
+          {usageLabel ? <span className="ml-auto tabular-nums">{usageLabel}</span> : null}
         </div>
       ) : null}
 
       <form
-        className="flex items-end gap-2 border-t border-border p-3"
+        className="studio-composer"
         onSubmit={(event) => {
           event.preventDefault();
           send(input);
         }}
       >
-        <textarea
-          ref={composerRef}
-          data-testid="ai-composer"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              send(input);
-            }
-          }}
-          rows={1}
-          placeholder={placeholder ?? 'Ask a question about this PDF…'}
-          className="max-h-40 min-h-[2.5rem] flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        {busy ? (
-          <Button type="button" variant="outline" onClick={() => loop.cancel()} data-testid="ai-stop">
-            <Square className="mr-1.5 h-4 w-4" /> Stop
-          </Button>
-        ) : (
-          <Button type="submit" disabled={!input.trim()} data-testid="ai-send">
-            <Send className="mr-1.5 h-4 w-4" /> Send
-          </Button>
-        )}
+        <div className="studio-composer-box">
+          <label className="sr-only" htmlFor="studio-instruction">
+            {title}
+          </label>
+          <textarea
+            id="studio-instruction"
+            ref={composerRef}
+            data-testid="ai-composer"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                send(input);
+              }
+            }}
+            rows={1}
+            placeholder={placeholder ?? 'Ask a question about this PDF…'}
+            className="studio-textarea"
+          />
+          <div className="studio-composer-bar">
+            <span className="studio-composer-hint">
+              {busy ? 'Streaming the answer' : 'Enter to send. Shift + Enter for a new line.'}
+            </span>
+            {busy ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="studio-stop"
+                onClick={() => loop.cancel()}
+                data-testid="ai-stop"
+              >
+                <Square className="h-3 w-3" />
+                <span className="sr-only">Stop</span>
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="icon"
+                className="studio-send"
+                disabled={!input.trim()}
+                data-testid="ai-send"
+                aria-label="Send instruction"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
       </form>
-    </div>
+    </section>
   );
 }

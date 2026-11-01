@@ -639,7 +639,11 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
             : lastEmitted < head
               ? `${parts.join('\n\n')}\n\n(Output stopped early at the ${MAX_CHARS_PER_READ}-character limit after page ${lastEmitted}; request a narrower range for the rest.)`
               : parts.join('\n\n');
-        return { output: tail, summary: `Read pages ${from}–${lastEmitted < from ? from : lastEmitted}` };
+        const readTo = Math.max(lastEmitted, from);
+        return {
+          output: tail,
+          summary: readTo === from ? `Read page ${from}` : `Read pages ${from} to ${readTo}`,
+        };
       }
 
       case 'scan_document': {

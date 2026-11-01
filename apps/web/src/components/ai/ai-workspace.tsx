@@ -1,41 +1,52 @@
 /**
- * The AI workspace: the shell every AI tool shares.
+ * The AI studio: the shell every AI tool shares.
  *
- * Two panes: the document on the left (one legible page, with pending changes
- * drawn on it) and the assistant on the right (streaming answers, an activity
- * timeline, clickable page citations), plus the review/apply panel for the
- * editor. Text extraction and page rendering run through the same worker pool as
- * every other tool; the model never sees bytes, only the text this layer hands
- * it, and only the path the user chose (their key in this tab, or the trial).
+ * The document is the work. One stage holds a legible page on a mat; the margin
+ * beside it holds instructions, the assistant's reading and — for the editor —
+ * a ledger of every proposed change. Nothing is written until the ledger is
+ * applied, and the success state is a receipt rather than a toast.
+ *
+ * Text extraction and page rendering run through the same worker pool as every
+ * other tool; the model never sees bytes, only the text this layer hands it,
+ * and only the path the user chose (their key in this tab, or the trial).
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  FileText,
+  FileWarning,
   KeyRound,
   Loader2,
   RotateCcw,
   Settings2,
   ShieldCheck,
   Sparkles,
-  Wand2,
-  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AiSettings } from '@pdfshush/ai-provider/browser';
 import { AiChat } from '@/components/ai/ai-chat';
+import { AiCover, type CoverMark } from '@/components/ai/ai-cover';
 import { AiDocumentPane, type OverlayMarker } from '@/components/ai/ai-document-pane';
+import { AiExport } from '@/components/ai/ai-export';
 import { AiSettingsCard } from '@/components/ai/ai-settings-card';
 import { AiWelcomeOverlay } from '@/components/ai/ai-welcome-overlay';
 import { EditPlanPanel, type BlockedEditChange } from '@/components/ai/edit-plan-panel';
-import { FileDropzone } from '@/components/tools/file-dropzone';
-import { ResultPanel } from '@/components/tools/result-panel';
+import { StudioMasthead } from '@/components/ai/studio-masthead';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useMotionScope } from '@/hooks/use-motion';
 import { usePageThumbnails } from '@/hooks/use-page-thumbnails';
 import { downloadBytes } from '@/lib/download';
-import { aiReady, clearAiSettings, loadAiSettings, loadAiState, saveAiSettings, storedKeyPresent } from '@/lib/ai/settings';
+import { formatBytes } from '@/lib/format';
+import { getTool } from '@/tools/registry';
+import { useToolSlug } from '@/tools/tool-context';
+import {
+  aiReady,
+  clearAiSettings,
+  loadAiSettings,
+  loadAiState,
+  saveAiSettings,
+  storedKeyPresent,
+} from '@/lib/ai/settings';
 import { managedAvailable } from '@/lib/ai/managed';
 import { aiWelcomeAnswered, markAiWelcomeAnswered } from '@/lib/ai/welcome';
 import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
@@ -47,7 +58,7 @@ import {
   type ApplyStep,
 } from '@/lib/ai/edit-skill';
 import { extractDocumentText, extractEditDocument, type AiDocument } from '@/lib/ai/pdf-session';
-import { EASE, DUR, dur, staggerUI } from '@/lib/motion';
+import { DUR, EASE, dur, prefersReducedMotion, staggerUI } from '@/lib/motion';
 import { recordRecent } from '@/tools/recent';
 
 /** Which AI surface this is; only the copy, the skill and the extra panel differ. */
@@ -57,37 +68,81 @@ export type AiToolVariant = 'summarize' | 'chat' | 'edit';
 const PREVIEW_WIDTH_PX = 900;
 
 interface VariantCopy {
-  title: string;
-  blurb: string;
-  bullets: [string, string, string];
+  /** Two display lines for the frontispiece. Keep each under ~22 characters. */
+  title: [string, string];
+  lead: string;
+  note: string;
+  quote: string;
+  marginTitle: string;
+  marks: CoverMark[];
   placeholder: string;
   suggestions?: string[];
+  rail: { title: string; hint: string; emptyLead: string };
 }
 
 const COPY: Record<AiToolVariant, VariantCopy> = {
   summarize: {
-    title: 'Summarize any PDF in seconds',
-    blurb: 'A grounded summary with page citations; every claim points at the page it came from.',
-    bullets: ['Read straight from the page text', 'Citations you can click', 'Your key stays in this browser'],
+    title: ['A summary,', 'with its sources.'],
+    lead: 'A grounded summary with clickable page citations. Every claim points at the page it came from.',
+    note: 'Read on this device; only the text you ask about reaches your provider.',
+    quote: 'Every claim keeps its page.',
+    marginTitle: 'What it does',
+    marks: [
+      { icon: 'read', label: 'Read every page', detail: 'The document text, in reading order.' },
+      { icon: 'cite', label: 'Cite the source', detail: 'Each claim carries its page number.' },
+      { icon: 'ask', label: 'Ask a follow-up', detail: 'The conversation keeps its context.' },
+    ],
     placeholder: 'Ask a follow-up about this document…',
+    rail: {
+      title: 'Summary',
+      hint: 'Grounded in the page text, with citations.',
+      emptyLead: 'Reading the document…',
+    },
   },
   chat: {
-    title: 'Chat with your PDF',
-    blurb: 'Ask anything. The assistant reads the document page by page and cites what it used.',
-    bullets: ['Multi-step reading, not one guess', 'Citations jump the preview', 'Nothing is stored on a server'],
+    title: ['Ask your PDF', 'anything.'],
+    lead: 'The assistant reads the document page by page, and every answer carries the pages it used.',
+    note: 'Read on this device; only the text you ask about reaches your provider.',
+    quote: 'Every answer keeps its page.',
+    marginTitle: 'What it does',
+    marks: [
+      { icon: 'read', label: 'Read the document', detail: 'Page by page, not one guess.' },
+      { icon: 'cite', label: 'Cite the page', detail: 'Press a citation to move the stage.' },
+      { icon: 'ask', label: 'Keep the thread', detail: 'Follow-ups remember what came before.' },
+    ],
     placeholder: 'Ask a question about this PDF…',
     suggestions: [
       'What is this document about?',
       'List every date, amount and name.',
       'Summarize the key points.',
     ],
+    rail: {
+      title: 'Assistant',
+      hint: 'Answers cite the page they used.',
+      emptyLead: 'Ask the document a question.',
+    },
   },
   edit: {
-    title: 'Edit a PDF by describing it',
-    blurb: 'Ask in plain language, review exactly what will change, then apply it in one click.',
-    bullets: ['Highlight, rewrite, erase, insert', 'Reorder, rotate, stamp', 'Nothing is written until you apply'],
+    title: ['Mark up a PDF', 'in plain English.'],
+    lead: 'Describe the change you want. The assistant proposes every mark; you review the ledger before a byte is written.',
+    note: 'Parsed here; only the text you ask about reaches your provider.',
+    quote: 'Nothing is written until you apply.',
+    marginTitle: 'Marks it can make',
+    marks: [
+      { icon: 'highlight', label: 'Highlight', detail: 'Mark a phrase with a warm wash.' },
+      { icon: 'replace', label: 'Rewrite', detail: 'Replace text in the document’s own run.' },
+      { icon: 'erase', label: 'Erase', detail: 'Remove a clause, leaving a proof mark.' },
+      { icon: 'insert', label: 'Insert', detail: 'Set new text at any point on the page.' },
+      { icon: 'reorder', label: 'Reorder', detail: 'Rotate, delete or resequence pages.' },
+      { icon: 'stamp', label: 'Stamp', detail: 'Add page numbers or a running header.' },
+    ],
     placeholder: 'Describe a change, e.g. “Highlight every date on page 1”.',
     suggestions: ['Highlight every date on page 1', 'Add page numbers', 'Delete the last page'],
+    rail: {
+      title: 'Notes',
+      hint: 'The assistant proposes; you decide.',
+      emptyLead: 'Describe the change you want.',
+    },
   },
 };
 
@@ -100,6 +155,8 @@ interface AiWorkspaceProps {
 /** Shared shell for the three AI tools: load a PDF, then summarize / chat / edit. */
 export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const copy = COPY[variant];
+  const slug = useToolSlug();
+  const toolName = (slug ? getTool(slug)?.name : undefined) ?? 'AI PDF editor';
 
   const [file, setFile] = useState<File | null>(null);
   const [doc, setDoc] = useState<AiDocument | null>(null);
@@ -109,7 +166,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [settings, setSettings] = useState<AiSettings>(() => loadAiSettings());
-  const [showSettings, setShowSettings] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState<AiMode>(() => loadAiMode());
   const [managedOk, setManagedOk] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
@@ -134,6 +191,8 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     null,
   );
   const [result, setResult] = useState<AiPlanApplyResult | null>(null);
+  /** The output's page count: plan.order is the final structure when pages moved. */
+  const [resultPageCount, setResultPageCount] = useState<number | null>(null);
   const applyAbort = useRef<AbortController | null>(null);
   const runIdRef = useRef(0);
 
@@ -177,24 +236,22 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
 
   /* ------------------------------------------------------------- document */
 
-  const pick = useCallback(
-    (files: File[]) => {
-      const next = files[0];
-      if (!next) return;
-      setFile(next);
-      setDoc(null);
-      setResult(null);
-      setError(null);
-      setApplyError(null);
-      setRefused(null);
-      setPageSizes(null);
-      setCited([]);
-      setActivePage(1);
-      setPlanVersion((version) => version + 1);
-      setDocKey((key) => key + 1);
-    },
-    [],
-  );
+  const pick = useCallback((files: File[]) => {
+    const next = files[0];
+    if (!next) return;
+    setFile(next);
+    setDoc(null);
+    setResult(null);
+    setResultPageCount(null);
+    setError(null);
+    setApplyError(null);
+    setRefused(null);
+    setPageSizes(null);
+    setCited([]);
+    setActivePage(1);
+    setPlanVersion((version) => version + 1);
+    setDocKey((key) => key + 1);
+  }, []);
 
   useEffect(() => {
     if (!file) return;
@@ -248,6 +305,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     setFile(null);
     setDoc(null);
     setResult(null);
+    setResultPageCount(null);
     setError(null);
     setApplyError(null);
     setRefused(null);
@@ -256,6 +314,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     setActivePage(1);
     setApplyStep(null);
     setApplying(false);
+    setSettingsOpen(false);
   }, [resetPreview]);
 
   /* --------------------------------------------------------------- editor */
@@ -358,14 +417,16 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
         onProgress: setApplyProgress,
         onStep: setApplyStep,
       });
+      const outputPages = plan.order ? plan.order.length : pageCount;
       setResult(output);
+      setResultPageCount(outputPages);
       active.clear();
       setRefused(null);
       void recordRecent({
         toolSlug: 'edit-pdf-with-ai',
         toolName: 'Edit PDF with AI',
         fileName: output.name,
-        pageCount,
+        pageCount: outputPages,
         sizeBytes: output.data.byteLength,
       });
     } catch (cause) {
@@ -397,13 +458,13 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
 
   const onSaveSettings = (next: AiSettings) => {
     setSettings(saveAiSettings(next));
-    setShowSettings(false);
+    setSettingsOpen(false);
   };
 
   const onForgetKey = () => {
     void clearAiSettings().then((next) => {
       setSettings(next);
-      setShowSettings(false);
+      setSettingsOpen(false);
       toast.success('Key removed', { description: 'The stored key was erased from this browser.' });
     });
   };
@@ -418,10 +479,9 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const ready = effectiveMode === 'managed' ? true : aiReady(settings);
 
   /**
-   * The two panes enter with the shared choreography, once per document. The
-   * hidden base is applied here rather than in markup so a run cut short —
-   * or a reduced-motion browser — can never strand the panes invisible: if
-   * this effect never completes, nothing was ever hidden.
+   * The document and its margin enter together, once per document. The hidden
+   * base is applied here rather than in markup so a run cut short — or a
+   * reduced-motion browser — can never strand the panes invisible.
    */
   const motion = useMotionScope();
   const panesRef = useRef<HTMLDivElement>(null);
@@ -430,6 +490,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     const root = panesRef.current;
     if (!root || !doc || !ready || enteredFor.current === docKey) return;
     enteredFor.current = docKey;
+    if (prefersReducedMotion()) return;
     const nodes = root.querySelectorAll<HTMLElement>('[data-ai-enter]');
     for (const node of nodes) node.style.opacity = '0';
     motion.animate(nodes, {
@@ -437,8 +498,16 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
       opacity: [0, 1],
       duration: dur(DUR.slow),
       ease: EASE.out,
-      delay: staggerUI(80),
+      delay: staggerUI(90),
     });
+    const paper = root.querySelector<HTMLElement>('.studio-paper');
+    if (paper) {
+      motion.animate(paper, {
+        scale: [0.988, 1],
+        duration: dur(DUR.slow + 180),
+        ease: EASE.out,
+      });
+    }
   }, [doc, ready, docKey, motion]);
 
   /* ------------------------------------------------------------- welcome */
@@ -448,8 +517,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   // open itself writes the answered marker, so dismissing or completing keeps
   // it away even after the key is forgotten later. The short delay lets the
   // IndexedDB hydration race win — a browser that already had a key never
-  // sees the overlay blink open and shut. Placed after `effectiveMode`, whose
-  // value its dependency array reads on the very first render.
+  // sees the overlay blink open and shut.
   useEffect(() => {
     const missing = effectiveMode === 'byok' && !storedKeyPresent(settings);
     if (aiWelcomeAnswered() || !missing) {
@@ -468,149 +536,140 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const previewTile = tiles.find((tile) => tile.pageIndex === activePage - 1);
   const activeSize = pageSizes?.[activePage - 1];
 
+  const settingsCard = (showHead: boolean) => (
+    <AiSettingsCard
+      settings={settings}
+      onSave={onSaveSettings}
+      mode={effectiveMode}
+      onModeChange={changeMode}
+      managedAvailable={managedOk}
+      surface="plain"
+      showHead={showHead}
+      {...(storedKeyPresent(settings) ? { onForget: onForgetKey } : {})}
+    />
+  );
+
+  const settingsTrigger = (
+    <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="studio-action"
+          aria-label={ready ? 'AI provider settings' : 'Connect an AI model'}
+          aria-expanded={settingsOpen}
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{ready ? 'Model' : 'Connect model'}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="studio-settings-pop w-[min(27rem,calc(100vw-2rem))] p-0">
+        {settingsCard(true)}
+      </PopoverContent>
+    </Popover>
+  );
+
+  /* ------------------------------------------------------------- export */
+
   if (result) {
+    const outputPages = resultPageCount ?? pageCount;
     return (
-      <ResultPanel
-        fileName={result.name}
-        pageCount={pageCount}
-        sizeBytes={result.data.byteLength}
-        onDownload={() => downloadBytes(result.data, result.name)}
-        onReset={reset}
-        footerNote="Applied through the editing engine: replaced and erased text was rewritten in the document's own runs (covered and redrawn only where a rewrite was impossible), overlay edits were drawn, page changes were rebuilt, and the result was re-parsed and re-extracted before being offered for download."
-      />
-    );
-  }
-
-  if (!file) {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-primary/[0.06] via-card to-card">
-        <div className="mx-auto max-w-xl px-6 pb-2 pt-8 text-center">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <Sparkles className="h-6 w-6" />
-          </span>
-          <h2 className="mt-4 text-xl font-semibold tracking-tight">{copy.title}</h2>
-          <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">{copy.blurb}</p>
-        </div>
-
-        <div className="px-6 pb-6 pt-4">
-          <FileDropzone
-            files={[]}
-            onFiles={pick}
-            multiple={false}
-            hint="one PDF to work on"
-            note="Parsed on this device; no file is ever uploaded"
-          />
-        </div>
-
-        <ul className="grid gap-px border-t border-border bg-border sm:grid-cols-3">
-          {copy.bullets.map((bullet, index) => (
-            <li key={bullet} className="flex items-start gap-2.5 bg-card px-5 py-4">
-              {index === 0 ? (
-                <Zap className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              ) : index === 1 ? (
-                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              ) : (
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              )}
-              <span className="text-xs text-muted-foreground">{bullet}</span>
-            </li>
-          ))}
-        </ul>
-
-        {!ready ? (
-          <div className="border-t border-border px-6 py-5">
-            <AiSettingsCard
-              settings={settings}
-              onSave={onSaveSettings}
-              mode={effectiveMode}
-              onModeChange={changeMode}
-              managedAvailable={managedOk}
-              {...(storedKeyPresent(settings) ? { onForget: onForgetKey } : {})}
-            />
-          </div>
-        ) : null}
-
-        {welcomeOpen ? (
-          <AiWelcomeOverlay
-            settings={settings}
-            onSave={onSaveSettings}
-            managedAvailable={managedOk}
-            onUseManaged={() => changeMode('managed')}
-            onDismiss={dismissWelcome}
-          />
-        ) : null}
+      <div className="studio">
+        <StudioMasthead
+          heading={toolName}
+          documentTitle={result.name}
+          meta={`${outputPages.toLocaleString()} page${outputPages === 1 ? '' : 's'}, ${formatBytes(result.data.byteLength)}`}
+          onNewFile={reset}
+          settingsTrigger={settingsTrigger}
+        />
+        <AiExport
+          fileName={result.name}
+          pageCount={outputPages}
+          sizeBytes={result.data.byteLength}
+          onDownload={() => downloadBytes(result.data, result.name)}
+          onReset={reset}
+          footerNote="Applied through the editing engine: replaced and erased text was rewritten in the document's own runs (covered and redrawn only where a rewrite was impossible), overlay edits were drawn, page changes were rebuilt, and the result was re-parsed and re-extracted before being offered for download."
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{file.name}</span>
-          {doc ? (
-            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-              {doc.pages.length} page{doc.pages.length === 1 ? '' : 's'}
-            </span>
+    <div className="studio">
+      <StudioMasthead
+        heading={toolName}
+        {...(file ? { documentTitle: file.name } : {})}
+        meta={
+          file && error
+            ? 'Could not read'
+            : file && doc
+              ? `${pageCount} page${pageCount === 1 ? '' : 's'}, ${formatBytes(file.size)}`
+              : file
+                ? `Reading, ${formatBytes(file.size)}`
+                : undefined
+        }
+        titleAs={file ? 'h1' : 'p'}
+        {...(file ? { onNewFile: reset } : {})}
+        settingsTrigger={settingsTrigger}
+      />
+
+      {!file ? (
+        <div className="studio-cover-wrap">
+          <AiCover
+            title={copy.title}
+            lead={copy.lead}
+            quote={copy.quote}
+            marginTitle={copy.marginTitle}
+            marks={copy.marks}
+            onFiles={pick}
+            note={copy.note}
+          />
+
+          {!ready ? (
+            <section className="studio-setup" aria-labelledby="studio-setup-title">
+              <div className="studio-setup-intro">
+                <span className="studio-setup-glyph" aria-hidden>
+                  <KeyRound className="h-4 w-4" />
+                </span>
+                <h2 id="studio-setup-title" className="studio-setup-title">
+                  Connect a model
+                </h2>
+                <p className="studio-setup-copy">
+                  Bring your own key, or use the PDFShush trial. Your key stays in this browser.
+                </p>
+                <p className="studio-setup-note">
+                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                  No account. The file is parsed in this tab.
+                </p>
+              </div>
+              <div className="studio-setup-form">{settingsCard(false)}</div>
+            </section>
           ) : null}
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[0.7rem] text-muted-foreground">
-            {effectiveMode === 'managed' ? (
-              <>
-                <Sparkles className="h-3 w-3" /> PDFShush trial
-              </>
-            ) : (
-              <>
-                <KeyRound className="h-3 w-3" /> Your key
-              </>
-            )}
+        </div>
+      ) : error && !doc ? (
+        <section className="studio-unreadable" role="alert">
+          <span className="studio-unreadable-glyph" aria-hidden>
+            <FileWarning className="h-5 w-5" />
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => setShowSettings((open) => !open)}
-          >
-            <Settings2 className="mr-1.5 h-4 w-4" /> AI settings
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="h-9" onClick={reset}>
-            <RotateCcw className="mr-1.5 h-4 w-4" /> New file
-          </Button>
-        </div>
-      </div>
-
-      {extracting ? (
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" /> Reading the document…
-          <div className="ml-auto w-40">
-            <Progress value={Math.round(extractProgress * 100)} />
+          <h2 className="studio-unreadable-title">That file could not be opened.</h2>
+          <p className="studio-unreadable-copy">
+            <span className="font-medium text-foreground">{file.name}:</span> {error}
+          </p>
+          <p className="studio-unreadable-note">
+            If the document has a password, unlock it first. A repaired copy usually opens.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button onClick={reset} variant="outline">
+              <RotateCcw className="mr-1.5 h-4 w-4" /> Choose another PDF
+            </Button>
           </div>
-        </div>
-      ) : null}
-
-      {error ? (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Could not read {file.name}: {error}
-        </p>
-      ) : null}
-
-      {showSettings || !ready ? (
-        <AiSettingsCard
-          settings={settings}
-          onSave={onSaveSettings}
-          mode={effectiveMode}
-          onModeChange={changeMode}
-          managedAvailable={managedOk}
-          {...(storedKeyPresent(settings) ? { onForget: onForgetKey } : {})}
-        />
-      ) : null}
-
-      {doc && ready ? (
-        <div ref={panesRef} className="grid gap-4 lg:grid-cols-2">
-          <div data-ai-enter className="h-[34rem]">
+        </section>
+      ) : doc ? (
+        <div
+          ref={panesRef}
+          className="studio-grid"
+          aria-busy={extracting || applying || undefined}
+        >
+          <div className="studio-col-doc">
             <AiDocumentPane
               fileName={doc.fileName}
               pageCount={pageCount}
@@ -625,49 +684,106 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
             />
           </div>
 
-          <div data-ai-enter className="flex h-[34rem] flex-col gap-4">
-            <div className="min-h-0 flex-1">
-              <AiChat
-                key={docKey}
-                doc={doc}
-                settings={settings}
-                mode={effectiveMode}
-                skill={editor?.skill}
-                activePage={activePage}
-                onShowPage={setActivePage}
-                onCitedPages={setCited}
-                autoPrompt={autoPrompt}
-                placeholder={copy.placeholder}
-                suggestions={copy.suggestions}
-              />
-            </div>
-            {variant === 'edit' && editor ? (
-              <EditPlanPanel
-                entries={entries}
-                applying={applying}
-                step={applyStep}
-                progress={applyProgress}
-                error={applyError}
-                blocked={blockedChanges.length > 0 ? blockedChanges : undefined}
-                blockedDetail={refused?.message ?? null}
-                onDiscard={(id) => editor.discard(id)}
-                onDiscardAll={() => editor.clear()}
-                onApply={() => void apply()}
-                onRetryWithoutFailed={retryWithoutFailed}
-                onStop={() => applyAbort.current?.abort()}
-                onShowPage={setActivePage}
-              />
-            ) : null}
+          <div className="studio-col-rail">
+            {ready ? (
+              <>
+                <AiChat
+                  key={docKey}
+                  doc={doc}
+                  settings={settings}
+                  mode={effectiveMode}
+                  skill={editor?.skill}
+                  activePage={activePage}
+                  onShowPage={setActivePage}
+                  onCitedPages={setCited}
+                  autoPrompt={autoPrompt}
+                  placeholder={copy.placeholder}
+                  suggestions={copy.suggestions}
+                  title={copy.rail.title}
+                  hint={copy.rail.hint}
+                  emptyLead={copy.rail.emptyLead}
+                  emptyCopy={
+                    variant === 'edit'
+                      ? `It reads ${doc.fileName} page by page. Every proposed change waits for your approval.`
+                      : `It reads ${doc.fileName} page by page, and cites the pages it used.`
+                  }
+                />
+                {variant === 'edit' && editor ? (
+                  <EditPlanPanel
+                    entries={entries}
+                    applying={applying}
+                    step={applyStep}
+                    progress={applyProgress}
+                    error={applyError}
+                    blocked={blockedChanges.length > 0 ? blockedChanges : undefined}
+                    blockedDetail={refused?.message ?? null}
+                    onDiscard={(id) => editor.discard(id)}
+                    onDiscardAll={() => editor.clear()}
+                    onApply={() => void apply()}
+                    onRetryWithoutFailed={retryWithoutFailed}
+                    onStop={() => applyAbort.current?.abort()}
+                    onShowPage={setActivePage}
+                  />
+                ) : null}
+              </>
+            ) : (
+              <section className="studio-gate" aria-labelledby="studio-gate-title">
+                <span className="studio-gate-glyph" aria-hidden>
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <h2 id="studio-gate-title" className="studio-gate-title">
+                  The document is open. The assistant needs a model.
+                </h2>
+                <p className="studio-gate-copy">
+                  Add a provider key and the assistant can read this document. Nothing is uploaded
+                  by the editor itself.
+                </p>
+                {settingsCard(false)}
+              </section>
+            )}
           </div>
         </div>
-      ) : null}
-
-      {doc && !ready ? (
-        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Wand2 className="h-3.5 w-3.5" /> Add a provider above to start. Your key is stored in this
-          browser only.
-        </p>
-      ) : null}
+      ) : (
+        <section className="studio-reading" aria-busy>
+          <div className="studio-reading-stage" aria-hidden>
+            <div className="studio-reading-paper">
+              <span className="studio-skeleton-line" style={{ width: '46%', height: 10 }} />
+              <span className="studio-skeleton-line" style={{ width: '88%' }} />
+              <span className="studio-skeleton-line" style={{ width: '94%' }} />
+              <span className="studio-skeleton-line" style={{ width: '76%' }} />
+              <span className="studio-skeleton-gap" />
+              <span className="studio-skeleton-line" style={{ width: '90%' }} />
+              <span className="studio-skeleton-line" style={{ width: '84%' }} />
+              <span className="studio-skeleton-line" style={{ width: '58%' }} />
+              <span className="studio-skeleton-scan" />
+            </div>
+          </div>
+          <div className="studio-reading-panel">
+            <p className="studio-reading-kicker">Reading</p>
+            <p className="studio-reading-name" title={file.name}>
+              {file.name}
+            </p>
+            <p className="studio-reading-copy">
+              Extracting the page text the assistant can read and quote.
+            </p>
+            <div className="studio-reading-line">
+              <span
+                style={{ transform: `scaleX(${Math.max(0.04, extractProgress)})` }}
+                aria-hidden
+              />
+            </div>
+            <div className="studio-reading-foot">
+              <span className="tabular-nums">{Math.round(extractProgress * 100)}%</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" /> on this device
+              </span>
+            </div>
+            <button type="button" onClick={reset} className="studio-text-link mt-5">
+              <RotateCcw className="h-3.5 w-3.5" /> Choose another file
+            </button>
+          </div>
+        </section>
+      )}
 
       {welcomeOpen ? (
         <AiWelcomeOverlay

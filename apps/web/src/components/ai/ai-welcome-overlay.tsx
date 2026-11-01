@@ -168,16 +168,16 @@ export function AiWelcomeOverlay({
         role="dialog"
         aria-modal="true"
         aria-label="Getting started with AI"
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
+        className="studio-welcome relative w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-xl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border bg-gradient-to-br from-primary/10 via-transparent to-transparent px-6 py-5">
-          <div className="flex items-center gap-3">
-            <span className="rounded-lg bg-primary/10 p-2 text-primary">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-6 pb-5 pt-5">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid h-8 w-8 place-items-center rounded-md border border-border bg-muted text-primary">
               <Sparkles className="h-4 w-4" />
             </span>
             <div>
-              <h2 className="text-sm font-semibold">Turn on AI features</h2>
-              <p className="text-xs text-muted-foreground">
+              <h2 className="font-serif text-xl leading-tight tracking-tight">Turn on AI features</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 Summarize, chat, edit and redact any PDF
               </p>
             </div>
@@ -219,13 +219,13 @@ export function AiWelcomeOverlay({
                 <div>
                   <p className="font-medium text-sm">AI needs one tiny thing: a key</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    It's like a password that tells the AI "this person is allowed". Nothing more — a
+                    It's like a password that tells the AI "this person is allowed". Nothing more. A
                     short code you copy and paste, and your files never leave this browser.
                   </p>
                 </div>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                You can get one <strong>for free</strong> in about two minutes — no credit card.
+                You can get one <strong>for free</strong> in about two minutes, no credit card.
                 We'll walk you through it.
               </p>
             </div>
@@ -235,7 +235,7 @@ export function AiWelcomeOverlay({
             <div className="py-3">
               <ol className="space-y-2.5" data-testid="ai-welcome-guide">
                 {[
-                  'Press the button below — it opens the key page in a new tab.',
+                  'Press the button below. It opens the key page in a new tab.',
                   'Log in (Google is fine) and press "Create API Key".',
                   'Click Copy on the code it shows you.',
                   'Come back and paste it in the next step.',
@@ -304,7 +304,7 @@ export function AiWelcomeOverlay({
                 )}
               </Button>
               <p className="mt-2 text-center text-xs text-muted-foreground">
-                Didn't get a key yet? Press "Skip for now" — the normal settings are still there.
+                Didn't get a key yet? Press "Skip for now". The normal settings are still there.
               </p>
             </div>
           ) : null}
@@ -327,7 +327,7 @@ export function AiWelcomeOverlay({
             Too much? Use ours
           </Button>
           {step < STEP_COUNT ? (
-            <Button type="button" variant="secondary" size="sm" onClick={() => setStep(step + 1)}>
+            <Button type="button" size="sm" onClick={() => setStep(step + 1)}>
               Next
             </Button>
           ) : null}

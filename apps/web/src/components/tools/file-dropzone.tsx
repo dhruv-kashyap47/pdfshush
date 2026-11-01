@@ -23,6 +23,11 @@ interface FileDropzoneProps {
   accepts?: (file: File) => boolean;
   /** Noun used in the copy: "PDF" (default) or "image". */
   kind?: string;
+  /**
+   * Visual register. `default` is the standard tool drop target; `studio` is
+   * the editor's folio-shaped target, same input and drag semantics.
+   */
+  appearance?: 'default' | 'studio';
 }
 
 /**
@@ -40,6 +45,7 @@ export function FileDropzone({
   accept,
   accepts,
   kind = 'PDF',
+  appearance = 'default',
 }: FileDropzoneProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +78,43 @@ export function FileDropzone({
           event.target.value = '';
         }}
       />
-      {files.length === 0 ? (
+      {files.length === 0 && appearance === 'studio' ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!disabled) setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragOver(false);
+            acceptFiles(event.dataTransfer.files);
+          }}
+          className={`studio-drop ${dragOver ? 'is-over' : ''} ${disabled ? 'is-disabled' : ''}`}
+        >
+          <span className="studio-drop-corners" aria-hidden>
+            <span />
+            <span />
+            <span />
+            <span />
+          </span>
+          <span className="studio-drop-glyph" aria-hidden>
+            {dragOver ? <Upload className="h-4 w-4" /> : <FilePlus2 className="h-4 w-4" />}
+          </span>
+          <span className="studio-drop-title">
+            {dragOver ? 'Drop it here' : `Drop a ${kind} here`}
+          </span>
+          <span className="studio-drop-sub">
+            or <span className="studio-drop-link">choose a file</span> from this device
+          </span>
+          <span className="studio-drop-meta">
+            {kind}, 100 MB max. {note}
+          </span>
+        </button>
+      ) : files.length === 0 ? (
         <button
           type="button"
           disabled={disabled}

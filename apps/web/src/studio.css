@@ -1,0 +1,2400 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE AI STUDIO
+
+   One surface for the editor: a document stage on a mat, a margin rail for
+   instructions and the change ledger, and a frontispiece and receipt at the two
+   ends. Deliberately quieter than the rest of the site — the page is the loudest
+   thing in the room.
+
+   Geometry: 12px panels, 1px hairlines, 2–8px controls. Colour: the site's warm
+   porcelain / true-black ground, with emerald reserved for the commit action,
+   the active folio and a citation. Amber and rose appear only as meaning
+   (a pending mark, a refusal), never as decoration.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --studio-raised: var(--card);
+  --studio-wash: var(--muted);
+  --studio-hairline: var(--border);
+  --studio-lead: var(--muted-foreground);
+  --studio-mat: var(--muted);
+  --studio-paper: #fffefb;
+  --studio-paper-shadow:
+    0 1px 1px oklch(0.32 0.02 70 / 0.05),
+    0 10px 24px -18px oklch(0.32 0.02 70 / 0.3),
+    0 36px 64px -42px oklch(0.32 0.02 70 / 0.24);
+}
+
+.studio {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+:root:not(.dark) {
+  --studio-raised: oklch(0.996 0.0025 92);
+  --studio-wash: oklch(0.957 0.006 88);
+  --studio-mat: oklch(0.936 0.0065 88);
+  --studio-hairline: oklch(0.886 0.008 85 / 0.9);
+  --studio-lead: oklch(0.4 0.008 65);
+  --studio-paper: #fffefb;
+}
+
+.dark {
+  --studio-raised: oklch(0.105 0 0);
+  --studio-wash: oklch(0.155 0 0);
+  --studio-mat: oklch(0.082 0 0);
+  --studio-hairline: oklch(1 0 0 / 10%);
+  --studio-lead: oklch(0.76 0 0);
+  --studio-paper: #f8f6ef;
+  --studio-paper-shadow:
+    0 0 0 1px oklch(0 0 0 / 45%),
+    0 18px 48px -24px oklch(0 0 0 / 80%),
+    0 46px 90px -60px oklch(0 0 0 / 90%);
+}
+
+.studio :focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ── Masthead ────────────────────────────────────────────────────────────── */
+
+.studio-masthead {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(14px, 2vw, 28px);
+  padding: 2px 2px 6px;
+}
+
+.studio-masthead-id {
+  min-width: 0;
+  flex: 1;
+}
+
+.studio-doc-title {
+  margin: 0;
+  font-family: var(--font-doc);
+  font-size: clamp(1.4rem, 2.1vw, 1.85rem);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.018em;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-doc-meta {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-masthead-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-bottom: 2px;
+}
+
+.studio-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.studio-action:hover {
+  color: var(--foreground);
+  background: var(--muted);
+  border-color: var(--studio-hairline);
+}
+
+/* ── Plates ────────────────────────────────────────────────────────────────
+   The frontispiece and the receipt share one deep field. The ivory type and the
+   lit sea are the same in both themes; only the crest warms in light mode. This
+   is the deliberate dark chapter of an otherwise porcelain product. */
+
+.studio-plate {
+  --plate-ground: #06130e;
+  --plate-ink: #f5f2e8;
+  --plate-muted: rgba(245, 242, 232, 0.72);
+  --plate-faint: rgba(245, 242, 232, 0.52);
+  --plate-line: rgba(245, 242, 232, 0.14);
+  --plate-panel: rgba(245, 242, 232, 0.045);
+  --plate-accent: #8fe3bd;
+  --plate-accent-ink: #04130d;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--plate-line);
+  border-radius: 14px;
+  background: var(--plate-ground);
+  color: var(--plate-ink);
+}
+
+:root:not(.dark) .studio-plate {
+  --plate-ground: #07160f;
+  --plate-line: rgba(245, 242, 232, 0.16);
+}
+
+/* ── Frontispiece ────────────────────────────────────────────────────────── */
+
+.studio-cover {
+  padding: clamp(30px, 4.4vw, 64px);
+  min-height: 35rem;
+}
+
+.studio-cover-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  gap: clamp(28px, 5vw, 84px);
+  align-items: start;
+}
+
+.studio-cover-main {
+  min-width: 0;
+}
+
+.studio-cover-title {
+  margin: 0;
+  font-family: var(--font-doc);
+  font-size: clamp(2.55rem, 4.9vw, 4.15rem);
+  font-weight: 400;
+  line-height: 0.99;
+  letter-spacing: -0.032em;
+  color: var(--plate-ink);
+}
+
+.studio-cover-title > span + span {
+  margin-top: 0.08em;
+}
+
+.studio-cover-lead {
+  margin: 1.35rem 0 0;
+  max-width: 33rem;
+  font-size: clamp(0.92rem, 1.15vw, 1.02rem);
+  line-height: 1.6;
+  color: var(--plate-muted);
+}
+
+.studio-cover-drop {
+  margin-top: clamp(24px, 3.4vw, 40px);
+  max-width: 36rem;
+}
+
+/* The folio target: one honest rectangle with four corner marks. */
+.studio-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 11.5rem;
+  padding: 1.65rem 1.75rem;
+  border: 1px solid var(--plate-line);
+  border-radius: 8px;
+  background: rgba(4, 17, 11, 0.62);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 280ms ease,
+    background-color 280ms ease;
+}
+
+.studio-drop:hover,
+.studio-drop.is-over {
+  border-color: var(--plate-accent);
+  background: rgba(8, 34, 23, 0.72);
+}
+
+.studio-drop.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.studio-drop-corners {
+  position: absolute;
+  inset: 7px;
+  pointer-events: none;
+}
+
+.studio-drop-corners span {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-color: var(--plate-accent);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0.34;
+  transition:
+    opacity 300ms ease,
+    transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-drop-corners span:nth-child(1) {
+  top: 0;
+  left: 0;
+  border-top-width: 1px;
+  border-left-width: 1px;
+  transform: translate(3px, 3px);
+}
+.studio-drop-corners span:nth-child(2) {
+  top: 0;
+  right: 0;
+  border-top-width: 1px;
+  border-right-width: 1px;
+  transform: translate(-3px, 3px);
+}
+.studio-drop-corners span:nth-child(3) {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+  transform: translate(3px, -3px);
+}
+.studio-drop-corners span:nth-child(4) {
+  right: 0;
+  bottom: 0;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+  transform: translate(-3px, -3px);
+}
+
+.studio-drop:hover .studio-drop-corners span,
+.studio-drop.is-over .studio-drop-corners span {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+
+.studio-drop-glyph {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 8px;
+  border: 1px solid var(--plate-line);
+  border-radius: 5px;
+  background: var(--plate-panel);
+  color: var(--plate-accent);
+}
+
+.studio-drop-title {
+  font-family: var(--font-doc);
+  font-size: 1.34rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--plate-ink);
+}
+
+.studio-drop-sub {
+  font-size: 11.5px;
+  color: var(--plate-muted);
+}
+
+.studio-drop-link {
+  color: var(--plate-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--plate-line);
+  transition: color 200ms ease, text-decoration-color 200ms ease;
+}
+
+.studio-drop:hover .studio-drop-link {
+  color: var(--plate-accent);
+  text-decoration-color: color-mix(in oklab, var(--plate-accent) 60%, transparent);
+}
+
+.studio-drop-meta {
+  margin-top: 6px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--plate-faint);
+}
+
+/* The margin: capabilities, then the promise. */
+.studio-cover-margin {
+  padding-left: clamp(20px, 3vw, 38px);
+  border-left: 1px solid var(--plate-line);
+  min-width: 0;
+}
+
+.studio-cover-margin-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.015em;
+  color: var(--plate-faint);
+}
+
+.studio-mark-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.studio-mark-glyph {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  border: 1px solid var(--plate-line);
+  border-radius: 4px;
+  color: var(--plate-muted);
+  background: var(--plate-panel);
+}
+
+.studio-mark-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--plate-ink);
+}
+
+.studio-mark-detail {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--plate-muted);
+}
+
+.studio-cover-quote {
+  margin: 2rem 0 0;
+  padding: 0;
+  font-family: var(--font-doc);
+  font-size: 1.16rem;
+  line-height: 1.4;
+  letter-spacing: -0.008em;
+  color: var(--plate-ink);
+}
+
+.studio-cover-quote::before {
+  content: '';
+  display: block;
+  width: 22px;
+  height: 1px;
+  margin-bottom: 0.9rem;
+  background: var(--plate-accent);
+}
+
+.studio-cover-waves {
+  position: absolute;
+  right: -10%;
+  bottom: -9rem;
+  left: -10%;
+  width: auto;
+  height: 36rem;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 38%, transparent 96%);
+  mask-image: linear-gradient(to top, #000 0%, #000 38%, transparent 96%);
+}
+
+.studio-waves {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-waves-drift {
+  position: absolute;
+  inset: -24px;
+}
+
+/* Setup section, below the cover, only while no model is configured. */
+.studio-setup {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.55fr);
+  gap: clamp(22px, 3.2vw, 52px);
+  align-items: start;
+  width: min(100%, 74rem);
+  margin: -2.4rem auto 0;
+  padding: clamp(22px, 2.6vw, 30px);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 12px;
+  background: var(--studio-raised);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 8%), 0 26px 54px -36px oklch(0 0 0 / 32%);
+}
+
+:root:not(.dark) .studio-setup {
+  border-color: var(--hairline-sand);
+  background: var(--porcelain);
+  box-shadow: var(--shadow-float);
+}
+
+.dark .studio-setup {
+  box-shadow: 0 20px 54px -34px oklch(0 0 0 / 85%);
+}
+
+.studio-setup-intro {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-right: clamp(20px, 3vw, 44px);
+  border-right: 1px solid var(--studio-hairline);
+}
+
+.studio-setup-glyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 6px;
+  background: var(--studio-wash);
+  color: var(--primary);
+}
+
+.studio-setup-title {
+  margin: 16px 0 0;
+  font-family: var(--font-doc);
+  font-size: clamp(1.35rem, 1.8vw, 1.6rem);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+.studio-setup-copy {
+  margin: 7px 0 0;
+  max-width: 20rem;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+.studio-setup-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: auto 0 0;
+  padding-top: 18px;
+  max-width: 20rem;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.studio-setup-note svg {
+  margin-top: 1px;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.studio-setup-form {
+  min-width: 0;
+}
+
+.studio-setup-form .studio-settings {
+  padding: 0;
+  background: transparent;
+}
+
+/* ── The work surface ────────────────────────────────────────────────────── */
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(23rem, 1fr);
+  gap: 12px;
+  height: clamp(34rem, calc(100svh - 15rem), 54rem);
+}
+
+.studio-col-doc,
+.studio-col-rail {
+  min-width: 0;
+  min-height: 0;
+}
+
+.studio-col-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-doc,
+.studio-chat,
+.studio-ledger,
+.studio-gate {
+  border: 1px solid var(--studio-hairline);
+  border-radius: 12px;
+  background: var(--studio-raised);
+}
+
+.studio-doc {
+  height: 100%;
+}
+
+/* Document toolbar */
+.studio-doc-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 11px 9px 10px;
+  border-bottom: 1px solid var(--studio-hairline);
+}
+
+.studio-file-glyph {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  flex-shrink: 0;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 5px;
+  background: var(--studio-wash);
+  color: var(--muted-foreground);
+}
+
+.studio-file-name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.studio-meta {
+  margin: 1px 0 0;
+  font-size: 9.5px;
+  line-height: 1.3;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.studio-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease;
+}
+
+.studio-icon-btn:hover:not(:disabled) {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.studio-icon-btn:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.studio-page-counter {
+  min-width: 3.7rem;
+  text-align: center;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--foreground);
+}
+
+.studio-page-counter-total {
+  margin-left: 3px;
+  color: var(--muted-foreground);
+}
+
+/* Folio rail */
+.studio-rail {
+  position: relative;
+  background: color-mix(in oklab, var(--studio-wash) 55%, var(--studio-raised));
+}
+
+.studio-rail-page {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease;
+}
+
+.studio-rail-page:hover {
+  background: var(--studio-raised);
+  color: var(--foreground);
+}
+
+.studio-rail-page.is-active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 500;
+}
+
+.studio-rail-page--wide {
+  width: 32px;
+  height: 30px;
+}
+
+.studio-rail-scroll {
+  position: relative;
+  scrollbar-width: none;
+}
+.studio-rail-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.studio-rail-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+
+.studio-rail-dot.is-changed {
+  background: oklch(0.72 0.15 72);
+}
+
+.studio-rail-dot.is-cited {
+  background: var(--primary);
+}
+
+.studio-rail-page.is-active .studio-rail-dot.is-cited {
+  background: var(--primary-foreground);
+}
+
+/* Mat + paper */
+.studio-stage {
+  position: relative;
+  background: var(--studio-mat);
+}
+
+.studio-stage-cushion {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 100%;
+  padding: clamp(16px, 2.4vw, 28px) clamp(14px, 2.4vw, 28px) 20px;
+}
+
+.studio-paper {
+  position: relative;
+  flex-shrink: 0;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--studio-paper);
+  box-shadow: var(--studio-paper-shadow);
+}
+
+.studio-paper-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.studio-stage-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 6px 11px;
+  border-top: 1px solid var(--studio-hairline);
+  background: var(--studio-raised);
+}
+
+/* Quiet, thin scrollbars inside the studio only. The platform default is the
+   loudest thing in an otherwise silent surface. */
+.studio-stage,
+.studio-thread,
+.studio-ledger-body,
+.studio-rail {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
+
+.studio-stage::-webkit-scrollbar,
+.studio-thread::-webkit-scrollbar,
+.studio-ledger-body::-webkit-scrollbar,
+.studio-rail::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.studio-stage::-webkit-scrollbar-track,
+.studio-thread::-webkit-scrollbar-track,
+.studio-ledger-body::-webkit-scrollbar-track,
+.studio-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.studio-stage::-webkit-scrollbar-thumb,
+.studio-thread::-webkit-scrollbar-thumb,
+.studio-ledger-body::-webkit-scrollbar-thumb,
+.studio-rail::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-clip: content-box;
+  background-color: color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+
+.studio-stage::-webkit-scrollbar-thumb:hover,
+.studio-thread::-webkit-scrollbar-thumb:hover,
+.studio-ledger-body::-webkit-scrollbar-thumb:hover,
+.studio-rail::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--foreground) 30%, transparent);
+}
+
+.studio-stage-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+}
+
+.studio-state-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.studio-state-dot.is-change {
+  background: oklch(0.72 0.15 72);
+}
+
+.studio-zoom {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 4px;
+}
+
+.studio-zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.studio-zoom-btn:hover:not(:disabled) {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.studio-zoom-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.studio-zoom-value {
+  min-width: 2.35rem;
+  text-align: center;
+  font-size: 9px;
+  color: var(--muted-foreground);
+}
+
+/* Proof marks */
+.studio-mark--highlight {
+  background: oklch(0.86 0.15 84 / 0.5);
+  border: 1px solid oklch(0.7 0.14 76 / 0.85);
+}
+
+.studio-mark--insert {
+  background: oklch(0.6 0.12 162 / 0.16);
+  border: 1px solid oklch(0.5 0.12 162 / 0.75);
+}
+
+.studio-mark--erase {
+  background-image: repeating-linear-gradient(
+    135deg,
+    oklch(0.58 0.18 27 / 0.14) 0 4px,
+    transparent 4px 8px
+  );
+  border: 1px dashed oklch(0.58 0.18 27 / 0.65);
+}
+
+/* Reading / rendering states */
+.studio-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12% 11%;
+  background: var(--studio-paper);
+  overflow: hidden;
+}
+
+.studio-skeleton-line {
+  display: block;
+  height: 8px;
+  border-radius: 2px;
+  background: oklch(0.9 0.006 90);
+}
+
+.studio-skeleton-gap {
+  height: 6px;
+}
+
+.studio-skeleton-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 8%, var(--primary) 50%, transparent 92%);
+  animation: studio-scan 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.studio-skeleton-label {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: oklch(0.52 0.01 70);
+}
+
+@keyframes studio-scan {
+  0%,
+  100% {
+    transform: translateY(10%);
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(88%);
+  }
+}
+
+/* ── Assistant margin ────────────────────────────────────────────────────── */
+
+.studio-chat {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.studio-chat-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 13px 9px;
+  border-bottom: 1px solid var(--studio-hairline);
+}
+
+.studio-chat-title {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.studio-chat-hint {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.studio-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+}
+
+.studio-live-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.studio-live.is-busy .studio-live-dot {
+  animation: studio-pulse 1.5s ease-in-out infinite;
+}
+
+.studio-live.is-quiet .studio-live-dot {
+  opacity: 0.55;
+}
+
+@keyframes studio-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.studio-thread {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 15px 14px 18px;
+}
+
+.studio-empty {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 2px;
+}
+
+.studio-empty-lead {
+  margin: 0;
+  font-family: var(--font-doc);
+  font-size: clamp(1.24rem, 1.7vw, 1.48rem);
+  line-height: 1.24;
+  letter-spacing: -0.012em;
+  color: var(--foreground);
+}
+
+.studio-empty-copy {
+  margin: 8px 0 0;
+  max-width: 27rem;
+  font-size: 11.5px;
+  line-height: 1.58;
+  color: var(--muted-foreground);
+}
+
+.studio-suggestion {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 11.5px;
+  color: var(--studio-lead);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.studio-suggestion:hover {
+  color: var(--foreground);
+  background: var(--studio-wash);
+  border-color: var(--studio-hairline);
+}
+
+.studio-turn {
+  margin-top: 16px;
+}
+
+.studio-turn:first-child {
+  margin-top: 0;
+}
+
+.studio-turn.is-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.studio-turn-label {
+  margin: 0 0 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted-foreground);
+}
+
+.studio-turn.is-user .studio-turn-label {
+  margin-right: 2px;
+}
+
+.studio-instruction {
+  max-width: 90%;
+  padding: 8px 11px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 7px 7px 2px 7px;
+  background: var(--studio-wash);
+  font-size: 12.3px;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+
+.studio-answer {
+  margin: 0;
+  font-size: 12.8px;
+  line-height: 1.7;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.studio-cite {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 1px 0 3px;
+  padding: 0 3px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 2px;
+  background: var(--studio-wash);
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--primary);
+  vertical-align: baseline;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.studio-cite:hover,
+.studio-cite.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.studio-steps {
+  margin: 0 0 9px;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+}
+
+.studio-step + .studio-step::before {
+  content: '';
+  position: absolute;
+  left: 6.5px;
+  top: -3px;
+  width: 1px;
+  height: 7px;
+  background: var(--studio-hairline);
+}
+
+.studio-step-dot {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 50%;
+  background: var(--studio-raised);
+  color: var(--primary);
+}
+
+.studio-step.is-error {
+  color: var(--destructive);
+}
+
+.studio-step.is-error .studio-step-dot {
+  border-color: color-mix(in oklab, var(--destructive) 50%, transparent);
+  color: var(--destructive);
+}
+
+.studio-step.is-running .studio-step-dot {
+  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+.studio-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.studio-thinking-rule {
+  width: 18px;
+  height: 1px;
+  background: var(--primary);
+  transform-origin: left center;
+  animation: studio-breathe 1.7s ease-in-out infinite;
+}
+
+@keyframes studio-breathe {
+  0%,
+  100% {
+    transform: scaleX(0.35);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+.studio-thread-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 13px;
+  border-top: 1px solid var(--studio-hairline);
+  font-size: 9px;
+  color: var(--muted-foreground);
+}
+
+/* Composer */
+.studio-composer {
+  flex-shrink: 0;
+  padding: 9px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-composer-box {
+  padding: 7px 7px 6px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 7px;
+  background: var(--studio-wash);
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.studio-composer-box:focus-within {
+  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 11%, transparent);
+}
+
+.studio-textarea {
+  display: block;
+  width: 100%;
+  min-height: 22px;
+  max-height: 148px;
+  padding: 2px 2px 6px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.1px;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+
+.studio-textarea::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* The box owns the focus treatment; the textarea itself must not add a second
+   ring inside it. */
+.studio .studio-textarea:focus-visible {
+  outline: none;
+}
+
+.studio-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.studio-composer-hint {
+  font-size: 9.4px;
+  letter-spacing: 0.01em;
+  color: var(--muted-foreground);
+}
+
+.studio-send {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.studio-send:disabled {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  opacity: 0.75;
+}
+
+.studio-stop {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+}
+
+/* ── Change ledger ───────────────────────────────────────────────────────── */
+
+.studio-ledger {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.studio-ledger-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 11px 9px;
+}
+
+.studio-glyph {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex-shrink: 0;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 4px;
+  background: var(--studio-wash);
+  color: var(--primary);
+}
+
+.studio-ledger-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.studio-ledger-count {
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.studio-ledger-sub {
+  margin: 1px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+}
+
+.studio-text-btn {
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 180ms ease;
+}
+
+.studio-text-btn:hover {
+  color: var(--foreground);
+}
+
+.studio-ledger-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 7px 7px;
+}
+
+.studio-change {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.studio-change:hover {
+  background: var(--studio-wash);
+  border-color: var(--studio-hairline);
+}
+
+.studio-change.is-blocked {
+  border-color: color-mix(in oklab, oklch(0.72 0.15 72) 35%, transparent);
+  background: color-mix(in oklab, oklch(0.72 0.15 72) 7%, transparent);
+}
+
+.studio-change-glyph {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 3px;
+  background: var(--studio-raised);
+  color: var(--muted-foreground);
+}
+
+.studio-change-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.studio-change-pages {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  vertical-align: middle;
+}
+
+.studio-page-chip {
+  padding: 0 2px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 2px;
+  background: transparent;
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.studio-page-chip:hover {
+  color: var(--primary);
+  border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+.studio-change-detail {
+  margin: 1px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+}
+
+.studio-change-discard {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 160ms ease,
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.studio-change:hover .studio-change-discard,
+.studio-change-discard:focus-visible {
+  opacity: 1;
+}
+
+.studio-change-discard:hover {
+  color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+}
+
+.studio-ledger-foot {
+  flex-shrink: 0;
+  padding: 7px 9px 9px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-apply {
+  height: 33px;
+  justify-content: flex-start;
+  padding: 0 11px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.studio-progress {
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--studio-hairline);
+}
+
+.studio-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  transform-origin: left center;
+  transition: transform 280ms linear;
+}
+
+.studio-error {
+  margin: 0;
+  border: 1px solid color-mix(in oklab, var(--destructive) 30%, transparent);
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--destructive) 8%, transparent);
+  padding: 6px 8px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--destructive);
+}
+
+/* A refusal is triage, not a terminal error. */
+.studio-blocked {
+  margin-bottom: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in oklab, oklch(0.72 0.15 72) 40%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklab, oklch(0.72 0.15 72) 8%, transparent);
+  color: oklch(0.44 0.11 62);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.dark .studio-blocked {
+  color: oklch(0.83 0.12 78);
+}
+
+.studio-blocked-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 6px;
+  border: 1px solid color-mix(in oklab, oklch(0.72 0.15 72) 28%, transparent);
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--studio-raised) 70%, transparent);
+}
+
+.studio-blocked-x {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.studio-blocked-x:hover {
+  opacity: 1;
+}
+
+.studio-blocked-detail {
+  margin: 4px 0 0;
+  padding: 5px 6px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--studio-raised) 70%, transparent);
+  font-size: 9px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: var(--muted-foreground);
+}
+
+/* ── Model gate and settings ─────────────────────────────────────────────── */
+
+.studio-gate {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.studio-gate-glyph {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 5px;
+  background: var(--studio-wash);
+  color: var(--primary);
+}
+
+.studio-gate-title {
+  margin: 12px 0 0;
+  font-family: var(--font-doc);
+  font-size: 1.34rem;
+  font-weight: 400;
+  line-height: 1.24;
+  letter-spacing: -0.012em;
+}
+
+.studio-gate-copy {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+
+.studio-gate .studio-settings {
+  margin-top: 16px;
+  padding: 0;
+}
+
+.studio-settings:not(.is-plain) {
+  padding: 15px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 10px;
+  background: var(--studio-raised);
+}
+
+.studio-settings.is-plain {
+  padding: 13px;
+  background: transparent;
+}
+
+.studio-settings.is-headless.is-plain {
+  padding: 0;
+}
+
+.studio-settings.is-headless .studio-settings-mode {
+  margin-top: 0;
+}
+
+.studio-settings-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.studio-settings-title {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.studio-settings-copy {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.studio-settings-mode {
+  margin-top: 12px;
+}
+
+.studio-field-label {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.studio-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin-top: 5px;
+  padding: 2px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 5px;
+  background: var(--studio-wash);
+}
+
+.studio-segment-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 27px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  font-size: 9.5px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.studio-segment-btn.is-active {
+  background: var(--studio-raised);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px oklch(0.32 0.02 70 / 0.08);
+}
+
+.dark .studio-segment-btn.is-active {
+  box-shadow: 0 1px 2px oklch(0 0 0 / 50%);
+}
+
+.studio-segment-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.studio-settings-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 11px;
+}
+
+.studio-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.studio-field--wide {
+  grid-column: 1 / -1;
+}
+
+.studio-settings-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.studio-settings-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 9px;
+  color: var(--muted-foreground);
+}
+
+.studio-settings-managed {
+  margin-top: 10px;
+  padding: 9px;
+  border: 1px solid color-mix(in oklab, var(--primary) 28%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--primary) 6%, transparent);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.studio-settings-managed .font-medium {
+  color: var(--foreground);
+}
+
+.studio-settings-pop {
+  padding: 0;
+  overflow: hidden;
+  border-color: var(--studio-hairline);
+}
+
+/* ── Loading and failure ─────────────────────────────────────────────────── */
+
+.studio-reading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.55fr);
+  gap: 12px;
+  height: clamp(24rem, 58svh, 38rem);
+}
+
+.studio-reading-stage {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 12px;
+  background: var(--studio-wash);
+}
+
+.studio-reading-paper {
+  position: relative;
+  display: flex;
+  width: min(58%, 21rem);
+  aspect-ratio: 1 / 1.414;
+  flex-direction: column;
+  gap: 11px;
+  overflow: hidden;
+  padding: 12% 10%;
+  border-radius: 2px;
+  background: var(--studio-paper);
+  box-shadow: var(--studio-paper-shadow);
+}
+
+.studio-reading-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 12px;
+  background: var(--studio-raised);
+}
+
+.studio-reading-kicker {
+  margin: 0;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+
+.studio-reading-name {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-doc);
+  font-size: 1.55rem;
+  line-height: 1.16;
+  letter-spacing: -0.015em;
+}
+
+.studio-reading-copy {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+
+.studio-reading-line {
+  height: 2px;
+  margin-top: 22px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--studio-hairline);
+}
+
+.studio-reading-line > span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  transform-origin: left center;
+  transition: transform 400ms ease;
+}
+
+.studio-reading-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 9px;
+  color: var(--muted-foreground);
+}
+
+.studio-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 180ms ease;
+}
+
+.studio-text-link:hover {
+  color: var(--foreground);
+}
+
+.studio-unreadable {
+  display: flex;
+  min-height: 23rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(28px, 5vw, 64px);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 12px;
+  background: var(--studio-raised);
+}
+
+.studio-unreadable-glyph {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in oklab, var(--destructive) 30%, transparent);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--destructive) 8%, transparent);
+  color: var(--destructive);
+}
+
+.studio-unreadable-title {
+  margin: 18px 0 0;
+  font-family: var(--font-doc);
+  font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+  font-weight: 400;
+  line-height: 1.14;
+  letter-spacing: -0.02em;
+}
+
+.studio-unreadable-copy {
+  margin: 8px 0 0;
+  max-width: 40rem;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+.studio-unreadable-note {
+  margin: 6px 0 0;
+  max-width: 40rem;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+
+/* ── Receipt ─────────────────────────────────────────────────────────────── */
+
+.studio-export {
+  min-height: 35rem;
+  padding: clamp(30px, 4.8vw, 64px);
+}
+
+.studio-export:focus {
+  outline: none;
+}
+
+.studio-export-waves {
+  position: absolute;
+  right: -8%;
+  bottom: -3rem;
+  left: -8%;
+  height: 31rem;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 95%);
+  mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 95%);
+}
+
+.studio-export-sheet {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+}
+
+.studio-export-title {
+  margin: 0;
+  font-family: var(--font-doc);
+  font-size: clamp(2.6rem, 4.5vw, 3.8rem);
+  font-weight: 400;
+  line-height: 0.99;
+  letter-spacing: -0.032em;
+  color: var(--plate-ink);
+}
+
+.studio-export-lead {
+  margin: 16px 0 0;
+  max-width: 31rem;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--plate-muted);
+}
+
+.studio-export-details {
+  margin-top: 16px;
+  max-width: 31rem;
+  font-size: 10px;
+  color: var(--plate-muted);
+}
+
+.studio-export-details summary {
+  cursor: pointer;
+  font-size: 10.5px;
+  color: var(--plate-muted);
+  transition: color 180ms ease;
+}
+
+.studio-export-details summary:hover {
+  color: var(--plate-ink);
+}
+
+.studio-export-details p {
+  margin: 6px 0 0;
+  line-height: 1.6;
+  color: var(--plate-faint);
+}
+
+.studio-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.studio-download {
+  height: 37px;
+  padding: 0 16px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  box-shadow: none;
+  background: var(--plate-accent);
+  color: var(--plate-accent-ink);
+}
+
+.studio-download:hover {
+  background: #a9f0d2;
+  color: #04130d;
+}
+
+.studio-export .studio-text-link {
+  color: var(--plate-muted);
+}
+
+.studio-export .studio-text-link:hover {
+  color: var(--plate-ink);
+}
+
+.studio-receipt {
+  position: relative;
+  align-self: center;
+  padding: 18px;
+  border: 1px solid rgba(27, 28, 23, 0.14);
+  border-radius: 7px;
+  background: #f6f2e7;
+  color: #1b1c17;
+}
+
+.studio-stamp {
+  position: absolute;
+  top: -13px;
+  right: 12px;
+  padding: 4px 9px;
+  border: 2px solid #0d6a4f;
+  background: #f6f2e7;
+  font-family: var(--font-doc);
+  font-size: 0.76rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #0d6a4f;
+  transform: rotate(-6deg);
+  opacity: 1;
+}
+
+.studio-receipt dl {
+  margin: 0;
+}
+
+.studio-receipt dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(27, 28, 23, 0.12);
+}
+
+.studio-receipt dl > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.studio-receipt dt {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  color: #64655b;
+}
+
+.studio-receipt dd {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  font-size: 10.5px;
+  color: #1b1c17;
+}
+
+.studio-receipt-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 15rem;
+}
+
+.studio-export-next {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--plate-line);
+}
+
+.studio-export-next-label {
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--plate-faint);
+}
+
+.studio-next-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-bottom: 1px solid transparent;
+  font-size: 10.5px;
+  color: var(--plate-muted);
+  transition:
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.studio-next-link:hover {
+  color: var(--plate-accent);
+  border-color: color-mix(in oklab, var(--plate-accent) 50%, transparent);
+}
+
+/* ── First-run overlay ───────────────────────────────────────────────────── */
+
+:root:not(.dark) .studio-welcome {
+  border-color: var(--hairline-sand);
+  background: var(--porcelain);
+  box-shadow: var(--shadow-float);
+}
+
+.studio-welcome .font-serif {
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+/* ── Trust footnote ──────────────────────────────────────────────────────── */
+.studio-trust p {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+
+.studio-trust svg {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1023px) {
+  .studio-grid {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+
+  .studio-col-doc {
+    height: min(62svh, 34rem);
+  }
+
+  .studio-col-rail {
+    height: min(74svh, 44rem);
+  }
+
+  .studio-cover-grid {
+    gap: clamp(26px, 4vw, 48px);
+  }
+
+  .studio-export-sheet,
+  .studio-reading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-reading {
+    height: auto;
+  }
+
+  .studio-reading-stage {
+    height: 19rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio-cover-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-cover-margin {
+    padding-top: 24px;
+    padding-left: 0;
+    border-top: 1px solid var(--plate-line);
+    border-left: 0;
+  }
+
+  .studio-cover-waves {
+    right: -16%;
+    bottom: -6rem;
+    left: -16%;
+    width: auto;
+    height: 30rem;
+  }
+
+  .studio-setup {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    width: 100%;
+    margin-top: -1rem;
+  }
+
+  .studio-setup-intro {
+    padding-right: 0;
+    padding-bottom: 18px;
+    border-right: 0;
+    border-bottom: 1px solid var(--studio-hairline);
+  }
+}
+
+@media (max-width: 639px) {
+  .studio {
+    gap: 11px;
+  }
+
+  .studio-masthead {
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .studio-masthead-actions {
+    margin-left: auto;
+    padding-bottom: 0;
+  }
+
+  .studio-doc-title {
+    font-size: 1.42rem;
+    white-space: normal;
+  }
+
+  .studio-doc-meta {
+    font-size: 10.5px;
+  }
+
+  .studio-cover {
+    padding: 28px 20px 40px;
+    min-height: 30rem;
+    border-radius: 12px;
+  }
+
+  .studio-cover-title {
+    font-size: clamp(2.2rem, 10.4vw, 3rem);
+  }
+
+  .studio-cover-lead {
+    font-size: 0.9rem;
+  }
+
+  .studio-cover-drop {
+    margin-top: 24px;
+  }
+
+  .studio-drop {
+    min-height: 10.5rem;
+    padding: 1.35rem 1.25rem;
+  }
+
+  .studio-cover-margin {
+    padding-top: 22px;
+  }
+
+  .studio-cover-waves {
+    right: -32%;
+    bottom: -4rem;
+    left: -32%;
+    width: auto;
+    height: 26rem;
+    filter: brightness(1.18) saturate(1.05);
+  }
+
+  .studio-col-rail {
+    height: 38rem;
+  }
+
+  .studio-field-label {
+    font-size: 10px;
+  }
+
+  .studio-settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-segment {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-segment-btn {
+    justify-content: flex-start;
+    padding-left: 9px;
+  }
+
+  .studio-export {
+    padding: 30px 20px 42px;
+    border-radius: 12px;
+  }
+
+  .studio-export-title {
+    font-size: clamp(2.3rem, 10vw, 3rem);
+  }
+
+  .studio-export-waves {
+    right: -34%;
+    bottom: -8rem;
+    left: -34%;
+    height: 24rem;
+    filter: brightness(1.16) saturate(1.04);
+  }
+
+  .studio-reading-panel {
+    padding: 22px 18px;
+  }
+
+  .studio-reading-name {
+    font-size: 1.35rem;
+  }
+
+  .studio-reading-paper {
+    width: min(64%, 17rem);
+  }
+
+  .studio-trust {
+    gap: 8px;
+  }
+
+  /* Touch targets: the desktop controls are deliberately compact; a thumb needs
+     a little more room, and the discard action must never be hover-only. */
+  .studio-icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .studio-zoom-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .studio-rail-page--wide {
+    width: 36px;
+    height: 34px;
+  }
+
+  .studio-send,
+  .studio-stop {
+    width: 32px;
+    height: 32px;
+  }
+
+  .studio-apply {
+    height: 38px;
+  }
+
+  .studio-masthead-actions .studio-action {
+    height: 36px;
+  }
+}
+
+@media (hover: none) {
+  .studio-change-discard {
+    opacity: 0.65;
+  }
+
+  .studio-suggestion svg:last-child {
+    opacity: 0.45;
+    transform: none;
+  }
+}
+
+/* Ambient loops are transient states only, and they stop under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .studio-skeleton-scan,
+  .studio-thinking-rule,
+  .studio-live.is-busy .studio-live-dot {
+    animation: none !important;
+  }
+
+  .studio-skeleton-scan {
+    display: none;
+  }
+
+  .studio-thinking-rule {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
