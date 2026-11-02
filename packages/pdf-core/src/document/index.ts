@@ -31,7 +31,9 @@ export type {
   TableRow,
   TableModel,
   ColumnModel,
+  PageImage,
   PageStats,
+  StructureConfidence,
   PageLayout,
   DocumentStats,
   DocumentLayout,
@@ -137,6 +139,23 @@ export type {
   ReflowObstacle,
   ReflowAssessment,
 } from './reflow.js';
+
+export {
+  relateLines,
+  sharedAlignmentOf,
+  collisionRisk,
+  analyzePageRelations,
+} from './relations.js';
+export type {
+  LineRelation,
+  RelationOptions,
+  SharedAlignment,
+  CollisionRisk,
+  CollisionTarget,
+  PageRelations,
+} from './relations.js';
+
+export { computeStructureConfidence } from './confidence.js';
 
 export {
   TextEditSession,

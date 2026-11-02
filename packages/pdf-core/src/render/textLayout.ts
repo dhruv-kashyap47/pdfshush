@@ -11,13 +11,15 @@
  */
 
 import type { JobContext } from '../job.js';
-import type { BBox } from '../document/types.js';
+import type { BBox, PageImage } from '../document/types.js';
 import type { PageLayout, DocumentLayout } from '../document/types.js';
 import { PageGeometry } from '../document/geometry.js';
 import { glyphsFromTextItems, type RawTextContent } from '../document/glyphs.js';
 import { buildPageLayout, type LayoutBuildOptions } from '../document/group.js';
 import { buildDocumentLayout } from '../document/document.js';
+import { computeStructureConfidence } from '../document/confidence.js';
 import { loadPdfForRender } from './pdfjsRuntime.js';
+import { imageBoxesFromOperatorList, type OperatorListLike } from './imageBoxes.js';
 import {
   clusterTextRuns,
   runItemsFromTextContent,
@@ -31,6 +33,37 @@ export interface ExtractLayoutsOptions {
   password?: string;
   ctx?: JobContext;
   layout?: LayoutBuildOptions;
+  /**
+   * Read image/mask boxes from the operator list so reflow knows what it cannot
+   * grow into. On by default; the same parse is reused by the renderer.
+   */
+  includeImages?: boolean;
+}
+
+/**
+ * Image boxes in display space, plus a warning when the operator list could not
+ * be read (a page whose content stream fails to parse must still yield text).
+ */
+async function readImageBoxes(
+  page: { getOperatorList(): Promise<unknown> },
+  viewportTransform: readonly number[],
+  geometry: PageGeometry,
+): Promise<{ images: PageImage[]; error?: string }> {
+  try {
+    const opList = (await page.getOperatorList()) as unknown as OperatorListLike;
+    const found = imageBoxesFromOperatorList(opList, viewportTransform);
+    return {
+      images: found.map((image) => ({
+        ...image,
+        pdfBox: geometry.viewRectToPdf(image.bbox),
+      })),
+    };
+  } catch (error) {
+    return {
+      images: [],
+      error: `Image geometry unavailable: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 function normalizeRotation(rotate: number): 0 | 90 | 180 | 270 {
@@ -116,6 +149,14 @@ export async function extractPageLayouts(
         if (extracted.warnings.length > 0) {
           layout.warnings = [...new Set([...layout.warnings, ...extracted.warnings])];
         }
+        if (options.includeImages !== false) {
+          const imageResult = await readImageBoxes(page, viewport.transform, geometry);
+          layout.images = imageResult.images;
+          if (imageResult.error) {
+            layout.warnings = [...new Set([...layout.warnings, imageResult.error])];
+          }
+        }
+        layout.structureConfidence = computeStructureConfidence(layout);
         layouts.push(layout);
       } finally {
         // Text content buffers are the biggest per-page allocation here; on a
@@ -204,6 +245,12 @@ export async function extractTextRunsAndLayouts(
         if (extracted.warnings.length > 0) {
           layout.warnings = [...new Set([...layout.warnings, ...extracted.warnings])];
         }
+        const imageResult = await readImageBoxes(page, viewport.transform, geometry);
+        layout.images = imageResult.images;
+        if (imageResult.error) {
+          layout.warnings = [...new Set([...layout.warnings, imageResult.error])];
+        }
+        layout.structureConfidence = computeStructureConfidence(layout);
         layouts.push(layout);
       } finally {
         page.cleanup();

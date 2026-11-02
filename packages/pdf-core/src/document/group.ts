@@ -34,6 +34,7 @@ import type {
   Word,
 } from './types.js';
 import { createIdFactory, textSeed, type IdFactory } from './ids.js';
+import { relateLines } from './relations.js';
 
 /* ------------------------------------------------------------------ input */
 
@@ -297,6 +298,11 @@ function splitRow(
   const sorted = [...row].sort((a, b) => a.advanceStart - b.advanceStart);
   const fragments: FragmentDraft[] = [];
   let current: ProjectedGlyph[] = [];
+  // Producers commonly encode an inter-cell gap as one very wide space glyph
+  // rather than as a positioning jump. Measuring the gap from that glyph's own
+  // advance would report 0 and glue every table row into one fragment, so the
+  // anchor is the last *inked* glyph.
+  let lastInk: ProjectedGlyph | undefined;
 
   const flush = (): void => {
     if (current.length === 0) return;
@@ -311,6 +317,7 @@ function splitRow(
       });
     }
     current = [];
+    lastInk = undefined;
   };
 
   for (const entry of sorted) {
@@ -321,12 +328,18 @@ function splitRow(
         entry.glyph.typography.fontSize,
         1,
       );
-      const gap = entry.advanceStart - previous.advanceEnd;
-      if (gap > Math.max(cellGap, size * 1.15)) {
+      // A different source text item means a different text object. Objects can
+      // overlap on a baseline (form labels, stamps), so their glyphs must not be
+      // interleaved by x-order; `collapseRow` re-joins genuinely contiguous runs.
+      const sameItem = entry.glyph.itemIndex === previous.glyph.itemIndex;
+      const anchor = lastInk ?? previous;
+      const gap = entry.advanceStart - anchor.advanceEnd;
+      if (!sameItem || gap > Math.max(cellGap, size * 1.15)) {
         flush();
       }
     }
     current.push(entry);
+    if (!entry.glyph.whitespace) lastInk = entry;
   }
   flush();
   return fragments;
@@ -360,7 +373,6 @@ function detectColumnGutters(
   interface Candidate {
     left: number;
     right: number;
-    mid: number;
     cross: number;
     rowIndex: number;
   }
@@ -376,7 +388,6 @@ function detectColumnGutters(
       candidates.push({
         left: previous.advanceEnd,
         right: next.advanceStart,
-        mid: (previous.advanceEnd + next.advanceStart) / 2,
         cross: (previous.cross + next.cross) / 2,
         rowIndex,
       });
@@ -384,51 +395,55 @@ function detectColumnGutters(
   });
   if (candidates.length === 0) return [];
 
-  const tolerance = Math.max(8, minGutter * 0.75);
+  // A corridor is the whitespace that is empty in *every* row: the intersection
+  // of the per-row gaps that describe it. Clustering by gap midpoint chained
+  // short-line rows into separate corridors whose own left edge then sat inside
+  // the real corridor, so long left-column lines were reported as "spanning"
+  // and lost their column membership. Sorting by the gap's left edge and
+  // intersecting overlapping intervals keeps one corridor per physical gutter.
   const clusters: {
-    lefts: number[];
-    rights: number[];
+    left: number;
+    right: number;
     crossMin: number;
     crossMax: number;
     rows: Set<number>;
   }[] = [];
 
-  for (const candidate of candidates.sort((a, b) => a.mid - b.mid)) {
-    let found: (typeof clusters)[number] | undefined;
-    for (const cluster of clusters) {
-      const mean =
-        cluster.lefts.reduce((sum, value) => sum + value, 0) / cluster.lefts.length;
-      const meanRight =
-        cluster.rights.reduce((sum, value) => sum + value, 0) / cluster.rights.length;
-      if (Math.abs(candidate.mid - (mean + meanRight) / 2) <= tolerance) {
-        found = cluster;
-        break;
+  const ordered = [...candidates].sort((a, b) => a.left - b.left || a.right - b.right);
+  for (const candidate of ordered) {
+    const last = clusters[clusters.length - 1];
+    if (last && candidate.left < last.right) {
+      const left = Math.max(last.left, candidate.left);
+      const right = Math.min(last.right, candidate.right);
+      // Only keep intersecting while a usable corridor survives; two disjoint
+      // corridors (a three-column page) must not be merged into one.
+      if (right - left >= minGutter) {
+        last.left = left;
+        last.right = right;
+        last.crossMin = Math.min(last.crossMin, candidate.cross);
+        last.crossMax = Math.max(last.crossMax, candidate.cross);
+        last.rows.add(candidate.rowIndex);
+        continue;
       }
     }
-    if (!found) {
-      found = {
-        lefts: [],
-        rights: [],
-        crossMin: candidate.cross,
-        crossMax: candidate.cross,
-        rows: new Set<number>(),
-      };
-      clusters.push(found);
-    }
-    found.lefts.push(candidate.left);
-    found.rights.push(candidate.right);
-    found.crossMin = Math.min(found.crossMin, candidate.cross);
-    found.crossMax = Math.max(found.crossMax, candidate.cross);
-    found.rows.add(candidate.rowIndex);
+    clusters.push({
+      left: candidate.left,
+      right: candidate.right,
+      crossMin: candidate.cross,
+      crossMax: candidate.cross,
+      rows: new Set<number>([candidate.rowIndex]),
+    });
   }
 
   const gutters: Gutter[] = [];
   for (const cluster of clusters) {
     if (cluster.rows.size < 3) continue;
     if (cluster.crossMax - cluster.crossMin < minSpan) continue;
-    const left = median(cluster.lefts);
-    const right = median(cluster.rights);
-    if (right - left < minGutter) continue;
+    // `left`/`right` are already the intersected corridor bounds: it starts
+    // where the longest left-column line ends and ends where the earliest
+    // right-column line begins.
+    const { left, right } = cluster;
+    if (!(right - left >= minGutter)) continue;
     gutters.push({
       left,
       right,
@@ -493,6 +508,8 @@ interface CellRow {
   cross: number;
   rowIndex: number;
   fragments: FragmentDraft[];
+  starts: number[];
+  ends: number[];
   gapMids: number[];
 }
 
@@ -522,11 +539,25 @@ function detectTables(
     for (const [columnIndex, cells] of byColumn) {
       if (cells.length < 2) continue;
       const ordered = [...cells].sort((a, b) => a.advanceStart - b.advanceStart);
+      // A cell's text can be several text items (a font switch mid-cell, or a
+      // producer that emits one item per word). Coalesce runs whose gap is
+      // smaller than a cell gap, otherwise every such row looks like it has more
+      // columns than the table really has.
+      const coalesced: FragmentDraft[] = [];
+      for (const fragment of ordered) {
+        const previous = coalesced[coalesced.length - 1];
+        if (previous && fragment.advanceStart - previous.advanceEnd < minCellGap) {
+          coalesced[coalesced.length - 1] = mergeFragments([previous, fragment]);
+        } else {
+          coalesced.push(fragment);
+        }
+      }
+      if (coalesced.length < 2) continue;
       const gapMids: number[] = [];
       let valid = true;
-      for (let i = 1; i < ordered.length; i += 1) {
-        const previous = ordered[i - 1]!;
-        const next = ordered[i]!;
+      for (let i = 1; i < coalesced.length; i += 1) {
+        const previous = coalesced[i - 1]!;
+        const next = coalesced[i]!;
         const gap = next.advanceStart - previous.advanceEnd;
         if (gap < minCellGap) {
           valid = false;
@@ -535,8 +566,16 @@ function detectTables(
         gapMids.push((previous.advanceEnd + next.advanceStart) / 2);
       }
       if (!valid) continue;
-      const cross = average(ordered.map((fragment) => fragment.cross));
-      cellRows.push({ columnIndex, cross, rowIndex, fragments: ordered, gapMids });
+      const cross = average(coalesced.map((fragment) => fragment.cross));
+      cellRows.push({
+        columnIndex,
+        cross,
+        rowIndex,
+        fragments: coalesced,
+        starts: coalesced.map((fragment) => fragment.advanceStart),
+        ends: coalesced.map((fragment) => fragment.advanceEnd),
+        gapMids,
+      });
     }
   });
 
@@ -551,11 +590,26 @@ function detectTables(
   const matches = (a: CellRow, b: CellRow): boolean => {
     if (a.columnIndex !== b.columnIndex) return false;
     if (Math.abs(b.cross - a.cross) > rowWindow) return false;
+    if (a.fragments.length !== b.fragments.length) return false;
     if (a.gapMids.length !== b.gapMids.length) return false;
-    for (let i = 0; i < a.gapMids.length; i += 1) {
-      if (Math.abs(a.gapMids[i]! - b.gapMids[i]!) > alignmentTolerance) return false;
-    }
-    return true;
+    // Cells in a table share an edge, and they share the *same kind* of edge:
+    // left-aligned cells line up on their starts, right-aligned ones on their
+    // ends. Accepting a different edge per cell let justified-prose lines - which
+    // always end at the right margin - masquerade as a table, splitting the
+    // abstract into cells. One mode must hold for every cell in the row.
+    const aligned = (mode: 'start' | 'end' | 'center'): boolean => {
+      for (let i = 0; i < a.fragments.length; i += 1) {
+        const left = mode === 'end' ? a.ends[i]! : a.starts[i]!;
+        const right = mode === 'end' ? b.ends[i]! : b.starts[i]!;
+        const aMid = (a.starts[i]! + a.ends[i]!) / 2;
+        const bMid = (b.starts[i]! + b.ends[i]!) / 2;
+        const delta =
+          mode === 'center' ? Math.abs(aMid - bMid) : Math.abs(left - right);
+        if (delta > alignmentTolerance) return false;
+      }
+      return true;
+    };
+    return aligned('start') || aligned('end') || aligned('center');
   };
 
   const flush = (): void => {
@@ -681,6 +735,19 @@ function mergeFragments(fragments: readonly FragmentDraft[]): FragmentDraft {
   };
 }
 
+function runSize(fragment: FragmentDraft): number {
+  const glyph = nonWhitespace(fragment.glyphs)[0] ?? fragment.glyphs[0];
+  return glyph?.glyph.typography.fontSize ?? 0;
+}
+
+function typographyKeyOf(fragment: FragmentDraft): string {  const glyph = nonWhitespace(fragment.glyphs)[0] ?? fragment.glyphs[0];
+  const typography = glyph?.glyph.typography;
+  if (!typography) return '';
+  return `${typography.fontName}|${typography.fontFamily}|${typography.fontSize.toFixed(2)}|${
+    typography.bold ? 1 : 0
+  }${typography.italic ? 1 : 0}`;
+}
+
 function collapseRow(
   fragments: readonly FragmentDraft[],
   medianFontSize: number,
@@ -694,21 +761,68 @@ function collapseRow(
     else byColumn.set(fragment.columnIndex, [fragment]);
   }
 
+  const nearGap = Math.max(4, medianFontSize * 2.5);
   const result: FragmentDraft[] = [...tableFragments];
   for (const group of byColumn.values()) {
-    const ordered = [...group].sort((a, b) => a.advanceStart - b.advanceStart);
+    // Text objects can share a baseline while overlapping in x: a form's big
+    // form number behind its title, a stamp over body text, a LaTeX lockup drawn
+    // as several overlapping runs. Joining glyphs by x alone interleaves their
+    // characters into gibberish ("1040 DUep.aSrtm..."), and keeping one line per
+    // text item produces unreadable fragments. Grouping by *typography* first
+    // reconstructs each visual string in its own order, then adjacent groups are
+    // re-joined when they do not overlap.
+    const byTypography = new Map<string, FragmentDraft[]>();
+    for (const fragment of group) {
+      const key = typographyKeyOf(fragment);
+      const bucket = byTypography.get(key);
+      if (bucket) bucket.push(fragment);
+      else byTypography.set(key, [fragment]);
+    }
+
+    const runs: FragmentDraft[] = [];
+    for (const bucket of byTypography.values()) {
+      const ordered = [...bucket].sort((a, b) => a.advanceStart - b.advanceStart);
+      let current: FragmentDraft[] = [];
+      const flushRuns = (): void => {
+        if (current.length > 0) runs.push(mergeFragments(current));
+        current = [];
+      };
+      for (const fragment of ordered) {
+        const previous = current[current.length - 1];
+        // Overlap inside one typography is the same string split by the
+        // producer; a large positive jump is a different region entirely.
+        if (previous && fragment.advanceStart - previous.advanceEnd > nearGap) flushRuns();
+        current.push(fragment);
+      }
+      flushRuns();
+    }
+
+    runs.sort((a, b) => a.advanceStart - b.advanceStart);
     let current: FragmentDraft[] = [];
     const flush = (): void => {
       if (current.length > 0) result.push(mergeFragments(current));
       current = [];
     };
-    for (const fragment of ordered) {
+    for (const run of runs) {
       const previous = current[current.length - 1];
       if (previous) {
-        const gap = fragment.advanceStart - previous.advanceEnd;
-        if (gap > Math.max(4, medianFontSize * 2.5)) flush();
+        const gap = run.advanceStart - previous.advanceEnd;
+        if (gap > nearGap) flush();
+        else if (gap < -Math.max(1, medianFontSize * 0.4)) {
+          // Overlapping runs are usually separate strings sharing a baseline
+          // (form lockups), but a drop cap or an inline formula is drawn as a
+          // slightly larger run that sits *inside* the line. Comparable size and
+          // family means "same visual line"; a big size jump means "not".
+          const previousSize = runSize(previous);
+          const currentSize = runSize(run);
+          const comparable =
+            previousSize > 0 &&
+            currentSize > 0 &&
+            Math.max(previousSize, currentSize) / Math.min(previousSize, currentSize) <= 1.5;
+          if (!comparable) flush();
+        }
       }
-      current.push(fragment);
+      current.push(run);
     }
     flush();
   }
@@ -865,7 +979,13 @@ interface RoleHint {
 const LIST_MARKER =
   /^(\s*)((?:[•▪◦‣∙·●○■□❖➤►*+–—-])|(?:\(?\d{1,3}[.)])|(?:\(?[a-zA-Z][.)])|(?:[ivxlcdmIVXLCDM]{1,6}[.)]))\s+/u;
 const PAGE_NUMBER = /^\s*(?:page\s*)?\d{1,4}(?:\s*(?:of|\/)\s*\d{1,4})?\s*$/i;
-const CAPTION = /^(?:fig(?:ure)?|tab(?:le)?|exhibit|chart|diagram|source|note)\b/i;
+// "Figure 3:", "Table II -", "Exhibit A." -- a *numbered* label, which is what
+// distinguishes a caption from a body line that merely starts with the word
+// "Table" or "Source".
+const CAPTION =
+  /^(?:fig(?:ure)?|tab(?:le)?|exhibit|chart|diagram)\s*(?:\d{1,3}|[ivxlcdm]{1,6}|[a-z](?=[.:)\-–—]))\s*(?:[.:)\-–—]|\s)/i;
+const CAPTION_LEAD = /^(?:source|note|notes)\s*:/i;
+const FOOTNOTE_MARKER = /^\s*(?:\d{1,3}|[*†‡§¶]|\[\d{1,3}\])\s+\S/;
 
 export function matchListMarker(text: string): { marker: string; body: string; indentChars: number } | null {
   const match = LIST_MARKER.exec(text);
@@ -879,6 +999,7 @@ export function matchListMarker(text: string): { marker: string; body: string; i
 function roleHintFor(
   entry: LineEntry,
   bodySize: number,
+  maxSize: number,
   pageSize: { width: number; height: number },
   options: LayoutBuildOptions,
 ): RoleHint {
@@ -888,6 +1009,59 @@ function roleHintFor(
   const size = Math.max(line.typography.fontSize, 0.1);
   const ratio = size / Math.max(bodySize, 0.1);
 
+  // Page furniture is identified by position *and* size; a large title in the
+  // top band is a heading, not a running header.
+  const band = Math.max(0.02, Math.min(0.2, options.marginBand ?? 0.085));
+  const centerY = line.bbox.y + line.bbox.height / 2;
+  if (line.direction !== 'ttb') {
+    const pageNumber = PAGE_NUMBER.test(text);
+    if (pageNumber && (centerY < pageSize.height * 0.2 || centerY > pageSize.height * 0.8)) {
+      return { role: centerY < pageSize.height / 2 ? 'header' : 'footer' };
+    }
+    // A marker-led line that is smaller than the body and sits in the lower part
+    // of the page is a footnote, not a footer. The marker is what separates the
+    // two, and a footnote is real content the editor must be able to select.
+    if (
+      FOOTNOTE_MARKER.test(text) &&
+      ratio <= 0.92 &&
+      centerY > pageSize.height * 0.6 &&
+      text.length >= 12
+    ) {
+      return { role: 'footnote' };
+    }
+    if (ratio <= 1.1 && centerY < pageSize.height * band) return { role: 'header' };
+    if (ratio <= 1.1 && centerY > pageSize.height * (1 - band)) return { role: 'footer' };
+  }
+
+  const letters = text.replace(/[^A-Za-z]/g, '');
+  const upperRatio = letters.length >= 3 ? (text.match(/[A-Z]/g)?.length ?? 0) / letters.length : 0;
+  // Size is not the only heading signal. Bold, shouted or short title-cased
+  // labels are headings at the same size as the body -- exactly the case a
+  // pure size-ratio rule misses.
+  const boldRunIn =
+    line.typography.bold &&
+    ratio >= 0.95 &&
+    text.length <= 80 &&
+    !/[.!?,;]$/.test(text) &&
+    (upperRatio >= 0.7 || text.split(/\s+/).length <= 8);
+  const shoutHeading =
+    upperRatio >= 0.85 &&
+    letters.length >= 4 &&
+    text.length <= 60 &&
+    !/[.!?,;]$/.test(text) &&
+    text.split(/\s+/).length <= 10;
+
+  if (ratio >= 1.16 || boldRunIn || shoutHeading) {
+    // The page's largest text is its title; everything else steps down by how
+    // much bigger than the body it is. A same-size bold label is a level-3
+    // heading, not a title, even though its size equals the maximum.
+    const headingLevel = ratio >= 1.16 && size >= maxSize * 0.95 ? 1 : ratio >= 1.32 ? 2 : 3;
+    return { role: 'heading', headingLevel };
+  }
+
+  // A numbered section heading ("1. Method") is short and set above body size;
+  // only body-sized marker-led lines are list items, so the heading test above
+  // must win first.
   const marker = matchListMarker(text);
   if (marker) {
     return {
@@ -902,29 +1076,123 @@ function roleHintFor(
     };
   }
 
-  // Page furniture is identified by position *and* size; a large title in the
-  // top band is a heading, not a running header.
-  const band = Math.max(0.02, Math.min(0.2, options.marginBand ?? 0.085));
-  const centerY = line.bbox.y + line.bbox.height / 2;
-  if (line.direction !== 'ttb') {
-    const pageNumber = PAGE_NUMBER.test(text);
-    if (pageNumber && (centerY < pageSize.height * 0.2 || centerY > pageSize.height * 0.8)) {
-      return { role: centerY < pageSize.height / 2 ? 'header' : 'footer' };
-    }
-    if (ratio <= 1.1 && centerY < pageSize.height * band) return { role: 'header' };
-    if (ratio <= 1.1 && centerY > pageSize.height * (1 - band)) return { role: 'footer' };
-  }
-
-  if (ratio >= 1.16 || (line.typography.bold && ratio >= 1.04 && text.length <= 90 && !/[.!?]$/.test(text))) {
-    const headingLevel = ratio >= 1.55 ? 1 : ratio >= 1.32 ? 2 : 3;
-    return { role: 'heading', headingLevel };
-  }
-
-  if (ratio <= 1.05 && CAPTION.test(text) && text.length <= 240) {
+  if (ratio <= 1.05 && (CAPTION.test(text) || CAPTION_LEAD.test(text)) && text.length <= 240) {
     return { role: 'caption' };
   }
 
   return { role: 'body' };
+}
+
+/**
+ * A footnote wraps: only its first line carries the marker, so the tail lines
+ * are hinted as page furniture by the margin band. Re-hint a footer/header line
+ * that directly follows a footnote of the same column and typography, so a
+ * two-line footnote stays one paragraph instead of becoming a footnote plus a
+ * stray footer.
+ */
+function absorbFootnoteTails(
+  entries: readonly LineEntry[],
+  hints: Map<string, RoleHint>,
+  lineHeight: number,
+): void {
+  const buckets = new Map<string, LineEntry[]>();
+  for (const entry of entries) {
+    const key = `${rotationBucket(entry.rotationDeg)}|${entry.columnIndex}`;
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(entry);
+    else buckets.set(key, [entry]);
+  }
+  for (const bucket of buckets.values()) {
+    const ordered = [...bucket].sort((a, b) => a.line.baseline - b.line.baseline);
+    for (let i = 1; i < ordered.length; i += 1) {
+      const entry = ordered[i]!;
+      const hint = hints.get(entry.line.id);
+      if (!hint || (hint.role !== 'footer' && hint.role !== 'header')) continue;
+      const previous = ordered[i - 1]!;
+      const previousHint = hints.get(previous.line.id);
+      if (!previousHint || previousHint.role !== 'footnote') continue;
+      if (entry.line.baseline - previous.line.baseline > lineHeight * 1.8) continue;
+      if (!similarTypography(previous.line, entry.line)) continue;
+      hints.set(entry.line.id, { role: 'footnote' });
+    }
+  }
+}
+
+/**
+ * A heading that carries no size or weight signal is still a heading when the
+ * page sets it apart: short, unpunctuated, and isolated by larger-than-normal
+ * whitespace above *and* below. This is what catches `Abstract` and
+ * `1 Introduction` in papers whose section heads are only a point or two larger
+ * than the body.
+ *
+ * The promotion is deliberately narrow. Figure labels, diagram captions and
+ * stray formula fragments are also short, isolated and unprompted, and on a
+ * figure-heavy page they outnumber real headings; requiring body-size type and
+ * body-size neighbours is what keeps them out.
+ */
+function promoteIsolatedHeadings(
+  entries: readonly LineEntry[],
+  hints: Map<string, RoleHint>,
+  lineHeight: number,
+  pageWidth: number,
+  bodySize: number,
+): void {
+  const buckets = new Map<string, LineEntry[]>();
+  for (const entry of entries) {
+    const key = `${rotationBucket(entry.rotationDeg)}|${entry.columnIndex}`;
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(entry);
+    else buckets.set(key, [entry]);
+  }
+  for (const bucket of buckets.values()) {
+    const ordered = [...bucket].sort((a, b) => a.line.baseline - b.line.baseline);
+    for (let i = 1; i < ordered.length - 1; i += 1) {
+      const entry = ordered[i]!;
+      const hint = hints.get(entry.line.id);
+      if (!hint || hint.role !== 'body') continue;
+      const text = entry.line.text.trim();
+      if (text.length === 0 || text.length > 60) continue;
+      if (/[.,;:!?\-]$/.test(text)) continue;
+      if (text.split(/\s+/).length > 9) continue;
+
+      // Body-size type, set among body-size type: a figure's own labels are
+      // smaller than the prose around them and must not become headings.
+      const size = entry.line.typography.fontSize;
+      if (size < bodySize * 0.95) continue;
+      const previous = ordered[i - 1]!;
+      const next = ordered[i + 1]!;
+      if (
+        previous.line.typography.fontSize < bodySize * 0.9 ||
+        next.line.typography.fontSize < bodySize * 0.9
+      ) {
+        continue;
+      }
+
+      // Mostly letters: rejects equation fragments and interleaved text objects.
+      const nonSpace = text.replace(/\s+/g, '');
+      const letters = (text.match(/[A-Za-z]/g) ?? []).length;
+      if (letters < 2 || letters / Math.max(1, nonSpace.length) < 0.6) continue;
+      const words = text.split(/\s+/);
+      // Single *letters* indicate interleaved or tabulated fragments; a leading
+      // section number (`2 Related Work`) is a legitimate heading shape.
+      const singleLetter = words.filter((word) => /^[A-Za-z]$/.test(word)).length;
+      if (singleLetter / words.length > 0.3) continue;
+      // A heading is followed by prose, not by another short label: this is what
+      // separates a section title from the labels inside a diagram.
+      const nextText = next.line.text.trim();
+      if (nextText.length < 20) continue;
+      if (next.line.advanceEnd - next.line.advanceStart < pageWidth * 0.15) continue;
+      if (previous.line.text.trim().length < 20) continue;
+
+      const width = entry.line.advanceEnd - entry.line.advanceStart;
+      if (width > pageWidth * 0.55) continue;
+
+      const above = entry.line.baseline - previous.line.baseline;
+      const below = next.line.baseline - entry.line.baseline;
+      if (above < lineHeight * 1.5 || below < lineHeight * 1.5) continue;
+      hints.set(entry.line.id, { role: 'heading', headingLevel: 3 });
+    }
+  }
 }
 
 function computeBodySize(entries: readonly LineEntry[]): number {
@@ -933,7 +1201,11 @@ function computeBodySize(entries: readonly LineEntry[]): number {
     const text = entry.line.text.trim();
     if (!text) continue;
     const size = Math.round(entry.line.typography.fontSize * 4) / 4;
-    weights.set(size, (weights.get(size) ?? 0) + Math.max(1, text.length));
+    // Weight by *inked area* (characters x size), not characters alone: a long
+    // footnote set two points small would otherwise out-vote the body text and
+    // become the page's reference size, which then makes the footnote look
+    // body-sized and the real body look oversized.
+    weights.set(size, (weights.get(size) ?? 0) + text.length * size);
   }
   let bestSize = 0;
   let bestWeight = -1;
@@ -979,6 +1251,12 @@ function computeLineHeight(
 interface ColumnBounds {
   left: number;
   right: number;
+  /**
+   * Median right edge of the column's lines. A line is "short" (paragraph-final)
+   * only relative to this, because ragged-right text makes individual lines end
+   * well short of the column edge without ending the paragraph.
+   */
+  typicalEnd: number;
 }
 
 function columnKey(rotationDeg: number, columnIndex: number): string {
@@ -991,8 +1269,11 @@ function computeColumnBounds(
   pageWidth: number,
 ): Map<string, ColumnBounds> {
   const bounds = new Map<string, ColumnBounds>();
+  const ends = new Map<string, number[]>();
   for (const entry of entries) {
-    if (entry.columnIndex < 0) continue;
+    // Spanning content (columnIndex -1) gets its own bucket: a full-measure
+    // paragraph must be measured against its own right edge, not the page edge,
+    // or every one of its lines looks "short" and the paragraph is shattered.
     const role = hints.get(entry.line.id)?.role;
     if (role === 'header' || role === 'footer') continue;
     const key = columnKey(entry.rotationDeg, entry.columnIndex);
@@ -1004,14 +1285,20 @@ function computeColumnBounds(
       bounds.set(key, {
         left: entry.line.advanceStart,
         right: entry.line.advanceEnd,
+        typicalEnd: entry.line.advanceEnd,
       });
     }
+    const list = ends.get(key);
+    if (list) list.push(entry.line.advanceEnd);
+    else ends.set(key, [entry.line.advanceEnd]);
   }
-  for (const [, box] of bounds) {
+  for (const [key, box] of bounds) {
     if (!Number.isFinite(box.left) || !Number.isFinite(box.right) || box.right <= box.left) {
       box.left = 0;
       box.right = pageWidth;
     }
+    const list = ends.get(key);
+    box.typicalEnd = list && list.length > 0 ? median(list) : box.right;
   }
   return bounds;
 }
@@ -1021,10 +1308,13 @@ function boundsFor(
   columnBounds: ReadonlyMap<string, ColumnBounds>,
   pageWidth: number,
 ): ColumnBounds {
-  return columnBounds.get(columnKey(entry.rotationDeg, entry.columnIndex)) ?? {
-    left: 0,
-    right: pageWidth,
-  };
+  return (
+    columnBounds.get(columnKey(entry.rotationDeg, entry.columnIndex)) ?? {
+      left: 0,
+      right: pageWidth,
+      typicalEnd: pageWidth,
+    }
+  );
 }
 
 /* ------------------------------------------------------------- paragraphs */
@@ -1042,6 +1332,12 @@ interface ParagraphDraft {
   confidence: number;
   columnIndex: number;
   rotationDeg: number;
+  /** P(continuation) for every internal line join, from `mergeDecision`. */
+  scores: number[];
+  /** P(continuation) across the break before this paragraph. */
+  startBoundary?: number;
+  /** P(continuation) across the break after this paragraph. */
+  endBoundary?: number;
 }
 
 function trimLineText(line: Line): string {
@@ -1084,6 +1380,7 @@ function startDraft(entry: LineEntry, hint: RoleHint): ParagraphDraft {
     confidence: line.confidence,
     columnIndex: entry.columnIndex,
     rotationDeg: entry.rotationDeg,
+    scores: [],
   };
 }
 
@@ -1116,8 +1413,22 @@ function similarTypography(previous: Line, current: Line): boolean {
 interface MergeDecision {
   merge: boolean;
   ambiguous: boolean;
+  /**
+   * Confidence in the *decision* (0.5 = coin flip, 1 = certain), whether that
+   * decision is "merge" or "break". Using one scale for both is what lets
+   * `draftConfidence` read a boundary term as "how sure am I that this really is
+   * a boundary" instead of as a probability of continuation.
+   */
+  score: number;
 }
 
+/**
+ * Decides whether `currentEntry` continues the open paragraph.
+ *
+ * Every branch returns a `score` as well as a boolean: a decision made a hair
+ * inside a threshold is uncertain, a decision made well inside it is not. That
+ * score is what makes `Paragraph.confidence` informative instead of a constant.
+ */
 function mergeDecision(
   previousEntry: LineEntry,
   currentEntry: LineEntry,
@@ -1129,68 +1440,94 @@ function mergeDecision(
 ): MergeDecision {
   const previous = previousEntry.line;
   const current = currentEntry.line;
-  const no: MergeDecision = { merge: false, ambiguous: false };
-  if (previous.tableId || current.tableId || draft.tableId) return no;
-  if (currentHint.role === 'list-item') return no;
+  const breakAll: MergeDecision = { merge: false, ambiguous: false, score: 0.95 };
+  if (previous.tableId || current.tableId || draft.tableId) return breakAll;
+  if (currentHint.role === 'list-item') return { merge: false, ambiguous: false, score: 0.9 };
 
   const gap = current.baseline - previous.baseline;
-  if (gap <= 0) return no;
+  if (gap <= 0) return breakAll;
   const size = Math.max(previous.typography.fontSize, 1);
+  // All pair geometry comes from the relations engine so grouping, reflow and
+  // the confidence report measure the same things the same way.
+  const relation = relateLines(previous, current, {
+    linePitch: lineHeight,
+    column: { left: bounds.left, right: bounds.right, typicalEnd: bounds.typicalEnd },
+  });
+  const gapRatio = relation.gapRatio;
 
   if (draft.role === 'list-item') {
-    if (currentHint.role === 'header' || currentHint.role === 'footer') return no;
+    if (currentHint.role === 'header' || currentHint.role === 'footer') return breakAll;
     const sameFont = similarTypography(previous, current);
     const continuationIndent = draft.list?.indentPt ?? 0;
     const indent = current.advanceStart - bounds.left;
-    const merge =
-      gap <= lineHeight * 1.8 &&
-      sameFont &&
-      indent >= continuationIndent - size * 0.4;
-    return { merge, ambiguous: merge && gap > lineHeight * 1.55 };
+    const merge = gapRatio <= 1.8 && sameFont && indent >= continuationIndent - size * 0.4;
+    return {
+      merge,
+      ambiguous: merge && gapRatio > 1.55,
+      score: merge ? clamp01(1 - (gapRatio - 1) / 1.6) : 0.7,
+    };
   }
 
   if (currentHint.role === 'header' || currentHint.role === 'footer') {
-    return {
-      merge: draft.role === currentHint.role && gap <= lineHeight * 1.8,
-      ambiguous: false,
-    };
+    const merge = draft.role === currentHint.role && gapRatio <= 1.8;
+    return { merge, ambiguous: false, score: merge ? 0.8 : 0.9 };
   }
-  if (draft.role === 'header' || draft.role === 'footer') return no;
+  if (draft.role === 'header' || draft.role === 'footer') return breakAll;
 
   if (draft.role === 'heading' || currentHint.role === 'heading') {
     const sameHeading =
       draft.role === 'heading' &&
       currentHint.role === 'heading' &&
       draft.headingLevel === currentHint.headingLevel;
-    return {
-      merge: sameHeading && similarTypography(previous, current) && gap <= lineHeight * 1.8,
-      ambiguous: false,
-    };
+    const merge = sameHeading && similarTypography(previous, current) && gapRatio <= 1.8;
+    return { merge, ambiguous: merge && gapRatio > 1.5, score: merge ? 0.85 : 0.9 };
   }
 
   if (draft.role === 'caption' || currentHint.role === 'caption') {
+    const bothCaption = draft.role === 'caption' && currentHint.role === 'caption';
+    // A wrapped caption's tail is hinted `body` (it no longer starts with
+    // "Figure N"), so set-at-caption-size plus a tight gap is what keeps it
+    // with its caption instead of becoming a stray one-line paragraph.
+    const captionTail =
+      draft.role === 'caption' &&
+      currentHint.role === 'body' &&
+      similarTypography(previous, current) &&
+      current.typography.fontSize <= bodySize * 1.02 &&
+      gapRatio <= 1.5;
+    const merge =
+      (bothCaption || captionTail) && similarTypography(previous, current) && gapRatio <= 1.8;
     return {
-      merge:
-        draft.role === 'caption' &&
-        currentHint.role === 'caption' &&
-        similarTypography(previous, current) &&
-        gap <= lineHeight * 1.8,
-      ambiguous: false,
+      merge,
+      ambiguous: merge && captionTail,
+      score: merge ? (captionTail ? 0.7 : 0.85) : 0.8,
     };
   }
 
-  if (draft.role !== currentHint.role) return no;
-  if (!similarTypography(previous, current)) return no;
-  if (gap > lineHeight * 1.65) return no;
+  if (draft.role !== currentHint.role) return breakAll;
+  if (!similarTypography(previous, current)) return breakAll;
+
+  // 1.4x the measured line pitch. Real paragraphs separate by 1.45-1.8x, so a
+  // looser cut merged every second paragraph in the corpus.
+  const BREAK_RATIO = 1.4;
+  if (gapRatio > BREAK_RATIO) {
+    return {
+      merge: false,
+      ambiguous: gapRatio < BREAK_RATIO + 0.25,
+      score: clamp01(0.5 + (gapRatio - BREAK_RATIO) * 2),
+    };
+  }
 
   const columnWidth = Math.max(1, bounds.right - bounds.left);
+  // "Short" is relative to how this column's lines usually end, not to the
+  // column edge: ragged-right text leaves gaps mid-paragraph.
   const previousShort =
-    previous.advanceEnd < bounds.right - Math.max(size * 2.5, columnWidth * 0.22);
-  if (previousShort) return no;
+    previous.advanceEnd <
+    bounds.typicalEnd - Math.max(size * 2, columnWidth * 0.18);
+  if (previousShort) return { merge: false, ambiguous: false, score: 0.8 };
 
-  const previousIndent = previous.advanceStart - bounds.left;
-  const currentIndent = current.advanceStart - bounds.left;
-  if (currentIndent > previousIndent + Math.max(2, size * 0.6)) return no;
+  if (relation.indentDelta > Math.max(2, size * 0.6)) {
+    return { merge: false, ambiguous: false, score: 0.75 };
+  }
 
   const previousAlignment = lineAlignment(previous, bounds.left, bounds.right);
   const currentAlignment = lineAlignment(current, bounds.left, bounds.right);
@@ -1198,13 +1535,21 @@ function mergeDecision(
     (previousAlignment === 'center' || previousAlignment === 'right') &&
     previousAlignment !== currentAlignment
   ) {
-    return no;
+    return { merge: false, ambiguous: false, score: 0.7 };
   }
 
   const ratio = current.typography.fontSize / Math.max(previous.typography.fontSize, 0.1);
-  const ambiguous =
-    gap > lineHeight * 1.45 || (bodySize > 0 && Math.abs(ratio - 1) > 0.09);
-  return { merge: true, ambiguous };
+  const ambiguous = gapRatio > 1.2 || (bodySize > 0 && Math.abs(ratio - 1) > 0.09);
+  const gapMargin = clamp01((BREAK_RATIO - gapRatio) / (BREAK_RATIO - 1));
+  const sizeMargin = clamp01(1 - Math.abs(ratio - 1) / 0.16);
+  return {
+    merge: true,
+    ambiguous,
+    // Blend the threshold margin with the measured pair relationship: a pair
+    // that also shares an edge and the same typography is more trustworthy than
+    // one that only squeaked under the gap cut-off.
+    score: clamp01(0.25 + 0.3 * gapMargin + 0.25 * relation.continuation + 0.2 * sizeMargin),
+  };
 }
 
 function buildParagraphDrafts(
@@ -1257,10 +1602,13 @@ function buildParagraphDrafts(
       );
       if (decision.merge) {
         appendToDraft(current, entry, previousEntry);
+        current.scores.push(decision.score);
         current.ambiguous ||= decision.ambiguous;
       } else {
+        current.endBoundary = decision.score;
         drafts.push(current);
         current = startDraft(entry, hint);
+        current.startBoundary = decision.score;
       }
       previousEntry = entry;
     }
@@ -1268,6 +1616,50 @@ function buildParagraphDrafts(
   }
 
   return drafts;
+}
+
+function roleCertainty(draft: ParagraphDraft, bodySize: number): number {
+  const size = draft.lines[0]?.typography.fontSize ?? bodySize;
+  const ratio = size / Math.max(bodySize, 0.1);
+  switch (draft.role) {
+    case 'heading':
+      // A heading two steps larger than the body is unambiguous; a bold
+      // same-size label is a judgement call.
+      if (ratio >= 1.16) return 0.95;
+      return draft.lines[0]?.typography.bold ? 0.85 : 0.7;
+    case 'caption':
+      return 0.78;
+    case 'footnote':
+      return 0.75;
+    case 'header':
+    case 'footer':
+      return 0.88;
+    case 'list-item':
+      return 0.9;
+    case 'table-cell':
+      return 0.72;
+    default:
+      return 0.8;
+  }
+}
+
+/**
+ * Paragraph confidence from evidence, not from opinion.
+ *
+ * `internal` is how strongly each join argued for continuation; the boundary
+ * terms are how sure the cut was a real boundary. A confident break (a large
+ * gap, a different role) leaves confidence untouched; a weak break -- one made
+ * on a marginal signal -- lowers it, because the paragraph may have been cut
+ * where it should have continued.
+ */
+function draftConfidence(draft: ParagraphDraft, bodySize: number): number {
+  const internal =
+    draft.scores.length > 0 ? average(draft.scores) : roleCertainty(draft, bodySize);
+  const boundaryFactor = (score: number | undefined): number =>
+    score === undefined ? 1 : 0.55 + 0.45 * clamp01(score);
+  return clamp01(
+    internal * boundaryFactor(draft.startBoundary) * boundaryFactor(draft.endBoundary),
+  );
 }
 
 function paragraphAlignment(draft: ParagraphDraft, bounds: ColumnBounds): TextAlignment {
@@ -1306,6 +1698,7 @@ function materializeParagraphs(
   idFactory: IdFactory,
   columnBounds: ReadonlyMap<string, ColumnBounds>,
   pageWidth: number,
+  bodySize: number,
 ): MaterializedParagraphs {
   const paragraphs: Paragraph[] = [];
   const columnByParagraph = new Map<string, number>();
@@ -1319,14 +1712,13 @@ function materializeParagraphs(
       columnBounds.get(columnKey(draft.rotationDeg, draft.columnIndex)) ?? {
         left: 0,
         right: pageWidth,
+        typicalEnd: pageWidth,
       };
     const alignment = paragraphAlignment(draft, bounds);
     const firstLine = draft.lines[0]!;
     const indentPt =
       draft.columnIndex >= 0 ? Math.max(0, firstLine.advanceStart - bounds.left) : 0;
-    const confidence = clamp01(
-      average(draft.lines.map((line) => line.confidence)) - (draft.ambiguous ? 0.12 : 0),
-    );
+    const confidence = draftConfidence(draft, bodySize);
     const id = idFactory('para', `${textSeed(text, bbox)}|${draft.lines.length}`);
     for (const line of draft.lines) line.alignment = alignment;
     const paragraph: Paragraph = {
@@ -1507,6 +1899,33 @@ function buildTableModels(
       confidence: clamp01(confidence),
     });
   }
+
+  // A cell paragraph whose table did not survive validation must not keep
+  // pointing at it: nothing would own it, so it would vanish from blocks,
+  // regions and reading order while still existing in `paragraphs`. Demote the
+  // whole candidate back to ordinary body text.
+  const kept = new Set(models.map((model) => model.id));
+  for (const paragraph of paragraphs) {
+    const tableId = paragraph.tableId;
+    if (!tableId || kept.has(tableId)) continue;
+    delete paragraph.tableId;
+    delete paragraph.cell;
+    paragraph.role = 'body';
+    for (const lineId of paragraph.lineIds) {
+      const line = lineById.get(lineId);
+      if (!line || line.tableId !== tableId) continue;
+      delete line.tableId;
+      line.rowId = '';
+    }
+  }
+  for (const entry of entries) {
+    const line = entry.line;
+    if (line.tableId && !kept.has(line.tableId)) {
+      delete line.tableId;
+      line.rowId = '';
+    }
+  }
+
   return models;
 }
 
@@ -1518,6 +1937,8 @@ function paragraphKind(paragraph: Paragraph): BlockKind {
       return 'list';
     case 'caption':
       return 'caption';
+    case 'footnote':
+      return 'footnote';
     case 'table-cell':
       return 'table';
     case 'header':
@@ -1877,11 +2298,17 @@ export function buildPageLayout(input: PageLayoutInput): PageLayout {
   }
 
   const bodySize = computeBodySize(entries);
+  const maxSize = entries.reduce(
+    (max, entry) => Math.max(max, entry.line.typography.fontSize),
+    0,
+  );
   const hints = new Map<string, RoleHint>();
   for (const entry of entries) {
-    hints.set(entry.line.id, roleHintFor(entry, bodySize, pageSize, options));
+    hints.set(entry.line.id, roleHintFor(entry, bodySize, maxSize, pageSize, options));
   }
   const lineHeight = computeLineHeight(entries, hints, bodySize);
+  absorbFootnoteTails(entries, hints, lineHeight);
+  promoteIsolatedHeadings(entries, hints, lineHeight, pageSize.width, bodySize);
   const columnBounds = computeColumnBounds(entries, hints, pageSize.width);
 
   const listIndents = new Map<string, number[]>();
@@ -1945,6 +2372,7 @@ export function buildPageLayout(input: PageLayoutInput): PageLayout {
     idFactory,
     columnBounds,
     pageSize.width,
+    bodySize,
   );
   const tables = buildTableModels(built.tables, entries, paragraphs);
   const blocks = buildBlocks(paragraphs, tables, columnByParagraph, lineHeight, idFactory);

@@ -74,12 +74,88 @@ export function charAdvanceWeight(char: string): number {
   return 0.54;
 }
 
+export interface FontNameSignals {
+  family?: FontFamily;
+  bold: boolean;
+  italic: boolean;
+}
+
+/**
+ * Reads typographic intent out of a font's PostScript name.
+ *
+ * Publisher conventions carry real information that a `bold`/`italic` flag does
+ * not: `CMBX12`, `CMTI10` and `CMSSBX10` are Computer Modern bold, italic and
+ * bold-sans, and LaTeX-produced PDFs (a large share of the documents this
+ * engine sees) name their fonts that way and nothing else. Without this, every
+ * heading set in CMBX is reported as regular weight.
+ */
+export function fontNameSignals(rawName?: string): FontNameSignals {
+  const signals: FontNameSignals = { bold: false, italic: false };
+  let mono = false;
+  let sans = false;
+  let serif = false;
+
+  for (const rawToken of (rawName ?? '').split(/[\s,;]+/)) {
+    // Subset prefixes ("ABCDEF+") and foundry markers ("-MT") are not signals.
+    const token = rawToken.replace(/^[A-Z]{6}\+/, '').replace(/(?:[-,]?(?:MT|PS|PSMT))$/i, '');
+    if (!token) continue;
+    const lower = token.toLowerCase();
+
+    const cmBold = /^cm(?:bx|b|ssbx)\d*$/.test(lower);
+    const cmItalic = /^cm(?:ti|sl|ssi)\d*$/.test(lower);
+    const cmSans = /^cmss/.test(lower);
+    const cmMono = /^cm(?:tt|ttx|vtt)\d*$/.test(lower);
+    const cmSerif = /^cm(?:r|bx|ti|sl|csc|u|b|ro|ssbx?)\d*$/.test(lower);
+    const lmBold = /^lm(?:roman|ss|mono)?(?:bx|b)\d*$/.test(lower);
+    const lmItalic = /^lm(?:roman|ss|mono)?(?:ti|it|sl)\d*$/.test(lower);
+
+    if (cmBold || lmBold || /bold|black|heavy|demi|semibold/.test(lower)) signals.bold = true;
+    if (
+      cmItalic ||
+      lmItalic ||
+      /italic|oblique|slanted/.test(lower) ||
+      // `Times-It` / `Palatino-BdIt` style abbreviations.
+      /(?:^|[-,])(?:i|it|bdi|bdit|bi)(?:\d|$)/.test(lower)
+    ) {
+      signals.italic = true;
+    }
+
+    // Category evidence accumulates across tokens and is resolved by priority at
+    // the end: `DejaVu Sans Mono` contains both "sans" and "mono" and is a
+    // monospaced face, so the first token to speak must not win.
+    if (cmMono || lower.includes('courier') || lower.includes('mono') || lower.includes('consol')) {
+      mono = true;
+    }
+    if (cmSans || lower.includes('sans') || lower.includes('helvetica') || lower.includes('arial') || lower.includes('grotesk')) {
+      sans = true;
+    }
+    if (
+      cmSerif ||
+      lower.includes('times') ||
+      lower.includes('serif') ||
+      lower.includes('roman') ||
+      lower.includes('georgia')
+    ) {
+      serif = true;
+    }
+  }
+
+  if (mono) signals.family = 'courier';
+  else if (sans) signals.family = 'helvetica';
+  else if (serif) signals.family = 'times';
+  return signals;
+}
+
 export function normalizeFontFamily(name?: string): { family: FontFamily; label: string } {
   const label = (name ?? '').trim();
   const lower = label.toLowerCase();
+  const signals = fontNameSignals(label);
   // `sans-serif` contains `serif`, so the sans branch has to run before the
   // serif branch or every generic sans-serif face is misclassified as a
   // Times-like serif. Monospace wins over both (`DejaVu Sans Mono`).
+  if (signals.family === 'courier') return { family: 'courier', label: label || 'Courier' };
+  if (signals.family === 'helvetica') return { family: 'helvetica', label: label || 'Helvetica' };
+  if (signals.family === 'times') return { family: 'times', label: label || 'Times' };
   if (lower.includes('courier') || lower.includes('mono') || lower.includes('consol')) {
     return { family: 'courier', label: label || 'Courier' };
   }
@@ -108,8 +184,14 @@ export function typographyFromStyle(
   const { family, label } = normalizeFontFamily(familySource);
   const weightText = `${style?.fontWeight ?? ''} ${style?.fontFamily ?? ''} ${fontName ?? ''}`;
   const numericWeight = Number(style?.fontWeight);
-  const bold = /bold|black|heavy|semibold|demi/i.test(weightText) || (Number.isFinite(numericWeight) && numericWeight >= 600);
-  const italic = /italic|oblique/i.test(`${style?.fontStyle ?? ''} ${style?.fontFamily ?? ''} ${fontName ?? ''}`);
+  const signals = fontNameSignals(`${style?.fontFamily ?? ''} ${fontName ?? ''} ${style?.fontStyle ?? ''}`);
+  const bold =
+    signals.bold ||
+    /bold|black|heavy|semibold|demi/i.test(weightText) ||
+    (Number.isFinite(numericWeight) && numericWeight >= 600);
+  const italic =
+    signals.italic ||
+    /italic|oblique/i.test(`${style?.fontStyle ?? ''} ${style?.fontFamily ?? ''} ${fontName ?? ''}`);
   const direction: TextDirection =
     itemDirection === 'ttb' ? 'ttb' : directionOfRotation(rotationDeg);
   return {

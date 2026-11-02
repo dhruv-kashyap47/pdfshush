@@ -32,6 +32,7 @@ import type { BBox } from '../document/types.js';
 import { encodeWithMap, readFontCharcodes, type FontCharcodesByPage } from './charcodes.js';
 import { applyContentStreamEdits } from './contentStream.js';
 import { verifyExportArtifact, type VisualEditRegion } from './exportVerify.js';
+import { normalizeForMatch, withoutWhitespaceForMatch } from './text.js';
 import {
   PdfiumTextDocument,
   type PdfiumTextBounds,
@@ -99,9 +100,12 @@ export interface TextEditRunResult {
   name: string;
 }
 
-/** Collapse whitespace so pdf.js run joining and PDFium text objects agree. */
+/**
+ * Collapse whitespace (and fold ligatures) so pdf.js run joining, PDFium text
+ * objects and the user's selection agree on what the text says.
+ */
 function normalize(text: string): string {
-  return text.replace(/\s+/gu, ' ').trim();
+  return normalizeForMatch(text);
 }
 
 /**
@@ -114,7 +118,7 @@ function normalize(text: string): string {
  * whitespace matches the text the reader can see rather than the bytes behind it.
  */
 function withoutWhitespace(text: string): string {
-  return normalize(text).replace(/\s+/gu, '');
+  return withoutWhitespaceForMatch(text);
 }
 
 /**

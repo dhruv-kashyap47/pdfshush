@@ -183,6 +183,29 @@ function reorderPage(page: PageLayout): void {
   page.regions = rebuildRegions(page);
 }
 
+function roleKind(role: Paragraph['role']): TextBlock['kind'] {
+  switch (role) {
+    case 'heading':
+      return 'heading';
+    case 'list-item':
+      return 'list';
+    case 'caption':
+      return 'caption';
+    case 'footnote':
+      return 'footnote';
+    case 'table-cell':
+      return 'table';
+    case 'header':
+      return 'header';
+    case 'footer':
+      return 'footer';
+    case 'body':
+      return 'body';
+    default:
+      return 'unknown';
+  }
+}
+
 /**
  * Applies cross-page furniture classification. Pages are freshly built, so
  * this mutates them in place; the resulting `DocumentLayout` is the immutable
@@ -197,6 +220,17 @@ export function buildDocumentLayout(pages: readonly PageLayout[]): DocumentLayou
     for (const paragraph of page.paragraphs) {
       if (headerIds.has(paragraph.id)) paragraph.role = 'header';
       else if (footerIds.has(paragraph.id)) paragraph.role = 'footer';
+      else if (
+        pages.length >= 2 &&
+        (paragraph.role === 'header' || paragraph.role === 'footer') &&
+        !PAGE_NUMBER.test(paragraph.text)
+      ) {
+        // Furniture is defined by repetition. A one-off line that happens to sit
+        // in the margin band is body text that straddles a page break -- the
+        // second page of a paragraph looks exactly like a running header to a
+        // page-local rule, and calling it furniture hides real content.
+        paragraph.role = 'body';
+      }
     }
     for (const block of page.blocks) {
       const roles = block.paragraphIds
@@ -204,6 +238,9 @@ export function buildDocumentLayout(pages: readonly PageLayout[]): DocumentLayou
         .filter((role): role is NonNullable<typeof role> => Boolean(role));
       if (roles.length > 0 && roles.every((role) => role === 'header')) block.kind = 'header';
       else if (roles.length > 0 && roles.every((role) => role === 'footer')) block.kind = 'footer';
+      else if ((block.kind === 'header' || block.kind === 'footer') && roles[0]) {
+        block.kind = roleKind(roles[0]);
+      }
     }
     reorderPage(page);
   }

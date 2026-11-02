@@ -33,6 +33,7 @@ import {
 import type { JobContext } from '../job.js';
 import { loadPdfDocument } from '../ops/pages.js';
 import type { FontCharcodes, FontCharcodesByPage } from './charcodes.js';
+import { normalizeForMatch } from './text.js';
 import type { TextEdit, TextEditOutcome } from './types.js';
 
 class UnsupportedStream extends Error {}
@@ -314,7 +315,7 @@ function encodeString(text: string, map: FontCharcodes): Uint8Array | null {
 }
 
 function normalize(text: string): string {
-  return text.replace(/\s+/gu, ' ').trim();
+  return normalizeForMatch(text);
 }
 
 function fontResource(

@@ -38,6 +38,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 1** | Serializable glyph→word→line→paragraph→block→region model, centralized geometry, hit testing, inline paragraph editing | ✅ **done 2026-10-31** — engine 339 tests, web 39; see §27 |
 | **Text editing Phase 2** | Native object editing ladder, content-stream fallback, font metrics/substitution, layout reflow, OCR-layer/scan capability, export + pixel verification | ✅ **done 2026-10-31** — engine 362 tests, web 39, both text E2Es; see §28 |
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
+| **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -60,11 +61,13 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-01 for **Text editing Phase 2.5** (`pnpm -r typecheck`,
-`pnpm test` - **1177/1177 unit** - and `pnpm build` all green; the adversarial audit and
-its four verification fixes are recorded in §28.10). The Phase 2 browser E2Es
+**Current gate:** re-measured 2026-11-02 for **Text editing Phase 3** (`pnpm -r typecheck`,
+`pnpm test` — **1215/1215 unit** — `pnpm build` and `pnpm test:bundle` all green; the
+benchmark, defect list and before/after numbers are recorded in §29). The Phase 2.5
+adversarial audit and its four verification fixes are still in force (§28.10). The Phase 2
+browser E2Es
 (`tests/e2e/text-edit.mjs`, `tests/e2e/text-model.mjs`) were last green on 2026-10-31
-against the running dev server; the Phase 2.5 audit is engine-level and needed no UI
+against the running dev server; Phases 2.5 and 3 are engine-level and needed no UI
 change. The last full-stack API smoke +
 hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
@@ -84,10 +87,11 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1177/1177 unit** (**389 engine** · **208 API** · 370 provider · 152 agent · **39 web** ·
+**1215/1215 unit** (**427 engine** · **208 API** · 370 provider · 152 agent · **39 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
-export/pixel verification), and Phase 2.5 added 27 more (adversarial corpus + verification/
-robustness gates), plus 10 web tests (font mapping, native-plan metadata).
+export/pixel verification), Phase 2.5 added 27 more (adversarial corpus + verification/
+robustness gates), and Phase 3 added 38 (held-out synthetic benchmark, real-PDF gate,
+focused layout regressions), plus 10 web tests (font mapping, native-plan metadata).
 **Browser E2E:** full
 smoke (re-run 2026-10-25 with Redis up — no skips: the workflow *run* executes through
 `/api/jobs` into the sandboxed processor; the suite still skips that step honestly if
@@ -4535,3 +4539,254 @@ logic change.)
 escaped/octal/hex show operators fall through to native rather than being rewritten
 in the stream; visual verification needs a canvas and reports *skipped* otherwise;
 cross-page selection and neighbouring-block reflow stay out of scope.
+
+---
+
+## 29. Advanced document intelligence — Phase 3 (2026-11-02)
+
+**Goal.** Make the layout model's inferred structure *measurably* better and its
+confidence *informative*: hierarchical grouping (glyph → word → line → paragraph →
+block → region → document), layout relationships, typography/glyph intelligence,
+table quality, OCR/mixed-document awareness, and incremental analysis — without
+touching the editing strategies Phase 2 proved, and without a new AI dependency.
+
+### 29.1 Method: audit → baseline → fix → re-measure
+
+Nothing was changed before a number existed. The pass first built a benchmark, then
+read the numbers, then fixed only defects the numbers or the real documents exposed.
+
+- **Held-out synthetic corpus** (`test/corpus/synthetic.ts`): twelve document shapes
+  (prose, indented/APA prose, heading ladder, lists, two-column, 4×4 table, 2×3 table,
+  page furniture, wrapped caption + footnote, figure collision, mixed typography,
+  24-page dense) drawn line-by-line with pdf-lib, so the ground truth is *known*, not
+  inferred: which drawn lines form a paragraph, each line's role/level/column/font, the
+  table grid, the image box, the reading order.
+- **Two seed pools.** `DEV_SEEDS` (12) is what the implementation was tuned against;
+  `HELD_OUT_SEEDS` (12, one per shape) is scored and never tuned on. The held-out pool
+  originally covered only six shapes; it was extended to all twelve *before* the final
+  measurement, and the PLAN records which six are strictly comparable to the baseline.
+- **Real publisher corpus** (`test/corpus/real/`): the 2025 IRS 1040 (a 700-line
+  form), arXiv 1409.0473 (ICLR 2015, 15 pages) and arXiv 1810.04805 (BERT, 16 pages),
+  committed verbatim and hand-annotated with landmark roles and verbatim sentences.
+- **Metrics** (`test/corpus/metrics.ts`), defined before the fixes: pairwise paragraph
+  precision/recall/F1, pairwise reading-order accuracy, role/heading-level/column/font
+  accuracy, table cell precision/recall, confidence AUROC + spread + flagged/unflagged
+  errors, reflow collision precision/recall, line recall, and latency. Line matching is
+  *coverage*-based, so a table row the model splits into cells is not scored as lost text.
+- **Reproduce:** `pnpm --filter @pdfshush/pdf-core exec vitest run test/layoutBenchmark.test.ts`
+  writes `tests/benchmarks/layout-benchmark-latest.md`; the Phase 3 before/after pair is
+  `layout-benchmark-before.md` / `layout-benchmark-after.md`.
+
+### 29.2 Defects the audit found (each reproduced before it was fixed)
+
+1. **Table detection never fired** (0/2 and 0/1 tables, cell P/R 0%). Producers encode
+   an inter-cell gap as one very wide *space glyph* (`str=" " width=134`), and
+   `splitRow` measured the gap from that glyph's own advance, so every table row collapsed
+   into a single fragment (`cells.length < 2`).
+2. **Table rows could not match each other.** `detectTables` compared gap *midpoints*,
+   which move with each cell's text width; a left-aligned column therefore never lined
+   up row-to-row.
+3. **Columns swallowed their own lines.** Gutter classification used median edges and
+   midpoint clustering; single-linkage chaining split one corridor into several, and any
+   line longer than the median was reported as "spanning the gutter" (`columnIndex = -1`).
+   Ten of 45 left-column lines lost their column, which then shattered their paragraphs
+   (two-column grouping F1 56–68%).
+4. **Paragraph gaps merged** (prose F1 50–89%, dense 73%). The cut-off was 1.65× the
+   measured line pitch while real paragraphs separate at 1.45–1.8×.
+5. **Ragged-right text was cut mid-paragraph.** `previousShort` compared a line to the
+   column's outer edge, so a 7-line paragraph split into three.
+6. **Confidence carried no information.** Glyphs were flat 0.85, paragraphs ≈0.82
+   (spread sd 0.0026); "flagged wrong" and "unflagged wrong" were equally likely.
+7. **Roles missed what readers see.** Same-size bold/uppercase headings were body text
+   (heading-level accuracy 60%), there was no footnote role (real paper footnotes became
+   page furniture), a wrapped caption's second line became a stray body paragraph, and
+   any line starting with the word "Table" was a caption.
+8. **Reflow ignored figures.** Obstacles were lines and tables only; a paragraph could
+   grow straight through an image (image case 50%).
+9. **Overlapping text objects interleaved.** On the IRS 1040 the masthead extracted as
+   `1040 DUep.aSrtm. eInnt odf itvhei Tdreuasaurly…` — two text objects sharing a baseline
+   were joined glyph-by-glyph in x order.
+10. **A rejected table orphaned its paragraphs.** Cell paragraphs kept a `tableId` whose
+    `TableModel` never materialized, so they belonged to no block, appeared in no
+    `readingOrder`, and were in no region — silently unaddressable text. Found by the
+    new *every line is in exactly one paragraph and every paragraph in the outline*
+    invariant on the real corpus.
+11. **One-off margin lines became furniture.** On a multi-page document, a paragraph
+    continuing across a page break was labelled `header` because it happens to sit in the
+    margin band (BERT p.2).
+12. **Font conventions were ignored.** Computer Modern names (`CMBX12` bold, `CMTI10`
+    italic, `CMSSBX10` bold sans) produced regular-weight Helvetica/Times, so LaTeX
+    headings were invisible; `analyzeEditCapability` also still claimed `high` fidelity
+    for a non-embedded custom font, contradicting Phase 2.5's probe.
+
+### 29.3 Algorithms improved
+
+**New modules.**
+- `document/relations.ts` — the layout-relationship engine: per-pair baseline gap, gap
+  ratio, indent/right delta, shared alignment, typography agreement, a continuation
+  score, `collisionRisk(box, obstacles)` and a page-level `PageRelations` summary.
+  Consumed by `mergeDecision` (gap/indent/continuation), `assessReflow` (collision) and
+  `computeStructureConfidence`.
+- `document/confidence.ts` — `computeStructureConfidence(layout)` producing
+  `StructureConfidence` with `grouping`, `paragraphBoundaries`, `readingOrder`,
+  `fontIdentification`, `tableDetection`, `regionClassification`,
+  `layoutRelationships`, `reflowSafety` and a plain-language `basis` list.
+- `render/imageBoxes.ts` — image/stencil-mask boxes from `page.getOperatorList()` by
+  walking a CTM stack (`save`/`restore`/`transform`/`paintImageXObject`…), in display
+  space with a PDF-space twin.
+- `textedit/text.ts` — ligature/soft-hyphen folding for match and verification.
+
+**Line assembly.** Inter-cell gaps are measured from the last *inked* glyph (wide space
+glyphs no longer hide them); rows are split on text-object boundaries; runs are re-joined
+by typography instead of glyph x-order, so a drop cap or an inline formula stays in its
+line while two overlapping objects become two readable strings.
+
+**Columns.** Corridors are built by intersecting the per-row gap intervals (one corridor
+per physical gutter), and a line belongs to a column when it does not enter the corridor.
+
+**Paragraphs.** The break cut is 1.4× the measured pitch; "short line" is measured
+against the column's *typical* right edge; spanning content gets its own bounds so a
+full-measure paragraph is not shattered; wrapped captions continue when set at caption
+size.
+
+**Roles.** Heading ladder from size ratio **plus** bold/uppercase/shout signals, level 1
+for the page's largest text, whitespace-isolated headings (guarded against figure
+labels); new `footnote` role with multi-line tails absorbed; captions require a *numbered*
+label and continue across a wrap; furniture requires repetition across pages (one-off
+margin lines are demoted to body).
+
+**Tables.** Row matching accepts one consistent alignment mode per row (start, end or
+centre), cells are coalesced across text objects, 2×3 and 2×2 tables work, cells carry
+row/column/span, and a rejected candidate is demoted back to body text instead of
+orphaning its paragraphs.
+
+**Confidence.** Paragraph confidence is now the mean of the merge-decision margins
+multiplied by how sure the two boundaries were — "confidently merged and confidently
+bounded" is high, "merged at the threshold" is low. Page-level structure confidence is
+derived from those numbers, from column/typography agreement, table cell alignment and
+obstacle coverage, with `basis` strings for the drivers.
+
+**Typography.** `fontNameSignals()` reads conventions out of PostScript names (Computer
+Modern/Latin Modern, subset prefixes, `-Bold`/`-It`), and `normalizeFontFamily()` uses it;
+`nativeEditFidelity()` stops calling a non-embedded custom face `high`.
+
+**Incremental.** A bounded LRU (3 documents) reuses a parsed pdf.js document across calls,
+and `resetPdfCache()` exists for tests/shutdown.
+
+### 29.4 Before / after
+
+**Synthetic — DEV seeds (all twelve shapes; baseline and final both measured).**
+
+| metric | before | after |
+| --- | --- | --- |
+| paragraph grouping F1 | 76.0% | **100.0%** |
+| role accuracy | 88.0% | **100.0%** |
+| heading-level accuracy | 60.0% | **100.0%** |
+| table cell P / R | 0.0% / 0.0% | **100.0% / 100.0%** |
+| reading-order accuracy | 100.0% | 100.0% |
+| reflow accuracy | 66.7% (1 false-safe) | **100.0%** |
+| confidence spread (sd) | 0.0026 | **0.0528** |
+| mean confidence correct / wrong | 0.820 / 0.343 | **0.913 / 0.000** |
+| extraction latency | 48.2 ms/page | 53.3 ms/page |
+
+**Synthetic — HELD-OUT seeds.** Six shapes were measurable at baseline; the final run
+covers all twelve, so the three rows marked * are shape-matched and the rest are the
+final generalisation numbers.
+
+| metric | before (6 shapes) | after (12 shapes) |
+| --- | --- | --- |
+| paragraph grouping F1 | 66.3% | **99.9%** |
+| role accuracy | 88.6% | **100.0%** |
+| heading-level accuracy | 60.0% | **100.0%** |
+| table cell P / R | 0.0% / 0.0% | **100.0% / 100.0%** |
+| reading-order accuracy | 99.0% | **100.0%** |
+| reflow accuracy | 100.0% | 100.0% |
+| column accuracy | 21.2% (pre-fix GT) | **100.0%** |
+| confidence spread (sd) | 0.0200 | **0.0569** |
+| mean confidence correct / wrong | 0.820 / 0.507 | **0.908 / 0.073** |
+| confidence AUROC | 0.880 (n=29 errors) | 0.611 (n=2 errors) |
+
+The AUROC drop is a sample-size artefact, not a regression: the held-out set now has two
+wrong paragraphs instead of 27, and with two positives the rank statistic is noisy. What
+matters is the separation (0.908 vs 0.073) and that the count of undetected-wrong
+paragraphs fell from 27 to 2.
+
+**Real documents** (`extractDocumentLayout`, before → after).
+
+| document | lines | paragraphs | tables / cells | interleaved lines | headings | mean paragraph confidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| IRS 1040 | 347 → 693 | 237 → 520 | 0/0 → **16/298** | 0 → 0 | 13 → 15 | 0.82 → 0.74 |
+| arXiv 1409.0473 | 865 → 1124 | 524 → 705 | 3/22 → **4/67** | **5 → 1** | 4 → 51 | 0.82 → 0.75 |
+| arXiv 1810.04805 (BERT) | 1448 → 2029 | 689 → 1197 | 3/17 → **25/304** | 0 → 0 | 6 → 79 | 0.82 → 0.75 |
+
+The line count rises because composite text objects are no longer glued into one line:
+that is what removes the interleaved masthead and lets table cells be cells. Real
+documents are also now gated by invariants that would have failed before: every line in
+exactly one paragraph, every paragraph in exactly one block and in the reading order,
+reading order a permutation of the paragraph list, plus verbatim sentence probes.
+
+**Latency.** One bulk extraction of the 24-page dense document: 273 ms (11.4 ms/page);
+reading pages one at a time with a warm document: 274 ms; the same loop evicting the
+parsed document between reads (what the pre-Phase-3 code did on every call): 318 ms.
+Measured on real files the reuse win is small (BERT: 66 ms/page cached vs 64 ms/page
+cold) because pdf.js parses lazily — the audit's "O(n²) scroll" hypothesis was **not**
+confirmed, and the cache is kept for worker churn rather than a quadratic cost.
+
+### 29.5 Regression tests added (38 engine tests)
+
+- `test/layoutBenchmark.test.ts` (1): builds both seed pools, scores every metric, asserts
+  the harness (100% line recall), asserts repeated extraction is id-stable, and writes the
+  report artifact.
+- `test/realCorpus.test.ts` (14): per-document invariants (line/paragraph/block/reading-order
+  ownership), structure-confidence presence and bounds, hand-annotated landmark roles,
+  column counts, grid detection, image geometry sanity, and verbatim sentence probes.
+- `test/layoutIntelligence.test.ts` (23): one test per fixed defect — wide-space table row,
+  2×3 table, cell paragraphs owned by a block, rejected-table demotion, long-line column
+  membership, full-width paragraph not shattered, overlapping text objects not interleaved,
+  bold lead-in still joined, same-size bold heading, largest-text level 1, footnote + wrap,
+  "Table" body line not a caption, Computer Modern signals/families, ligature folding,
+  non-embedded font fidelity honesty, image box → reflow refusal, structure-confidence
+  ordering, relations measurement, collision hairline tolerance, cache id stability, and
+  document-level furniture demotion.
+
+### 29.6 Remaining limitations (measured, not guessed)
+
+- **Drop caps.** A title whose initial is set at a larger size can detach that letter into
+  its own line (arXiv 1409.0473: the `T` of `TRANSLATION`). Text is preserved; the line
+  break is wrong.
+- **Vector figures are not regions.** Only raster images are modelled as obstacles, and
+  heading promotion cannot see that it is inside a diagram: BERT p.2 yields 17 headings,
+  most of them Figure 1 labels. Fixing this needs figure/region segmentation.
+- **Forms read as columns.** The IRS 1040 is still detected as four columns with many small
+  cells. Its structure confidence falls to 0.74/0.67 accordingly, which is the honest
+  signal, but the grouping is coarse for form filling.
+- **Mixed-alignment tables** (text left, numbers right) are refused: one alignment mode
+  must hold for every cell in a row.
+- **Merged cells.** `rowSpan`/`colSpan` are always 1; spans are not reconstructed.
+- **Footnote tails** whose second line sits above the margin band can still split from the
+  footnote paragraph.
+- **Cross-page paragraphs** are not joined; the continuation is body text (correct role)
+  but a separate paragraph.
+- **Confidence AUROC** is only measurable when the corpus contains errors; on a corpus at
+  100% grouping it is reported `n/a` rather than as a flattering number.
+- **OCR** is unchanged: scanned pages still have no text model, and `likelyScanned` still
+  drives the capability report.
+
+### 29.7 Phase 4 integration points
+
+- `document/relations.ts` is the geometry substrate for structural editing (move/insert a
+  block, renumber a list, split/join a paragraph) — the measurements already exist.
+- `PageLayout.images` + `assessReflow` obstacles are the collision basis for inserting text
+  that must push existing content.
+- `StructureConfidence` + `basis` gives the UI a per-page explanation to gate "smart"
+  actions (auto-outline, auto-tagging, bulk restyle) behind a visible number.
+- `ParagraphRole.footnote` / `BlockKind.footnote` flow into outline, export and the
+  heading-based Create Bookmarks tool; `fontNameSignals` feeds the substitution ladder for
+  non-embedded LaTeX faces.
+- `TableModel` now has per-table confidence and a stable cell grid: row/column operations
+  are the next step, gated on span reconstruction.
+
+**Result.** `pnpm -r typecheck` green, `pnpm test` **1215/1215** (pdf-core 427, api 208,
+web 39, provider 370, agent 152, mcp 19), `pnpm build` green, `pnpm test:bundle` green.
+No editing strategy, verification gate or redaction guarantee was weakened; the Phase 2.5
+no-op/deletion/consumed-font checks are untouched and still green.

@@ -12,7 +12,8 @@
  * neighbouring content.
  */
 
-import { intersectBBox, unionBBoxes } from './geometry.js';
+import { unionBBoxes } from './geometry.js';
+import { collisionRisk } from './relations.js';
 import type { BBox, PageLayout, Paragraph, TextAlignment } from './types.js';
 
 export type MeasureText = (text: string, fontSize: number) => number;
@@ -161,6 +162,11 @@ function obstaclesFromLayout(layout: PageLayout, paragraphId: string): ReflowObs
   for (const table of layout.tables) {
     obstacles.push({ id: table.id, kind: 'table', bbox: table.bbox });
   }
+  // Images and stencil masks are real estate the paragraph cannot grow into;
+  // leaving them out is what made "safe" reflow run straight through a figure.
+  (layout.images ?? []).forEach((image, index) => {
+    obstacles.push({ id: `image-${index}`, kind: 'image', bbox: image.bbox });
+  });
   return obstacles;
 }
 
@@ -185,10 +191,8 @@ export function assessReflow(
     height: result.heightPt,
   };
   const obstacles = [...obstaclesFromLayout(layout, paragraph.id), ...extraObstacles];
-  const collisions = obstacles.filter((obstacle) => {
-    const overlap = intersectBBox(bbox, obstacle.bbox);
-    return overlap !== null && overlap.width > 0.5 && overlap.height > 0.5;
-  });
+  const risk = collisionRisk(bbox, obstacles);
+  const collisions = obstacles.filter((obstacle) => risk.ids.includes(obstacle.id));
 
   // Available vertical space: nearest obstacle below that overlaps the column.
   let availableBottom = layout.heightPt;

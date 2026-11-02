@@ -73,6 +73,7 @@ export type BlockKind =
   | 'list'
   | 'table'
   | 'caption'
+  | 'footnote'
   | 'header'
   | 'footer'
   | 'figure'
@@ -83,6 +84,7 @@ export type ParagraphRole =
   | 'heading'
   | 'list-item'
   | 'caption'
+  | 'footnote'
   | 'table-cell'
   | 'header'
   | 'footer'
@@ -321,13 +323,56 @@ export interface PageLayout {
   regions: Region[];
   tables: TableModel[];
   columns: ColumnModel[];
+  /**
+   * Non-text page objects that can be collided with. Optional because the model
+   * is also built from synthetic glyphs (tests, history snapshots) where there
+   * is no operator stream to read.
+   */
+  images?: PageImage[];
   /** Paragraph IDs in reading order. */
   readingOrder: string[];
   /** Block IDs in reading order. */
   blockOrder: string[];
   stats: PageStats;
   confidence: number;
+  /** Per-capability confidence, so a low score can be explained, not just seen. */
+  structureConfidence?: StructureConfidence;
   warnings: string[];
+}
+
+export interface PageImage {
+  /** Display space, top-left origin, points at 100% zoom. */
+  bbox: BBox;
+  /** PDF user space, y up. */
+  pdfBox: BBox;
+  kind: 'image' | 'mask';
+}
+
+/**
+ * Confidence for the *structure* the model inferred, kept separate from
+ * `EditCapability` (which is about whether a specific edit can be made safely).
+ *
+ * Every field is 0..1 and evidence-backed; `basis` records what moved the
+ * numbers so a low value can be explained instead of merely displayed.
+ */
+export interface StructureConfidence {
+  /** Words → lines → paragraphs: how well the grouping rules fit the page. */
+  grouping: number;
+  /** How sure the paragraph boundaries are (indentation, pitch, short lines). */
+  paragraphBoundaries: number;
+  /** Reading-order certainty (column detection plus spanning-block placement). */
+  readingOrder: number;
+  /** Font family/weight/italic identification from names and flags. */
+  fontIdentification: number;
+  /** Table detection and cell-grid alignment. */
+  tableDetection: number;
+  /** Region/role classification (heading ladder, caption, footnote, furniture). */
+  regionClassification: number;
+  /** Layout relationships used for merging and reflow (adjacency, columns). */
+  layoutRelationships: number;
+  /** Reflow safety: how much free space and how few obstacles were measured. */
+  reflowSafety: number;
+  basis: string[];
 }
 
 export interface DocumentStats {

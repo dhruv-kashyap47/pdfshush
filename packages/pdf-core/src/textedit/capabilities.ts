@@ -18,8 +18,9 @@
 
 import type { WrappedPdfiumModule } from '@embedpdf/pdfium';
 import type { FontCharcodesByPage } from './charcodes.js';
-import { missingGlyphs, substituteStandardFont, fontLikeFromPdfium, type FontFidelity } from './fonts.js';
+import { missingGlyphs, substituteStandardFont, fontLikeFromPdfium, nativeFontFidelity, type FontFidelity, type FontLike } from './fonts.js';
 import { PdfiumTextDocument, type PdfiumFontInfo } from './pdfium.js';
+import { normalizeForMatch } from './text.js';
 import type {
   DocumentTextCapability,
   EditCapability,
@@ -58,6 +59,26 @@ function editFidelity(fidelity: FontFidelity): EditCapability['fidelity'] {
   if (fidelity === 'metric-compatible') return 'high';
   if (fidelity === 'substitute') return 'approximate';
   return 'none';
+}
+
+/**
+ * Fidelity of the *native* path (reuse the document's own font object).
+ *
+ * Distinct from `editFidelity`, which describes an overlay substitute: the
+ * native path cannot draw a face whose outlines are not embedded, and Phase 2.5
+ * showed `createTextObject` fails outright for a non-embedded custom font. It
+ * was reporting `high` for exactly that case, so this mapping stays honest.
+ */
+function nativeEditFidelity(info: FontLike | null): EditCapability['fidelity'] {
+  switch (nativeFontFidelity(info)) {
+    case 'exact':
+      return 'exact';
+    case 'metric-compatible':
+    case 'substitute':
+      return 'approximate';
+    default:
+      return 'none';
+  }
 }
 
 function uniqueFonts(objects: TextObjectInfo[]): TextFontDescriptor[] {
@@ -137,7 +158,7 @@ export function inspectDocumentCapabilities(
 }
 
 function normalized(value: string): string {
-  return value.replace(/\s+/gu, ' ').trim();
+  return normalizeForMatch(value);
 }
 
 function pageFontMap(
@@ -179,13 +200,21 @@ export function analyzeEditCapability(
     embedded: font.embedded,
   })) : null;
 
-  const fontFidelity = font
-    ? font.embedded
-      ? 'exact'
-      : /^(helvetica|times|courier)/i.test(font.baseName)
-        ? 'exact'
-        : 'high'
-    : 'none';
+  const fontFidelity = nativeEditFidelity(font ? fontLikeFromPdfium({
+    baseName: font.baseName,
+    familyName: font.familyName,
+    weight: font.weight,
+    italicAngle: font.italicAngle,
+    flags: font.flags,
+    monospace: font.monospace,
+    serif: font.serif,
+    embedded: font.embedded,
+  }) : null);
+  if (font && fontFidelity !== 'exact') {
+    reasons.push(
+      'font is not embedded and is not a standard PDF face: the native rewrite may fall back to a substitute',
+    );
+  }
 
   if (page.likelyScanned) {
     reasons.push('page is image-only: there is no text object to rewrite');
@@ -212,10 +241,10 @@ export function analyzeEditCapability(
       if (edit.layout) reasons.push('multi-line reflow uses the original font metrics');
       return {
         strategy: 'native-object',
-        fidelity: fontFidelity === 'exact' ? 'exact' : 'high',
+        fidelity: fontFidelity,
         missingGlyphs: [],
         reasons,
-        font: { descriptor: font, substitute: substitute?.family ?? null, fidelity: fontFidelity === 'exact' ? 'exact' : 'high' },
+        font: { descriptor: font, substitute: substitute?.family ?? null, fidelity: fontFidelity },
       };
     }
     reasons.push(`replacement uses glyph(s) the original font does not encode: ${missing.join(' ')}`);
