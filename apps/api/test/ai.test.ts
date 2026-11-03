@@ -160,7 +160,11 @@ describe('AiConcurrencyGuard', () => {
 
 const PEPPER = 'test-pepper';
 
-async function harness(ai: Partial<ApiContext['config']['ai']> | undefined, quotaStore?: MemoryQuotaStore) {
+async function harness(
+  ai: Partial<ApiContext['config']['ai']> | undefined,
+  quotaStore?: MemoryQuotaStore,
+  logger?: ApiContext['logger'],
+) {
   const dir = await mkdtemp(path.join(tmpdir(), 'pdfshush-ai-'));
   const store = new WorkDirStore(dir);
   await store.init();
@@ -170,7 +174,9 @@ async function harness(ai: Partial<ApiContext['config']['ai']> | undefined, quot
     queue: new NoopQueue(),
     quotaStore: counters,
     pepper: PEPPER,
-    logger: { info() {}, warn() {}, error() {}, debug() {}, trace() {}, fatal() {} } as never,
+    logger:
+      logger ??
+      ({ info() {}, warn() {}, error() {}, debug() {}, trace() {}, fatal() {} } as never),
     config: {
       quota: { maxUploadBytes: 5 * 1024 * 1024 },
       ai: {
@@ -325,6 +331,55 @@ describe('POST /api/ai/chat', () => {
     expect(text).toContain('[redacted]');
     expect(text).not.toContain(KEY);
     expect(text).not.toContain('sk-managed');
+  });
+
+  it('keeps document text out of the log when a gateway quotes the request back', async () => {
+    // Managed mode is the one path where the document reaches our server. A
+    // gateway that rejects the turn can echo the request body into its error,
+    // and `httpBodyDetail` forwards up to 500 characters of it. The caller may
+    // see that (it is their own text), but the server log must not keep it.
+    const SENTINEL = 'SENTINEL-DOCUMENT-TEXT-4471';
+    const logged: unknown[] = [];
+    const logger = {
+      info() {},
+      warn(payload: unknown, message?: string) {
+        logged.push({ payload, message });
+      },
+      error() {},
+      debug() {},
+      trace() {},
+      fatal() {},
+    } as never;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: { message: `bad turn: ${SENTINEL}` } }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const { url } = await harness(
+      { enabled: true, model: 'gpt-4o-mini', apiKey: 'k' },
+      undefined,
+      logger,
+    );
+
+    const response = await httpFetch(url('/api/ai/chat'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ system: 's', messages: [{ role: 'user', text: SENTINEL }] }),
+    });
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const record = JSON.stringify(logged);
+    expect(record).toContain('managed ai stream failed');
+    // Diagnostics survive: the status is still identifiable.
+    expect(record).toContain('400');
+    // Content does not.
+    expect(record).not.toContain(SENTINEL);
+    expect(record).not.toContain('bad turn');
   });
 
   it('refuses a second concurrent turn for the same subject', async () => {

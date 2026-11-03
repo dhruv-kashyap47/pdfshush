@@ -70,6 +70,19 @@ interface Sse {
   end(): void;
 }
 
+/**
+ * The structural head of a provider error, without the quoted response body.
+ *
+ * Provider errors are built as `<what happened>: <body detail>`, so the text
+ * before the first colon identifies the failure (`HTTP 429`, `AI returned a
+ * non-JSON response`) while everything after it may be the request echoed back.
+ * Capped because the head is a diagnostic label, not a message.
+ */
+function errorShape(message: string): string {
+  const head = message.split(':', 1)[0] ?? '';
+  return head.trim().slice(0, 80);
+}
+
 function openSse(response: Response): Sse {
   response.status(200);
   response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -182,10 +195,25 @@ export function registerAiRoutes(app: Express, deps: AiRoutesDeps): void {
           const raw = error instanceof Error ? error.message : 'The AI request failed.';
           // A provider error embeds up to 500 chars of the response body
           // (`httpBodyDetail`), and a proxy that rejects the request can quote
-          // the request back -- Authorization header included. This key is the
-          // deployment's, but it must not reach a client or a log in the clear.
+          // the request back -- Authorization header included, and, in managed
+          // mode, the document text this route was asked to process. The key is
+          // the deployment's, but the document is the caller's: scrub the one,
+          // never persist the other.
           const message = redactSecrets(raw, deps.config.apiKey);
-          deps.logger.warn({ error: message }, 'managed ai stream failed');
+          // The caller gets the detailed (key-redacted) message because it is
+          // their own request being quoted back. The log gets the shape only:
+          // provider, model, error class and the status/prefix before the body,
+          // which is what an operator needs to tell a 429 from a bad gateway.
+          deps.logger.warn(
+            {
+              provider: deps.provider,
+              model: deps.config.model,
+              name: error instanceof Error ? error.name : typeof error,
+              shape: errorShape(raw),
+              detailChars: raw.length,
+            },
+            'managed ai stream failed',
+          );
           stream.send('error', { message });
         } finally {
           stream.end();
