@@ -54,10 +54,19 @@ export async function processJob(job: ProcessorJob): Promise<unknown> {
       onProgress: (progress) => job.updateProgress(progress),
       ...(maxWorkingSetBytes !== undefined ? { maxWorkingSetBytes } : {}),
     });
-    return { files: result.files, ...(result.pageCount !== undefined ? { pageCount: result.pageCount } : {}) };
+    return {
+      files: result.files,
+      ...(result.pageCount !== undefined ? { pageCount: result.pageCount } : {}),
+      ...(result.diagnostics ? { diagnostics: result.diagnostics } : {}),
+    };
   } catch (error) {
     job.log?.error?.(
-      { jobId: payload.jobId, slug: payload.slug, message: error instanceof Error ? error.message : String(error) },
+      {
+        jobId: payload.jobId,
+        slug: payload.slug,
+        code: error instanceof JobExecutionError ? error.code : JOB_ERROR_CODES.internal,
+        name: error instanceof Error ? error.name : typeof error,
+      },
       'job failed',
     );
     // A cancelled job must not be retried. BullMQ re-runs an ordinary failure

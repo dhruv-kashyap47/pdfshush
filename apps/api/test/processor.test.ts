@@ -32,7 +32,7 @@ beforeEach(async () => {
 afterEach(async () => {
   if (previousWorkDir === undefined) delete process.env.WORK_DIR;
   else process.env.WORK_DIR = previousWorkDir;
-  await rm(workDir, { recursive: true, force: true });
+  await rm(workDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 async function pdfWithText(text: string): Promise<Buffer> {

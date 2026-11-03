@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { existsSync } from 'node:fs';
 import { Queue, Worker } from 'bullmq';
-import { QUEUE_PDF, type JobPayload } from '../jobs/payload.js';
+import { QUEUE_PDF, parseFailure, type JobPayload } from '../jobs/payload.js';
 import { createConnections, isLiveStatus } from '../jobs/queue.js';
 import { createJanitor } from '../files/janitor.js';
 import { startChildWatchdog } from '../jobs/children.js';
@@ -40,6 +40,34 @@ export function resolveProcessorPath(explicit?: string): string {
   throw new Error(
     `Sandboxed processor not found at ${candidates.join(' or ')}. Run "pnpm --filter @pdfshush/api build" first.`,
   );
+}
+
+/**
+ * Narrows BullMQ's `job.returnvalue` to the fields the completed-log emits.
+ *
+ * The processor returns a JSON-serialisable object, so this is a shallow
+ * runtime check rather than a cast: an older worker returning `{ files }` still
+ * logs cleanly, and a malformed return value never spreads arbitrary
+ * top-level keys into the log record.
+ */
+function readDiagnostics(returnvalue: unknown): Record<string, unknown> {
+  if (!returnvalue || typeof returnvalue !== 'object') return {};
+  const diagnostics = (returnvalue as { diagnostics?: unknown }).diagnostics;
+  if (!diagnostics || typeof diagnostics !== 'object') return {};
+  const record = diagnostics as Record<string, unknown>;
+  const picked: Record<string, unknown> = {};
+  for (const key of [
+    'durationMs',
+    'outputFiles',
+    'outputBytes',
+    'pageCount',
+    'strategies',
+    'verified',
+    'warningCount',
+  ]) {
+    if (key in record) picked[key] = record[key];
+  }
+  return picked;
 }
 
 /**
@@ -102,10 +130,20 @@ export async function startWorkerHost(options: WorkerHostOptions = {}) {
   });
 
   worker.on('completed', (job) => {
-    logger.info({ jobId: job.id, slug: job.name }, 'job completed');
+    // `runJob` attaches a content-free diagnostics summary; log it so a
+    // strategy-mix regression or a verification failure is visible without
+    // re-running the job or touching document text.
+    const diagnostics = readDiagnostics(job.returnvalue);
+    logger.info({ jobId: job.id, slug: job.name, ...diagnostics }, 'job completed');
   });
   worker.on('failed', (job, error) => {
-    logger.warn({ jobId: job?.id, slug: job?.name, error: error.message }, 'job failed');
+    // The failure message is written for the caller and can quote the document.
+    // The log records the stable code and error class instead.
+    const { code } = parseFailure(error?.message);
+    logger.warn(
+      { jobId: job?.id, slug: job?.name, code, name: error?.name ?? 'Error' },
+      'job failed',
+    );
   });
   // BullMQ forwards each connection failure here (twice for the blocking and
   // non-blocking clients). Routing it through the shared reporter collapses the

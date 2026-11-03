@@ -46,6 +46,37 @@ export interface RunResult {
   /** Output files written under the job's output directory. */
   files: { name: string; bytes: number }[];
   pageCount?: number;
+  /** Content-free operational summary. Safe to log; never contains document text. */
+  diagnostics?: JobDiagnostics;
+}
+
+/**
+ * What observability needs from a finished job, and nothing else.
+ *
+ * Deliberately excludes text, filenames chosen by the document, and any field a
+ * job builder writes free-form (warnings and verification details can quote the
+ * document). Counts, flags and durations are enough to spot a regression in the
+ * text-edit strategy mix or a redaction verification failure.
+ */
+export interface JobDiagnostics {
+  /** Duration of the job's run phase, milliseconds. */
+  durationMs: number;
+  /** Number of output files and their total size. */
+  outputFiles: number;
+  outputBytes: number;
+  pageCount?: number;
+  /** `text-edit` strategy mix; absent for other jobs. */
+  strategies?: {
+    inPlace: number;
+    contentStream: number;
+    fallback: number;
+    manualReview: number;
+    nativeEngine: boolean;
+  };
+  /** The job's own verification result, when it reports one. */
+  verified?: boolean;
+  /** How many warnings the job raised (never their text). */
+  warningCount?: number;
 }
 
 export interface RunOptions {
@@ -146,6 +177,7 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
   });
 
   let result: unknown;
+  const started = performance.now();
   try {
     result = await withJobLimits((jobSignal) => definition.run(input, contextFor(jobSignal)), {
       env: 'node',
@@ -156,9 +188,77 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
   } catch (error) {
     throw translateError(error);
   }
+  const durationMs = Math.round(performance.now() - started);
 
   const outputs = await writeOutputs(payload.jobId, result, store, payload.slug);
-  return outputs;
+  return { ...outputs, diagnostics: summariseDiagnostics(result, durationMs, outputs) };
+}
+
+/**
+ * Reduces a job's result to log-safe counters. Only fields with a fixed,
+ * numeric/boolean shape are read; free-form strings are counted, never copied.
+ */
+function summariseDiagnostics(
+  result: unknown,
+  durationMs: number,
+  outputs: RunResult,
+): JobDiagnostics {
+  const diagnostics: JobDiagnostics = {
+    durationMs,
+    outputFiles: outputs.files.length,
+    outputBytes: outputs.files.reduce((sum, file) => sum + file.bytes, 0),
+  };
+  if (outputs.pageCount !== undefined) diagnostics.pageCount = outputs.pageCount;
+  if (!result || typeof result !== 'object') return diagnostics;
+
+  const record = result as {
+    validated?: unknown;
+    verified?: unknown;
+    report?: {
+      inPlace?: unknown;
+      contentStream?: unknown;
+      fallback?: unknown;
+      manualReview?: unknown;
+      usedNativeEngine?: unknown;
+      verification?: { ok?: unknown };
+      warnings?: unknown;
+    };
+  };
+
+  const count = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  const report = record.report;
+  if (report && typeof report === 'object') {
+    const inPlace = count(report.inPlace);
+    const contentStream = count(report.contentStream);
+    const fallback = count(report.fallback);
+    const manualReview = count(report.manualReview);
+    if (
+      inPlace !== undefined &&
+      contentStream !== undefined &&
+      fallback !== undefined &&
+      manualReview !== undefined
+    ) {
+      diagnostics.strategies = {
+        inPlace,
+        contentStream,
+        fallback,
+        manualReview,
+        nativeEngine: report.usedNativeEngine === true,
+      };
+    }
+    if (typeof report.verification?.ok === 'boolean') {
+      diagnostics.verified = report.verification.ok;
+    }
+    if (Array.isArray(report.warnings)) diagnostics.warningCount = report.warnings.length;
+  }
+  if (diagnostics.verified === undefined && typeof record.verified === 'boolean') {
+    diagnostics.verified = record.verified;
+  }
+  if (diagnostics.verified === undefined && typeof record.validated === 'boolean') {
+    diagnostics.verified = record.validated;
+  }
+  return diagnostics;
 }
 
 async function readInputs(payload: JobPayload, store: WorkDirStore): Promise<JobInputFile[]> {

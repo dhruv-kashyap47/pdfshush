@@ -15,6 +15,14 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { resolveWithin, safeFileName } from './paths.js';
 
+/**
+ * Windows releases a file handle a moment after the writer's promise settles,
+ * so a recursive delete that races the close fails with `EPERM`/`EBUSY`. Node
+ * only retries those codes when `maxRetries` is set *and* the delete is
+ * recursive, which is why the options live on the directory removals.
+ */
+const RM_RETRY = { maxRetries: 10, retryDelay: 100 } as const;
+
 export class UploadTooLargeError extends Error {
   constructor(readonly limitBytes: number, readonly receivedBytes: number) {
     super(`Upload exceeds the ${limitBytes} byte limit`);
@@ -139,7 +147,7 @@ export class WorkDirStore {
 
   /** Removes everything belonging to one job. Safe to call twice. */
   async removeJob(jobId: string): Promise<void> {
-    await rm(resolveWithin(this.jobsDir, jobId), { recursive: true, force: true });
+    await rm(resolveWithin(this.jobsDir, jobId), { recursive: true, force: true, ...RM_RETRY });
   }
 
   /**
@@ -162,7 +170,7 @@ export class WorkDirStore {
         // Freshly touched means queued, running or recently finished: keep it.
         if (now - info.mtimeMs < maxAgeMs) continue;
         if (isLive && (await isLive(entry))) continue;
-        await rm(directory, { recursive: true, force: true });
+        await rm(directory, { recursive: true, force: true, ...RM_RETRY });
         removed.push(entry);
       } catch {
         // Vanished between readdir and stat -- that is success, not failure.

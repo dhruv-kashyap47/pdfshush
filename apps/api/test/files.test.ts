@@ -29,7 +29,7 @@ async function tempDir(): Promise<string> {
 afterEach(async () => {
   while (temps.length > 0) {
     const dir = temps.pop();
-    if (dir) await (await import('node:fs/promises')).rm(dir, { recursive: true, force: true });
+    if (dir) await (await import('node:fs/promises')).rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 

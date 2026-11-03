@@ -241,7 +241,7 @@ async function harness(options: { rateLimitPerMinute?: number } = {}) {
     () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
-      }).then(async () => rm(dir, { recursive: true, force: true })),
+      }).then(async () => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })),
   );
 
   const account = await db.auth.upsertAccount({

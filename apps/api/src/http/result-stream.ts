@@ -59,4 +59,11 @@ export function sendResultFile(args: {
     args.response.destroy();
   });
   stream.pipe(args.response);
+  // `pipe` unpipes when the client disconnects mid-download but never destroys
+  // the source, so the read stream's file descriptor lingers until GC. On
+  // Windows that open handle makes the janitor's later `rm` fail with EPERM,
+  // so release it as soon as the response closes (finished or aborted).
+  args.response.on('close', () => {
+    if (!stream.destroyed) stream.destroy();
+  });
 }

@@ -262,7 +262,7 @@ async function harness(options: HarnessOptions = {}) {
     () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
-      }).then(async () => rm(dir, { recursive: true, force: true })),
+      }).then(async () => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })),
   );
   const url = (suffix: string) => `http://127.0.0.1:${port}${suffix}`;
 

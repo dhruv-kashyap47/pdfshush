@@ -272,6 +272,10 @@ describe('the verification gate itself', () => {
     expect(verification.ok).toBe(false);
     expect(verification.checks.find((c) => c.name === 'no-extractable-text')?.ok).toBe(false);
     expect(verification.checks.find((c) => c.name === 'forbidden-strings-absent')?.ok).toBe(false);
+    // A failing report is surfaced to operators; it must describe the failure
+    // without echoing the content that survived.
+    const details = verification.checks.map((check) => check.detail).join(' ');
+    expect(details).not.toContain(SECRET);
   });
 
   it('fails a rebuild that produced blank placeholder pages', async () => {

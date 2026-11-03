@@ -27,7 +27,7 @@ const temps: string[] = [];
 afterEach(async () => {
   while (temps.length > 0) {
     const dir = temps.pop();
-    if (dir) await rm(dir, { recursive: true, force: true });
+    if (dir) await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 
@@ -87,6 +87,36 @@ describe('runJob', () => {
     expect(result.files[0]!.bytes).toBeGreaterThan(0);
     expect(result.pageCount).toBe(4); // 2 files x 2 pages merged
     expect(progress.length).toBeGreaterThan(0);
+  });
+
+  it('attaches content-free diagnostics for the completed-log', async () => {
+    const source = await fixture();
+    const { store, jobId } = await seededStore([
+      { name: 'one.pdf', bytes: source },
+      { name: 'two.pdf', bytes: source },
+    ]);
+
+    const result = await runJob({
+      payload: payload({ jobId, files: ['one.pdf', 'two.pdf'] }),
+      store,
+    });
+
+    expect(result.diagnostics).toBeDefined();
+    expect(result.diagnostics!.durationMs).toBeGreaterThanOrEqual(0);
+    expect(result.diagnostics!.outputFiles).toBe(1);
+    expect(result.diagnostics!.outputBytes).toBeGreaterThan(0);
+    expect(result.diagnostics!.pageCount).toBe(4);
+    // Only counters/flags are allowed through: nothing a document supplied.
+    for (const value of Object.values(result.diagnostics!)) {
+      if (value === null || typeof value === 'object') {
+        for (const nested of Object.values(value as Record<string, unknown>)) {
+          expect(['number', 'boolean']).toContain(typeof nested);
+        }
+        continue;
+      }
+      expect(['number', 'boolean']).toContain(typeof value);
+    }
+    expect(JSON.stringify(result.diagnostics)).not.toContain('page 1');
   });
 
   it('rejects an unknown slug before touching the filesystem', async () => {

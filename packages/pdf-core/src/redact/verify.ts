@@ -466,18 +466,22 @@ export async function verifyRedaction(
     surviving.length === 0,
     surviving.length === 0
       ? 'no text is extractable from any page'
-      : `${surviving.length} text run(s) survive — e.g. ${JSON.stringify(surviving[0]!.text.slice(0, 40))}`,
+      : `${surviving.length} text run(s) survive across ${runs.length} page(s)`,
   );
 
   if (options.forbiddenStrings && options.forbiddenStrings.length > 0) {
     const haystack = runs.flat().map((run) => run.text).join('\u0000');
-    const found = options.forbiddenStrings.filter((needle) => needle.length > 0 && haystack.includes(needle));
+    const found = options.forbiddenStrings.flatMap((needle, index) =>
+      needle.length > 0 && haystack.includes(needle) ? [index] : [],
+    );
     add(
       'forbidden-strings-absent',
       found.length === 0,
       found.length === 0
         ? `${options.forbiddenStrings.length} forbidden string(s) absent`
-        : `still extractable: ${found.map((value) => JSON.stringify(value.slice(0, 40))).join(', ')}`,
+        : // Report positions in the caller's own list, never the strings
+          // themselves: a verification detail must not echo redacted content.
+          `${found.length} forbidden string(s) still extractable at index ${found.join(', ')}`,
     );
   }
 

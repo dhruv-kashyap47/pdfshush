@@ -395,14 +395,16 @@ function planLayoutEdit(
   if (plan.beforeLines.length === 0) return { reason: 'paragraph has no original lines to anchor' };
   const layoutUsed = new Set(used);
   const targets: ObjectMatch[] = [];
-  for (const line of plan.beforeLines) {
+  for (const [lineIndex, line] of plan.beforeLines.entries()) {
     const match = matchObjects(doc, objects, layoutUsed, {
       ...edit,
       find: line.text,
       replace: 'x',
       box: line.box,
     });
-    if (!match) return { reason: `no text object matches original line "${line.text.slice(0, 40)}"` };
+    // The refusal reason is logged and surfaced to callers, so it must not quote
+    // the document's own text. The line's position identifies it for debugging.
+    if (!match) return { reason: `no text object matches original line ${lineIndex}` };
     for (const member of match.members) layoutUsed.add(member.ptr);
     targets.push(match);
   }
