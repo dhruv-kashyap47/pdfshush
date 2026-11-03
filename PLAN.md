@@ -40,6 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 📋 **planned 2026-11-03** — instrument-first gate M5.0; see §31 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -73,7 +74,9 @@ browser E2Es
 against the running dev server. The full browser smoke, plain-tools, next-tools,
 bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in the same
 campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
-queue recovers) passed on 2026-11-03 (§30.8). The 2026-10-21 next-tools batch (§8, 2026-10-21
+queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 (§31) is planned, not started** — it
+opens with an instrument-first gate, so no target in it is claimed until the baseline exists.
+The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
 hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API
@@ -5007,3 +5010,208 @@ passed. Files changed: `document/group.ts`, `document/glyphs.ts` (optimisations)
 `textedit/engine.ts`, `redact/verify.ts` (privacy of details), `http/result-stream.ts`,
 `files/store.ts` (lifecycle/retry), `jobs/runner.ts`, `worker/processor.ts`,
 `worker/host.ts` (content-free diagnostics + safe logging), and the API test cleanups.
+
+## 31. Product excellence and competitive differentiation — Milestone 5 (planned 2026-11-03)
+
+Phase 4 closed the *engineering* risk: the pipeline survives a SIGKILL, the hot paths are profiled,
+the licences are clean and the suite is 1216/1216. It deliberately said nothing about whether the
+product is **good**. This milestone is that gap — the distance between "nothing is broken" and
+"nothing else is worth using".
+
+It is the first milestone in this plan driven by the product surface rather than by a defect list.
+It still obeys the house rule — **measure, then change** (§31.6 starts with an instrument-first gate)
+— and it still may not touch a security boundary to buy a feature.
+
+### 31.1 Where the product actually stands (2026-11-03)
+
+| fact | value | source |
+| --- | --- | --- |
+| catalog entries | 58 | `apps/web/src/tools/registry.ts` |
+| live tools | 49 | same |
+| entries still `planned` | 9 | same, listed in §31.5 |
+| tools that run entirely client-side | 46 of 49 live | worker pool; `workflows`, `api`, `mcp` are server-backed by nature |
+| unit / integration tests | 1216 | `pnpm test` |
+| browser E2E | 11 suites (smoke, sign, text-edit, text-model, AI, managed AI, plain, next, bookmark-batch, forms-bookmarks, dark-mode) | `tests/e2e/` |
+| main bundle | 138.1 kB, 0 PDF engines | `pnpm test:bundle` |
+| **SEO** | none — SPA shell, no prerender, no `sitemap.xml`, no `robots.txt` | `apps/web/index.html`, `apps/web/public/` |
+| **accessibility** | unmeasured — no axe/pa11y, no keyboard E2E | no tooling in repo |
+| **performance budget** | unmeasured on real devices | no harness |
+| **offline** | unsupported — no service worker, no manifest | `apps/web/public/` |
+
+Two honest conclusions, and they are the reason this milestone exists.
+
+1. **The engineering is ahead of the product.** A fail-closed, independently verified redaction
+   engine and a deterministic layout model sit behind a shell that a crawler cannot read and a
+   keyboard-only user cannot fully drive.
+2. **The strongest claims are prose, not evidence.** *Your file never leaves the device*, *redaction
+   is verified, not promised*, *editing never silently degrades* are all true — and all currently
+   **unfalsifiable by a user in ten seconds**. A competitor can make the same claims; we can prove
+   ours. Proving them is the differentiator.
+
+### 31.2 Thesis
+
+> Compete on **verifiable trust and honest behaviour**, not on tool count.
+
+Tool count is a losing axis: the suites that beat us on breadth (Stirling-PDF, PDF24, Adobe) are
+server-side, and the suites that beat us on polish (Sejda, Smallpdf, iLovePDF) are server-side too.
+Our one structural advantage is that the document never moves. Everything here either (a) makes that
+advantage *checkable*, or (b) removes a reason a user would leave for a competitor anyway — speed,
+accessibility, mobile, or a missing capability.
+
+### 31.3 The bar: what "excellent" means for a live tool
+
+Eight non-negotiables. A tool is not "done" until all eight hold, with evidence recorded.
+
+| # | Bar | Evidence required |
+| --- | --- | --- |
+| Q1 | **Truthful state.** No spinner that can hang, no "done" without a verified output file, no silently ignored option. Every failure names the cause and the next action, and is content-free. | E2E per failure class; log assertion that no document text is emitted |
+| Q2 | **Deterministic where the format allows.** Same input + options → same output bytes. | Digest fixture per tool |
+| Q3 | **Fast by budget.** Tool-ready ≤ 1.5 s on a 4× CPU throttle; first interaction ≤ 100 ms; no main-thread task > 200 ms during a 50-page client job. | Recorded trace, not an impression |
+| Q4 | **Works at the edges.** 0-byte, 1-page, 2000-page, encrypted, linearized, scanned, malformed, non-ASCII filenames, 200 MB. | Adversarial corpus run per tool class |
+| Q5 | **Accessible.** Keyboard-only path to every action including the canvas editor; visible focus; labelled controls; no colour-only meaning. | axe run + keyboard E2E per tool class |
+| Q6 | **Private by construction.** Client tools never transmit document bytes — enforced by CSP and asserted at runtime, not promised in copy. | CSP `connect-src` allowlist; offline run; network assertion |
+| Q7 | **Honest on mobile.** Real iOS Safari memory behaviour tested, not "responsive CSS". | Device-emulated run of the 10 heaviest tools |
+| Q8 | **Limits in the product.** A refusal, a cap or a fidelity compromise is surfaced where it happens, not only in `PLAN.md`. | UI copy per known limitation (§29.6, §30.10) |
+
+### 31.4 Differentiation bets
+
+Five bets, each backed by something already built and each independently checkable by a user.
+
+- **D1 — Verifiable locality.** An installable PWA that runs the client tools offline, plus a
+  "prove it" panel: the CSP forbids uploads, the service worker keeps the app available with the
+  network off, and a runtime assertion proves a job completed with zero document egress.
+- **D2 — Verifiable redaction.** The same independent verifier the engine uses, exposed to the user:
+  drop in any PDF and get the check list plus a digest receipt. *"Don't trust us — verify it."*
+- **D3 — An honest editing ladder.** The per-edit mode (in-place / content-stream / overlay) is
+  already recorded. Surface it in the editor and in an export receipt so degradation is visible at
+  the moment it happens. No competitor publishes this.
+- **D4 — Inspectable structure confidence.** Per-page confidence with its `basis` exposed, refusal
+  preferred over a guess. The engine already refuses mixed-alignment tables; make that a visible
+  product promise instead of a hidden behaviour.
+- **D5 — Open, local AI.** BYOK keys stay in the browser, managed mode is labelled, and no document
+  is sent for a client-side operation. The AI features inherit D1's proof.
+
+### 31.5 Parity debt: the nine `planned` entries must resolve
+
+A permanent "in development" page is a broken promise with a nicer font. Every entry below ends this
+milestone **live**, **re-scoped** (renamed and described to match what it actually does), or
+**removed** with a redirect to the closest honest tool.
+
+| entry | real obstacle | decision required |
+| --- | --- | --- |
+| `ocr-pdf` | needs a real OCR engine (WASM or server); scanned documents are the single largest competitive gap | ship client-side WASM within worker limits **or** declare a server-only tool with a visible quota |
+| `pdf-to-word` / `pdf-to-excel` / `pdf-to-ppt` | layout-preserving conversion is a different product and a research-grade problem | export text + structure under an honest name, **or** decline |
+| `word-to-pdf` / `html-to-pdf` | needs a renderer (LibreOffice / headless Chromium) and heavier ops | server worker with a real cost model, **or** decline |
+| `convert-batch` | orchestration only; meaningless before conversions exist | follows the conversion decision |
+| `deskew` | image analysis; genuinely feasible client-side and small | ship |
+| `sign-workflow` | routing and audit beyond the current sidecar | ship a narrow version **or** re-scope the page |
+
+Declining is an acceptable, documented outcome. A ship-or-decline decision with a reason is
+excellence; an indefinite "coming soon" is not.
+
+### 31.6 Workstreams
+
+**M5.0 — Instrument the product (gate: no behaviour change ships before this).**
+Add the measurement the plan currently lacks: a throttled performance harness per tool class, an axe
+run over the shell and the 10 highest-traffic tools, a crawler view of every route, a mobile-emulated
+memory run, and an adversarial corpus per tool class. Output: `tests/benchmarks/product-baseline.md`
+and a scored Q1–Q8 table for all 49 live tools. **This is the honest starting line**; the targets in
+§31.7 are ratified against it rather than guessed now.
+
+**M5.1 — Truthful surface.** Apply Q1 and Q8 everywhere: error taxonomy with human text + stable
+code, no infinite spinners, every known limitation surfaced in the UI, "in development" pages that
+say what will actually happen. Absorbs the honesty debt recorded in §29.6 and §30.10.
+
+**M5.2 — Verifiable privacy (D1, D2).** Service worker + manifest, offline tool set, CSP `connect-src`
+allowlist, the locality "prove it" panel, and the standalone redaction verifier with a digest
+receipt. Ships a page that states exactly what leaves the device and what does not — and a test that
+fails if anything new does.
+
+**M5.3 — Editing and structure excellence (D3, D4).** Surface the edit-mode receipt; expose page
+confidence and `basis`; add the "explain this extraction" panel. Then close the measured Medium
+limitations in ranked order (mixed-alignment tables, IRS-1040 column read, cross-page paragraphs,
+footnote tails), each with a corpus fixture and a benchmark delta, each allowed to keep refusing
+rather than guess.
+
+**M5.4 — Performance and resilience.** Hit Q3 and Q7: extraction and export budgets per tool, worker
+pool sizing under a 4× throttle, a 200-page path that stays under the memory ceiling, iOS Safari
+large-document behaviour, and a CI guard for the ceilings that need no stack.
+
+**M5.5 — Reach (prerender, SEO, sharing).** Static prerender of every tool route with real content,
+`sitemap.xml`, `robots.txt`, `SoftwareApplication` structured data, canonical URLs and per-tool OG
+images — while keeping the one-URL-per-tool promise intact. Absorbs the P7 "SEO prerender" carry-over.
+
+**M5.6 — Accessibility and input parity (Q5).** axe in CI with a zero-critical budget, keyboard E2E
+for each tool class including the canvas editor (select, nudge, delete, undo without a mouse), focus
+order and screen-reader descriptions for edited objects, and WCAG 2.2 AA on the shell plus the top
+10 tools. Absorbs the P7 "perf/a11y pass" carry-over.
+
+**M5.7 — Parity debt (§31.5).** Execute the decisions, one commit per entry, each with a working tool
+or a redirect and a documented reason.
+
+**M5.8 — Release evidence.** The full campaign (unit, E2E, bundle, hardening, product baseline) plus
+a per-tool evidence table for Q1–Q8, recorded in §32.
+
+### 31.7 Targets
+
+Measured in M5.0, then ratified. The **commitments** are structural and can be stated now:
+
+- No regression against the Phase 4 numbers: the main chunk stays engine-free, 128-page extraction
+  stays within the §30.3 range, the bundle boundary test stays green.
+- Zero critical/serious axe violations on the shell and the top 10 tools.
+- Zero live tools that fail to reach a terminal state on any adversarial input.
+- Zero live tools that send document bytes while claiming to be client-side.
+- Zero catalog entries left in `planned` at the close of M5.
+
+Numeric ceilings (Q3, Q7) are set from the M5.0 baseline, in the same commit that records it, so the
+milestone never ships a target invented before the first measurement — exactly the mistake §29 and
+§30 exist to avoid.
+
+### 31.8 Non-goals and hard boundaries
+
+- **No change to the redaction serialization, the rebuild order or the fail-closed verification
+  policy.** D2 exposes the verifier; it does not redefine it.
+- **No change to ID hashing, the layout model's identity or the editing ladder's decision rules.**
+  M5.3 adds visibility and fixes measured defects; it does not re-architect the engine.
+- **No telemetry that could carry document content, filenames or PII** (§30.5 stands). Product
+  analytics, if any, are aggregate and documented.
+- **No tool may move from client-side to server-side to make a number look better.** That would
+  trade the one structural advantage for a benchmark.
+- **No growth by tool count alone.** A new tool clears Q1–Q8 or it does not ship live.
+- **No dark patterns:** no sign-up wall in front of a client-side tool, no artificial cap, no
+  urgency copy. The free tier is the product, not a funnel.
+- **No unrelated redesign.** Visual work is limited to what Q1/Q5/Q8 require.
+
+### 31.9 Risks
+
+| risk | impact | mitigation |
+| --- | --- | --- |
+| OCR and Office conversion turn out to need a server | High — the two biggest parity gaps | decide early in M5.7; declining with a clear page is an allowed outcome |
+| prerender collides with the SPA router or the worker bundles | Medium — SEO is the cheapest acquisition channel | static prerender of route shells + content, hydrate the same routes; extend the bundle boundary test to the prerender output |
+| offline/SW caching serves a stale engine after a deploy | High — a correctness bug disguised as convenience | versioned cache, `skipWaiting` only on user action, cache version asserted in E2E |
+| mobile Safari OOM on large PDFs | Medium | the Q7 run gates the claim; the ceiling is enforced and disclosed, not hidden |
+| accessibility work is larger than it looks for a canvas editor | Medium | design the keyboard model before implementing; phase the axe budget |
+| the milestone sprawls into a redesign | Medium — this plan's usual failure mode | §31.8 non-goals + one commit per workstream, checked against the Q1–Q8 table |
+
+### 31.10 Exit criteria (M5 ship gate)
+
+1. Q1–Q8 evidence recorded for all 49 live tools; every failure either fixed or documented as an
+   accepted limitation with a severity.
+2. All nine `planned` entries resolved: live, re-scoped, or removed with a redirect and a reason.
+3. Prerendered, crawlable pages for every tool route; sitemap and structured data validate.
+4. Offline run green for the client tool set; the CSP allowlist proven by a test that fails on a new
+   outbound request carrying document bytes.
+5. Redaction verifier available to users with a digest receipt; §28.10 and §30.5 guarantees still
+   green and unmodified in behaviour.
+6. Zero critical/serious axe violations on the shell + top 10 tools; keyboard E2E per tool class.
+7. Performance ceilings from §31.7 met on the throttled profile; no regression against §30.3.
+8. Full campaign green: `pnpm -r typecheck`, `pnpm test`, `pnpm build`, `pnpm test:bundle`, all E2E
+   suites, `test:api`, containerised `test:hardening`.
+9. `PLAN.md` §32 records the result, the evidence tables and any remaining limitation classified
+   Critical / High / Medium / Low.
+
+### 31.11 Tracking
+
+One commit per workstream (M5.0…M5.8), each stating the evidence it adds. The status board gains a
+Milestone 5 row the moment M5.0 lands; until then the gate above stays the Phase 4 **SHIP** result and
+nothing in this section is claimed as delivered.

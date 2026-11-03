@@ -22,11 +22,11 @@ the exact same job contract.
 | `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu, web worker pool, AI workspace |
 | `apps/api` | ✅ Express + Redis + BullMQ sandboxed worker + TTL janitor, public `/api/v1`, optional managed-AI gateway |
 | `apps/mcp` | ✅ `@pdfshush/mcp`: stdio MCP server over the public API, one tool per server-runnable slug |
-| Live tools (49 of 57) | ✅ Merge, Organize, PDF → JPG, Delete/Extract/Rotate/Split, Alternate & Mix, N-up, Page Numbers, Crop, Header & Footer, Edit PDF, **Create Forms**, **Fill & Sign**, Signature, **Redact PDF (verified)**, Watermark, Flip, Grayscale, Dark Mode PDF, Resize, Edit Metadata, Remove Annotations, PDF → Text, Extract Images, Split by size/text, Flatten, Unlock, JPG → PDF, Rename, Bates Numbering, **Compress (smart image pass)**, **Protect PDF (AES-256)**, **Stamp, Repair PDF, Combine files, Image Editor, Batch run, Create Bookmarks, Split by bookmarks, Workflows**, and Summarize / Chat / Edit with AI. The `api` and `mcp` catalog entries are live docs pages |
+| Live tools (49 of 58) | ✅ Merge, Organize, PDF → JPG, Delete/Extract/Rotate/Split, Alternate & Mix, N-up, Page Numbers, Crop, Header & Footer, Edit PDF, **Create Forms**, **Fill & Sign**, Signature, **Redact PDF (verified)**, Watermark, Flip, Grayscale, Dark Mode PDF, Resize, Edit Metadata, Remove Annotations, PDF → Text, Extract Images, Split by size/text, Flatten, Unlock, JPG → PDF, Rename, Bates Numbering, **Compress (smart image pass)**, **Protect PDF (AES-256)**, **Stamp, Repair PDF, Combine files, Image Editor, Batch run, Create Bookmarks, Split by bookmarks, Workflows**, and Summarize / Chat / Edit with AI. The `api` and `mcp` catalog entries are live docs pages |
 | Accounts (P4) | ✅ Google sign-in; every tool stays anonymous-only when no Mongo/Google config is present |
 | AI (P5) | ✅ BYOK keys never leave the browser; 21 providers incl. **Groq** (permanently free tier) with a first-run onboarding overlay; the managed trial runs on OpenRouter free models and is off unless `AI_MANAGED_API_KEY` is set (model defaults to the strongest live `:free` id) |
 | E-sign / public API / MCP (P6) | ✅ Fill & Sign with a fail-closed audit sidecar; `/api/v1` with scoped keys; `@pdfshush/mcp` stdio server; P6.4 hardening (rotation drill, multipart sniff, base-URL smuggle class) |
-| P7 — hardening | ⏳ Next: adversarial torture suite, SEO prerender, perf/a11y pass |
+| P7 — hardening | ⏳ Folded into **M5** (PLAN §31): adversarial torture suite (Q4), SEO prerender (M5.5), perf/a11y pass (M5.4/M5.6), plus verifiable-locality and parity-debt work |
 
 Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an
 honest "in development" state so links and SEO never churn.
@@ -37,7 +37,7 @@ honest "in development" state so links and SEO never churn.
 pnpm install
 pnpm dev              # web app: http://localhost:5173 (every client-side tool + BYOK AI)
 pnpm typecheck        # tsc across all workspace projects
-pnpm test             # vitest unit suites (1093 tests across six packages)
+pnpm test             # vitest unit suites (1216 tests across six packages)
 pnpm build            # production web bundle
 ```
 
