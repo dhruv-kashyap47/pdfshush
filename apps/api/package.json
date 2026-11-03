@@ -28,7 +28,7 @@
     "jose": "^6.2.12",
     "mongodb": "^7.7.0",
     "pino": "^10.4.0",
-    "zod": "^4.6.5",
+    "zod": "^4.6.7",
     "@pdfshush/api-contracts": "workspace:*"
   },
   "devDependencies": {

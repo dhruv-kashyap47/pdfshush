@@ -2,6 +2,18 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# Security pins for transitive dependencies (pnpm 12 reads overrides here, not
+# from package.json). Each one is a patched release inside the range its direct
+# dependent already declares, so no API we call changes:
+#   body-parser >=2.4.0 -- DoS via trailing bytes after a compressed body
+#   qs          >=6.16.1 -- uncaught TypeError on hostile array elements
+#   fast-uri    >=3.1.9 -- scheme/host confusion in ajv's URI handling (MCP)
+# Drop a pin once the direct dependent's own range resolves to the fix.
+overrides:
+  body-parser: ^2.4.0
+  qs: ^6.16.1
+  fast-uri: ^3.1.9
+
 # Explicit build-script decisions (pnpm 11 records them here; the supply-chain
 # stance is "deny by default, opt in per package, with a reason").
 allowBuilds:
