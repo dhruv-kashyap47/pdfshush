@@ -700,6 +700,41 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-11-03 - Security pass: four dependency advisories closed and a managed-AI log leak fixed.**
+
+  The pass combined `pnpm audit`, the pre-push sink grep (`child_process`, `eval`, DOM sinks — all
+  hits are the documented fixed-argv/fixture exceptions) and a read of the security-critical paths:
+  session/cookie handling, double-submit CSRF, job-token comparison, path containment, upload
+  caps and magic-byte checks, API-key hashing, OIDC verification, the child-process env allowlist,
+  and the MCP base-URL guard. No defect was found in any of those.
+
+  Two classes of problem were:
+
+  - **Dependency advisories (2 high, 1 moderate, 2 low).** `zod < 4.6.6` can exhaust memory
+    validating oversized constrained collections — directly relevant, since `/api/v1` and every
+    job payload are zod-validated. `body-parser < 2.4.0` has a DoS via trailing bytes after a
+    compressed body; `qs <= 6.16.0` throws on hostile array elements; `fast-uri < 3.1.9` has
+    scheme/host-confusion issues inside the MCP SDK's ajv. Fixed by moving `zod` to `^4.6.7` and
+    pinning the three transitive packages in `pnpm-workspace.yaml` (pnpm 12 no longer reads
+    `pnpm.overrides` from `package.json`). Every pin is a patched release inside the range its
+    direct dependent already declares. `pnpm audit` is now clean.
+  - **Managed-AI error text reached the log.** `POST /api/ai/chat` logged the provider error
+    message, and that message embeds up to 500 characters of the provider's response body
+    (`httpBodyDetail`). A gateway that rejects a turn can quote the request back — and in managed
+    mode the request contains the document. The key was already scrubbed by `redactSecrets`; the
+    document was not. The log now records provider, model, error class, the structural head of the
+    message (`HTTP 429`, `AI returned a non-JSON response`) and its length — never the body. The
+    caller still receives the detailed, key-redacted message, because it is their own text.
+    A regression test asserts the sentinel text never enters the logger while the status stays
+    identifiable.
+
+  Verified: `pnpm -r typecheck`, `pnpm test` **1217/1217** (api 210), `pnpm build`,
+  `pnpm test:bundle`, and `pnpm audit` with zero findings at every severity.
+
+  Residual, unchanged: managed AI is still the one path where document text reaches the server
+  (disclosed in §23), and the three rollup pins should be removed once each direct dependent's own
+  range resolves to the patched version.
+
 - **2026-10-31 — Phase 2 hardening: partial rewrites now fail closed, collisions include text, and export verification covers the original line region.**
 
   Four bugs found and fixed after the initial Phase 2 pass:
