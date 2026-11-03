@@ -119,6 +119,22 @@ function nonWhitespace(glyphs: readonly ProjectedGlyph[]): ProjectedGlyph[] {
   return glyphs.filter((entry) => !entry.glyph.whitespace && entry.glyph.text.trim().length > 0);
 }
 
+/**
+ * Typography keys are derived from the same immutable object for every glyph of
+ * a pdf.js text item, so the `toFixed` formatting is memoised per object. This
+ * is a pure cache: the key string it returns is byte-identical to building it
+ * inline, which keeps the weighted-mode tie-breaking exactly as it was.
+ */
+const typographyKeyCache = new WeakMap<TextTypography, string>();
+
+function typographyKey(typography: TextTypography): string {
+  const cached = typographyKeyCache.get(typography);
+  if (cached !== undefined) return cached;
+  const key = `${typography.fontFamily}|${typography.fontSize.toFixed(2)}|${typography.bold}|${typography.italic}|${typography.rotationDeg.toFixed(1)}`;
+  typographyKeyCache.set(typography, key);
+  return key;
+}
+
 function dominantTypography(glyphs: readonly Glyph[]): TextTypography {
   if (glyphs.length === 0) {
     return {
@@ -133,10 +149,13 @@ function dominantTypography(glyphs: readonly Glyph[]): TextTypography {
       rotationDeg: 0,
     };
   }
+  // A one-glyph run has exactly one candidate, so the weighted-mode maps would
+  // only be built to return it. This is the common case for table cells.
+  if (glyphs.length === 1) return glyphs[0]!.typography;
   const weights = new Map<string, number>();
   const samples = new Map<string, TextTypography>();
   for (const glyph of glyphs) {
-    const key = `${glyph.typography.fontFamily}|${glyph.typography.fontSize.toFixed(2)}|${glyph.typography.bold}|${glyph.typography.italic}|${glyph.typography.rotationDeg.toFixed(1)}`;
+    const key = typographyKey(glyph.typography);
     weights.set(key, (weights.get(key) ?? 0) + Math.max(1, glyph.length));
     if (!samples.has(key)) samples.set(key, glyph.typography);
   }
@@ -169,25 +188,31 @@ function projectGlyph(glyph: Glyph, rotationDeg: number): ProjectedGlyph {
   const dy = Math.sin(radians);
   const nx = -dy;
   const ny = dx;
-  const corners = [
-    { x: glyph.bbox.x, y: glyph.bbox.y },
-    { x: glyph.bbox.x + glyph.bbox.width, y: glyph.bbox.y },
-    { x: glyph.bbox.x, y: glyph.bbox.y + glyph.bbox.height },
-    { x: glyph.bbox.x + glyph.bbox.width, y: glyph.bbox.y + glyph.bbox.height },
-  ];
-  const advances = corners.map((point) => point.x * dx + point.y * dy);
-  const crosses = corners.map((point) => point.x * nx + point.y * ny);
+  const x = glyph.bbox.x;
+  const y = glyph.bbox.y;
+  const right = x + glyph.bbox.width;
+  const bottom = y + glyph.bbox.height;
+  // Project the four corners without allocating one object per corner: this
+  // runs once per glyph, on every page of every document.
+  const advanceA = x * dx + y * dy;
+  const advanceB = right * dx + y * dy;
+  const advanceC = x * dx + bottom * dy;
+  const advanceD = right * dx + bottom * dy;
+  const crossA = x * nx + y * ny;
+  const crossB = right * nx + y * ny;
+  const crossC = x * nx + bottom * ny;
+  const crossD = right * nx + bottom * ny;
   const mid = {
     x: (glyph.baselineStart.x + glyph.baselineEnd.x) / 2,
     y: (glyph.baselineStart.y + glyph.baselineEnd.y) / 2,
   };
   return {
     glyph,
-    advanceStart: Math.min(...advances),
-    advanceEnd: Math.max(...advances),
+    advanceStart: Math.min(advanceA, advanceB, advanceC, advanceD),
+    advanceEnd: Math.max(advanceA, advanceB, advanceC, advanceD),
     cross: mid.x * nx + mid.y * ny,
-    crossMin: Math.min(...crosses),
-    crossMax: Math.max(...crosses),
+    crossMin: Math.min(crossA, crossB, crossC, crossD),
+    crossMax: Math.max(crossA, crossB, crossC, crossD),
   };
 }
 
@@ -2235,7 +2260,11 @@ function coverageRatio(
 ): number {
   if (pageWidth <= 0 || pageHeight <= 0 || entries.length === 0) return 0;
   const step = 8;
-  const cells = new Set<string>();
+  // Numeric cell keys avoid a string allocation per covered cell. The stride is
+  // far larger than any real page's cell count (8.4M points), so it cannot
+  // collide; the count is the only thing this ratio consumes.
+  const stride = 1_048_576;
+  const cells = new Set<number>();
   for (const entry of entries) {
     const { x, y, width, height } = entry.line.bbox;
     const x0 = Math.floor(x / step);
@@ -2243,7 +2272,7 @@ function coverageRatio(
     const x1 = Math.floor((x + Math.max(0, width)) / step);
     const y1 = Math.floor((y + Math.max(0, height)) / step);
     for (let cx = x0; cx <= x1; cx += 1) {
-      for (let cy = y0; cy <= y1; cy += 1) cells.add(`${cx},${cy}`);
+      for (let cy = y0; cy <= y1; cy += 1) cells.add(cx * stride + cy);
     }
   }
   return clamp01((cells.size * step * step) / (pageWidth * pageHeight));

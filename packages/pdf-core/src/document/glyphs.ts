@@ -48,6 +48,9 @@ export interface GlyphExtractionOptions {
   glyphConfidence?: number;
 }
 
+/** One Unicode code point. Hoisted so the loop does not rebuild a RegExp per glyph. */
+const WHITESPACE_CHAR = /^\s$/u;
+
 export interface ExtractedGlyphs {
   glyphs: Glyph[];
   skippedItems: number;
@@ -307,8 +310,8 @@ export function glyphsFromTextItems(
       const glyphRotation = normalizeAngle(
         (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI,
       );
-      const unicodeLength = Array.from(char).length;
-      const whitespace = /^\s$/u.test(char);
+      const unicodeLength = 1; // `chars` is already split by code point
+      const whitespace = WHITESPACE_CHAR.test(char);
       const seed = `${textSeed(char, bbox)}|${quantize(start.x)},${quantize(start.y)}|${itemIndex}:${charIndex}`;
       glyphs.push({
         id: id('glyph', seed),
