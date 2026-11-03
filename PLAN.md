@@ -39,6 +39,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2** | Native object editing ladder, content-stream fallback, font metrics/substitution, layout reflow, OCR-layer/scan capability, export + pixel verification | ✅ **done 2026-10-31** — engine 362 tests, web 39, both text E2Es; see §28 |
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
+| **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -61,15 +62,18 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-02 for **Text editing Phase 3** (`pnpm -r typecheck`,
-`pnpm test` — **1215/1215 unit** — `pnpm build` and `pnpm test:bundle` all green; the
-benchmark, defect list and before/after numbers are recorded in §29). The Phase 2.5
-adversarial audit and its four verification fixes are still in force (§28.10). The Phase 2
+**Current gate:** re-measured 2026-11-03 for **Phase 4 — production hardening**
+(`pnpm -r typecheck`, `pnpm test` — **1216/1216 unit** — `pnpm build`, `pnpm test:bundle`, the
+layout benchmark and the full browser E2E campaign all green; the profile, before/after
+numbers, hardening fixes, licensing audit and the SHIP gate are recorded in §30). The Phase 3
+document-intelligence benchmark (§29) is unchanged, the Phase 2.5 adversarial audit and its
+four verification fixes are still in force (§28.10), and the Phase 4 campaign re-ran the Phase 2
 browser E2Es
-(`tests/e2e/text-edit.mjs`, `tests/e2e/text-model.mjs`) were last green on 2026-10-31
-against the running dev server; Phases 2.5 and 3 are engine-level and needed no UI
-change. The last full-stack API smoke +
-hardening run remains the P7.0 gate on 2026-10-25. The 2026-10-21 next-tools batch (§8, 2026-10-21
+(`tests/e2e/text-edit.mjs`, `tests/e2e/text-model.mjs`) green on 2026-11-03
+against the running dev server. The full browser smoke, plain-tools, next-tools,
+bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in the same
+campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
+queue recovers) passed on 2026-11-03 (§30.8). The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
 hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API
@@ -4790,3 +4794,216 @@ confirmed, and the cache is kept for worker churn rather than a quadratic cost.
 web 39, provider 370, agent 152, mcp 19), `pnpm build` green, `pnpm test:bundle` green.
 No editing strategy, verification gate or redaction guarantee was weakened; the Phase 2.5
 no-op/deletion/consumed-font checks are untouched and still green.
+
+## 30. Production hardening and optimisation — Phase 4 (2026-11-03)
+
+Scope was hardening and measured optimisation only: no architecture rewrite, no new tool, no
+UI redesign. The starting point was the Phase 3 baseline (`c49dba1`, tag
+`pdfshush-phase-3-stable`): a clean tree, `pnpm -r typecheck` green, `pnpm test` **1215/1215**
+in 24.3 s, `pnpm build` green in 14.9 s, `pnpm test:bundle` green. Nothing in this phase was
+driven by "the suite is green"; every change below answers a profile, a benchmark or a real
+document.
+
+### 30.1 Method: profile first, change only what the numbers justify
+
+A temporary in-process harness (deleted before commit) opened a 128-page document built by
+copying the real BERT PDF eight times and timed each extraction phase separately. On that
+document the split was:
+
+| phase | share |
+| --- | --- |
+| `buildPageLayout` (grouping) | 34.8% |
+| pdf.js `getTextContent` | 25.1% |
+| glyph extraction | 21.6% |
+| image operator list | 17.6% |
+| `computeStructureConfidence` | 0.8% |
+
+This retired a standing suspicion: the Phase 3 `relations.ts` O(n²) pass is **not** hot
+(0.41 ms/page, 0.8% total), so it was left alone. A CPU profile put `dominantTypography`
+(6.73% self), GC (6.47%), the glyph loop (5.86%), `projectGlyph` (2.70%) and the ID hashers
+(≈6.5% combined) at the top. Only the first four were optimised — the IDs are the
+deterministic identity of the model, and changing them would break edits and history.
+
+### 30.2 Optimisations (each proved output-preserving)
+
+1. **`dominantTypography` memoises its key per typography object** (`group.ts`). Every glyph
+   of one pdf.js text item shares the same immutable `TextTypography`, so the `toFixed`
+   formatting is cached in a `WeakMap` instead of rebuilt per glyph. The key string is
+   byte-identical to the inline version, so weighted-mode tie-breaking is unchanged.
+2. **Single-glyph fast path.** A one-glyph run has one candidate; the weighted maps are
+   skipped and that typography returned. This is the common table-cell case and cannot
+   change the result.
+3. **`projectGlyph` is allocation-free.** The four corners are projected with scalars rather
+   than an array of point objects plus `Math.min(...)`, removing two allocations per glyph.
+4. **`coverageRatio` uses numeric cell keys** instead of `${cx},${cy}` strings, with a stride
+   (1,048,576) far above any real page's cell count. Only the count is consumed.
+5. **Glyph extraction hoists the whitespace regex** and drops `Array.from(char).length`,
+   because the input is already split per code point (`unicodeLength` is always 1).
+
+**Proof of equivalence.** The harness checksum over the 128 pages
+(`paragraphs×3 + lines×5 + tables×11`) was **112088 before and after every step**, and the
+Phase 3 layout benchmark's entire quality table is byte-identical to
+`tests/benchmarks/layout-benchmark-after.md`. The engine's 427 tests stayed green throughout
+(a scratch profiling test was deleted rather than committed).
+
+### 30.3 Before / after (same machine, controlled A/B)
+
+The two optimised files were reverted, measured three times, re-applied, and measured three
+times again on the Phase 3 layout benchmark (24-page dense document):
+
+| access pattern | before (median) | after (median) | change |
+| --- | --- | --- | --- |
+| one bulk extraction | 318 ms / 13.2 ms per page | 252 ms / 10.5 ms per page | ≈ −21% |
+| page-by-page (cached document) | 267 ms / 11.1 ms | 257 ms / 10.7 ms | ≈ −4% |
+| page-by-page (re-parse each call) | 306 ms / 12.7 ms | 260 ms / 10.8 ms | ≈ −15% |
+
+On the 128-page real-PDF harness, process CPU time fell from ≈11.5 s to ≈10.9 s (−4–5%) and
+wall time from 7.9–8.5 s to 7.3–7.5 s. The per-run spread is large (shared machine, pdf.js
+worker scheduling), so only the direction and the bulk-extraction medians are claimed; the
+strongest evidence remains the identical checksum and quality table.
+
+### 30.4 Native / worker lifecycle audit
+
+`pdfjsRuntime.ts`, `textedit/pdfium.ts`, `textedit/engine.ts`, `redact/redact.ts`,
+`redact/verify.ts` and the API runner/processor/host/store were re-read for pointer
+lifetimes, close/free paths, cache eviction and the redaction rebuild/verify ordering. No
+unsafe lifetime, double-free or fail-open path was found; PDFium object pointers are still
+documented as valid only until the next `generate`, the LRU is still bounded at three
+documents, and redaction still builds the output from scratch then verifies it. The two real
+defects were at the HTTP/temp-file boundary, not in the engines:
+
+- **`http/result-stream.ts` leaked a file handle on client disconnect.** `stream.pipe(response)`
+  unpipes when the response closes but never destroys the source, so the read stream's file
+  descriptor lived until GC. On Windows that open handle makes the janitor's later
+  `rm -rf` fail with `EPERM`. The response's `close` now destroys the source. Error handling
+  is unchanged.
+- **Directory deletes did not tolerate Windows' post-close handle lag.** `WorkDirStore`
+  used `{ recursive: true, force: true }` only; Node ignores `maxRetries` unless the delete
+  is recursive and the option is set, so a delete that raced a closing writer surfaced as
+  `EPERM`/`EBUSY`. `removeJob` and the janitor's job-directory sweep now use
+  `maxRetries: 10, retryDelay: 100`. The identical options were added to the API tests' own
+  temp-directory cleanups.
+
+### 30.5 Privacy: document text out of logs and verification details
+
+Four places could have written document content into a log, an error detail or a job
+diagnostic. All four were changed without touching any decision logic:
+
+- `textedit/engine.ts`: a reflow refusal quoted `line.text.slice(0, 40)`. It now reports the
+  line's **index**.
+- `redact/verify.ts`: two check details echoed surviving/forbidden text. They now report
+  **counts and positions in the caller's own list**. The `ok` computation and the fail-closed
+  policy are byte-for-byte unchanged.
+- `worker/processor.ts`: job-failure logging wrote `error.message`, which is the caller-facing
+  text and may quote the document. It now logs the stable error **code** and class name.
+- `worker/host.ts`: the `failed` handler did the same; it now parses the failure code with
+  `parseFailure` and logs that.
+
+A Phase 2.5 redaction test was extended to assert the failure details do not contain the
+sentinel secret, so this stays fixed.
+
+### 30.6 Observability without content
+
+`RunResult` now carries an optional `JobDiagnostics`: `durationMs`, `outputFiles`,
+`outputBytes`, `pageCount`, the text-edit **strategy mix** (`inPlace` / `contentStream` /
+`fallback` / `manualReview`, `nativeEngine`), the job's own `verified` flag and a
+`warningCount`. It is built by reading only fixed-shape numeric/boolean fields, counts
+warnings instead of copying them, and is forwarded by the processor to the host, which logs
+it in the `completed` record. A new runner test asserts every value is a number/boolean and
+that no document string rides along. The point is that a silent regression in the editing
+ladder or a redaction verification failure is now visible in structured logs without ever
+logging a document.
+
+### 30.7 The Windows `EPERM … rmdir` flake
+
+- **Reproduction:** `apps/api/test/v1.test.ts` intermittently failed with
+  `EPERM: operation not permitted, rmdir '…\pdfshush-v1-*\jobs\*'` under parallel load, and
+  passed on re-run or in isolation.
+- **Root cause:** the test's `afterEach` deleted its temp tree immediately after in-flight
+  HTTP responses; Windows releases the last handle a moment after the writer's promise
+  settles, so the recursive delete raced the close. It was a test/temp-file lifecycle issue,
+  not an engine or API logic failure (no job state was lost; a re-run was always clean).
+- **Fix:** retry only the documented transient codes (Node's `maxRetries`/`retryDelay` on
+  recursive deletes), in the store and in the eight API test cleanups.
+- **Evidence:** the v1 suite ran **8/8 clean** (≈1.5 s each) after the fix, and the full
+  `pnpm test` runs in this phase were green (1215, then 1216 with the new test). The retry is
+  a bounded, visible policy — it does not swallow a non-transient error, and the root cause
+  is recorded here rather than the failure being quietly ignored.
+
+### 30.8 Dependency, licensing and bundle audit
+
+- **Dependency licences.** 573 installed packages were scanned by `license` field: MIT 165,
+  ISC 12, Apache-2.0 12, MPL-2.0 4, BSD-3-Clause 3, BSD-2-Clause 2, 0BSD 1. **No GPL, AGPL,
+  LGPL, SSPL, BUSL, CC-BY-NC, Commons-Clause, proprietary or unknown licence.** The four
+  MPL-2.0 entries are `lightningcss` and its Windows binary — a build-time CSS transformer
+  used unmodified by Vite/Tailwind, not shipped in the app bundle. Direct runtime engines:
+  `@cantoo/pdf-lib` (MIT), `@embedpdf/pdfium` (MIT wrapper; the PDFium binary is
+  BSD-3-Clause, notices in `licenses/`), `pdfjs-dist` (Apache-2.0), `fflate` (MIT),
+  `signature_pad` (MIT), `bullmq` / `express` / `ioredis` / `jose` / `helmet` / `pino` /
+  `busboy` / `zod` (MIT), `mongodb` (Apache-2.0). The repository's own licence is
+  AGPL-3.0-or-later, which is a project decision, not a dependency.
+- **Workspace boundary.** `pnpm-workspace.yaml` covers `apps/*` and `packages/*` only.
+  `genoffice-main/` and `Stirling-PDF-main/` are gitignored, untracked reference trees; they
+  are not workspace members, contribute no dependency, and are not read by any build.
+- **Bundle boundary.** `pnpm test:bundle` is green: the main chunk is 138.1 kB with **0**
+  PDF-engine modules, the signature pad is in a lazy chunk, no lazy app chunk carries an
+  engine, and the engines still ship in the worker chunks.
+- **Supply-chain stance.** Build scripts stay deny-by-default (`esbuild` only; the optional
+  native `msgpackr-extract` accelerator remains off).
+
+### 30.9 Verification campaign (2026-11-03)
+
+| gate | result |
+| --- | --- |
+| `pnpm -r typecheck` | green |
+| `pnpm test` | **1216/1216** (pdf-core 427, api 209, web 39, provider 370, agent 152, mcp 19) |
+| `pnpm build` | green (11.2 s) |
+| `pnpm test:bundle` | green |
+| layout benchmark | quality table identical to Phase 3; latency improved (§30.3) |
+| `test:e2e:text-edit` | 8/8 |
+| `test:e2e:text-model` | all checks |
+| `test:e2e` (full smoke, incl. Redact PDF) | ALL CHECKS PASSED |
+| `test:e2e:plain-tools` | ALL PASS |
+| `test:e2e:forms-bookmarks` | ALL PASS |
+| `test:e2e:next-tools` | ALL PASS |
+| `test:e2e:bookmark-batch` | ALL PASS |
+| `test:e2e:dark-mode` | ok |
+| `test:api` | ALL CHECKS PASSED |
+| `test:hardening` (compose stack, `FILE_TTL_MS=20000`, `JANITOR_INTERVAL_MS=5000`) | **GATE PASSED** — SIGKILL mid-job, API survives, job settles, janitor removes the expired files, quota counters survive, worker recovers |
+
+The redaction tool was exercised by the full smoke suite (marks burned into pixels, no font
+object, no annotation/attachment tree, every page replaced by an image) and the Phase 2.5
+fail-closed verification tests remain green. No editing strategy, no redaction serialization
+and no verification gate was changed in this phase.
+
+### 30.10 Remaining limitations (measured; classified)
+
+- **Critical:** none open.
+- **High:** none open.
+- **Medium** — all carried over and documented, none regressed by this phase:
+  mixed-alignment tables are still refused rather than guessed; the IRS 1040 form still reads
+  as four columns (confidence ≈0.74); cross-page paragraphs are not joined; a footnote tail
+  above the margin band can still split; scanned documents are not OCR'd (a capability
+  boundary, disclosed in the editor).
+- **Low:** drop caps can detach their first letter (arXiv 1409.0473 `T`); vector figures are
+  not reported as regions (BERT p.2 gains heading labels from Figure 1 text); `rowSpan` /
+  `colSpan` remain 1; confidence AUROC is `n/a` on a 100%-correct synthetic corpus.
+- Deliberately not attempted in Phase 4: any change to ID hashing, table span
+  reconstruction, or redaction strategy. Each would alter model output or a security
+  boundary and belongs to a phase with its own benchmark.
+
+### 30.11 SHIP / NO-SHIP gate — **SHIP**
+
+Every gate above is green, the optimisations are output-preserving by checksum and by a
+byte-identical benchmark, the two real defects found by the audit are fixed, no dependency
+carries a copyleft/proprietary licence, and the redaction/editing guarantees are intact. The
+remaining limitations are measured, disclosed and unchanged from Phase 3. The Windows temp-dir
+flake is understood and bounded rather than suppressed. Phase 4 ships on `main`; no further
+phase was started.
+
+**Result.** `pnpm -r typecheck` green, `pnpm test` **1216/1216**, `pnpm build` green,
+`pnpm test:bundle` green, full browser E2E campaign green, containerised hardening gate
+passed. Files changed: `document/group.ts`, `document/glyphs.ts` (optimisations),
+`textedit/engine.ts`, `redact/verify.ts` (privacy of details), `http/result-stream.ts`,
+`files/store.ts` (lifecycle/retry), `jobs/runner.ts`, `worker/processor.ts`,
+`worker/host.ts` (content-free diagnostics + safe logging), and the API test cleanups.
