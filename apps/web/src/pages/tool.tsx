@@ -7,16 +7,19 @@ import { ChatWithPdfTool } from '@/components/tools/chat-with-pdf-tool';
 import { CropTool } from '@/components/tools/crop-tool';
 import { DarkModePdfTool } from '@/components/tools/dark-mode-pdf-tool';
 import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
-import { EditPdfTool } from '@/components/tools/edit-pdf-tool';
+import {
+  EditPdfTool,
+  FillSignTool,
+  OrganizePdfTool,
+  RedactPdfTool,
+} from '@/components/tools/edit-pdf-tool';
 import { EditPdfWithAiTool } from '@/components/tools/edit-pdf-with-ai-tool';
 import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
 import { NUpTool } from '@/components/tools/n-up-tool';
-import { OrganizeTool } from '@/components/tools/organize-tool';
 import { ProtectPdfTool } from '@/components/tools/protect-pdf-tool';
 import { PdfToImagesTool } from '@/components/tools/pdf-to-images-tool';
 import { RotateTool } from '@/components/tools/rotate-tool';
-import { RedactTool } from '@/components/tools/redact-tool';
 import { SplitByPagesTool } from '@/components/tools/split-by-pages-tool';
 import { SplitHalfTool } from '@/components/tools/split-half-tool';
 import { EditMetadataTool } from '@/components/tools/edit-metadata-tool';
@@ -59,11 +62,12 @@ import { getTool, liveTools, type ToolDef } from '@/tools/registry';
 // The studio visual system is tool-page-only: it ships in this lazy chunk, so
 // the landing page never pays for it.
 import '@/studio.css';
+import '@/editor-shared.css';
 
 /** Live tool bodies, keyed by slug. Add a tool here when its job lands. */
 const LIVE_BODIES: Record<string, ComponentType> = {
   'merge-pdf': MergeTool,
-  'organize-pdf': OrganizeTool,
+  'organize-pdf': OrganizePdfTool,
   'pdf-to-jpg': PdfToImagesTool,
   'delete-pages': DeletePagesTool,
   'extract-pages': ExtractPagesTool,
@@ -76,11 +80,11 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'header-footer': HeaderFooterTool,
   'n-up': NUpTool,
   'edit-pdf': EditPdfTool,
-  'redact-pdf': RedactTool,
+  'redact-pdf': RedactPdfTool,
   'summarize-pdf': SummarizePdfTool,
   'chat-with-pdf': ChatWithPdfTool,
   'edit-pdf-with-ai': EditPdfWithAiTool,
-  'fill-sign': () => <EditPdfTool variant="fill-sign" />,
+  'fill-sign': FillSignTool,
   signature: SignatureTool,
   api: ApiToolPage,
   mcp: McpToolPage,

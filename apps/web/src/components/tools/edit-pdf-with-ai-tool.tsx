@@ -1,14 +1,12 @@
-import { AiWorkspace } from '@/components/ai/ai-workspace';
+import { PdfEditorWorkspace } from '@/components/tools/edit-pdf-tool';
 
 /**
- * Edit PDF with AI: ask for changes in plain language, review the queued edits,
- * then apply them through the engine.
+ * Edit PDF with AI is the shared editor with the assistant capability active.
  *
- * The model only *proposes*: it reads the document text and queues edits, shown
- * as a review list with a live preview of each change. "Apply" runs them through
- * the existing `edit`, `organize` and `stamp` jobs (each of which validates its
- * own input and output) and hands back a new PDF. Nothing is written until then.
+ * It loads the same document session, viewport, page rail and history as the
+ * manual editor. The assistant only proposes; the review ledger applies through
+ * the same engine, and the result panel is the same export surface.
  */
 export function EditPdfWithAiTool() {
-  return <AiWorkspace variant="edit" />;
+  return <PdfEditorWorkspace mode="ai" />;
 }

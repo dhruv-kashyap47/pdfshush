@@ -20,7 +20,8 @@ import {
 } from '@pdfshush/pdf-core';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TextLayer } from '@/components/editor/text-layer';
-import type { EditorTool } from '@/components/editor/editor-toolbar';
+import type { EditorTool } from '@/lib/editor-tools';
+import type { EditorProposalMarker } from '@/lib/editor-tools';
 import type { ParagraphEditState, TextSelectionState } from '@/lib/text-editing';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +55,12 @@ export interface EditorPageProps {
   formValues: Record<string, string | boolean>;
   /** True while a save is in flight: the document is frozen, not lost. */
   readOnly?: boolean;
+  /** Read-only overlay of proposed changes (AI review), in display space. */
+  proposals?: EditorProposalMarker[];
+  /** Redaction workspace: expose the mark surface and stable test ids. */
+  redactMode?: boolean;
+  /** Whether this is the page the viewport/status currently reports. */
+  active?: boolean;
 
   onSelect: (id: string | null) => void;
   onStartEdit: (id: string) => void;
@@ -166,6 +173,18 @@ function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorO
         width: Math.max(rect.width, 40),
         height: Math.max(rect.height, 30),
       };
+    case 'redact':
+      // A redaction mark is visually the burn: opaque black. The engine still
+      // rebuilds the page; this rectangle is only the review geometry.
+      return {
+        ...base,
+        kind: 'rect',
+        fill: '#000000',
+        stroke: '#b91c1c',
+        strokeWidth: 1,
+        width: Math.max(rect.width, 12),
+        height: Math.max(rect.height, 8),
+      };
     case 'line':
     case 'arrow':
       return { ...base, kind: tool, stroke: DEFAULT_COLORS.ink, strokeWidth: 1.5 };
@@ -186,6 +205,8 @@ function defaultRectFor(tool: EditorTool, x: number, y: number): Rect {
     case 'rect':
     case 'ellipse':
       return { x, y, width: 120, height: 80 };
+    case 'redact':
+      return { x, y, width: 160, height: 18 };
     case 'line':
     case 'arrow':
       return { x, y, width: 140, height: 0 };
@@ -312,6 +333,9 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     widgets,
     formValues,
     readOnly = false,
+    proposals,
+    redactMode = false,
+    active = false,
   } = props;
 
   // One spatial model per extracted layout. Memoized here (rather than in the
@@ -498,6 +522,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       p.onSelect(null);
       return;
     }
+    if (p.tool === 'ai') return;
     if (p.tool === 'image') {
       p.onImageRequested(point);
       return;
@@ -553,6 +578,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       className="editor-document-page mx-auto mb-10"
       data-testid={`editor-page-${pageIndex}`}
       data-page-anchor={pageIndex}
+      data-active={active || undefined}
     >
       <div
         ref={containerRef}
@@ -571,7 +597,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
         {rasterUrl ? (
           <img
             src={rasterUrl}
-            alt={`Page ${pageIndex + 1}`}
+            alt={`Document page ${pageIndex + 1}`}
             draggable={false}
             className="pointer-events-none absolute inset-0 h-full w-full"
             data-testid="editor-page-raster"
@@ -579,6 +605,17 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
         ) : (
           <Skeleton className="absolute inset-0 h-full w-full rounded-none" data-testid="editor-page-loading" />
         )}
+
+        {/* Redaction review surface. Invisible and pointer-transparent: the page
+            itself owns the gesture, this layer only gives the E2E/UI a stable
+            target and an explicit statement that marks are destructive. */}
+        {redactMode ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-[1]"
+            data-testid={`redact-page-${pageIndex}`}
+            aria-hidden
+          />
+        ) : null}
 
         {/* Structured text: hover, block/paragraph selection, drag selection and
             the inline paragraph editor. It sits below widgets and objects so
@@ -631,6 +668,26 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             ))
           : null}
 
+        {proposals && proposals.length > 0
+          ? proposals
+              .filter((proposal) => proposal.pageIndex === pageIndex)
+              .map((proposal) => (
+                <div
+                  key={`proposal-${proposal.id}`}
+                  className="editor-proposal-marker"
+                  data-tone={proposal.tone}
+                  data-testid="editor-ai-marker"
+                  aria-hidden
+                  style={{
+                    left: proposal.x * zoom,
+                    top: proposal.y * zoom,
+                    width: Math.max(2, proposal.width * zoom),
+                    height: Math.max(2, proposal.height * zoom),
+                  }}
+                />
+              ))
+          : null}
+
         {pageObjects.map((object) => (
           <ObjectView
             key={object.id}
@@ -639,6 +696,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             selected={object.id === selectedId}
             editing={object.id === editingId}
             interactive={tool === 'select' && !readOnly}
+            redactMode={redactMode}
             onSelect={props.onSelect}
             onStartEdit={props.onStartEdit}
             onEditText={props.onEditText}
@@ -678,6 +736,7 @@ interface ObjectViewProps {
   selected: boolean;
   editing: boolean;
   interactive: boolean;
+  redactMode?: boolean;
   onSelect: (id: string | null) => void;
   onStartEdit: (id: string) => void;
   onEditText: (id: string, text: string) => void;
@@ -692,6 +751,7 @@ function ObjectView({
   selected,
   editing,
   interactive,
+  redactMode = false,
   onSelect,
   onStartEdit,
   onEditText,
@@ -783,10 +843,16 @@ function ObjectView({
         interactive && !selected && !editing &&
           'hover:outline hover:outline-1 hover:outline-blue-500/40 hover:outline-offset-1',
         selected && !editing &&
-          'outline-2 outline-blue-600 outline-offset-2 shadow-[0_0_0_4px_rgba(37,99,235,0.12)]',
+          (object.kind === 'rect' && object.fill === '#000000'
+            ? 'outline-2 outline-red-600 outline-offset-2 shadow-[0_0_0_4px_rgba(220,38,38,0.14)]'
+            : 'outline-2 outline-blue-600 outline-offset-2 shadow-[0_0_0_4px_rgba(37,99,235,0.12)]'),
       )}
       style={style}
-      data-testid={`editor-object-${object.kind}`}
+      data-testid={
+        redactMode && object.kind === 'rect'
+          ? `redact-mark-${object.pageIndex}-${object.id}`
+          : `editor-object-${object.kind}`
+      }
       data-object-id={object.id}
       onPointerDown={onPointerDown}
       onDoubleClick={() => {

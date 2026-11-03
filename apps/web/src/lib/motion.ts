@@ -43,6 +43,24 @@ export const DUR = {
   slow: 720,
 } as const;
 
+/**
+ * Application motion tokens (editor, panels, menus).
+ *
+ * These are deliberately shorter than the marketing scale: an editor is used
+ * for hours, and a 400 ms panel every time a tool changes becomes fatigue.
+ * Fast interaction 100-160 ms, standard 180-260 ms, complex 280-400 ms.
+ */
+export const UI = {
+  /** Press, hover settle, toggle. */
+  micro: 120,
+  /** Tool switch, chip, selection feedback. */
+  fast: 160,
+  /** Inspector and contextual bar. */
+  standard: 220,
+  /** Page rail, review ledger, result panel. */
+  complex: 360,
+} as const;
+
 /* ── Reduced motion ────────────────────────────────────────────────────── */
 
 let reducedCache: boolean | null = null;

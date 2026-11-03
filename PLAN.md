@@ -5250,3 +5250,84 @@ milestone never ships a target invented before the first measurement — exactly
 One commit per workstream (M5.0…M5.8), each stating the evidence it adds. The status board gains a
 Milestone 5 row the moment M5.0 lands; until then the gate above stays the Phase 4 **SHIP** result and
 nothing in this section is claimed as delivered.
+
+---
+
+## 32. Shared editor workspace and interaction pass (2026-11-03)
+
+**Goal.** One PDF editor for the product. Text editing, Edit with AI, redaction and page
+organisation now open the same document session, viewport, selection model, undo history and export
+surface. The proven PDF engine, the redaction serialization and every fail-closed verification gate
+are unchanged.
+
+### 32.1 What the audit found
+
+- One real editor (`edit-pdf-tool`) already owned the page rasters, text model, overlay document and
+  history, but Edit with AI, Redact and Organize each shipped a separate document surface, state and
+  save path.
+- The toolbar was a flat 12-button row with every control visible at once, the inspector was
+  object-only, and there was no page rail.
+- Motion tokens and React Bits were absent from the editor. The existing anime.js system was used
+  only by marketing and the AI studio.
+
+### 32.2 Architecture
+
+- `lib/editor-tools.ts` is the capability registry: tool id, group, shortcut, icon and declared
+  capability (selection kind, contextual controls, history, export pipeline, workspace membership).
+- `lib/editor-session.ts` is the shared session: tool, zoom, current page, selection, page order,
+  overlay document, undo/redo and save status. Every mode reads and writes this one session.
+- `components/editor/editor-chrome.tsx` owns the top bar, vertical tool rail, contextual bar, page
+  rail and status bar. All presentational; no component opens a second document.
+- `components/editor/editor-ai-panel.tsx` hosts the assistant in the shared inspector. It receives
+  the workspace's file, page and text selection; proposals are read-only overlays in the same
+  viewport and only apply through the existing `applyEditPlan` engine path.
+- `editor-page.tsx` gained read-only proposal overlays and redaction review geometry, but its
+  gesture/rendering contract is unchanged.
+
+Mode switching keeps the open document, zoom, page, overlay objects and history. Redaction marks are
+ordinary display-space geometry that the redact job receives as `RedactRegion`s; the engine still
+rebuilds and verifies every page. Organize uses the same rail and sends an explicit `PageRef[]` to the
+existing organize job.
+
+### 32.3 Interaction and visual system
+
+- Fixed application frame: document first, one quiet tool rail, one contextual bar, compact page
+  rail, contextual inspector and a 30 px status bar.
+- Six motion tokens in `lib/motion.ts` (`UI.micro` 120 ms to `UI.complex` 360 ms). The active-tool
+  indicator, contextual content, inspector content and proposal counts use anime.js through the
+  existing scope/cleanup wrapper. `prefers-reduced-motion` collapses all of it.
+- React Bits `SpotlightCard` is vendored (TS + Tailwind) and bound to the theme. `AnimatedContent`
+  and `CountUp` keep the React Bits API but use anime.js because the official variants require GSAP
+  and `motion/react`, which are not dependencies. No component sits above a page pointer target.
+- The AI editor's existing frontispiece and export receipt were preserved inside the new flow:
+  `AiCover` and `AiExport` still carry `StudioWaves` (the React Bits `GradientWaves` shader) and
+  their anime.js entrance timelines. The cover is shown before a document is open; the receipt is
+  shown after the proposal ledger is applied. The in-editor assistant rail adds a quiet emerald wash
+  rather than a second shader, so the document itself stays the hero.
+- Keyboard: V/S select, T text, H highlight, A assistant, R redact, Ctrl+Z/Y, Ctrl+S, Ctrl+0,
+  Ctrl +/- and arrow nudges. Focus is visible, the confirm dialog autofocuses and closes on Escape.
+
+### 32.4 Verification
+
+| gate | result |
+| --- | --- |
+| `pnpm -r typecheck` | green |
+| `pnpm test` | **1224/1224** (web 46) |
+| `pnpm build` | green |
+| `pnpm test:bundle` | green (main chunk 138.1 kB, 0 engines) |
+| `test:e2e:text-edit` | all checks |
+| `test:e2e:text-model` | all checks |
+| `test:e2e:sign` | all checks |
+| `test:e2e:ai` | all checks |
+| `test:e2e:ai-managed` | all checks |
+| `test:e2e` (full smoke incl. editor, Organize, Redact) | **ALL CHECKS PASSED** |
+
+### 32.5 Deliberate boundaries
+
+- AI proposals are a review ledger, not a silent mutation. Manual edits and AI proposals do not share
+  a single undo step because applying the ledger writes a new document; the ledger itself supports
+  per-change discard and the engine result is re-parsed before download.
+- Redaction remains destructive by design and still rebuilds every page. The shared editor makes the
+  loss visible before confirmation rather than changing the security boundary.
+- Page organisation exports page order only. If manual overlay objects exist, the inspector says so
+  explicitly; it never silently claims they were included.

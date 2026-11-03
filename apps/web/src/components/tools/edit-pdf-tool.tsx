@@ -27,16 +27,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import {
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  FileUp,
-  Loader2,
-  MousePointer2,
-  X,
-} from 'lucide-react';
+import { Loader2, Settings2, ShieldAlert, Sparkles, Type as TypeIcon } from 'lucide-react';
 import {
   JobAbortedError,
   LIMITS,
@@ -47,18 +38,41 @@ import {
   type EditTextObject,
   type FormWidgetInfo,
   type InspectOutput,
+  type OrganizeJobOutput,
   type PageLayout,
+  type PageRef,
   type PageTextCapability,
   type Paragraph,
+  type RedactJobOutput,
   type TextEdit,
   type TextEditJobOutput,
   type TextRun,
   type TextRunsOutput,
   type ThumbnailsOutput,
 } from '@pdfshush/pdf-core';
+import {
+  EditorContextBar,
+  EditorPageRail,
+  EditorStatusBar,
+  EditorToolRail,
+  EditorTopBar,
+  editorStepZoom,
+} from '@/components/editor/editor-chrome';
+import { EditorAiPanel } from '@/components/editor/editor-ai-panel';
+import { AnimatedContent } from '@/components/reactbits/animated-content';
+import { AiCover } from '@/components/ai/ai-cover';
+import { AiExport } from '@/components/ai/ai-export';
+import { AI_EDIT_COPY } from '@/components/ai/ai-workspace';
+import { AiSettingsCard } from '@/components/ai/ai-settings-card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type { AiSettings } from '@pdfshush/ai-provider/browser';
+import { proposeSensitiveRegions } from '@/lib/ai/redaction-propose';
+import { managedAsk } from '@/lib/ai/ask';
+import { managedAvailable } from '@/lib/ai/managed';
+import { aiReady, loadAiSettings, loadAiState, saveAiSettings } from '@/lib/ai/settings';
+import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
 import { EditorInspector } from '@/components/editor/editor-inspector';
 import { EditorPage } from '@/components/editor/editor-page';
-import { EditorToolbar, stepZoom, type EditorTool } from '@/components/editor/editor-toolbar';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
 import { ResultPanel } from '@/components/tools/result-panel';
@@ -71,11 +85,19 @@ import {
 } from '@/lib/audit-sidecar';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBlob, downloadBytes } from '@/lib/download';
-import { formatPercent } from '@/lib/format';
 import { readAsInputFiles, PDF_ACCEPT } from '@/lib/files';
-import { useEditorDoc } from '@/lib/editor-state';
+import { useEditorSession } from '@/lib/editor-session';
 import type { EditorDoc } from '@/lib/editor-state';
+import {
+  defaultToolForMode,
+  toolsForMode,
+  type EditorMode,
+  type EditorProposalMarker,
+  type EditorTool,
+} from '@/lib/editor-tools';
 import { jobPool } from '@/lib/job-pool';
+import { UI } from '@/lib/motion';
+import type { AiPlanApplyResult } from '@/lib/ai/edit-skill';
 import {
   SIGNATURE_LABEL_MAX_CHARS,
   sanitizeSignatureLabel,
@@ -140,7 +162,15 @@ const NO_WIDGETS: FormWidgetInfo[] = [];
 const NO_FORM_VALUES: Record<string, string | boolean> = {};
 const NO_PARAGRAPHS: Paragraph[] = [];
 
-const KEY_TOOLS: Record<string, EditorTool> = { s: 'select', t: 'text', i: 'image', h: 'highlight' };
+const KEY_TOOLS: Record<string, EditorTool> = {
+  v: 'select',
+  s: 'select',
+  t: 'text',
+  i: 'image',
+  h: 'highlight',
+  a: 'ai',
+  r: 'redact',
+};
 
 let objectCounter = 0;
 function newObjectId(): string {
@@ -244,20 +274,54 @@ function usePageBuckets<T extends { pageIndex: number }>(items: readonly T[]): M
   }, [items]);
 }
 
-export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sign' } = {}) {
+export function EditPdfTool() {
+  return <PdfEditorWorkspace mode="edit" />;
+}
+
+export function FillSignTool() {
+  return <PdfEditorWorkspace mode="sign" />;
+}
+
+export function RedactPdfTool() {
+  return <PdfEditorWorkspace mode="redact" />;
+}
+
+export function OrganizePdfTool() {
+  return <PdfEditorWorkspace mode="organize" />;
+}
+
+/**
+ * The one PDF editor workspace in the product.
+ *
+ * `mode` selects which capability set is active and which export pipeline the
+ * final action uses. The document session, viewport, selection, history and
+ * page model are identical in every mode.
+ */
+export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) {
+  const [mode, setMode] = useState<EditorMode>(initialMode);
   // Fill & Sign is the same editor wearing its signing hat: signature mode
   // opens first, the save action exports with an audit note, and the copy
   // speaks honestly about what signing attests to (D1).
-  const isSign = variant === 'fill-sign';
+  const isSign = mode === 'sign';
+  const isRedact = mode === 'redact';
+  const isOrganize = mode === 'organize';
+  const isAi = mode === 'ai';
   const [files, setFiles] = useState<File[]>([]);
   const [info, setInfo] = useState<DocInfo | null>(null);
   const [stage, setStage] = useState<'idle' | 'preparing' | 'editing'>('idle');
-  const editor = useEditorDoc();
-  const [tool, setTool] = useState<EditorTool>(isSign ? 'signature' : 'select');
-  const [zoom, setZoom] = useState(1);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const editor = useEditorSession(initialMode);
+  const {
+    tool,
+    setTool,
+    zoom,
+    currentPage,
+    setCurrentPage,
+    selectedId,
+    setSelectedId,
+    editingId,
+    setEditingId,
+    setZoom,
+  } = editor;
   const [rasters, setRasters] = useState<Record<number, { url: string; widthPx: number }>>({});
   const [runsByPage, setRunsByPage] = useState<Record<number, TextRun[]>>({});
   /** Structured page layouts, fetched alongside the legacy runs. */
@@ -272,9 +336,31 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     blockId: string;
   } | null>(null);
   const [paragraphEdit, setParagraphEdit] = useState<ParagraphEditState | null>(null);
+  /** Redaction review confirmation: never run the destructive job without it. */
+  const [confirmRedact, setConfirmRedact] = useState(false);
+  /** Page rail multi-selection (organise mode). */
+  const [selectedPages, setSelectedPages] = useState<Set<number>>(() => new Set());
+  /** AI proposals are read-only overlays until the ledger is applied. */
+  const [aiMarkers, setAiMarkers] = useState<EditorProposalMarker[]>([]);
+  const [aiChangedPages, setAiChangedPages] = useState<number[]>([]);
+  const [aiChangeCount, setAiChangeCount] = useState(0);
+  const [aiResult, setAiResult] = useState<AiPlanApplyResult | null>(null);
+  const [aiResultPages, setAiResultPages] = useState<number | null>(null);
+  const [redactAiSettings, setRedactAiSettings] = useState<AiSettings>(() => loadAiSettings());
+  const [redactAiMode, setRedactAiMode] = useState<AiMode>(() => loadAiMode());
+  const [redactAiManaged, setRedactAiManaged] = useState(false);
+  const [redactAiOpen, setRedactAiOpen] = useState(false);
+  const [findingSensitive, setFindingSensitive] = useState(false);
+  const [sensitiveError, setSensitiveError] = useState<string | null>(null);
+  const findAbort = useRef<AbortController | null>(null);
+  const pageOrder = editor.pageOrder;
+  const setPageOrder = editor.setPageOrder;
+  const pageOrderDirty = editor.pageOrderDirty;
 
   const inspectRunner = useJobRunner<InspectOutput>('inspect');
   const editRunner = useJobRunner<TextEditJobOutput>('text-edit');
+  const redactRunner = useJobRunner<RedactJobOutput>('redact');
+  const organizeRunner = useJobRunner<OrganizeJobOutput>('organize');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageScrollFrame = useRef<number | null>(null);
@@ -408,8 +494,38 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
 
   const inspectState = inspectRunner.state;
   const editState = editRunner.state;
-  const saving = editState.status === 'running';
+  const redactState = redactRunner.state;
+  const organizeState = organizeRunner.state;
+  const saving =
+    editState.status === 'running' ||
+    redactState.status === 'running' ||
+    organizeState.status === 'running';
   savingRef.current = saving;
+
+  // Redaction's AI assist uses the same connection settings as the assistant.
+  // Hydration is asynchronous (IndexedDB), so the panel starts with the
+  // synchronous snapshot and adopts the stored state when it arrives.
+  useEffect(() => {
+    let alive = true;
+    void loadAiState().then((state) => {
+      if (!alive) return;
+      setRedactAiSettings(state.settings);
+      setRedactAiMode(state.mode);
+    });
+    void managedAvailable().then((ok) => {
+      if (alive) setRedactAiManaged(ok);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  useEffect(() => () => findAbort.current?.abort(), []);
+
+  // On a phone the page rail is an overlay. Start it closed so the document is
+  // the first thing on screen; the rail button opens it.
+  useEffect(() => {
+    if (window.matchMedia?.('(max-width: 1023px)').matches) editor.toggleRail(false);
+  }, [editor.toggleRail]);
 
   /* ------------------------------------------------------------ rasters */
 
@@ -689,12 +805,33 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     lastSignatureMethodRef.current = 'drawn';
     setAuditNote(null);
     setAuditNoteError(null);
+    setConfirmRedact(false);
+    setSelectedPages(new Set());
+    setAiMarkers([]);
+    setAiChangedPages([]);
+    setAiChangeCount(0);
+    setAiResult(null);
+    setAiResultPages(null);
+    editor.resetPageOrder(0);
     // Without this, the next document would inherit the previous one's objects
     // (and their page indexes).
     editor.reset();
+    editor.setTool(defaultToolForMode(mode));
     editRunner.reset();
+    redactRunner.reset();
+    organizeRunner.reset();
     inspectRunner.reset();
-  }, [editor.reset, editRunner.reset, inspectRunner.reset, invalidateDocumentCaches]);
+  }, [
+    editor.reset,
+    editor.resetPageOrder,
+    editor.setTool,
+    mode,
+    editRunner.reset,
+    redactRunner.reset,
+    organizeRunner.reset,
+    inspectRunner.reset,
+    invalidateDocumentCaches,
+  ]);
 
   // Blob URLs die with the component even if nobody pressed "start over".
   useEffect(
@@ -751,6 +888,14 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     // file's page 1.
     invalidateDocumentCaches();
     editor.reset();
+    editor.resetPageOrder(doc.pageCount);
+    editor.setTool(defaultToolForMode(mode));
+    setAiMarkers([]);
+    setAiChangedPages([]);
+    setAiChangeCount(0);
+    setAiResult(null);
+    setAiResultPages(null);
+    setSelectedPages(new Set());
     savedDocRef.current = null;
     setFiles(incoming);
     fileRef.current = file;
@@ -842,7 +987,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
           break;
         }
       }
-      setCurrentPage((previous) => (previous === next ? previous : next));
+      setCurrentPage(next);
     });
   }, []);
 
@@ -869,7 +1014,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     const container = scrollRef.current;
     if (!container || container.clientWidth === 0) return;
     setZoom(computeFitZoom(container, info.pages));
-  }, [stage, info, computeFitZoom]);
+  }, [stage, info, computeFitZoom, editor.railOpen]);
 
   // Warm the structured text model around the current page. Extraction is
   // incremental by page: opening a 500-page book must not parse every page just
@@ -1428,6 +1573,304 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     selectedIndex >= 0 && selectedIndex < editor.doc.objects.length - 1 && !saving;
   const canSendBack = selectedIndex > 0 && !saving;
 
+  /* ------------------------------------------------------- shared capabilities */
+
+  /**
+   * Switching workspace keeps the same document session. Only the capability
+   * surface changes: the file, viewport, zoom, history and overlay document are
+   * untouched, so a tool hand-off never re-parses or loses work.
+   */
+  const changeMode = useCallback(
+    (next: EditorMode) => {
+      if (saving || next === mode) return;
+      setMode(next);
+      setTool(defaultToolForMode(next));
+      setConfirmRedact(false);
+      setSelectedPages(new Set());
+    },
+    [mode, saving, setTool],
+  );
+
+  /** The page order the viewport paints. Falls back to source order while loading. */
+  const displayPages = useMemo(() => {
+    const pages = info?.pages ?? [];
+    if (pageOrder.length === 0) return pages;
+    const mapped = pageOrder
+      .map((index) => pages[index])
+      .filter((page): page is DocInfo['pages'][number] => Boolean(page));
+    return mapped.length > 0 ? mapped : pages;
+  }, [info, pageOrder]);
+
+  const currentDisplayPosition = Math.max(
+    0,
+    displayPages.findIndex((page) => page.index === currentPage),
+  );
+
+  const reorderPages = useCallback(
+    (from: number, to: number) => {
+      if (saving) return;
+      const next = [...pageOrder];
+      const [moved] = next.splice(from, 1);
+      if (moved === undefined) return;
+      next.splice(to, 0, moved);
+      setPageOrder(next);
+    },
+    [pageOrder, saving, setPageOrder],
+  );
+
+  const deletePages = useCallback(
+    (indexes: number[]) => {
+      if (saving) return;
+      const drop = new Set(indexes);
+      const next = pageOrder.filter((index) => !drop.has(index));
+      if (next.length === 0) {
+        toast.error('A document needs at least one page.');
+        return;
+      }
+      setPageOrder(next);
+      setSelectedPages((previous) => {
+        const copy = new Set(previous);
+        for (const index of drop) copy.delete(index);
+        return copy;
+      });
+      if (drop.has(currentPage)) setCurrentPage(next[0]!);
+    },
+    [currentPage, pageOrder, saving, setCurrentPage, setPageOrder],
+  );
+
+  const duplicatePage = useCallback(
+    (index: number) => {
+      if (saving) return;
+      const position = pageOrder.indexOf(index);
+      if (position < 0) return;
+      const next = [...pageOrder];
+      next.splice(position + 1, 0, index);
+      setPageOrder(next);
+    },
+    [pageOrder, saving, setPageOrder],
+  );
+
+  const togglePageSelected = useCallback((index: number) => {
+    setSelectedPages((previous) => {
+      const next = new Set(previous);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
+
+  /** Rect objects are the review geometry for the redaction pipeline. */
+  const redactMarks = useMemo(
+    () =>
+      editor.doc.objects.filter(
+        (object): object is Extract<EditorObject, { kind: 'rect' | 'ellipse' }> =>
+          object.kind === 'rect',
+      ),
+    [editor.doc.objects],
+  );
+
+  const runRedact = useCallback(async () => {
+    const file = fileRef.current;
+    if (!file || redactRunner.state.status === 'running' || redactMarks.length === 0) return;
+    const regions = redactMarks.map((mark) => ({
+      pageIndex: mark.pageIndex,
+      x: mark.x,
+      y: mark.y,
+      width: mark.width,
+      height: mark.height,
+    }));
+    const pageCount = infoRef.current?.pageCount ?? 0;
+    const verdict = checkClientCapacity({ fileCount: 1, totalBytes: file.size, pageCount });
+    if (!verdict.ok) {
+      toast.error(verdict.message);
+      return;
+    }
+    setConfirmRedact(false);
+    const outcome = await redactRunner.run(
+      await readAsInputFiles([file]),
+      {
+        regions,
+        outputName: `${file.name.replace(/\.pdf$/i, '')}-redacted`,
+      },
+      { timeoutMs: timeoutForPageCount(pageCount) },
+    );
+    if (!outcome.ok) {
+      if (!outcome.aborted) toast.error(outcome.message);
+      return;
+    }
+    void recordRecent({
+      toolSlug: 'redact-pdf',
+      toolName: 'Redact PDF',
+      fileName: outcome.result.name,
+      pageCount: outcome.result.pageCount,
+      sizeBytes: outcome.result.data.byteLength,
+    });
+  }, [redactMarks, redactRunner]);
+
+  const effectiveRedactAiMode: AiMode =
+    redactAiMode === 'managed' && redactAiManaged ? 'managed' : 'byok';
+  const redactAiUsable =
+    effectiveRedactAiMode === 'managed' ? true : aiReady(redactAiSettings);
+
+  /**
+   * AI-assisted redaction keeps the old contract: the model only proposes
+   * regions from document text, those regions enter the review surface as
+   * ordinary marks, and nothing is destroyed until the explicit confirmation.
+   */
+  const findSensitive = useCallback(async () => {
+    const file = fileRef.current;
+    if (!file || findingSensitive || savingRef.current) return;
+    if (!redactAiUsable) {
+      setRedactAiOpen(true);
+      return;
+    }
+    setFindingSensitive(true);
+    setSensitiveError(null);
+    const controller = new AbortController();
+    findAbort.current = controller;
+    try {
+      const runs = await jobPool.run<TextRunsOutput>(
+        'text-runs',
+        await readAsInputFiles([file]),
+        {},
+        { signal: controller.signal },
+      );
+      const outcome = await proposeSensitiveRegions(runs.runs, {
+        settings: redactAiSettings,
+        ...(effectiveRedactAiMode === 'managed' ? { ask: managedAsk } : {}),
+        signal: controller.signal,
+      });
+      if (outcome.error) {
+        setSensitiveError(outcome.error);
+        return;
+      }
+      if (outcome.regions.length === 0) {
+        toast.info('AI found no sensitive data in this document.');
+        return;
+      }
+      const additions: EditorObject[] = [];
+      const existing = editor.doc.objects;
+      for (const region of outcome.regions) {
+        const duplicate = existing.some(
+          (object) =>
+            object.kind === 'rect' &&
+            object.pageIndex === region.pageIndex &&
+            Math.abs(object.x - region.x) < 1 &&
+            Math.abs(object.y - region.y) < 1 &&
+            Math.abs(object.width - region.width) < 1,
+        );
+        if (duplicate) continue;
+        additions.push({
+          id: newObjectId(),
+          kind: 'rect',
+          pageIndex: region.pageIndex,
+          x: region.x,
+          y: region.y,
+          width: Math.max(6, region.width),
+          height: Math.max(6, region.height),
+          fill: '#000000',
+          stroke: '#b91c1c',
+          strokeWidth: 1,
+        });
+      }
+      if (existing.length + additions.length > LIMITS.tool.maxEditObjects) {
+        toast.error(`This document already has ${LIMITS.tool.maxEditObjects.toLocaleString()} objects`);
+        return;
+      }
+      if (additions.length > 0) {
+        editor.apply((doc) => ({ ...doc, objects: [...doc.objects, ...additions] }));
+      }
+      toast.success(
+        `AI proposed ${additions.length} area${additions.length === 1 ? '' : 's'} from ${outcome.offered} text runs. Review, then redact.`,
+      );
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setSensitiveError(cause instanceof Error ? cause.message : String(cause));
+      }
+    } finally {
+      setFindingSensitive(false);
+      findAbort.current = null;
+    }
+  }, [
+    editor,
+    effectiveRedactAiMode,
+    findingSensitive,
+    redactAiSettings,
+    redactAiUsable,
+  ]);
+
+  const runOrganize = useCallback(async () => {
+    const file = fileRef.current;
+    if (!file || organizeRunner.state.status === 'running') return;
+    const verdict = checkClientCapacity({
+      fileCount: 1,
+      totalBytes: file.size,
+      pageCount: pageOrder.length,
+    });
+    if (!verdict.ok) {
+      toast.error(verdict.message);
+      return;
+    }
+    const refs: PageRef[] = pageOrder.map((pageIndex) => ({ docIndex: 0, pageIndex }));
+    const outcome = await organizeRunner.run(
+      await readAsInputFiles([file]),
+      {
+        pageOrder: refs,
+        outputName: `${file.name.replace(/\.pdf$/i, '')}-organized`,
+      },
+      { timeoutMs: timeoutForPageCount(pageOrder.length) },
+    );
+    if (!outcome.ok) {
+      if (!outcome.aborted) toast.error(outcome.message);
+      return;
+    }
+    void recordRecent({
+      toolSlug: 'organize-pdf',
+      toolName: 'Organize pages',
+      fileName: outcome.result.fileName,
+      pageCount: outcome.result.pageCount,
+      sizeBytes: outcome.result.data.byteLength,
+    });
+  }, [organizeRunner, pageOrder]);
+
+  const goToDisplayPage = useCallback(
+    (position: number) => {
+      const page = displayPages[Math.min(displayPages.length - 1, Math.max(0, position))];
+      if (page) goToPage(page.index);
+    },
+    [displayPages, goToPage],
+  );
+
+  const [aiMounted, setAiMounted] = useState(initialMode === 'ai');
+  useEffect(() => {
+    if ((mode === 'ai' || tool === 'ai') && !aiMounted) setAiMounted(true);
+  }, [mode, tool, aiMounted]);
+
+  const onAiProposals = useCallback(
+    (markers: EditorProposalMarker[], changedPages: number[], count: number) => {
+      setAiMarkers(markers);
+      setAiChangedPages(changedPages);
+      setAiChangeCount(count);
+    },
+    [],
+  );
+
+  const onAiApplyResult = useCallback(
+    (result: AiPlanApplyResult, pageCount: number) => {
+      setAiResult(result);
+      setAiResultPages(pageCount);
+      void recordRecent({
+        toolSlug: 'edit-pdf-with-ai',
+        toolName: 'Edit PDF with AI',
+        fileName: result.name,
+        pageCount,
+        sizeBytes: result.data.byteLength,
+      });
+    },
+    [],
+  );
+
+
   /* -------------------------------------------------------- insert image */
 
   const onImageRequested = useCallback((pageIndex: number, point: { x: number; y: number }) => {
@@ -1520,6 +1963,25 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   /* --------------------------------------------------------------- save */
 
   const onSave = useCallback(async () => {
+    if (
+      isAi &&
+      editor.doc.objects.length === 0 &&
+      Object.keys(editor.doc.formValues).length === 0
+    ) {
+      return;
+    }
+    if (isRedact) {
+      if (redactMarks.length === 0) {
+        toast.error('Drag on the page to mark content first.');
+        return;
+      }
+      setConfirmRedact(true);
+      return;
+    }
+    if (isOrganize) {
+      await runOrganize();
+      return;
+    }
     const file = fileRef.current;
     if (!file || editRunner.state.status === 'running') return;
     const verdict = checkClientCapacity({
@@ -1699,7 +2161,18 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
       pageCount: outcome.result.pageCount,
       sizeBytes: outcome.result.data.byteLength,
     });
-  }, [editor, editRunner, isSign, signerLabel, appendMutationObjects]);
+  }, [
+    editor,
+    editRunner,
+    isAi,
+    isRedact,
+    isOrganize,
+    isSign,
+    redactMarks.length,
+    runOrganize,
+    signerLabel,
+    appendMutationObjects,
+  ]);
 
   const continueEditing = useCallback(() => {
     editRunner.reset();
@@ -1780,13 +2253,13 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
       // work from a fit-width zoom that is not one of the presets.
       if (mod && (key === '=' || event.key === '+')) {
         event.preventDefault();
-        const next = stepZoom(zoomRef.current, 'in');
+        const next = editorStepZoom(zoomRef.current, 'in');
         if (next !== null) onZoomChange(next);
         return;
       }
       if (mod && key === '-') {
         event.preventDefault();
-        const next = stepZoom(zoomRef.current, 'out');
+        const next = editorStepZoom(zoomRef.current, 'out');
         if (next !== null) onZoomChange(next);
         return;
       }
@@ -1859,7 +2332,14 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
         return;
       }
       const next = KEY_TOOLS[event.key.toLowerCase()];
-      if (next && !mod && !event.altKey) setTool(next);
+      if (
+        next &&
+        !mod &&
+        !event.altKey &&
+        toolsForMode(mode).some((entry) => entry.id === next)
+      ) {
+        setTool(next);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -1882,6 +2362,7 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     cutTextSelection,
     pasteTextSelection,
     deleteTextSelection,
+    mode,
   ]);
 
   /* --------------------------------------------- unsaved-changes guard */
@@ -1903,7 +2384,11 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
 
   /* -------------------------------------------------------------- views */
 
-  const showingResult = editState.status === 'done';
+  const showingResult =
+    editState.status === 'done' ||
+    redactState.status === 'done' ||
+    organizeState.status === 'done' ||
+    aiResult !== null;
 
   /**
    * The editor is rendered through a portal into <body>, so while it is open the
@@ -1951,8 +2436,6 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
           ? 'Native edit: mixed visible/invisible text layer'
           : 'Native edit: document text objects and fonts'
     : 'Inspecting fonts and page objects…';
-  const hasEdits = objectCount > 0 || Object.keys(editor.doc.formValues).length > 0;
-  const dirty = hasEdits && editor.doc !== savedDocRef.current;
 
   // Page-bound callbacks, stable per page: an inline arrow would change identity
   // on every parent render and defeat the memoized pages entirely.
@@ -1994,6 +2477,79 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     ensureRaster,
     releaseDistantRasters,
   ]);
+
+  const railItems = useMemo(
+    () =>
+      displayPages.map((page, position) => ({
+        pageIndex: page.index,
+        position,
+        displayNumber: position + 1,
+        width: page.displayWidthPt ?? page.widthPt,
+        height: page.displayHeightPt ?? page.heightPt,
+        url: rasters[page.index]?.url ?? null,
+      })),
+    [displayPages, rasters],
+  );
+
+  const aiSelection = useMemo(
+    () =>
+      textSelection?.text.trim()
+        ? {
+            label: `page ${currentPage + 1}, ${textSelection.text.length.toLocaleString()} characters`,
+            text: textSelection.text,
+          }
+        : selectedTextBlock && selectedBlockPreview
+          ? { label: 'selected text block', text: selectedBlockPreview }
+          : selectedObject?.kind === 'text' && selectedObject.text.trim()
+            ? { label: 'selected text box', text: selectedObject.text }
+            : null,
+    [currentPage, selectedBlockPreview, selectedObject, selectedTextBlock, textSelection],
+  );
+
+  if (aiResult) {
+    return (
+      <AiExport
+        fileName={aiResult.name}
+        pageCount={aiResultPages ?? info?.pageCount ?? 0}
+        sizeBytes={aiResult.data.byteLength}
+        onDownload={() => downloadBytes(aiResult.data, aiResult.name)}
+        onReset={resetAll}
+        footerNote="Applied through the editing engine. Rewritten text was replaced in the document's own runs where possible; overlays were drawn only where a rewrite could not be verified. The result was re-parsed before this download was enabled."
+      />
+    );
+  }
+
+  if (redactState.status === 'done') {
+    const { result } = redactState;
+    const marked = result.report.pages.reduce(
+      (total, page) => total + page.markedPixels,
+      0,
+    );
+    return (
+      <ResultPanel
+        fileName={result.name}
+        pageCount={result.pageCount}
+        sizeBytes={result.data.byteLength}
+        onDownload={() => downloadBytes(result.data, result.name)}
+        onReset={resetAll}
+        footerNote={`Verified: the output was reopened and checked; no text layer, annotations, attachments or metadata remain, and every page is a single image. ${marked.toLocaleString()} pixels were destroyed.`}
+      />
+    );
+  }
+
+  if (organizeState.status === 'done') {
+    const { result } = organizeState;
+    return (
+      <ResultPanel
+        fileName={result.fileName}
+        pageCount={result.pageCount}
+        sizeBytes={result.data.byteLength}
+        onDownload={() => downloadBytes(result.data, result.fileName)}
+        onReset={resetAll}
+        footerNote="Pages were rebuilt in the order shown and the output was re-parsed before this download was enabled."
+      />
+    );
+  }
 
   if (editState.status === 'done') {
     const { result } = editState;
@@ -2043,39 +2599,112 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
     );
   }
 
+  const hasEdits =
+    objectCount > 0 ||
+    Object.keys(editor.doc.formValues).length > 0 ||
+    (isOrganize && pageOrderDirty) ||
+    (isRedact && redactMarks.length > 0);
+  const dirty =
+    (objectCount > 0 && editor.doc !== savedDocRef.current) ||
+    Object.keys(editor.doc.formValues).length > 0 ||
+    (isOrganize && pageOrderDirty) ||
+    (isRedact && redactMarks.length > 0);
+  const assistantActive = mode === 'ai' || tool === 'ai';
+  const pageCount = displayPages.length || info?.pageCount || 0;
+  const saveLabel = isOrganize
+    ? `Save ${pageOrder.length} page${pageOrder.length === 1 ? '' : 's'}`
+    : isRedact
+      ? 'Redact & rebuild'
+      : isSign
+        ? 'Sign & export'
+        : isAi
+          ? 'Save edits'
+          : 'Save changes';
+  const saveProgress = isRedact
+    ? redactState.status === 'running'
+      ? redactState.progress
+      : null
+    : isOrganize
+      ? organizeState.status === 'running'
+        ? organizeState.progress
+        : null
+      : editState.status === 'running'
+        ? editState.progress
+        : null;
+  const cancelSave = isRedact
+    ? redactRunner.cancel
+    : isOrganize
+      ? organizeRunner.cancel
+      : editRunner.cancel;
+  const selectionLabel = selectedObject
+    ? isRedact && selectedObject.kind === 'rect'
+      ? 'Redaction mark selected'
+      : `${selectedObject.kind[0]!.toUpperCase()}${selectedObject.kind.slice(1)} selected`
+    : textSelection
+      ? `${textSelection.text.length.toLocaleString()} characters selected`
+      : isOrganize && selectedPages.size > 0
+        ? `${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'} selected`
+        : null;
+  const pageCapability = capabilitiesByPage[currentPage] ?? null;
+  const pageEditStatus = pageCapability
+    ? pageCapability.likelyScanned
+      ? 'Image-only page. Text can be marked, but there is no text layer to rewrite.'
+      : pageCapability.textLayer === 'ocr'
+        ? 'Invisible OCR text layer. Native edits preserve the render mode.'
+        : pageCapability.textLayer === 'mixed'
+          ? 'Mixed visible and invisible text layer. Native edits are available.'
+          : 'Document text objects and fonts. Edits are rewritten in place where possible.'
+    : 'Inspecting fonts and page objects.';
+  const currentMetaPage = displayPages[currentDisplayPosition];
+  const toolHint = isRedact
+    ? 'Marks are destructive'
+    : isOrganize
+      ? 'Drag pages to reorder'
+      : assistantActive
+        ? 'Review before applying'
+        : 'Ready';
+  const handleDelete = () => {
+    if (textSelection) {
+      deleteTextSelection();
+      return;
+    }
+    if (selectedId) {
+      deleteSelected();
+      return;
+    }
+    if (isOrganize && selectedPages.size > 0) deletePages([...selectedPages]);
+  };
+
   const editorView =
     stage === 'editing' && info ? (
       <div className="editor-route-shell" data-testid="editor-route-shell">
-        <div className="editor-shell" data-testid="editor" aria-busy={saving}>
-          <EditorToolbar
-            tool={tool}
-            onToolChange={setTool}
-            zoom={zoom}
-            onZoomChange={onZoomChange}
-            onFitWidth={fitWidth}
-            canUndo={editor.canUndo}
-            canRedo={editor.canRedo}
-            onUndo={undo}
-            onRedo={redo}
-            hasSelection={selectedObject !== null || textSelection !== null}
-            onDelete={() => {
-              if (textSelection) deleteTextSelection();
-              else deleteSelected();
-            }}
-            onSave={() => void onSave()}
+        <div className="editor-shell" data-testid="editor" aria-busy={saving} data-mode={mode}>
+          <EditorTopBar
+            fileName={files[0]?.name ?? 'Document'}
+            mode={mode}
+            pageCount={pageCount}
+            dirty={dirty || aiChangeCount > 0}
             saving={saving}
-            saveLabel={isSign ? 'Sign & export' : undefined}
-            canReorder={canReorder}
-            canSendBack={canSendBack}
-            onReorder={(direction) => transformSelected(direction)}
-            showSave
+            saveLabel={saveLabel}
+            showSave={!isAi || hasEdits}
+            onSave={() => void onSave()}
+            onChangeFile={() => pdfInputRef.current?.click()}
+            onReset={resetAll}
+            modes={
+              initialMode === 'sign'
+                ? undefined
+                : [
+                    { id: 'edit', label: 'Edit' },
+                    { id: 'ai', label: 'Assistant' },
+                    { id: 'redact', label: 'Redact' },
+                    { id: 'organize', label: 'Pages' },
+                  ]
+            }
+            {...(initialMode === 'sign' ? {} : { onModeChange: changeMode })}
           />
 
           {isSign && (
-            <div
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-secondary/40 px-4 py-1.5 dark:border-white/5"
-              data-testid="signer-strip"
-            >
+            <div className="editor-signer-strip" data-testid="signer-strip">
               <label className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="whitespace-nowrap">
                   Signer name <span className="text-muted-foreground/70">(optional)</span>
@@ -2095,254 +2724,563 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
             </div>
           )}
 
-          <div className="editor-workspace">
-            <div
-              ref={scrollRef}
-              className="editor-canvas"
-              data-testid="editor-scroll"
-              tabIndex={0}
-              aria-label="PDF document canvas"
-              onScroll={syncCurrentPage}
-            >
-              {info.pages.map((page) => {
-                const widgets = widgetsByPage.get(page.index) ?? NO_WIDGETS;
-                const binding = pageBindings.get(page.index);
-                if (!binding) return null;
-                return (
-                  <EditorPage
-                    key={page.index}
-                    pageIndex={page.index}
-                    width={page.displayWidthPt ?? page.widthPt}
-                    height={page.displayHeightPt ?? page.heightPt}
-                    zoom={zoom}
-                    rasterUrl={rasters[page.index]?.url ?? null}
-                    objects={objectsByPage.get(page.index) ?? NO_OBJECTS}
-                    selectedId={selectedId}
-                    editingId={editingId}
-                    tool={tool}
-                    runs={runsByPage[page.index] ?? null}
-                    layout={layoutsByPage[page.index] ?? null}
-                    textSelection={
-                      textSelection?.pageIndex === page.index ? textSelection : null
-                    }
-                    selectedTextBlockId={
-                      selectedTextBlock?.pageIndex === page.index
-                        ? selectedTextBlock.blockId
-                        : null
-                    }
-                    paragraphEdit={
-                      paragraphEdit?.pageIndex === page.index ? paragraphEdit : null
-                    }
-                    widgets={widgets}
-                    // Only pages that actually own a field care about form values,
-                    // so keystrokes in one field cannot re-render the whole book.
-                    formValues={widgets.length > 0 ? editor.doc.formValues : NO_FORM_VALUES}
-                    readOnly={saving}
-                    onSelect={select}
-                    onStartEdit={startEdit}
-                    onEndEdit={endEdit}
-                    onEditText={editText}
-                    onAutoHeight={autoHeight}
-                    onCreate={createObject}
-                    onSeedReplace={binding.onSeedReplace}
-                    onTextBlockSelect={binding.onTextBlockSelect}
-                    onParagraphEdit={binding.onParagraphEdit}
-                    onTextSelectionChange={binding.onTextSelectionChange}
-                    onParagraphTextInput={handleParagraphTextInput}
-                    onParagraphCommit={commitParagraphEdit}
-                    onParagraphCancel={cancelParagraphEdit}
-                    onImageRequested={binding.onImageRequested}
-                    onSignatureRequested={binding.onSignatureRequested}
-                    onVisible={binding.onVisible}
-                    onHidden={binding.onHidden}
-                    onMoveLive={moveLive}
-                    onResizeLive={resizeLive}
-                    onFormValue={setFormValue}
-                    onBeginTx={editor.beginTx}
-                    onEndTx={editor.endTx}
-                  />
-                );
-              })}
-            </div>
+          <div className="editor-body">
+            <EditorToolRail
+              mode={mode}
+              tool={tool}
+              onToolChange={setTool}
+              disabled={saving}
+              railOpen={editor.railOpen}
+              onToggleRail={editor.toggleRail}
+            />
 
-            {/* The rail is always present on desktop so selecting an object does
-                not resize the canvas and reflow every page under the cursor. */}
-            <aside
-              className="editor-inspector-rail"
-              data-empty={!selectedObject || saving}
-              aria-label="Properties inspector"
-            >
-              {saving ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                  <Loader2 className="size-4 animate-spin text-primary" />
-                  <p className="text-sm font-medium">Saving changes</p>
-                  <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
-                    Editing resumes when the verified copy is ready.
-                  </p>
-                </div>
-              ) : selectedObject ? (
-                <EditorInspector
-                  object={selectedObject}
-                  onPatch={patchObject}
-                  onDelete={deleteSelected}
-                  onClose={() => select(null)}
-                  docked
+            <div className="editor-main">
+              <EditorContextBar
+                mode={mode}
+                tool={tool}
+                selectedObject={selectedObject}
+                hasSelection={
+                  selectedObject !== null ||
+                  textSelection !== null ||
+                  (isOrganize && selectedPages.size > 0)
+                }
+                canUndo={editor.canUndo}
+                canRedo={editor.canRedo}
+                canReorder={canReorder}
+                canSendBack={canSendBack}
+                onPatch={patchObject}
+                onUndo={undo}
+                onRedo={redo}
+                onDelete={handleDelete}
+                onReorder={(direction) => transformSelected(direction)}
+                onDuplicate={() => {
+                  if (isOrganize && selectedPages.size > 0) {
+                    duplicatePage([...selectedPages][0]!);
+                    return;
+                  }
+                  transformSelected('duplicate');
+                }}
+                zoom={zoom}
+                onZoomChange={onZoomChange}
+                onZoomIn={() => {
+                  const next = editorStepZoom(zoom, 'in');
+                  if (next !== null) onZoomChange(next);
+                }}
+                onZoomOut={() => {
+                  const next = editorStepZoom(zoom, 'out');
+                  if (next !== null) onZoomChange(next);
+                }}
+                onFitWidth={fitWidth}
+                disabled={saving}
+                redactCount={redactMarks.length}
+                onRedactReview={() => setConfirmRedact(true)}
+                pageCount={pageOrder.length}
+                orderDirty={pageOrderDirty}
+                onRestoreOrder={() => {
+                  if (!info) return;
+                  editor.resetPageOrder(info.pageCount);
+                }}
+                aiChangeCount={aiChangeCount}
+                onOpenAssistant={() => setTool('ai')}
+              />
+
+              <div
+                className="editor-workspace"
+                data-rail={editor.railOpen ? 'open' : 'closed'}
+                data-panel={
+                  assistantActive
+                    ? 'ai'
+                    : isRedact
+                      ? 'redact'
+                      : isOrganize
+                        ? 'pages'
+                        : 'properties'
+                }
+              >
+                <EditorPageRail
+                  open={editor.railOpen}
+                  mode={mode}
+                  items={railItems}
+                  currentPage={currentPage}
+                  onSelect={goToPage}
+                  selected={selectedPages}
+                  onToggleSelected={togglePageSelected}
+                  {...(isOrganize
+                    ? {
+                        onDelete: deletePages,
+                        onDuplicate: duplicatePage,
+                        onReorder: reorderPages,
+                      }
+                    : {})}
+                  changedPages={aiChangedPages}
+                  saving={saving}
                 />
-              ) : selectedBlockModel ? (
+
                 <div
-                  className="flex h-full flex-col gap-3 overflow-auto px-4 py-4"
-                  data-testid="editor-text-inspector"
+                  ref={scrollRef}
+                  className="editor-canvas"
+                  data-testid="editor-scroll"
+                  tabIndex={0}
+                  aria-label="PDF document canvas"
+                  onScroll={syncCurrentPage}
                 >
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Text block</p>
-                    <p className="text-xs capitalize text-muted-foreground">
-                      {selectedBlockModel.kind} · {selectedBlockParagraphs.length} paragraph
-                      {selectedBlockParagraphs.length === 1 ? '' : 's'}
+                  {displayPages.map((page, position) => {
+                    const widgets = widgetsByPage.get(page.index) ?? NO_WIDGETS;
+                    const binding = pageBindings.get(page.index);
+                    if (!binding) return null;
+                    return (
+                      <EditorPage
+                        key={`${page.index}:${position}`}
+                        pageIndex={page.index}
+                        width={page.displayWidthPt ?? page.widthPt}
+                        height={page.displayHeightPt ?? page.heightPt}
+                        zoom={zoom}
+                        rasterUrl={rasters[page.index]?.url ?? null}
+                        objects={objectsByPage.get(page.index) ?? NO_OBJECTS}
+                        selectedId={selectedId}
+                        editingId={editingId}
+                        tool={tool}
+                        runs={runsByPage[page.index] ?? null}
+                        layout={layoutsByPage[page.index] ?? null}
+                        textSelection={
+                          textSelection?.pageIndex === page.index ? textSelection : null
+                        }
+                        selectedTextBlockId={
+                          selectedTextBlock?.pageIndex === page.index
+                            ? selectedTextBlock.blockId
+                            : null
+                        }
+                        paragraphEdit={
+                          paragraphEdit?.pageIndex === page.index ? paragraphEdit : null
+                        }
+                        widgets={widgets}
+                        formValues={widgets.length > 0 ? editor.doc.formValues : NO_FORM_VALUES}
+                        readOnly={saving}
+                        proposals={aiMarkers}
+                        redactMode={isRedact}
+                        active={page.index === currentPage}
+                        onSelect={select}
+                        onStartEdit={startEdit}
+                        onEndEdit={endEdit}
+                        onEditText={editText}
+                        onAutoHeight={autoHeight}
+                        onCreate={createObject}
+                        onSeedReplace={binding.onSeedReplace}
+                        onTextBlockSelect={binding.onTextBlockSelect}
+                        onParagraphEdit={binding.onParagraphEdit}
+                        onTextSelectionChange={binding.onTextSelectionChange}
+                        onParagraphTextInput={handleParagraphTextInput}
+                        onParagraphCommit={commitParagraphEdit}
+                        onParagraphCancel={cancelParagraphEdit}
+                        onImageRequested={binding.onImageRequested}
+                        onSignatureRequested={binding.onSignatureRequested}
+                        onVisible={binding.onVisible}
+                        onHidden={binding.onHidden}
+                        onMoveLive={moveLive}
+                        onResizeLive={resizeLive}
+                        onFormValue={setFormValue}
+                        onBeginTx={editor.beginTx}
+                        onEndTx={editor.endTx}
+                      />
+                    );
+                  })}
+                  {displayPages.length === 0 ? (
+                    <p className="editor-canvas-empty" role="status">
+                      No pages remain. Restore the order or open another file.
                     </p>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      {selectedBlockEditStatus}
-                    </p>
+                  ) : null}
+                </div>
+
+                <aside
+                  className="editor-inspector-rail"
+                  data-empty={!selectedObject && !assistantActive && !isRedact && !isOrganize}
+                  aria-label="Properties inspector"
+                >
+                  <div className="h-full min-h-0" hidden={!assistantActive}>
+                    {aiMounted && files[0] ? (
+                      <EditorAiPanel
+                        file={files[0]}
+                        pageCount={pageCount}
+                        currentPage={currentPage}
+                        onShowPage={goToPage}
+                        onProposalsChange={onAiProposals}
+                        onApplyResult={onAiApplyResult}
+                        selection={aiSelection}
+                        disabled={saving}
+                      />
+                    ) : null}
                   </div>
-                  {selectedBlockPreview && (
-                    <p className="line-clamp-5 text-xs leading-relaxed text-muted-foreground">
-                      {selectedBlockPreview}
-                    </p>
-                  )}
-                  <Button
-                    type="button"
-                    size="sm"
-                    data-testid="editor-edit-block-text"
-                    disabled={selectedBlockParagraphs.length === 0}
-                    onClick={() => {
-                      const first = selectedBlockParagraphs[0];
-                      if (!first || !selectedTextBlock) return;
-                      startParagraphEdit(selectedTextBlock.pageIndex, first.id, null);
-                    }}
-                  >
-                    Edit text
-                  </Button>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Double-click a paragraph to edit it. Drag across text to select and copy.
-                  </p>
-                </div>
-              ) : (
-                <div
-                  className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
-                  data-testid="editor-inspector-empty"
-                >
-                  <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <MousePointer2 className="size-4" />
-                  </span>
-                  <p className="text-sm font-medium">No object selected</p>
-                  <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
-                    Select an object to edit its appearance and size. Click text to select a
-                    paragraph; double-click it to edit.
-                  </p>
-                </div>
-              )}
-            </aside>
+
+                  {!assistantActive && saving ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                      <Loader2 className="size-4 animate-spin text-primary" />
+                      <p className="text-sm font-medium">Saving changes</p>
+                      <p className="max-w-[15rem] text-xs leading-relaxed text-muted-foreground">
+                        Editing resumes when the verified copy is ready.
+                      </p>
+                    </div>
+                  ) : !assistantActive && isRedact ? (
+                    <div className="editor-panel" data-testid="editor-redact-inspector">
+                      <p className="editor-panel-kicker">Redaction</p>
+                      <p className="editor-panel-title">
+                        {redactMarks.length} area{redactMarks.length === 1 ? '' : 's'} marked
+                      </p>
+                      <p className="editor-panel-copy">
+                        Marks are permanent and destructive. Redaction rebuilds every page as an
+                        image, so text selection, search, links, form fields, accessibility and
+                        vector quality are lost. The original text is not covered; it is not in the
+                        file.
+                      </p>
+                      {selectedObject?.kind === 'rect' ? (
+                        <>
+                          <dl className="editor-panel-facts">
+                            <div>
+                              <dt>Page</dt>
+                              <dd>{selectedObject.pageIndex + 1}</dd>
+                            </div>
+                            <div>
+                              <dt>Position</dt>
+                              <dd>
+                                {Math.round(selectedObject.x)}, {Math.round(selectedObject.y)} pt
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Size</dt>
+                              <dd>
+                                {Math.round(selectedObject.width)} x{' '}
+                                {Math.round(selectedObject.height)} pt
+                              </dd>
+                            </div>
+                          </dl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={deleteSelected}
+                          >
+                            Remove this mark
+                          </Button>
+                        </>
+                      ) : null}
+                      <div className="mt-3 flex flex-col gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          data-testid="redact-ai-find"
+                          disabled={saving || findingSensitive}
+                          onClick={() => void findSensitive()}
+                        >
+                          {findingSensitive ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="mr-1.5 size-3.5" />
+                          )}
+                          {findingSensitive ? 'Finding sensitive data' : 'Find sensitive data with AI'}
+                        </Button>
+                        <Popover open={redactAiOpen} onOpenChange={setRedactAiOpen}>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="ghost" size="sm">
+                              <Settings2 className="mr-1.5 size-3.5" /> AI settings
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            className="studio-settings-pop w-[min(27rem,calc(100vw-2rem))] p-0"
+                          >
+                            <AiSettingsCard
+                              settings={redactAiSettings}
+                              mode={effectiveRedactAiMode}
+                              onModeChange={(next) => {
+                                setRedactAiMode(next);
+                                saveAiMode(next);
+                              }}
+                              managedAvailable={redactAiManaged}
+                              onSave={(next) => {
+                                setRedactAiSettings(saveAiSettings(next));
+                                setRedactAiOpen(false);
+                              }}
+                              surface="plain"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        {sensitiveError ? (
+                          <p className="text-xs leading-relaxed text-destructive">{sensitiveError}</p>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={redactMarks.length === 0 || saving}
+                          onClick={() => setConfirmRedact(true)}
+                        >
+                          Review and redact
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={redactMarks.length === 0 || saving}
+                          onClick={() =>
+                            editor.apply((doc) => ({
+                              ...doc,
+                              objects: doc.objects.filter((object) => object.kind !== 'rect'),
+                            }))
+                          }
+                        >
+                          Clear all marks
+                        </Button>
+                      </div>
+                    </div>
+                  ) : !assistantActive && isOrganize ? (
+                    <div className="editor-panel" data-testid="editor-pages-inspector">
+                      <p className="editor-panel-kicker">Page organisation</p>
+                      <p className="editor-panel-title">
+                        {pageOrder.length} page{pageOrder.length === 1 ? '' : 's'}
+                      </p>
+                      <p className="editor-panel-copy">
+                        Drag a page in the rail to change its position. Selection works with
+                        Ctrl/Cmd-click. Duplicated pages point at the same source page; the output
+                        is rebuilt from the order you see.
+                      </p>
+                      {objectCount > 0 ? (
+                        <>
+                          <p className="editor-panel-note">
+                            {objectCount} pending edit{objectCount === 1 ? '' : 's'} will not be part
+                            of this page-only export. Save them in the Edit workspace first.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => changeMode('edit')}
+                          >
+                            Go to Edit
+                          </Button>
+                        </>
+                      ) : null}
+                      <div className="mt-3 flex flex-col gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!pageOrderDirty || saving}
+                          onClick={() => editor.resetPageOrder(info.pageCount)}
+                        >
+                          Restore original order
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={selectedPages.size === 0 || saving}
+                          onClick={() => deletePages([...selectedPages])}
+                        >
+                          Delete selected
+                        </Button>
+                      </div>
+                    </div>
+                  ) : !assistantActive && selectedObject ? (
+                    <AnimatedContent
+                      key={`inspector-${selectedObject.id}`}
+                      className="h-full"
+                      distance={6}
+                      direction="horizontal"
+                      duration={UI.fast}
+                      trigger="mount"
+                    >
+                      <EditorInspector
+                        object={selectedObject}
+                        onPatch={patchObject}
+                        onDelete={deleteSelected}
+                        onClose={() => select(null)}
+                        docked
+                      />
+                    </AnimatedContent>
+                  ) : !assistantActive && selectedBlockModel ? (
+                    <div
+                      className="flex h-full flex-col gap-3 overflow-auto px-4 py-4"
+                      data-testid="editor-text-inspector"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Text block</p>
+                        <p className="text-xs capitalize text-muted-foreground">
+                          {selectedBlockModel.kind} · {selectedBlockParagraphs.length} paragraph
+                          {selectedBlockParagraphs.length === 1 ? '' : 's'}
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          {selectedBlockEditStatus}
+                        </p>
+                      </div>
+                      {selectedBlockPreview && (
+                        <p className="line-clamp-5 text-xs leading-relaxed text-muted-foreground">
+                          {selectedBlockPreview}
+                        </p>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        data-testid="editor-edit-block-text"
+                        disabled={selectedBlockParagraphs.length === 0}
+                        onClick={() => {
+                          const first = selectedBlockParagraphs[0];
+                          if (!first || !selectedTextBlock) return;
+                          startParagraphEdit(selectedTextBlock.pageIndex, first.id, null);
+                        }}
+                      >
+                        Edit text
+                      </Button>
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        Double-click a paragraph to edit it. Drag across text to select and copy.
+                      </p>
+                    </div>
+                  ) : !assistantActive ? (
+                    <div className="editor-panel" data-testid="editor-inspector-empty">
+                      <p className="editor-panel-kicker">Document</p>
+                      <p className="editor-panel-title">
+                        {currentMetaPage
+                          ? `Page ${currentDisplayPosition + 1} of ${pageCount}`
+                          : 'No page selected'}
+                      </p>
+                      <p className="editor-panel-copy">{pageEditStatus}</p>
+
+                      <div className="editor-panel-actions">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setTool('text')}
+                        >
+                          <TypeIcon /> Add text
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setTool('ai')}
+                        >
+                          <Sparkles className="size-3.5" /> Edit with AI
+                        </Button>
+                      </div>
+
+                      <dl className="editor-panel-facts">
+                        <div>
+                          <dt>Page size</dt>
+                          <dd>
+                            {currentMetaPage
+                              ? `${Math.round(currentMetaPage.displayWidthPt ?? currentMetaPage.widthPt)} x ${Math.round(
+                                  currentMetaPage.displayHeightPt ?? currentMetaPage.heightPt,
+                                )} pt`
+                              : 'Unknown'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Objects</dt>
+                          <dd>{objectCount.toLocaleString()}</dd>
+                        </div>
+                        <div>
+                          <dt>Zoom</dt>
+                          <dd>{Math.round(zoom * 100)}%</dd>
+                        </div>
+                        {info.fields.length > 0 ? (
+                          <div>
+                            <dt>Form fields</dt>
+                            <dd>{info.fields.length.toLocaleString()}</dd>
+                          </div>
+                        ) : null}
+                      </dl>
+
+                      <div className="editor-panel-keys">
+                        <p className="editor-panel-kicker">Keyboard</p>
+                        <ul>
+                          <li>
+                            <kbd>V</kbd> Select <kbd>T</kbd> Text <kbd>H</kbd> Highlight
+                          </li>
+                          <li>
+                            <kbd>Ctrl</kbd> <kbd>Z</kbd> Undo <kbd>Ctrl</kbd> <kbd>Shift</kbd>{' '}
+                            <kbd>Z</kbd> Redo
+                          </li>
+                          <li>
+                            <kbd>Del</kbd> Remove selection <kbd>Ctrl</kbd> <kbd>D</kbd> Duplicate
+                          </li>
+                          <li>
+                            <kbd>Ctrl</kbd> <kbd>0</kbd> Fit width <kbd>+</kbd> <kbd>-</kbd> Zoom
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  ) : null}
+                </aside>
+              </div>
+            </div>
           </div>
 
-          <footer className="editor-status-bar" data-testid="editor-status-bar">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <FileText className="hidden size-3.5 shrink-0 sm:block" aria-hidden />
-              <span
-                className="hidden max-w-[16rem] truncate sm:block"
-                title={files[0]?.name}
-              >
-                {files[0]?.name ?? 'Document'}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-6 shrink-0 gap-1 px-1.5 text-xs font-normal"
-                aria-label="Change file"
-                title="Open another PDF"
-                onClick={() => pdfInputRef.current?.click()}
-              >
-                <FileUp className="size-3.5" />
-                <span className="hidden md:inline">Change file</span>
-              </Button>
-            </div>
+          <EditorStatusBar
+            fileName={files[0]?.name ?? 'Document'}
+            mode={mode}
+            pageCount={pageCount}
+            currentPage={currentDisplayPosition}
+            zoom={zoom}
+            dirty={dirty}
+            hasEdits={hasEdits}
+            saving={saving}
+            progressLabel={saveProgress?.phase}
+            progressRatio={saveProgress?.ratio}
+            onCancelSave={cancelSave}
+            onPrevPage={() => goToDisplayPage(currentDisplayPosition - 1)}
+            onNextPage={() => goToDisplayPage(currentDisplayPosition + 1)}
+            selectionLabel={selectionLabel}
+            toolHint={toolHint}
+            objectCount={objectCount}
+          />
 
-            <nav aria-label="Page navigation" className="flex shrink-0 items-center gap-0.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6"
-                aria-label="Previous page"
-                data-testid="editor-prev-page"
-                disabled={currentPage <= 0}
-                onClick={() => goToPage(currentPage - 1)}
-              >
-                <ChevronLeft className="size-3.5" />
-              </Button>
-              <span
-                className="min-w-20 text-center tabular-nums"
-                data-testid="editor-page-status"
-              >
-                Page {Math.min(currentPage + 1, info.pages.length)} of {info.pages.length}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-6"
-                aria-label="Next page"
-                data-testid="editor-next-page"
-                disabled={currentPage >= info.pages.length - 1}
-                onClick={() => goToPage(currentPage + 1)}
-              >
-                <ChevronRight className="size-3.5" />
-              </Button>
-            </nav>
-
+          {confirmRedact ? (
             <div
-              className="ml-auto flex min-w-0 items-center gap-1.5"
-              role="status"
-              aria-live="polite"
-              data-testid="editor-save-status"
+              className="editor-confirm-layer"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.stopPropagation();
+                  setConfirmRedact(false);
+                }
+              }}
             >
-              {saving ? (
-                <>
-                  <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" aria-hidden />
-                  <span className="hidden max-w-48 truncate md:inline">
-                    {editState.progress?.phase ?? 'Saving and verifying'}
-                  </span>
-                  {editState.progress?.ratio !== undefined && (
-                    <span className="tabular-nums">
-                      {formatPercent(editState.progress.ratio)}
-                    </span>
-                  )}
+              <div
+                className="editor-confirm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="editor-confirm-title"
+              >
+                <span className="editor-confirm-glyph" aria-hidden>
+                  <ShieldAlert className="size-4" />
+                </span>
+                <h2 id="editor-confirm-title" className="editor-confirm-title">
+                  Destroy {redactMarks.length} area{redactMarks.length === 1 ? '' : 's'} and rebuild{' '}
+                  {pageCount} page{pageCount === 1 ? '' : 's'}?
+                </h2>
+                <p className="editor-confirm-copy">
+                  This cannot be undone. Text selection, search, links, form fields, accessibility
+                  and vector quality will not survive. Documents over the page limit are refused
+                  rather than partially processed.
+                </p>
+                <div className="editor-confirm-actions">
                   <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="-mr-1 size-6 text-muted-foreground"
-                    aria-label="Cancel save"
-                    data-testid="editor-cancel-save"
-                    onClick={editRunner.cancel}
+                    variant="destructive"
+                    size="sm"
+                    data-testid="redact-confirm"
+                    autoFocus
+                    onClick={() => void runRedact()}
                   >
-                    <X className="size-3.5" />
+                    <ShieldAlert className="mr-1.5 size-3.5" /> Redact and rebuild
                   </Button>
-                </>
-              ) : dirty ? (
-                <>
-                  <span className="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
-                  <span className="truncate">Unsaved changes</span>
-                </>
-              ) : hasEdits ? (
-                <>
-                  <CheckCircle2 className="size-3.5 shrink-0 text-primary" aria-hidden />
-                  <span className="truncate">All changes saved</span>
-                </>
-              ) : (
-                <span className="truncate">No changes yet</span>
-              )}
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmRedact(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             </div>
-          </footer>
+          ) : null}
 
           <input
             ref={pdfInputRef}
@@ -2385,19 +3323,38 @@ export function EditPdfTool({ variant = 'edit' }: { variant?: 'edit' | 'fill-sig
   return (
     <>
       {stage !== 'editing' && (
-        <div className="space-y-4">
-          <FileDropzone
-            files={files}
-            onFiles={(next) => void handleFiles(next)}
-            disabled={stage === 'preparing'}
-            hint={isSign ? 'one PDF to sign' : 'one PDF to edit'}
-            multiple={false}
-          />
+        mode === 'ai' ? (
+          <div className="studio editor-ai-cover-shell" data-testid="editor-ai-cover">
+            <AiCover
+              title={AI_EDIT_COPY.title}
+              lead={AI_EDIT_COPY.lead}
+              quote={AI_EDIT_COPY.quote}
+              marginTitle={AI_EDIT_COPY.marginTitle}
+              marks={AI_EDIT_COPY.marks}
+              onFiles={(next) => void handleFiles(next)}
+              note={AI_EDIT_COPY.note}
+            />
+            {stage === 'preparing' && inspectState.status === 'running' && (
+              <div className="mt-4">
+                <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <FileDropzone
+              files={files}
+              onFiles={(next) => void handleFiles(next)}
+              disabled={stage === 'preparing'}
+              hint={isSign ? 'one PDF to sign' : 'one PDF to edit'}
+              multiple={false}
+            />
 
-          {stage === 'preparing' && inspectState.status === 'running' && (
-            <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
-          )}
-        </div>
+            {stage === 'preparing' && inspectState.status === 'running' && (
+              <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
+            )}
+          </div>
+        )
       )}
 
       {editorView ? createPortal(editorView, document.body) : null}

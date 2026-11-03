@@ -146,6 +146,9 @@ const COPY: Record<AiToolVariant, VariantCopy> = {
   },
 };
 
+/** Shared copy for the AI editor's frontispiece and its in-editor rail. */
+export const AI_EDIT_COPY = COPY.edit;
+
 interface AiWorkspaceProps {
   variant: AiToolVariant;
   /** Instruction run once the document is ready (summarize). */

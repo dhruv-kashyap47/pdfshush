@@ -25,7 +25,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { BBox, PageInteractionModel, PageLayout } from '@pdfshush/pdf-core';
-import type { EditorTool } from '@/components/editor/editor-toolbar';
+import type { EditorTool } from '@/lib/editor-tools';
 import {
   cssFontStack,
   paragraphLineHeightRatio,
