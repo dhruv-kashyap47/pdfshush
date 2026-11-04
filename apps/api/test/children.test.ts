@@ -109,6 +109,16 @@ describe('killExpiredChildren', () => {
 });
 
 describe('startChildWatchdog', () => {
+  /** Polls instead of sleeping a fixed window: this file runs under full-suite load. */
+  const waitFor = async (predicate: () => boolean, timeoutMs = 5_000) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (predicate()) return true;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    return predicate();
+  };
+
   it('sweeps on its interval and stops when asked', async () => {
     await publishChild(store, 'job-0000000007', 5005);
     const killed: number[] = [];
@@ -124,13 +134,15 @@ describe('startChildWatchdog', () => {
       kill: (pid) => killed.push(pid),
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(await waitFor(() => killed.length === 1)).toBe(true);
     watchdog.stop();
+    // Let any in-flight sweep finish, then assert the watchdog killed once.
+    await new Promise((resolve) => setTimeout(resolve, 100));
     expect(killed).toEqual([5005]);
 
     // Nothing left to sweep, and stopped means stopped.
     await publishChild(store, 'job-0000000008', 5006);
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await new Promise((resolve) => setTimeout(resolve, 200));
     expect(killed).toEqual([5005]);
   });
 });

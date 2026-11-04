@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.1 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13) and the truthful surface (§31.14); M5.2 next |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.2 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14) and verifiable privacy (§31.15); M5.3 next |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -76,8 +76,8 @@ against the running dev server. The full browser smoke, plain-tools, next-tools,
 bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in the same
 campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
 queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
-recorded in §31.12, the Q2 determinism fix in §31.13, and M5.1's truthful surface in §31.14;
-M5.2-M5.8 are not claimed.**
+recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14 and M5.2's
+verifiable privacy in §31.15; M5.3-M5.8 are not claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -701,6 +701,39 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 - M5.2: the privacy claims became things a user can check.**
+
+  Three claims moved from prose to artifacts. First, the Content-Security-Policy is now produced by
+  `apps/web/src/lib/csp.ts` and injected by the build, so the shipped HTML carries the policy the
+  browser enforces: an allowlist `connect-src` (`'self'`, `blob:`, the shipped AI origins, loopback),
+  `form-action 'self'`, `object-src 'none'`, `frame-src 'none'`, with `'wasm-unsafe-eval'` for the
+  PDF engines. Second, a service worker emitted as `/sw.js` makes the shell and the assets you have
+  already loaded work with the network off; the cache is named after a build id derived from the
+  emitted asset names, so a deploy installs a fresh cache and deletes the old one, and a new version
+  waits for the user to reload instead of swapping under an open document. Third, two pages make the
+  claims falsifiable: `/trust` shows the policy read from the document itself, the worker's real
+  state, and a live proof that runs a real `inspect` job with the five page-level network APIs
+  patched (0 body-bearing, 0 cross-origin); `/verify` runs the same `verifyRedaction` the Redact tool
+  requires before export on any PDF and prints a SHA-256 receipt with no timestamp.
+
+  The verifier refuses to round up: `marks-burned-in` is reported as not checked because no regions
+  were supplied, `page-count` as information because it was read from the same file, and the image
+  checks that pass vacuously when a page is not a single image are downgraded to n/a instead of
+  contradicting the failure above them. A manifest with 192/512/maskable icons makes the app
+  installable.
+
+  Evidence: 28 new web tests; `pnpm test` **1281/1281**; `pnpm -r typecheck` and `pnpm build` green.
+  New `tests/e2e/offline.mjs` (`pnpm test:e2e:offline`, 26 checks) runs against a production build on
+  `vite preview` and proves the manifest, the policy, the versioned worker, an online merge with 0
+  external and 0 body-bearing requests, then the same merge **with the browser offline** after a
+  reload from the cached shell. A real arXiv PDF verified as CONTENT REMAINS and, after redaction
+  through the tool, as CLEAN. One test-only fix outside the brief: the API watchdog test's fixed
+  60 ms sleep became a poll after it failed once under full-suite contention. `pnpm test:bundle` is
+  **not** green and was not green before this workstream - the entry chunk is clean but the tool
+  page's lazy chunk already carries pdf-lib (161 modules, reproduced at `HEAD`); the verifier's own
+  lazy chunk adds 3. That pre-existing violation is recorded as M5.4/M5.8 work instead of being
+  hidden behind the passing entry-chunk check.
 
 - **2026-11-04 - M5.1: the product tells the truth about failure, limits and what is not built.**
 
@@ -5504,6 +5537,119 @@ to server.
   and benchmark. Nothing here changes the engine.
 - No redaction, serialization, hashing, layout-model or editing-ladder code was touched; the only
   engine import added is constants.
+
+### 31.15 M5.2 result - verifiable privacy (2026-11-04)
+
+**Delivered.** Five artifacts, each falsifiable in a browser rather than asserted in prose.
+
+1. **The policy is part of the build.** `apps/web/src/lib/csp.ts` builds one policy and
+   `vite.config.ts` injects it as a head-prepended `Content-Security-Policy` meta tag on `vite
+   build` only (the dev server keeps its inline HMR client). `connect-src` is an allowlist: `'self'`,
+   `blob:`, the shipped AI provider origins and loopback wildcards - never `https:` and never `*`.
+   `form-action 'self'` closes the other route for POSTing bytes off-origin, `object-src 'none'`,
+   `base-uri 'self'` and `frame-src 'none'` are set, and `script-src` keeps `'wasm-unsafe-eval'`
+   because pdfium/pdf.js compile WebAssembly. A self-hoster whose AI endpoint is not in the list adds
+   it at build time with `VITE_CSP_CONNECT_EXTRA`; values are normalised to origins so a pasted URL
+   with a path cannot widen the match.
+
+2. **Offline is versioned, not optimistic.** `apps/web/service-worker.js` is emitted as `/sw.js` by a
+   build plugin that substitutes a build id derived from the sorted emitted asset names. The cache
+   name is `pdfshush-shell-<build-id>`, so a deploy installs a fresh cache and deletes the old one -
+   a new page can never be served a previous engine. The shell is precached; `/assets/` and
+   `/icons/` are cache-first because their names are content hashes; navigation is network-first with
+   a cached-shell fallback and a 503 page that says to open the tool once online. Non-GET requests,
+   `/api/*` and cross-origin traffic are never intercepted. A new build waits and offers a reload
+   instead of calling `skipWaiting` under an open tool. Registration happens at idle time in
+   production builds only, so it costs nothing on the Q3 path.
+
+3. **`/trust` reads the running build, not a copy.** It parses the meta tag that is actually in the
+   document, so the chips and the full policy are what the browser is enforcing. It reports the
+   service worker's real state, and "Prove it now" runs a genuine `inspect` job on a one-page PDF
+   built in memory with `fetch`, `XMLHttpRequest`, `sendBeacon`, `WebSocket` and `EventSource`
+   patched, plus Resource Timing sampled for module/worker/WebAssembly loads. It reports page-API
+   calls, resources loaded, body-bearing requests and cross-origin traffic, and lists what the proof
+   cannot see. Request bodies are recorded as a boolean, never read.
+
+4. **`/verify` exposes the verifier the Redact tool already trusts.** It calls `verifyRedaction` on
+   the serialized bytes of any PDF, shows one row per check, and prints a receipt containing the
+   SHA-256 of the exact bytes. The receipt has no timestamp, so the same file always produces the
+   same text. Two rows are reported for what they are: `marks-burned-in` is **n/a** (the page has no
+   regions to compare against, so the engine's vacuous pass is not presented as evidence) and
+   `page-count` is **information** (it was probed from the same file). When
+   `pages-are-single-images` fails, the two image checks that would then pass vacuously are
+   downgraded to n/a instead of contradicting the failure above them.
+
+5. **Installable metadata.** `manifest.webmanifest` with 192/512/maskable icons generated from the
+   brand mark, linked from `index.html` together with the apple-touch icon and app name.
+
+**Evidence.**
+
+- 28 new web tests: `csp.test.ts` (7 - lockdown directives, WebAssembly/worker allowances, no `https:`
+  or `*` in `connect-src`, every provider origin present exactly once, loopback retained, extra-origin
+  normalisation, endpoint would-be-blocked answer), `locality-proof.test.ts` (7 - same/cross-origin
+  split, every body-bearing request counted as an upload regardless of method label, websocket and
+  event source counted, resource loads counted separately, and the sample PDF's trailer, `startxref`
+  target and text escaping), `redaction-verify.test.ts` (14 - a label for every engine check,
+  `marks-burned-in` never a pass, page count always information, vacuous image rows downgraded, clean
+  verdict with n/a and info rows, failure counted, byte-identical receipt, failure wording, SHA-256
+  vectors).
+- `pnpm test` **1281/1281** (pdf-core 435, API 210, provider 370, agent 152, web 95, MCP 19).
+  `pnpm -r typecheck` and `pnpm build` green; the built `dist/index.html` carries the meta policy and
+  `dist/sw.js` carries a real build id. The entry chunk grows 138.7 → **139.8 kB** for the CSP-aware
+  registration and SW client (~1.1 kB).
+- New `tests/e2e/offline.mjs` (`pnpm test:e2e:offline`), 26 checks, green against a production build
+  behind `vite preview`:
+  - manifest served, valid JSON, name/`start_url`, 192 + 512 + maskable icons, a real PNG icon;
+  - CSP present in the built HTML, `connect-src` an allowlist with `'self'` and no wildcard,
+    `form-action 'self'`, `object-src 'none'`, manifest linked;
+  - a service worker controls the page, `sw.js` carries a build id and precaches the shell;
+  - an online merge records **0 external and 0 body-bearing** requests;
+  - with the browser context actually offline, the tool route reloads **from the cached shell** and a
+    real client-side merge completes; and
+  - `/trust` renders the live `connect-src`, its proof reports **0 body-bearing / 0 cross-origin**
+    (page APIs and resources), and the worker reads as active; `/verify` loads with a drop target and
+    states what it does not check.
+- Browser-verified on the preview with real files: arXiv `1409.0473` verified as **CONTENT REMAINS**
+  (no annotations, text operators, metadata stripped all fail, digest
+  `84801c8410da51b4…`); the same file redacted through the real Redact tool and re-verified as
+  **CLEAN**. A document whose only page content sat under the mark was **refused** by the existing
+  fail-closed gate (`page-not-blank: contrast spread only 0`) rather than exported blank - the M5.2
+  surface reports the engine's refusal, it does not bypass it.
+
+**Fix outside the brief, recorded because it touched the campaign.** `apps/api/test/children.test.ts`
+asserted the watchdog's first kill after a fixed 60 ms sleep; under `pnpm -r test` contention it
+failed once (209/210) and passed on every isolated re-run. The fixed sleep is now a 5 s poll and the
+post-stop window is longer. Test-only; the watchdog is unchanged.
+
+**Not claimed / accepted gaps.**
+
+- **The CSP is an egress policy, not a full XSS defence.** `script-src` needs `'unsafe-inline'` for
+  the inline theme bootstrap and `'wasm-unsafe-eval'` for the PDF engines. Both are stated on
+  `/trust` next to the policy instead of being left for a reader to discover.
+- **Offline covers what you have already loaded.** The shell is always available once the worker
+  installs; a tool's chunk, worker and WebAssembly are cached on first use. A tool never opened while
+  online fails offline, and server-backed surfaces (API, workflows, MCP) fail correctly. The suite
+  asserts the reload path, not an arbitrary deep link.
+- **The verifier cannot see intent or marks.** With no regions it cannot confirm a mark covered the
+  right area, and it reads structure rather than pixels, so a photograph of a page passes. Both rows
+  are labelled, not silently dropped. Using the Redact tool is the path that checks marks against
+  pixels before export.
+- **The proof's blind spot.** A worker's internal fetches do not appear in the page's Resource
+  Timing. The structural guarantee there is the policy, and the page says so.
+- **Not started here:** prerender/sitemap/structured data (M5.5), axe budget and keyboard E2E
+  (M5.6), receipt work for editing and structure (M5.3), and the nine `planned` entries (M5.7).
+- **`pnpm test:bundle` is red, and was red before this workstream.** The entry chunk is clean
+  (139.8 kB, 0 engines), but the "no lazy app chunk carries a PDF engine" rule fails on
+  `tool-*.js (161 engine modules)`. Verified against `HEAD` by stashing this workstream, rebuilding
+  and re-running the check: the same rule fails there with `tool-B_FHu5Y9.js (161)`. So the tool
+  page already runs pdf-lib on the main thread; this commit adds `verify-*.js (3)` for the main-thread
+  verifier, a lazy route that only downloads when someone opens `/verify`. Fixing the pre-existing
+  violation is engine work with its own plan, so it is recorded rather than quietly re-labelled:
+  **M5.4 (perf) owns the tool-page engines, M5.8 owns the campaign staying red-or-green on a
+  documented gate.** Nothing here claims §31.10 item 8.
+- `test:e2e:offline` is deliberately not chained into `pnpm test:e2e`, which starts from the dev
+  server, because this suite needs `pnpm build && pnpm preview`. M5.8's campaign run documents the
+  two-server sequence rather than pretending one command covers both.
 
 ---
 

@@ -11,6 +11,8 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
       { label: 'REST API', to: '/tools/api' },
       { label: 'MCP server', to: '/tools/mcp' },
       { label: 'Workflows', to: '/tools/workflows' },
+      { label: 'Trust & privacy', to: '/trust' },
+      { label: 'Verify a redaction', to: '/verify' },
       { label: 'Pricing', soon: true },
     ],
   },
@@ -92,7 +94,9 @@ export function SiteFooter() {
         <div className="mt-12 flex flex-col gap-3 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} PDFShush · AGPL-3.0 licensed · Not affiliated with Sejda</p>
           <p className="flex items-center gap-4">
-            <span>Privacy (soon)</span>
+            <Link to="/trust" className="transition-colors hover:text-foreground">
+              Privacy
+            </Link>
             <span>Terms (soon)</span>
             <Link to="/" className="transition-colors hover:text-foreground">
               Source

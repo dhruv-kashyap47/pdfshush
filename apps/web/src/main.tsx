@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { mark, observeFirstInteraction } from './lib/marks';
+import { registerServiceWorker } from './lib/service-worker';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -17,3 +18,7 @@ createRoot(container).render(
 // normal use; see lib/marks.ts.
 mark('app-ready');
 observeFirstInteraction();
+
+// Offline support, deferred to idle time. A production build registers the
+// worker; the dev server never does (see lib/service-worker.ts).
+registerServiceWorker();

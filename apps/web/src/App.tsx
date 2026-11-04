@@ -17,11 +17,25 @@ import { mark } from '@/lib/marks';
  * arrives in one chunk.
  */
 const ToolPage = lazy(() => import('@/pages/tool').then((module) => ({ default: module.ToolPage })));
+const TrustPage = lazy(() =>
+  import('@/pages/trust').then((module) => ({ default: module.TrustPage })),
+);
+const VerifyPage = lazy(() =>
+  import('@/pages/verify').then((module) => ({ default: module.VerifyPage })),
+);
 
 function ToolPageFallback() {
   return (
     <div className="mx-auto flex w-full max-w-6xl items-center justify-center px-4 py-24 text-sm text-muted-foreground">
       Loading tool…
+    </div>
+  );
+}
+
+function PageFallback() {
+  return (
+    <div className="mx-auto flex w-full max-w-6xl items-center justify-center px-4 py-24 text-sm text-muted-foreground">
+      Loading…
     </div>
   );
 }
@@ -58,6 +72,22 @@ export default function App() {
                 }
               />
               <Route path="/workflows" element={<WorkflowsPage />} />
+              <Route
+                path="/trust"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <TrustPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/verify"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <VerifyPage />
+                  </Suspense>
+                }
+              />
               <Route path="/account" element={<AccountPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
