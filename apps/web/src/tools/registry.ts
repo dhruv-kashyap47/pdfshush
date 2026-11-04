@@ -375,12 +375,14 @@ export const POPULAR_SLUGS = [
   'split-by-pages',
   'crop-pdf',
   'fill-sign',
-  'pdf-to-word',
+  'redact-pdf',
   'extract-pages',
 ];
 
 export function popularTools(): ToolDef[] {
-  return POPULAR_SLUGS.map((slug) => TOOLS_BY_SLUG[slug]).filter((def): def is ToolDef => Boolean(def));
+  return POPULAR_SLUGS.map((slug) => TOOLS_BY_SLUG[slug]).filter(
+    (def): def is ToolDef => Boolean(def) && def?.status === 'live',
+  );
 }
 
 export function getTool(slug: string | undefined): ToolDef | undefined {

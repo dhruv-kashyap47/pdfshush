@@ -3,6 +3,9 @@ dist/
 build/
 coverage/
 .vite/
+# `apps/web/build/` is source (the prerender plugin), not build output.
+!apps/web/build/
+!apps/web/build/**
 # A store directory created when pnpm is run inside the repo; runtime cache, not source.
 .pnpm-store/
 *.tsbuildinfo

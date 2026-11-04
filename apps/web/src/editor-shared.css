@@ -180,7 +180,7 @@ body.editor-app-active .editor-route-shell {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: color-mix(in oklab, var(--muted-foreground) 72%, transparent);
+  color: var(--muted-foreground);
 }
 .editor-tool-button {
   position: relative;
@@ -1188,7 +1188,7 @@ body.editor-app-active .editor-route-shell {
   background: var(--primary);
 }
 .editor-status-muted {
-  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+  color: var(--muted-foreground);
 }
 .editor-status-icon {
   display: inline-flex;
@@ -1434,3 +1434,4 @@ body.editor-app-active .editor-route-shell {
     animation: none;
   }
 }
+

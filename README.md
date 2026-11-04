@@ -26,10 +26,12 @@ the exact same job contract.
 | Accounts (P4) | ✅ Google sign-in; every tool stays anonymous-only when no Mongo/Google config is present |
 | AI (P5) | ✅ BYOK keys never leave the browser; 21 providers incl. **Groq** (permanently free tier) with a first-run onboarding overlay; the managed trial runs on OpenRouter free models and is off unless `AI_MANAGED_API_KEY` is set (model defaults to the strongest live `:free` id) |
 | E-sign / public API / MCP (P6) | ✅ Fill & Sign with a fail-closed audit sidecar; `/api/v1` with scoped keys; `@pdfshush/mcp` stdio server; P6.4 hardening (rotation drill, multipart sniff, base-URL smuggle class) |
-| P7 — hardening | ⏳ Folded into **M5** (PLAN §31): adversarial torture suite (Q4), SEO prerender (M5.5), perf/a11y pass (M5.4/M5.6), plus verifiable-locality and parity-debt work |
+| P7 — hardening | ✅ Folded into **M5** (PLAN §31) and complete: adversarial torture suite (Q4), SEO prerender (M5.5), perf/a11y pass (M5.4/M5.6), verifiable locality, parity debt and release evidence (§31.21). The containerised API/hardening gates were not runnable in the dev environment and are recorded as such |
+| M6 — Monetization | 📋 Decision record in PLAN §33; not started |
 
-Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an
-honest "in development" state so links and SEO never churn.
+Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an honest
+**not-built** decision page with the real blocker and the closest live path, not an indefinite
+"in development" promise.
 
 ## Quick start
 

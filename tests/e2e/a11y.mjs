@@ -16,10 +16,13 @@
  */
 
 import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const BASE = (process.env.E2E_BASE_URL ?? 'http://localhost:4173').replace(/\/$/, '');
 const AXE_PATH = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const ROUTES = [
   '/',
@@ -93,6 +96,47 @@ try {
             .map((v) => `${v.id} (${v.impact}, ${v.nodes.length})`)
             .join(', ')}`,
         );
+      }
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The editor with a real selected object: the static route check above cannot
+  // see the inspector, the tool groups or the resize handles.
+  {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.locator('input[type=file]').setInputFiles(path.join(HERE, 'fixtures', 'alpha.pdf'));
+      await page.getByTestId('editor-page').first().waitFor({ timeout: 90_000 });
+      await page.getByTestId('editor-page').first().focus();
+      await page.keyboard.press('t');
+      await page.keyboard.press('Enter');
+      await page.getByTestId('editor-text-input').waitFor({ timeout: 10_000 });
+      await page.keyboard.type('accessibility check');
+      await page.keyboard.press('Escape');
+      await page.addScriptTag({ path: AXE_PATH });
+      const result = await page.evaluate(async () => {
+        // @ts-expect-error axe is injected at runtime
+        return await window.axe.run(document, {
+          runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+          resultTypes: ['violations'],
+        });
+      });
+      const violations = result.violations.filter(
+        (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+      );
+      check(
+        'the editor with a selected object has zero critical/serious axe violations',
+        violations.length === 0,
+        violations.map((v) => `${v.id} (${v.impact}, ${v.nodes.length})`).join(', ') || 'clean',
+      );
+      for (const violation of violations) {
+        for (const node of violation.nodes.slice(0, 4)) {
+          console.log(`         ${violation.id}: ${node.target.join(' ')}`);
+        }
       }
     } finally {
       await context.close();

@@ -114,6 +114,21 @@ for (const slug of declined) {
   check(`${route} is not indexed while unbuilt`, robotsMeta?.includes('noindex') === true, robotsMeta ?? 'missing');
 }
 
+const remoteTools = ['workflows', 'api', 'mcp'];
+for (const slug of remoteTools) {
+  const page = await text(`/tools/${slug}`);
+  const body = rootText(page.body);
+  check(
+    `/tools/${slug} does not claim client-side processing`,
+    !/parsed inside this browser tab|never leave the browser|nothing is uploaded/i.test(body),
+    body.match(/server|api|upload|delete/i)?.[0] ?? 'no data-path sentence',
+  );
+  check(
+    `/tools/${slug} states its server data path`,
+    /api|server|upload|delete/i.test(body),
+  );
+}
+
 const og = await fetch(`${BASE}/og/merge-pdf.png`);
 const ogBytes = new Uint8Array(await og.arrayBuffer());
 check(

@@ -889,10 +889,9 @@ function ObjectView({
           : `editor-object-${object.kind}`
       }
       data-object-id={object.id}
-      role={editing ? 'group' : interactive ? 'button' : 'img'}
+      role={editing || selected ? 'group' : interactive ? 'button' : 'img'}
       tabIndex={interactive && !editing ? 0 : -1}
       aria-label={describeEditorObject(object)}
-      aria-pressed={interactive && !editing ? selected : undefined}
       onKeyDown={(event) => {
         if (!interactive) return;
         if (event.key === 'Enter' || event.key === ' ') {
@@ -1190,3 +1189,4 @@ function FormWidget({
 
   return null;
 }
+

@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ALL_TOOLS, getTool, liveTools } from './registry';
+import { ALL_TOOLS, POPULAR_SLUGS, getTool, liveTools, popularTools } from './registry';
 import { DECLINED_COPY } from './declined';
 
 describe('catalog decisions', () => {
@@ -45,6 +45,14 @@ describe('catalog decisions', () => {
       const alternative = getTool(copy.alternative.slug);
       expect(alternative, `${slug} -> ${copy.alternative.slug}`).toBeDefined();
       expect(alternative?.status, `${slug} -> ${copy.alternative.slug}`).toBe('live');
+    }
+  });
+
+  it('never advertises a declined tool in the popular row', () => {
+    expect(popularTools().length).toBeGreaterThan(0);
+    expect(popularTools().every((tool) => tool.status === 'live')).toBe(true);
+    for (const slug of POPULAR_SLUGS) {
+      expect(getTool(slug)?.status, slug).toBe('live');
     }
   });
 });

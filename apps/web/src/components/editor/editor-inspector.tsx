@@ -455,6 +455,7 @@ function FontSizeInput({
   return (
     <Input
       id="inspector-font-size"
+      aria-label="Font size"
       type="number"
       min={4}
       max={72}
@@ -497,3 +498,4 @@ function StrokeWidthPicker({ value, onChange }: { value: number; onChange: (valu
     </div>
   );
 }
+

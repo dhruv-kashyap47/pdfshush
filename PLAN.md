@@ -706,6 +706,29 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-11-04 - Post-ship bug pass: the editor's selected state, declined metadata and the popular row.**
+
+  Four surface defects, found by asking each claim to prove itself. Selecting an editor object
+  turned the wrapper into a `role="button"` containing four resize buttons, and the font-size input
+  had no label; the wrapper is a `group` while selected and the input is labelled. The tool-group
+  headings and status text failed colour contrast at 72%/75% muted tokens; they use the full token.
+  The a11y suite now creates and selects an object before running axe.
+
+  Declined pages still had a "free and private" title, a "runs in your browser" description and a
+  `SoftwareApplication` JSON-LD. They now say "not built", describe the decision page, and emit
+  `WebPage`; they stay `noindex`. The home "Most popular" row still linked `pdf-to-word`, a declined
+  tool; it now uses `redact-pdf`, and `popularTools()` filters to live with a test. The prerendered
+  `/tools/workflows`, `/tools/api` and `/tools/mcp` pages also no longer claim "parsed inside this
+  browser tab"; each states its real server data path. README no longer says "in development".
+
+  Most serious: `apps/web/build/prerender.ts` was ignored by the repo-wide `build/` rule, so the
+  pushed M5.5 commit imported a file that was never committed and a clean checkout could not build.
+  `.gitignore` now re-includes `apps/web/build/` and the source is tracked.
+
+  Evidence: `pnpm test` **1330/1330**, bundle green, a11y **17 checks** (including the editor with a
+  selected object), reach **71**, keyboard 19. No engine, redaction, ID-hash or editing-ladder rule
+  was touched.
+
 - **2026-11-04 - M5.8: release evidence, and the verifier moved off the main thread.**
 
   The last engine-bearing app chunk is gone. `/verify` now posts bytes to a dedicated
@@ -714,9 +737,9 @@ never actually wired, and a stream with no error listener.*
   only in worker chunks). `tests/bundle-boundary.mjs` now classifies every `*-worker-*.js` as worker
   code instead of only `job-worker-*`; the rule is unchanged, the classification is correct.
 
-  Final campaign: typecheck, `pnpm test` **1329/1329**, build, bundle; dev E2E smoke, text-edit,
+  Final campaign: typecheck, `pnpm test` **1330/1330**, build, bundle; dev E2E smoke, text-edit,
   text-model, sign, plain-tools, next-tools, bookmark-batch, forms-bookmarks, dark-mode; preview
-  E2E offline/privacy (26), reach (65), a11y (16), keyboard (19), verifier (4). Final baseline:
+  E2E offline/privacy (26), reach (71), a11y (17), keyboard (19), verifier (4). Final baseline:
   p95 **499 ms**, first interaction 14 ms, long task 122 ms, iPhone heap 10 MB, **49/49** live tools
   zero serious axe, **52/52** crawled routes with content, **49/49** limit copy, determinism
   identical, 0 egress. The per-tool Q1-Q8 table is in §31.21.
@@ -758,7 +781,7 @@ never actually wired, and a stream with no error listener.*
   in Select mode), arrow keys nudge, Delete removes and Ctrl+Z restores. Overlay objects are
   focusable with a spoken description and Enter selects them.
 
-  Evidence: `pnpm test:e2e:a11y` **16 checks** green; `pnpm test:e2e:keyboard` **19 checks** green,
+  Evidence: `pnpm test:e2e:a11y` **17 checks** green; `pnpm test:e2e:keyboard` **19 checks** green,
   including a text object created, nudged 7 px, deleted and undone without a mouse. CI's perf job
   now runs axe, keyboard and reach against the production preview. Honest gaps: 15 routes in the
   axe budget, six representative tool classes, and no real VoiceOver/NVDA session.
@@ -6045,7 +6068,7 @@ before, and two contrast defects fixed at the shared-chrome level so every tool 
 
 **Evidence.**
 
-- `pnpm test:e2e:a11y` **16 checks**, green: 15 routes with zero critical/serious violations, Tab
+- `pnpm test:e2e:a11y` **17 checks**, green: 15 routes plus the editor with a selected object, zero critical/serious violations, Tab
   traverses the shell, every focused control has a name, and the first stop has a visible focus ring.
 - `pnpm test:e2e:keyboard` **19 checks**, green: six tool classes reach a named file picker in 10
   Tab stops; the editor creates a text object with T + Enter, nudges it 7 px with ArrowRight, deletes
@@ -6135,12 +6158,12 @@ chunk, and no app chunk carries an engine.
 
 **Campaign evidence.**
 
-- `pnpm -r typecheck` green; `pnpm test` **1329/1329** (pdf-core 445, API 210, provider 370, agent
-  152, web 133, MCP 19); `pnpm build` green; `pnpm test:bundle` **green** (main 141.2 kB, 0 engines;
+- `pnpm -r typecheck` green; `pnpm test` **1330/1330** (pdf-core 445, API 210, provider 370, agent
+  152, web 134, MCP 19); `pnpm build` green; `pnpm test:bundle` **green** (main 141.2 kB, 0 engines;
   11 lazy app chunks, 0 engines; engines in the worker chunks).
 - Browser E2E green on the dev stack: smoke (20 sections), text-edit, text-model, sign, plain-tools,
   next-tools, bookmark-batch, forms-bookmarks, dark-mode.
-- Production-preview suites green: offline/privacy (26), reach (65), a11y (16), keyboard (19),
+- Production-preview suites green: offline/privacy (26), reach (71), a11y (17), keyboard (19),
   verifier (4).
 - Final `pnpm test:baseline` (production preview, 52 routes): p95 **499 ms** (ceiling 583), first
   interaction **14 ms** (23), 50-page worst long task **122 ms** (200), iPhone-13 heap **10 MB**
@@ -6224,6 +6247,54 @@ server-run or the quality cannot be measured from the client.
   `VITE_SITE_ORIGIN`; the build prints what it used.
 - **Low - no real screen reader or iOS device was exercised.** axe, the DOM accessibility tree and
   WebKit emulation stand in; the gaps are stated in §31.19 and §31.17.
+
+---
+
+### 31.22 Post-ship bug pass (2026-11-04)
+
+Six defects were found by asking the shipped surfaces to prove their own claims, and fixed
+surgically.
+
+1. **The editor failed axe once an object was selected.** The selection state turned the object
+   wrapper into a `role="button"` that contained four resize `<button>`s, and the inspector's font
+   size input had no label. The wrapper is now a `group` while selected (no nested interactive
+   controls), and the input has `aria-label="Font size"`. The editor tool-group headings and status
+   text used 72%/75% muted tokens and failed colour contrast; both are now the full
+   `--muted-foreground`. `a11y.mjs` now opens the editor, creates a text object and selects it before
+   running axe, so the fix is pinned.
+
+2. **Declined pages still advertised themselves as working software.** Their `<title>` said "free and
+   private", the description said the file runs in the browser, and the JSON-LD was a
+   `SoftwareApplication`. They now say "not built", describe the decision page, and emit a
+   `WebPage` entity. They remain `noindex` and out of the sitemap.
+
+3. **The popular row still linked `pdf-to-word`.** A declined tool sat in the home page's
+   "Most popular" row. It is replaced by `redact-pdf`, and `popularTools()` now filters to `live` so a
+   future catalog edit cannot reintroduce the same bug. A test pins it.
+
+4. **README still promised "in development".** The status table and the permanent-page paragraph now
+   describe the not-built decision page and the M5 completion, with the container-gate caveat.
+
+5. **The prerendered pages claimed local processing for server-run tools.** `/tools/workflows`,
+   `/tools/api` and `/tools/mcp` were rendered with the generic "parsed inside this browser tab"
+   sentence and a local "how it works" list, contradicting the React trust card. Each now carries its
+   real data path (server-run, server-side, local process calling the API) and the home lead says
+   "every client-side tool", not "every live tool". The reach suite now rejects the local-claim
+   phrasing on those three routes.
+
+6. **The prerender source was never committed.** The repo-wide `build/` ignore rule matched
+   `apps/web/build/prerender.ts`, so `vite.config.ts` imported a file that existed only on the
+   development machine. `.gitignore` now re-includes `apps/web/build/` and the file is tracked; a
+   fresh clone can build. This was the most serious finding in the pass: the pushed M5.5 commit was
+   not buildable from a clean checkout.
+
+**Evidence.** `pnpm test` **1330/1330** (web 134), `pnpm test:bundle` green, `pnpm test:e2e:a11y`
+**17 checks** (including the editor-with-object case), reach **71**, keyboard 19. The declined page
+on the production preview now has the title `PDF to Word - not built | PDFShush`, a `WebPage` JSON-LD
+block, and the not-built body.
+
+**Not changed.** No engine, redaction, ID-hash or editing-ladder rule was touched. These are surface
+fixes: roles, labels, colours, metadata and one catalog row.
 
 ---
 
@@ -6472,6 +6543,9 @@ later. Decide before `billing/` exists, not after.
 3. AGPL/CLA stance (§33.8) before billing code.
 4. Ratified prices after §33.7.
 5. Keep ads, decline ads, or defer to M7 — the pricing page works either way.
+
+
+
 
 
 
