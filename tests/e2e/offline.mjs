@@ -104,9 +104,13 @@ async function main() {
   await writeFile(fileB, buildPdf('Offline proof page B'));
 
   // Fail early with the fix, not a stack trace from inside Playwright.
-  let root;
+  let html;
   try {
-    root = await fetch(`${BASE}/`, { signal: AbortSignal.timeout(5_000) });
+    const root = await fetch(`${BASE}/`, { signal: AbortSignal.timeout(5_000) });
+    // Drain every body immediately: AbortSignal.timeout covers body reads, and
+    // the service-worker phase below can take longer than five seconds on a
+    // cold runner. A late read surfaces as a bare DOMException TimeoutError.
+    html = await root.text();
   } catch {
     console.error(
       `[offline] ${BASE} is not reachable. This suite needs a production build:\n` +
@@ -116,7 +120,7 @@ async function main() {
     return;
   }
   const sw = await fetch(`${BASE}/sw.js`, { signal: AbortSignal.timeout(5_000) });
-  const html = await root.text();
+  const swSource = await sw.text();
   if (!sw.ok || !html.includes('Content-Security-Policy')) {
     console.error(
       '[offline] this build has no service worker or no CSP meta tag. Build first:\n' +
@@ -198,7 +202,6 @@ async function main() {
     );
     check('a service worker controls the page', controlled);
 
-    const swSource = await sw.text();
     const cacheVersion = /const BUILD_ID = '([^']+)'/.exec(swSource)?.[1];
     check('sw.js carries a build id (versioned cache)', Boolean(cacheVersion), cacheVersion ?? 'missing');
     check('sw.js precaches the shell', swSource.includes("'/index.html'"));
