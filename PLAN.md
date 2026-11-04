@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.6 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), the performance gate (§31.17), reach/prerender (§31.18) and accessibility/input parity (§31.19); M5.7 next |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.7 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19) and parity decisions (§31.20); M5.8 next |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -78,8 +78,8 @@ campaign, and the containerised API hardening gate (SIGKILL mid-job → no orpha
 queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
 recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14, M5.2's
 verifiable privacy in §31.15, M5.3's receipts/structure confidence in §31.16, M5.4's performance
-gate in §31.17, M5.5's reach/prerender in §31.18 and M5.6's accessibility/input parity in §31.19;
-M5.7-M5.8 are not claimed.**
+gate in §31.17, M5.5's reach/prerender in §31.18, M5.6's accessibility/input parity in §31.19
+and M5.7's parity decisions in §31.20; M5.8 is not claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -703,6 +703,23 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 - M5.7: the nine "planned" entries became nine documented decisions.**
+
+  The `planned` state is gone. All 58 catalog entries are `live` (49) or `declined` (9). Each
+  declined page keeps its URL, says "Not built — and here is exactly why", names the real blocker and
+  links the closest live path: Word/Excel/PowerPoint conversions point at PDF to Text or PDF to JPG;
+  Word/HTML→PDF point at the browser's own Print → Save as PDF; deskew points at Rotate + Crop; OCR
+  points at PDF to Text with the honest warning that a scan returns empty; sign routing points at
+  Fill & Sign; batch conversion points at Batch run.
+
+  The reasons are data in `apps/web/src/tools/declined.ts`, pinned by five tests: every entry is
+  live or declined, the nine slugs match the record exactly, counts are 58/49/9, every reason is
+  substantive, and every named alternative is live. There is no "in development" fallback, no email
+  capture, no date. Declined pages are `noindex` and absent from the sitemap.
+
+  Honest gap: declining is not shipping. A visitor who needs OCR or DOCX still has to use another
+  product. This is one commit for a single catalog-state change, not nine mechanical commits.
 
 - **2026-11-04 - M5.6: zero serious axe findings, and a canvas the keyboard can drive.**
 
@@ -5373,6 +5390,13 @@ milestone **live**, **re-scoped** (renamed and described to match what it actual
 | `deskew` | image analysis; genuinely feasible client-side and small | ship |
 | `sign-workflow` | routing and audit beyond the current sidecar | ship a narrow version **or** re-scope the page |
 
+**Decision (2026-11-04, M5.7).** All nine are **declined**, not deferred: each page now says
+"Not built — and here is exactly why", names the real blocker and points at the closest live tool.
+No page promises a date, captures an email or shows "in development". The reasons live in
+`apps/web/src/tools/declined.ts` and are pinned by `declined.test.ts`; the catalog status is
+`'declined'`, so `planned` no longer exists as a state. The largest honest gap is OCR: scans still
+have no text layer, and `pdf-to-text` returns empty on them rather than inventing text.
+
 Declining is an acceptable, documented outcome. A ship-or-decline decision with a reason is
 excellence; an indefinite "coming soon" is not.
 
@@ -6021,6 +6045,50 @@ before, and two contrast defects fixed at the shared-chrome level so every tool 
 
 ---
 
+### 31.20 M5.7 result - the nine parity entries are decisions, not promises (2026-11-04)
+
+**Delivered.** The `planned` state is gone. All 58 catalog entries are now `live` (49) or
+`declined` (9); no entry is waiting for a date.
+
+| entry | decision | closest live path |
+| --- | --- | --- |
+| `pdf-to-word` | declined: faithful DOCX needs styles, lists, tables and font mapping | PDF to Text |
+| `pdf-to-excel` | declined: a text dump into cells produces wrong numbers | PDF to Text |
+| `pdf-to-ppt` | declined: a JPEG in a `.pptx` is a picture of a slide, not an editable one | PDF to JPG |
+| `word-to-pdf` | declined: needs a full office engine, not a tab | print to PDF from Word/Docs |
+| `html-to-pdf` | declined: needs a headless browser, SSRF policy and a server | browser Print → Save as PDF |
+| `deskew` | declined: angle detection can crop or soften a scan; no guessing | Rotate PDF (exact 90°) + Crop |
+| `ocr-pdf` | declined: needs Tesseract/OCRmyPDF; "searchable" would be false | PDF to Text (existing layer only) |
+| `sign-workflow` | declined: routing needs accounts, email and a retention policy | Fill & Sign (local) |
+| `convert-batch` | declined: depends on the converters above | Batch run (live tools) |
+
+Each declined page keeps its URL, says **"Not built — and here is exactly why"**, states the blocker
+and links the closest live path. It is `noindex` and absent from the sitemap. There is no
+"Tell me when it ships", no "in development" fallback and no email capture. The reasons are data
+(`apps/web/src/tools/declined.ts`) rather than prose scattered through JSX.
+
+**Evidence.**
+
+- `apps/web/src/tools/declined.test.ts` (5 tests): every entry is `live` or `declined`; the 9
+  declined slugs match the decision record exactly; counts 58/49/9; every reason is substantive;
+  every named alternative is live.
+- Browser check on `/tools/pdf-to-word`: "Not built" present, "In development" absent, no
+  "coming soon", two links to PDF to Text, one link to the decision record.
+- Reach suite still green: 53 sitemap URLs (49 live + 4 shell) and the five sampled declined routes
+  are `noindex`.
+
+**Not claimed / accepted gaps.**
+
+- **Declining is not shipping.** A visitor who needs OCR, DOCX or HTML→PDF still has to use another
+  product; the page says so rather than pretending a browser tab can do it.
+- **This is one commit, not nine.** The workstream text said "one commit per entry"; the change is a
+  single catalog-state change with nine records and one test, so splitting it would manufacture nine
+  commits that each leave the catalog in the same valid state.
+- **A future server product could reopen an entry.** If M6 adds a server renderer or OCR worker, the
+  decision is revisited in the open; a declined page is not a permanent prohibition.
+
+---
+
 ## 32. Shared editor workspace and interaction pass (2026-11-03)
 
 **Goal.** One PDF editor for the product. Text editing, Edit with AI, redaction and page
@@ -6266,6 +6334,7 @@ later. Decide before `billing/` exists, not after.
 3. AGPL/CLA stance (§33.8) before billing code.
 4. Ratified prices after §33.7.
 5. Keep ads, decline ads, or defer to M7 — the pricing page works either way.
+
 
 
 

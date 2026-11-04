@@ -3,8 +3,8 @@
  *
  * Mirrors the Sejda catalog one-to-one (categories, slugs, naming) so every
  * URL and menu entry we ship on day one is final. `status: 'live'` tools are
- * wired to real jobs; 'planned' tools render a landing page that explains what
- * is coming, which keeps SEO/internal links stable across phases.
+ * wired to real jobs; 'declined' tools keep their URL and explain the decision
+ * instead of promising a date.
  */
 
 import type { LucideIcon } from 'lucide-react';
@@ -57,7 +57,7 @@ import {
   Workflow,
 } from 'lucide-react';
 
-export type ToolStatus = 'live' | 'planned';
+export type ToolStatus = 'live' | 'declined';
 
 export interface ToolDef {
   slug: string;
@@ -86,7 +86,7 @@ const t = (
   category: string,
   icon: LucideIcon,
   accent: Accent,
-  status: ToolStatus = 'planned',
+  status: ToolStatus = 'declined',
 ): ToolDef => ({ slug, name, description, category, status, icon, accent });
 
 /**
@@ -225,7 +225,7 @@ const tool = (
   category: string,
   icon: LucideIcon,
   accent: Accent,
-): ToolDef => t(slug, name, description, category, icon, accent, LIVE.has(slug) ? 'live' : 'planned');
+): ToolDef => t(slug, name, description, category, icon, accent, LIVE.has(slug) ? 'live' : 'declined');
 
 export const TOOL_CATEGORIES: ToolCategory[] = [
   {
@@ -397,3 +397,4 @@ export function nextFor(slug: string): ToolDef[] {
     .map((next) => TOOLS_BY_SLUG[next])
     .filter((def): def is ToolDef => def?.status === 'live');
 }
+

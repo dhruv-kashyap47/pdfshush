@@ -276,9 +276,9 @@ function MegaMenu({
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="truncate">{def.name}</span>
-                    {def.status === 'planned' && (
-                      <span className="ml-auto shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                        soon
+                    {def.status === 'declined' && (
+                      <span className="ml-auto shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        not built
                       </span>
                     )}
                   </Link>

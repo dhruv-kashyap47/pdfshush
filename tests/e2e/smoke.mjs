@@ -1051,7 +1051,7 @@ async function main() {
   // A slug that is still planned; the batch tools now render their real UI, so
   // the placeholder check must point at something the catalog has not shipped.
   await page.goto(`${BASE}/tools/pdf-to-word`, { waitUntil: 'networkidle' });
-  check('planned tool page renders', await page.getByText('In development').isVisible());
+  check('not-built tool page renders', await page.getByText('Not built').isVisible());
   await page.goto(`${BASE}/tools/does-not-exist`, { waitUntil: 'networkidle' });
   check('404 page renders', await page.getByText('This page went missing').isVisible());
 
@@ -1340,3 +1340,4 @@ main().catch((error) => {
   console.error('E2E run failed:', error);
   process.exit(1);
 });
+

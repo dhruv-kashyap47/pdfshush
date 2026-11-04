@@ -627,7 +627,7 @@ function renderMarkdown(report) {
   lines.push('| --- | --- |');
   lines.push(`| registered entries | ${catalog.tools.length} |`);
   lines.push(`| live | ${catalog.live.length} |`);
-  lines.push(`| planned | ${catalog.tools.length - catalog.live.length} |`);
+  lines.push(`| not built | ${catalog.tools.length - catalog.live.length} |`);
   lines.push('');
   lines.push('## Q3 — tool-ready (4x throttle)');
   lines.push('');
@@ -794,3 +794,4 @@ async function main() {
 }
 
 await main();
+

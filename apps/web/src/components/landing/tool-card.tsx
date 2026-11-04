@@ -30,8 +30,8 @@ export function ToolCard({ tool, compact = false }: ToolCardProps) {
         <p className="text-[15px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
           {tool.name}
         </p>
-        {tool.status === 'planned' && (
-          <span className="mt-0.5 shrink-0 text-[11px] font-medium text-muted-foreground">soon</span>
+        {tool.status === 'declined' && (
+          <span className="mt-0.5 shrink-0 text-[11px] font-medium text-muted-foreground">not built</span>
         )}
         {tool.status === 'live' && (
           <span className="mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300">

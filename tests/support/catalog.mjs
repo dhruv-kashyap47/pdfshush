@@ -38,7 +38,7 @@ export function parseRegistry(source) {
         category,
         icon,
         accent,
-        status: live.has(slug) ? 'live' : 'planned',
+        status: live.has(slug) ? 'live' : 'declined',
       };
       entries.push(entry);
       tools.push(entry);
@@ -109,3 +109,4 @@ export const TOOL_CLASS = {
 export function classOf(slug) {
   return TOOL_CLASS[slug] ?? 'plain';
 }
+
