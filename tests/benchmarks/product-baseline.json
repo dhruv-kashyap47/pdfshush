@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T07:01:09.341Z",
+  "generatedAt": "2026-11-04T07:17:56.228Z",
   "base": "http://localhost:4173",
   "catalog": {
     "total": 58,
@@ -15,9 +15,9 @@
     {
       "route": "/tools/alternate-mix",
       "readyMark": "tool-ready",
-      "readyMs": 450.20000000018626,
-      "loadMs": 59.90000000037253,
-      "interactionMs": 5.2000000001862645,
+      "readyMs": 436.6000000005588,
+      "loadMs": 55,
+      "interactionMs": 5.5,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -30,9 +30,9 @@
     {
       "route": "/tools/merge-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 439.09999999962747,
-      "loadMs": 57,
-      "interactionMs": 5.099999999627471,
+      "readyMs": 421.1000000005588,
+      "loadMs": 50.299999999813735,
+      "interactionMs": 6.099999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -45,9 +45,9 @@
     {
       "route": "/tools/organize-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 437.59999999962747,
-      "loadMs": 59.19999999925494,
-      "interactionMs": 1.3999999994412065,
+      "readyMs": 426.5,
+      "loadMs": 49.200000000186265,
+      "interactionMs": 5.199999999254942,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -63,9 +63,9 @@
     {
       "route": "/tools/extract-pages",
       "readyMark": "tool-ready",
-      "readyMs": 436.70000000018626,
-      "loadMs": 59.09999999962747,
-      "interactionMs": 5.7999999998137355,
+      "readyMs": 412.59999999962747,
+      "loadMs": 46.299999999813735,
+      "interactionMs": 5.900000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -78,9 +78,9 @@
     {
       "route": "/tools/split-by-pages",
       "readyMark": "tool-ready",
-      "readyMs": 436.90000000037253,
-      "loadMs": 56,
-      "interactionMs": 6.599999999627471,
+      "readyMs": 429.59999999962747,
+      "loadMs": 47.200000000186265,
+      "interactionMs": 9.899999999441206,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -93,9 +93,9 @@
     {
       "route": "/tools/split-by-bookmarks",
       "readyMark": "tool-ready",
-      "readyMs": 437.3999999994412,
-      "loadMs": 55,
-      "interactionMs": 5.7000000001862645,
+      "readyMs": 437.29999999981374,
+      "loadMs": 52.89999999944121,
+      "interactionMs": 6.3999999994412065,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -108,9 +108,9 @@
     {
       "route": "/tools/split-in-half",
       "readyMark": "tool-ready",
-      "readyMs": 433,
-      "loadMs": 56.700000000186265,
-      "interactionMs": 8.299999999813735,
+      "readyMs": 410.59999999962747,
+      "loadMs": 51,
+      "interactionMs": 6,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -123,9 +123,9 @@
     {
       "route": "/tools/split-by-size",
       "readyMark": "tool-ready",
-      "readyMs": 434.09999999962747,
-      "loadMs": 55.799999999813735,
-      "interactionMs": 7.5,
+      "readyMs": 421,
+      "loadMs": 48.299999999813735,
+      "interactionMs": 6.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -138,9 +138,9 @@
     {
       "route": "/tools/split-by-text",
       "readyMark": "tool-ready",
-      "readyMs": 437.5,
-      "loadMs": 54.80000000074506,
-      "interactionMs": 5.1000000005587935,
+      "readyMs": 414.8999999994412,
+      "loadMs": 51.69999999925494,
+      "interactionMs": 5.900000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -153,9 +153,9 @@
     {
       "route": "/tools/edit-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 439.5,
-      "loadMs": 58.299999999813735,
-      "interactionMs": 1.2999999998137355,
+      "readyMs": 420.90000000037253,
+      "loadMs": 46.700000000186265,
+      "interactionMs": 5.2999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -171,9 +171,9 @@
     {
       "route": "/tools/fill-sign",
       "readyMark": "tool-ready",
-      "readyMs": 439,
-      "loadMs": 55.700000000186265,
-      "interactionMs": 4.2999999998137355,
+      "readyMs": 410.8999999994412,
+      "loadMs": 46.59999999962747,
+      "interactionMs": 7.599999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -189,9 +189,9 @@
     {
       "route": "/tools/create-forms",
       "readyMark": "tool-ready",
-      "readyMs": 440.20000000018626,
-      "loadMs": 55.5,
-      "interactionMs": 4.8999999994412065,
+      "readyMs": 414,
+      "loadMs": 51.40000000037253,
+      "interactionMs": 5.900000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -204,9 +204,9 @@
     {
       "route": "/tools/delete-pages",
       "readyMark": "tool-ready",
-      "readyMs": 428.5,
-      "loadMs": 52.700000000186265,
-      "interactionMs": 4.900000000372529,
+      "readyMs": 421.09999999962747,
+      "loadMs": 48.40000000037253,
+      "interactionMs": 6,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -219,9 +219,9 @@
     {
       "route": "/tools/compress-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 426.5,
-      "loadMs": 54.09999999962747,
-      "interactionMs": 4.7999999998137355,
+      "readyMs": 555.5,
+      "loadMs": 76.5,
+      "interactionMs": 5,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -234,9 +234,9 @@
     {
       "route": "/tools/redact-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 439.40000000037253,
-      "loadMs": 57,
-      "interactionMs": 6.2000000001862645,
+      "readyMs": 435.70000000018626,
+      "loadMs": 60.799999999813735,
+      "interactionMs": 5.400000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -252,9 +252,9 @@
     {
       "route": "/tools/protect-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 429.20000000018626,
-      "loadMs": 56.59999999962747,
-      "interactionMs": 5.400000000372529,
+      "readyMs": 423.59999999962747,
+      "loadMs": 53,
+      "interactionMs": 6,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -267,9 +267,9 @@
     {
       "route": "/tools/unlock-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 437.59999999962747,
-      "loadMs": 55,
-      "interactionMs": 5.7000000001862645,
+      "readyMs": 420.40000000037253,
+      "loadMs": 53.200000000186265,
+      "interactionMs": 6.1000000005587935,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -282,9 +282,9 @@
     {
       "route": "/tools/watermark",
       "readyMark": "tool-ready",
-      "readyMs": 436.80000000074506,
-      "loadMs": 56.60000000055879,
-      "interactionMs": 4.7999999998137355,
+      "readyMs": 427.40000000037253,
+      "loadMs": 50,
+      "interactionMs": 4.400000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -297,9 +297,9 @@
     {
       "route": "/tools/flatten-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 438.90000000037253,
-      "loadMs": 56.80000000074506,
-      "interactionMs": 5,
+      "readyMs": 420.40000000037253,
+      "loadMs": 51.5,
+      "interactionMs": 5.400000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -312,9 +312,9 @@
     {
       "route": "/tools/pdf-to-jpg",
       "readyMark": "tool-ready",
-      "readyMs": 436.70000000018626,
-      "loadMs": 53.40000000037253,
-      "interactionMs": 5.7000000001862645,
+      "readyMs": 437.30000000074506,
+      "loadMs": 51.90000000037253,
+      "interactionMs": 5.599999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -327,9 +327,9 @@
     {
       "route": "/tools/pdf-to-text",
       "readyMark": "tool-ready",
-      "readyMs": 438.6000000005588,
-      "loadMs": 55.80000000074506,
-      "interactionMs": 5.7000000001862645,
+      "readyMs": 420.29999999981374,
+      "loadMs": 50.59999999962747,
+      "interactionMs": 5.400000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -342,9 +342,9 @@
     {
       "route": "/tools/jpg-to-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 437.40000000037253,
-      "loadMs": 57.90000000037253,
-      "interactionMs": 7.400000000372529,
+      "readyMs": 421.29999999981374,
+      "loadMs": 49.09999999962747,
+      "interactionMs": 5.8999999994412065,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -357,9 +357,9 @@
     {
       "route": "/tools/summarize-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 502.79999999981374,
-      "loadMs": 63.799999999813735,
-      "interactionMs": 18.200000000186265,
+      "readyMs": 519.0999999996275,
+      "loadMs": 101.70000000018626,
+      "interactionMs": 14.200000000186265,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -375,9 +375,9 @@
     {
       "route": "/tools/chat-with-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 485.79999999981374,
-      "loadMs": 65.40000000037253,
-      "interactionMs": 18.799999999813735,
+      "readyMs": 528.4000000003725,
+      "loadMs": 97,
+      "interactionMs": 15.299999999813735,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -393,9 +393,9 @@
     {
       "route": "/tools/edit-pdf-with-ai",
       "readyMark": "tool-ready",
-      "readyMs": 1331,
-      "loadMs": 904.4000000003725,
-      "interactionMs": 14.700000000186265,
+      "readyMs": 470.30000000074506,
+      "loadMs": 65.20000000018626,
+      "interactionMs": 15.600000000558794,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -411,9 +411,9 @@
     {
       "route": "/tools/bates-numbering",
       "readyMark": "tool-ready",
-      "readyMs": 450.5,
-      "loadMs": 65,
-      "interactionMs": 6.599999999627471,
+      "readyMs": 522.8999999994412,
+      "loadMs": 104.19999999925494,
+      "interactionMs": 13.200000000186265,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -426,9 +426,9 @@
     {
       "route": "/tools/create-bookmarks",
       "readyMark": "tool-ready",
-      "readyMs": 450.6000000005588,
+      "readyMs": 451.29999999981374,
       "loadMs": 60.10000000055879,
-      "interactionMs": 6,
+      "interactionMs": 7.900000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -441,9 +441,9 @@
     {
       "route": "/tools/crop-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 436.40000000037253,
-      "loadMs": 56.299999999813735,
-      "interactionMs": 5.300000000745058,
+      "readyMs": 437.5,
+      "loadMs": 53.700000000186265,
+      "interactionMs": 7.7000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -456,9 +456,9 @@
     {
       "route": "/tools/dark-mode-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 436,
-      "loadMs": 57.200000000186265,
-      "interactionMs": 5.5,
+      "readyMs": 418.8999999994412,
+      "loadMs": 49.799999999813735,
+      "interactionMs": 5.400000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -471,9 +471,9 @@
     {
       "route": "/tools/edit-metadata",
       "readyMark": "tool-ready",
-      "readyMs": 437.70000000018626,
-      "loadMs": 55.200000000186265,
-      "interactionMs": 7.5,
+      "readyMs": 419.70000000018626,
+      "loadMs": 48.799999999813735,
+      "interactionMs": 7.2999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -486,9 +486,9 @@
     {
       "route": "/tools/extract-images",
       "readyMark": "tool-ready",
-      "readyMs": 437.79999999981374,
-      "loadMs": 59.5,
-      "interactionMs": 5.7000000001862645,
+      "readyMs": 426.20000000018626,
+      "loadMs": 49.5,
+      "interactionMs": 6,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -501,9 +501,9 @@
     {
       "route": "/tools/flip-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 437.79999999981374,
-      "loadMs": 54.799999999813735,
-      "interactionMs": 6.400000000372529,
+      "readyMs": 582.6000000005588,
+      "loadMs": 124.70000000018626,
+      "interactionMs": 11.099999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -516,9 +516,9 @@
     {
       "route": "/tools/grayscale-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 438.1000000005588,
-      "loadMs": 57.40000000037253,
-      "interactionMs": 7.599999999627471,
+      "readyMs": 437.70000000018626,
+      "loadMs": 60.200000000186265,
+      "interactionMs": 8.100000000558794,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -531,9 +531,9 @@
     {
       "route": "/tools/header-footer",
       "readyMark": "tool-ready",
-      "readyMs": 437.70000000018626,
-      "loadMs": 54.799999999813735,
-      "interactionMs": 5.400000000372529,
+      "readyMs": 421.09999999962747,
+      "loadMs": 51.19999999925494,
+      "interactionMs": 5.800000000745058,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -546,9 +546,9 @@
     {
       "route": "/tools/n-up",
       "readyMark": "tool-ready",
-      "readyMs": 451.40000000037253,
-      "loadMs": 73.90000000037253,
-      "interactionMs": 6.400000000372529,
+      "readyMs": 418.70000000018626,
+      "loadMs": 51.59999999962747,
+      "interactionMs": 5.599999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -561,9 +561,9 @@
     {
       "route": "/tools/page-numbers",
       "readyMark": "tool-ready",
-      "readyMs": 438,
-      "loadMs": 54.09999999962747,
-      "interactionMs": 6.3999999994412065,
+      "readyMs": 452.6000000005588,
+      "loadMs": 65.70000000018626,
+      "interactionMs": 7.8999999994412065,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -576,9 +576,9 @@
     {
       "route": "/tools/rename-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 442.09999999962747,
-      "loadMs": 58.40000000037253,
-      "interactionMs": 6.900000000372529,
+      "readyMs": 410.8999999994412,
+      "loadMs": 47.59999999962747,
+      "interactionMs": 7.400000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -591,9 +591,9 @@
     {
       "route": "/tools/repair-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 433.70000000018626,
-      "loadMs": 54.90000000037253,
-      "interactionMs": 5.5,
+      "readyMs": 436.40000000037253,
+      "loadMs": 51.90000000037253,
+      "interactionMs": 5.599999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -606,9 +606,9 @@
     {
       "route": "/tools/resize-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 436.5,
-      "loadMs": 58.799999999813735,
-      "interactionMs": 6,
+      "readyMs": 419.90000000037253,
+      "loadMs": 51.80000000074506,
+      "interactionMs": 7.6000000005587935,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -621,9 +621,9 @@
     {
       "route": "/tools/rotate-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 436.80000000074506,
-      "loadMs": 54.90000000037253,
-      "interactionMs": 1.5,
+      "readyMs": 422.19999999925494,
+      "loadMs": 53.39999999944121,
+      "interactionMs": 5.7999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -636,8 +636,8 @@
     {
       "route": "/tools/remove-annotations",
       "readyMark": "tool-ready",
-      "readyMs": 437.1000000005588,
-      "loadMs": 54.40000000037253,
+      "readyMs": 420.29999999981374,
+      "loadMs": 48.60000000055879,
       "interactionMs": 6.5,
       "limitCopy": true,
       "apiFailures": [
@@ -651,9 +651,9 @@
     {
       "route": "/tools/workflows",
       "readyMark": "tool-ready",
-      "readyMs": 439.5,
-      "loadMs": 59.60000000055879,
-      "interactionMs": 9.900000000372529,
+      "readyMs": 426.29999999981374,
+      "loadMs": 51.89999999944121,
+      "interactionMs": 10.099999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -673,9 +673,9 @@
     {
       "route": "/tools/batch-run",
       "readyMark": "tool-ready",
-      "readyMs": 434.90000000037253,
-      "loadMs": 53.60000000055879,
-      "interactionMs": 6,
+      "readyMs": 419.6000000005588,
+      "loadMs": 46.700000000186265,
+      "interactionMs": 5.099999999627471,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -688,9 +688,9 @@
     {
       "route": "/tools/api",
       "readyMark": "tool-ready",
-      "readyMs": 441.59999999962747,
-      "loadMs": 57.200000000186265,
-      "interactionMs": 1.6000000005587935,
+      "readyMs": 419.79999999981374,
+      "loadMs": 51.90000000037253,
+      "interactionMs": 4.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -706,9 +706,9 @@
     {
       "route": "/tools/mcp",
       "readyMark": "tool-ready",
-      "readyMs": 425.5,
-      "loadMs": 53.39999999944121,
-      "interactionMs": 7,
+      "readyMs": 417,
+      "loadMs": 51.200000000186265,
+      "interactionMs": 6.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -724,9 +724,9 @@
     {
       "route": "/tools/image-editor",
       "readyMark": "tool-ready",
-      "readyMs": 438.5,
-      "loadMs": 55.10000000055879,
-      "interactionMs": 5.300000000745058,
+      "readyMs": 417.69999999925494,
+      "loadMs": 48.5,
+      "interactionMs": 5.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -739,9 +739,9 @@
     {
       "route": "/tools/signature",
       "readyMark": "tool-ready",
-      "readyMs": 436.70000000018626,
-      "loadMs": 54.299999999813735,
-      "interactionMs": 17.09999999962747,
+      "readyMs": 415.90000000037253,
+      "loadMs": 50.09999999962747,
+      "interactionMs": 4.3999999994412065,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -754,9 +754,9 @@
     {
       "route": "/tools/stamp",
       "readyMark": "tool-ready",
-      "readyMs": 447.79999999981374,
-      "loadMs": 60.19999999925494,
-      "interactionMs": 5.6000000005587935,
+      "readyMs": 420.5,
+      "loadMs": 54.200000000186265,
+      "interactionMs": 7.7000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -769,9 +769,9 @@
     {
       "route": "/tools/combine-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 433.29999999981374,
-      "loadMs": 56.799999999813735,
-      "interactionMs": 6.400000000372529,
+      "readyMs": 415.40000000037253,
+      "loadMs": 51.09999999962747,
+      "interactionMs": 7.7000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -784,9 +784,9 @@
     {
       "route": "/",
       "readyMark": "page-ready",
-      "readyMs": 355.5,
-      "loadMs": 73.40000000037253,
-      "interactionMs": 8.5,
+      "readyMs": 285.40000000037253,
+      "loadMs": 60.700000000186265,
+      "interactionMs": 10.100000000558794,
       "limitCopy": false,
       "apiFailures": [
         "502 /api/auth/me",
@@ -802,9 +802,9 @@
     {
       "route": "/workflows",
       "readyMark": "page-ready",
-      "readyMs": 132.5,
-      "loadMs": 55.09999999962747,
-      "interactionMs": 1,
+      "readyMs": 112.69999999925494,
+      "loadMs": 50.89999999944121,
+      "interactionMs": 8.199999999254942,
       "limitCopy": false,
       "apiFailures": [
         "502 /api/auth/me",
@@ -3084,14 +3084,11 @@
     }
   ],
   "determinism": {
-    "equal": false,
-    "differingFields": [
-      "CreationDate",
-      "ModDate"
-    ],
-    "firstDigest": "06e1512fa61ec61fedbd5735a256fc8e6ad517b17ff83ee9313ce707ba60eae9",
-    "secondDigest": "0c7ec3f830c2c974495469bb4bdfd85f3b84fa516eb939200dacc748be21186b",
-    "bytes": 1471
+    "equal": true,
+    "differingFields": [],
+    "firstDigest": "2669defb6e61a74b7f9adc954d725af7606945c24c756cfaefa7e375393a799f",
+    "secondDigest": "2669defb6e61a74b7f9adc954d725af7606945c24c756cfaefa7e375393a799f",
+    "bytes": 1408
   },
   "network": {
     "total": 11,
@@ -3101,18 +3098,21 @@
     "uploadSamples": []
   },
   "throttled": {
-    "durationMs": 205,
-    "longTasks": 3,
-    "worstLongTaskMs": 133
+    "durationMs": 271,
+    "longTasks": 4,
+    "worstLongTaskMs": 178
   },
   "mobile": {
     "completed": true,
     "heapMb": 10
   },
   "ceilings": {
-    "readyP95": 485.79999999981374,
+    "readyP95": 528.4000000003725,
     "readyCeiling": 583,
-    "interactionWorst": 18.799999999813735
+    "interactionWorst": 15.600000000558794,
+    "interactionCeiling": 23,
+    "longTaskCeiling": 200,
+    "mobileHeapCeilingMb": 15
   },
   "qTable": [
     {
@@ -3120,7 +3120,7 @@
       "name": "Alternate & Mix",
       "class": "merge",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3128,7 +3128,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 450.20000000018626,
+        "readyMs": 436.6000000005588,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3138,7 +3138,7 @@
       "name": "Merge PDF files",
       "class": "merge",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3146,7 +3146,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 439.09999999962747,
+        "readyMs": 421.1000000005588,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3156,205 +3156,7 @@
       "name": "Organize pages",
       "class": "organize",
       "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 437.59999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "extract-pages",
-      "name": "Extract Pages",
-      "class": "page-ops",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 436.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "split-by-pages",
-      "name": "Split by pages",
-      "class": "split",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 436.90000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "split-by-bookmarks",
-      "name": "Split by bookmarks",
-      "class": "split",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 437.3999999994412,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "split-in-half",
-      "name": "Split in half",
-      "class": "split",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 433,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "split-by-size",
-      "name": "Split by size",
-      "class": "split",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 434.09999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "split-by-text",
-      "name": "Split by text",
-      "class": "split",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 437.5,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "edit-pdf",
-      "name": "Edit PDF",
-      "class": "editor",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 439.5,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "fill-sign",
-      "name": "Fill & Sign",
-      "class": "editor",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 439,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "create-forms",
-      "name": "Create Forms",
-      "class": "authoring",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 440.20000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "delete-pages",
-      "name": "Delete Pages",
-      "class": "page-ops",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 428.5,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "compress-pdf",
-      "name": "Compress PDF",
-      "class": "compress",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3368,11 +3170,11 @@
       }
     },
     {
-      "slug": "redact-pdf",
-      "name": "Redact PDF",
-      "class": "security",
+      "slug": "extract-pages",
+      "name": "Extract Pages",
+      "class": "page-ops",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3380,7 +3182,205 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 439.40000000037253,
+        "readyMs": 412.59999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-pages",
+      "name": "Split by pages",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 429.59999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-bookmarks",
+      "name": "Split by bookmarks",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.29999999981374,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-in-half",
+      "name": "Split in half",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 410.59999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-size",
+      "name": "Split by size",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 421,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-text",
+      "name": "Split by text",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 414.8999999994412,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "edit-pdf",
+      "name": "Edit PDF",
+      "class": "editor",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 420.90000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "fill-sign",
+      "name": "Fill & Sign",
+      "class": "editor",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 410.8999999994412,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "create-forms",
+      "name": "Create Forms",
+      "class": "authoring",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 414,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "delete-pages",
+      "name": "Delete Pages",
+      "class": "page-ops",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 421.09999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "compress-pdf",
+      "name": "Compress PDF",
+      "class": "compress",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 555.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "redact-pdf",
+      "name": "Redact PDF",
+      "class": "security",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 435.70000000018626,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3390,7 +3390,7 @@
       "name": "Protect PDF",
       "class": "security",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3398,7 +3398,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 429.20000000018626,
+        "readyMs": 423.59999999962747,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3408,7 +3408,7 @@
       "name": "Unlock PDF",
       "class": "security",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3416,7 +3416,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 437.59999999962747,
+        "readyMs": 420.40000000037253,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3426,7 +3426,7 @@
       "name": "Watermark",
       "class": "stamp",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3434,7 +3434,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 436.80000000074506,
+        "readyMs": 427.40000000037253,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3444,7 +3444,7 @@
       "name": "Flatten PDF",
       "class": "security",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3452,7 +3452,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 438.90000000037253,
+        "readyMs": 420.40000000037253,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3462,7 +3462,7 @@
       "name": "PDF to JPG",
       "class": "raster",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3470,7 +3470,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 436.70000000018626,
+        "readyMs": 437.30000000074506,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3480,7 +3480,7 @@
       "name": "PDF to Text",
       "class": "extract",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3488,7 +3488,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 438.6000000005588,
+        "readyMs": 420.29999999981374,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3498,7 +3498,7 @@
       "name": "JPG to PDF",
       "class": "ingest",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3506,7 +3506,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 437.40000000037253,
+        "readyMs": 421.29999999981374,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3524,7 +3524,7 @@
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 502.79999999981374,
+        "readyMs": 519.0999999996275,
         "axeViolations": 2,
         "axeSerious": 2
       }
@@ -3542,7 +3542,7 @@
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 485.79999999981374,
+        "readyMs": 528.4000000003725,
         "axeViolations": 2,
         "axeSerious": 2
       }
@@ -3560,7 +3560,7 @@
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 1331,
+        "readyMs": 470.30000000074506,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3570,7 +3570,7 @@
       "name": "Bates Numbering",
       "class": "stamp",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3578,7 +3578,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 450.5,
+        "readyMs": 522.8999999994412,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3588,7 +3588,7 @@
       "name": "Create Bookmarks",
       "class": "authoring",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3596,7 +3596,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 450.6000000005588,
+        "readyMs": 451.29999999981374,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3606,7 +3606,187 @@
       "name": "Crop PDF",
       "class": "geometry",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "dark-mode-pdf",
+      "name": "Dark Mode PDF",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 418.8999999994412,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "edit-metadata",
+      "name": "Edit Metadata",
+      "class": "metadata",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 419.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "extract-images",
+      "name": "Extract Images",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 426.20000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "flip-pdf",
+      "name": "Flip PDF",
+      "class": "geometry",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 582.6000000005588,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "grayscale-pdf",
+      "name": "Grayscale PDF",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "header-footer",
+      "name": "Header & Footer",
+      "class": "stamp",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 421.09999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "n-up",
+      "name": "N-up",
+      "class": "geometry",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 418.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "page-numbers",
+      "name": "Page Numbers",
+      "class": "stamp",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 452.6000000005588,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "rename-pdf",
+      "name": "Rename PDF",
+      "class": "metadata",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 410.8999999994412,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "repair-pdf",
+      "name": "Repair PDF",
+      "class": "compress",
+      "Q1": "class-pass",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3620,191 +3800,11 @@
       }
     },
     {
-      "slug": "dark-mode-pdf",
-      "name": "Dark Mode PDF",
-      "class": "raster",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 436,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "edit-metadata",
-      "name": "Edit Metadata",
-      "class": "metadata",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 437.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "extract-images",
-      "name": "Extract Images",
-      "class": "raster",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 437.79999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "flip-pdf",
-      "name": "Flip PDF",
-      "class": "geometry",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 437.79999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "grayscale-pdf",
-      "name": "Grayscale PDF",
-      "class": "raster",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 438.1000000005588,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "header-footer",
-      "name": "Header & Footer",
-      "class": "stamp",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 437.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "n-up",
-      "name": "N-up",
-      "class": "geometry",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 451.40000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "page-numbers",
-      "name": "Page Numbers",
-      "class": "stamp",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 438,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "rename-pdf",
-      "name": "Rename PDF",
-      "class": "metadata",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 442.09999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
-      "slug": "repair-pdf",
-      "name": "Repair PDF",
-      "class": "compress",
-      "Q1": "class-pass",
-      "Q2": "class-fail",
-      "Q3": "pass",
-      "Q4": "class-pass",
-      "Q5": "1-serious",
-      "Q6": "class-pass",
-      "Q7": "class-pass",
-      "Q8": "heuristic-pass",
-      "evidence": {
-        "readyMs": 433.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
-      }
-    },
-    {
       "slug": "resize-pdf",
       "name": "Resize PDF",
       "class": "geometry",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3812,7 +3812,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 436.5,
+        "readyMs": 419.90000000037253,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3822,7 +3822,7 @@
       "name": "Rotate PDF",
       "class": "page-ops",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3830,7 +3830,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 436.80000000074506,
+        "readyMs": 422.19999999925494,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3840,7 +3840,7 @@
       "name": "Remove Annotations",
       "class": "security",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3848,7 +3848,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 437.1000000005588,
+        "readyMs": 420.29999999981374,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3866,7 +3866,7 @@
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 439.5,
+        "readyMs": 426.29999999981374,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3884,7 +3884,7 @@
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 434.90000000037253,
+        "readyMs": 419.6000000005588,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3902,7 +3902,7 @@
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 441.59999999962747,
+        "readyMs": 419.79999999981374,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3920,7 +3920,7 @@
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 425.5,
+        "readyMs": 417,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3930,7 +3930,7 @@
       "name": "Image Editor",
       "class": "raster",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3938,7 +3938,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 438.5,
+        "readyMs": 417.69999999925494,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3948,7 +3948,7 @@
       "name": "Signature",
       "class": "editor",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3956,7 +3956,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 436.70000000018626,
+        "readyMs": 415.90000000037253,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3966,7 +3966,7 @@
       "name": "Stamp",
       "class": "stamp",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3974,7 +3974,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 447.79999999981374,
+        "readyMs": 420.5,
         "axeViolations": 1,
         "axeSerious": 1
       }
@@ -3984,7 +3984,7 @@
       "name": "Combine files",
       "class": "ingest",
       "Q1": "class-pass",
-      "Q2": "class-fail",
+      "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
       "Q5": "1-serious",
@@ -3992,7 +3992,7 @@
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 433.29999999981374,
+        "readyMs": 415.40000000037253,
         "axeViolations": 1,
         "axeSerious": 1
       }

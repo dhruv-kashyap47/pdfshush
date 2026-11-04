@@ -10,6 +10,7 @@
 import { PDFDocument, PDFPage, degrees } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { loadPdfDocument } from './pages.js';
+import { applyDocumentDates, combineDocumentDates, readDocumentDates } from './dates.js';
 
 export interface SourceDocument {
   name: string;
@@ -68,6 +69,7 @@ export async function composeDocument(
   );
 
   const out = await PDFDocument.create();
+  applyDocumentDates(out, combineDocumentDates(docs.map(readDocumentDates)));
 
   // Validate every reference against the real page counts BEFORE copying, so a
   // bad page index fails fast instead of after a full copy.

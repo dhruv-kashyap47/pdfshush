@@ -45,6 +45,22 @@ const HEAVY = process.env.M5_HEAVY !== '0';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT_JSON = path.join(HERE, 'product-baseline.json');
 const OUT_MD = path.join(HERE, 'product-baseline.md');
+
+/**
+ * Ceilings ratified from the M5.0 baseline run (2026-11-04, commit b474dee).
+ *
+ * A re-run measures against these numbers; it never recomputes them from its
+ * own result. Otherwise a lucky run would quietly tighten the goalposts and an
+ * unlucky one would quietly widen them. M5.4 turns this into a CI guard.
+ */
+const RATIFIED = {
+  readyP95Ms: 486,
+  readyCeilingMs: 583,
+  longTaskCeilingMs: 200,
+  interactionWorstMs: 19,
+  interactionCeilingMs: 23,
+  mobileHeapCeilingMb: 15,
+};
 const AXE_PATH = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 
 const TOP_TEN = [
@@ -688,12 +704,12 @@ function renderMarkdown(report) {
     );
   }
   lines.push('');
-  lines.push('## Ratified ceilings (from this baseline)');
+  lines.push('## Ratified ceilings (fixed from the M5.0 run)');
   lines.push('');
-  lines.push(`- **Q3 tool-ready:** p95 ${Math.round(ceilings.readyP95)} ms measured → ceiling **${Math.round(ceilings.readyCeiling)} ms** (p95 + 20% headroom, capped at the 1500 ms spec).`);
-  lines.push(`- **Q3 long task:** worst ${Math.round(throttled.worstLongTaskMs)} ms measured → ceiling **${Math.max(200, Math.ceil(throttled.worstLongTaskMs * 1.2))} ms** (spec floor 200 ms).`);
-  lines.push(`- **Q3 first interaction:** worst ${Math.round(ceilings.interactionWorst)} ms measured → ceiling **${Math.ceil(ceilings.interactionWorst * 1.2)} ms**.`);
-  lines.push(`- **Q7 mobile heap:** ${mobile.heapMb ?? 'not measured'} MB used → ceiling **${mobile.heapMb ? Math.ceil(mobile.heapMb * 1.5) : 'not set'} MB**.`);
+  lines.push(`- **Q3 tool-ready:** p95 ${Math.round(ceilings.readyP95)} ms measured → ceiling **${Math.round(ceilings.readyCeiling)} ms** (ratified: 486 ms p95 + 20%, under the 1500 ms spec).`);
+  lines.push(`- **Q3 long task:** worst ${Math.round(throttled.worstLongTaskMs)} ms measured → ceiling **${Math.round(ceilings.longTaskCeiling)} ms** (spec floor).`);
+  lines.push(`- **Q3 first interaction:** worst ${Math.round(ceilings.interactionWorst)} ms measured → ceiling **${Math.round(ceilings.interactionCeiling)} ms**.`);
+  lines.push(`- **Q7 mobile heap:** ${mobile.heapMb ?? 'not measured'} MB used → ceiling **${mobile.heapMb ? ceilings.mobileHeapCeilingMb : 'not set'} MB**.`);
   lines.push('');
   lines.push('## Baseline conclusions');
   lines.push('');
@@ -733,8 +749,11 @@ async function main() {
   const readyValues = readiness.map((row) => row.readyMs).filter((value) => value != null);
   const ceilings = {
     readyP95: pct(readyValues, 0.95) ?? 0,
-    readyCeiling: Math.min(1500, Math.ceil((pct(readyValues, 0.95) ?? 0) * 1.2)),
+    readyCeiling: RATIFIED.readyCeilingMs,
     interactionWorst: Math.max(0, ...readiness.map((row) => row.interactionMs)),
+    interactionCeiling: RATIFIED.interactionCeilingMs,
+    longTaskCeiling: RATIFIED.longTaskCeilingMs,
+    mobileHeapCeilingMb: RATIFIED.mobileHeapCeilingMb,
   };
 
   const qTable = buildQTable({

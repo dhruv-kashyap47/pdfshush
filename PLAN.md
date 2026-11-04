@@ -701,7 +701,28 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
-- **2026-11-04 — M5.0: the product is instrumented and the starting line is recorded.**
+- **2026-11-04 - Q2 fixed: the same input now produces the same bytes.**
+
+  pdf-lib's `PDFDocument.create()` stamps `/CreationDate` and `/ModDate` from the wall clock in its
+  constructor, so two identical merges differed. The new `ops/dates.ts` applies one of two policies
+  at every synthetic-document site: documents assembled from PDFs (merge, split, N-up, compose,
+  combine) inherit the earliest creation and latest modification date of their sources; documents
+  rebuilt from pixels or images alone (JPG-to-PDF, raster compression, dark mode, grayscale) omit
+  both keys instead of inventing a timestamp. Malformed source dates are treated as absent.
+  Redaction already removed the Info dictionary and is unchanged.
+
+  Evidence: `packages/pdf-core/test/determinism.test.ts` pins the clock to two different moments and
+  asserts byte equality for five operations plus both date policies; `pnpm test` **1232/1232**;
+  `pnpm -r typecheck` green. The production baseline was re-run and Q2 now reports an **identical
+  digest** (`2669defb6e61…`, 1408 bytes) instead of naming `/CreationDate` and `/ModDate`. The
+  failing pre-fix run remains in history at `b474dee`.
+
+  The baseline harness no longer recomputes its ceilings from the run it is measuring: the ratified
+  values (583 ms p95, 200 ms long task, 23 ms first interaction, 15 MB mobile heap) are constants.
+  Post-fix measurement: p95 **528 ms**, worst long task **178 ms**, first interaction **16 ms**,
+  mobile heap **10 MB** - all inside the ratified ceilings.
+
+- **2026-11-04 - M5.0: the product is instrumented and the starting line is recorded.**
 
   Milestone 5 opens with the gate it specified: measure first. `apps/web` now publishes three inert
   User Timing marks (`app-ready`, `page-ready`, `tool-ready`) from `lib/marks.ts`, and
@@ -5309,9 +5330,10 @@ table labels class-inherited evidence instead of implying a per-tool run.
 
 **Failures the milestone now has to fix** (this is the point of the gate):
 
-1. **Q2 — non-deterministic output.** Merging the same two files twice produces different bytes:
+1. **Q2 - non-deterministic output.** Merging the same two files twice produces different bytes:
    `/CreationDate` and `/ModDate` move with the clock. Same input must not imply same output until
-   this is fixed; the harness names the fields rather than reporting a bare hash.
+   this is fixed; the harness names the fields rather than reporting a bare hash. **Fixed in
+   §31.13; the baseline was re-measured after the fix.**
 2. **Q5 — 0/49 clean.** Every route carries at least one serious axe violation. The two causes are
    shared chrome, not per-tool markup: the footer's `text-muted-foreground/60` links ("Pricing
    (soon)", "About (soon)") and the emerald "live" badge on `bg-emerald-500/10`.
@@ -5322,8 +5344,51 @@ table labels class-inherited evidence instead of implying a per-tool run.
 **Confirmed gaps:** no route has crawler-visible content (`rootChars` 0 on all 52 routes), which is
 the M5.5 work; no linearised fixture and no qpdf/Ghostscript, so that Q4 edge is recorded as a gap.
 
-**Not claimed:** nothing in M5.1–M5.8 has started. The Phase 4 SHIP result still stands as the last
+**Not claimed:** nothing in M5.1-M5.8 has started. The Phase 4 SHIP result still stands as the last
 full-campaign gate.
+
+### 31.13 Q2 fix - deterministic output (2026-11-04)
+
+**Cause.** `PDFDocument.create()` calls `updateInfoDict()` in its constructor, which stamps
+`/ModDate` and (when absent) `/CreationDate` with `new Date()`. Every synthetic document therefore
+carried the moment of the run, and two identical merges produced different bytes. `save()` does not
+re-stamp; the value was fixed at construction.
+
+**Policy.** `packages/pdf-core/src/ops/dates.ts` replaces the stamp on every `create()` site:
+
+- **inherit** -- merge, split (both halves), N-up, compose and combine keep the *earliest*
+  `/CreationDate` and the *latest* `/ModDate` among their PDF sources. The output is derived from
+  those documents, so it inherits their provenance instead of inventing a new moment.
+- **omit** -- image-to-PDF, raster compression, dark mode and grayscale remove both keys. A
+  pixel-rebuilt document has no source PDF to inherit from, and a fabricated timestamp is worse
+  than none. Redaction already removed the whole Info dictionary and is unchanged.
+
+Malformed source dates are treated as absent rather than crashing a tool. Source date literals are
+normalised to a UTC instant, so the same input always yields the same string. `/Producer` and
+`/Creator` are library constants and stay, so they do not vary between runs. The single-source
+`mergeIfNeeded` path, which copies the source document through `updateMetadata: false`, was already
+deterministic and is untouched.
+
+**Evidence.**
+
+- `packages/pdf-core/test/determinism.test.ts` (8 tests) pins the system clock to two different
+  moments and asserts byte equality for merge, split, compose, PDF+image combine and image-to-PDF.
+  It also asserts the inheritance rule, the date-free case and the image-only omission.
+- `pnpm test`: **1232/1232** (previously 1224; +8 determinism tests). `pnpm -r typecheck` green.
+- `pnpm test:baseline` re-run on the production build: Q2 now reports **identical digest**
+  `2669defb6e61…` for both merges (1408 bytes), `differingFields: []`. The failing pre-fix run stays
+  in history at `b474dee`; the committed `product-baseline.md` is the post-fix measurement.
+
+**Ceilings no longer drift.** The harness previously recomputed each ceiling from its own run, so a
+lucky run tightened the target and an unlucky one loosened it. The ratified numbers (583 ms p95,
+200 ms long task, 23 ms first interaction, 15 MB mobile heap) are now constants; a re-run measures
+against them and M5.4 will fail CI if one is breached. Re-measured after the fix: p95 **528 ms**,
+worst long task **178 ms**, first interaction **16 ms**, mobile heap **10 MB** - all within the
+ratified ceilings.
+
+**Not changed.** Redaction serialisation and verification, ID hashing, layout-model identity and the
+editing-ladder rules are untouched. No content enters any telemetry, and nothing moved from client
+to server.
 
 
 ---

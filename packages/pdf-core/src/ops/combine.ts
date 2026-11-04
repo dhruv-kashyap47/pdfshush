@@ -21,6 +21,12 @@ import {
   type ImagesToPdfOptions,
 } from './imageDocs.js';
 import { loadPdfDocument } from './pages.js';
+import {
+  applyDocumentDates,
+  combineDocumentDates,
+  readDocumentDates,
+  type DocumentDates,
+} from './dates.js';
 
 export interface CombineSource {
   name: string;
@@ -64,6 +70,7 @@ export async function combineToPdf(
   const progress = createProgressReporter(ctx);
   const out = await PDFDocument.create();
   const parts: CombinePart[] = [];
+  const pdfDates: DocumentDates[] = [];
   let pageCount = 0;
 
   for (let index = 0; index < sources.length; index += 1) {
@@ -80,6 +87,7 @@ export async function combineToPdf(
         ...(source.password !== undefined ? { password: source.password } : {}),
       });
       const indexes = doc.getPageIndices();
+      pdfDates.push(readDocumentDates(doc));
       if (pageCount + indexes.length > LIMITS.client.maxPages) {
         throw new Error(
           `That would produce ${pageCount + indexes.length} pages; the limit is ${LIMITS.client.maxPages}`,
@@ -125,6 +133,9 @@ export async function combineToPdf(
   }
 
   if (pageCount === 0) throw new Error('No pages were produced from those files');
+
+  // PDF sources lend their dates; image-only output omits them.
+  applyDocumentDates(out, combineDocumentDates(pdfDates));
 
   progress.report('Writing the combined PDF', 0.97);
   const data = await out.save({ useObjectStreams: false });

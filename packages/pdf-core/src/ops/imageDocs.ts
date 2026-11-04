@@ -12,6 +12,7 @@
 
 import { PDFDocument, type PDFImage } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
+import { applyDocumentDates } from './dates.js';
 
 export type ImagePageSize = 'a4' | 'letter' | 'image';
 export type ImageOrientation = 'auto' | 'portrait' | 'landscape';
@@ -131,6 +132,8 @@ export async function imagesToPdf(
   ctx: JobContext,
 ): Promise<ImagesToPdfResult> {
   const out = await PDFDocument.create();
+  // Images carry no PDF provenance, so the output has no inherited dates.
+  applyDocumentDates(out, {});
   const progress = createProgressReporter(ctx);
 
   for (let index = 0; index < images.length; index += 1) {

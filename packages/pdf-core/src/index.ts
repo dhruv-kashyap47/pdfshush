@@ -46,6 +46,12 @@ export {
 export type { PdfInfo, PageInfo, LoadOptions } from './ops/pages.js';
 export { mergePdfs, mergeIfNeeded } from './ops/merge.js';
 export type { MergeResult } from './ops/merge.js';
+export {
+  applyDocumentDates,
+  combineDocumentDates,
+  readDocumentDates,
+} from './ops/dates.js';
+export type { DocumentDates } from './ops/dates.js';
 export { composePageRefs, composeDocument, refsForSpan, identityRefs } from './ops/compose.js';
 export type {
   PageRef,

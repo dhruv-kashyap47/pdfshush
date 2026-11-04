@@ -15,6 +15,7 @@ import { PDFDocument } from '@cantoo/pdf-lib';
 import type { JobContext } from '../job.js';
 import { createProgressReporter } from '../job.js';
 import { loadPdfDocument } from './pages.js';
+import { applyDocumentDates, readDocumentDates } from './dates.js';
 import { displaySize, pageGeom, viewRectToPdf } from './geometry.js';
 import type { SourceDocument } from './compose.js';
 
@@ -50,6 +51,11 @@ export async function splitPagesInHalf(
 
   const firstDoc = await PDFDocument.create();
   const secondDoc = await PDFDocument.create();
+  // Both halves are the same source document cut in two, so both inherit its
+  // dates rather than being stamped with the moment of the split.
+  const dates = readDocumentDates(src);
+  applyDocumentDates(firstDoc, dates);
+  applyDocumentDates(secondDoc, dates);
 
   const labels =
     orientation === 'vertical'

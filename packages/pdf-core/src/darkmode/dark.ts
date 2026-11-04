@@ -22,6 +22,7 @@
 
 import { PDFDocument } from '@cantoo/pdf-lib';
 import { applyDarkModeRgba, darkModeTheme, type DarkModeKind, type DarkModeThemeId } from './darkModes.js';
+import { applyDocumentDates } from '../ops/dates.js';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
 import { loadPdfForRender } from '../render/pdfjsRuntime.js';
@@ -65,6 +66,8 @@ export async function darkModeDocument(
 
   try {
     const out = await PDFDocument.create();
+    // A rasterized rebuild has no source document to inherit dates from.
+    applyDocumentDates(out, {});
     const total = loaded.doc.numPages;
     if (total > LIMITS.tool.maxRedactPages) {
       throw new Error(

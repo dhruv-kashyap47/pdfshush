@@ -19,6 +19,7 @@
 
 import { PDFDocument } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
+import { applyDocumentDates } from '../ops/dates.js';
 import { LIMITS } from '../limits.js';
 import { loadPdfForRender } from '../render/pdfjsRuntime.js';
 import { renderPageToCanvas } from '../render/renderPage.js';
@@ -71,6 +72,8 @@ export async function grayscaleDocument(
 
   try {
     const out = await PDFDocument.create();
+    // A rasterized rebuild has no source document to inherit dates from.
+    applyDocumentDates(out, {});
     const total = loaded.doc.numPages;
     if (total > LIMITS.tool.maxRedactPages) {
       throw new Error(

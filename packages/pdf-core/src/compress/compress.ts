@@ -35,6 +35,7 @@ import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
 import { classifyImageStream, isImageStream } from '../ops/images.js';
 import { loadPdfDocument } from '../ops/pages.js';
+import { applyDocumentDates } from '../ops/dates.js';
 import { loadPdfForRender } from '../render/pdfjsRuntime.js';
 import { renderPageToCanvas } from '../render/renderPage.js';
 
@@ -393,6 +394,8 @@ async function rasterCompress(
     }
 
     const out = await PDFDocument.create();
+    // A rasterized rebuild has no source document to inherit dates from.
+    applyDocumentDates(out, {});
     for (let index = 1; index <= total; index += 1) {
       ctx.throwIfAborted();
       const page = await loaded.doc.getPage(index);
