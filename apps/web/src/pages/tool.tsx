@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Clock, Flame, Sparkles } from 'lucide-react';
-import { toast } from 'sonner';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
 import { ChatWithPdfTool } from '@/components/tools/chat-with-pdf-tool';
 import { CropTool } from '@/components/tools/crop-tool';
@@ -63,6 +62,13 @@ import { getTool, liveTools, type ToolDef } from '@/tools/registry';
 // the landing page never pays for it.
 import '@/studio.css';
 import '@/editor-shared.css';
+
+/**
+ * The public roadmap. Planned tools link here instead of pretending to capture
+ * an email address we do not collect -- the repo is public, so this is the same
+ * source of truth the team works from (PLAN.md).
+ */
+const ROADMAP_URL = 'https://github.com/dhruv-kashyap47/pdfshush/blob/main/PLAN.md';
 
 /** Live tool bodies, keyed by slug. Add a tool here when its job lands. */
 const LIVE_BODIES: Record<string, ComponentType> = {
@@ -161,14 +167,18 @@ function PlannedNotice({ tool }: { tool: ToolDef }) {
               below are fully working today, and they run on the same engine this one will use.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                onClick={() =>
-                  toast.success('We will not email you: we have no account system yet. Check back soon!')
-                }
-              >
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                Tell me when it ships
+              {/*
+                Honest CTA. This used to be a "Tell me when it ships" button that
+                toasted "we have no account system yet" -- false since P4 shipped
+                Google sign-in, and a lie is worse than no CTA (PLAN.md 33.6).
+                The roadmap link is a real destination and needs no notification
+                system we do not have.
+              */}
+              <Button size="sm" asChild>
+                <a href={ROADMAP_URL} target="_blank" rel="noreferrer noopener">
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  See what ships next
+                </a>
               </Button>
               <Button variant="outline" size="sm" asChild>
                 <Link to="/#all-tools">See the full catalog</Link>

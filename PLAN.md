@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-10-31
+**Last updated:** 2026-11-04
 
 ---
 
@@ -41,6 +41,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 📋 **planned 2026-11-03** — instrument-first gate M5.0; see §31 |
+| **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -699,6 +700,21 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 - Truthfulness fix on the planned-tool CTA, and the monetization decision record.**
+
+  The nine `planned` tool pages carried a "Tell me when it ships" button whose handler toasted
+  *"we have no account system yet"* - false since P4 shipped Google sign-in. It now links to the
+  public roadmap (`PLAN.md` on GitHub), which is a real destination and needs no notification
+  system that does not exist. No behaviour changed on any live tool.
+
+  §33 records the freemium model, the free/paid boundary (all client-side tools free forever), the
+  content-only ad policy with two CSP profiles, the deployment shape (§33.4), the pricing
+  truthfulness invariant (§33.6) and the AGPL/CLA question that must be answered before billing
+  code is written. **Nothing in §33 is built**; the status board row says so.
+
+  Verified: `pnpm -r typecheck` (web included), `pnpm test` **1224/1224**, `pnpm test:bundle` green
+  (main chunk 138.1 kB, 0 engines).
 
 - **2026-11-03 - Security pass: four dependency advisories closed and a managed-AI log leak fixed.**
 
@@ -5331,3 +5347,171 @@ existing organize job.
   loss visible before confirmation rather than changing the security boundary.
 - Page organisation exports page order only. If manual overlay objects exist, the inspector says so
   explicitly; it never silently claims they were included.
+
+---
+
+## 33. Monetization — freemium, ads and the revenue spine (decided 2026-11-04)
+
+**Status: decision record only. No code in this section is built.** It exists because the site
+already promises things the plan never decided (`Pricing (soon)` in the footer, "optional paid
+plans will exist in the future" in the landing FAQ), and §25.1 fences pricing out of P6 without
+ever picking it up again. A promise with no owner is the §31.5 failure mode.
+
+### 33.1 The decision
+
+**Business model.** Freemium SaaS. All client-side PDF tools stay **free forever, unmetered and
+ungated**; revenue comes from server-side and premium services. This is not a concession — it is
+the cost model (§33.2).
+
+**Free tier.** All 49 client-side tools, no sign-up, no watermark, no task quota; BYOK AI; tight
+server quotas; content-page ads.
+
+**Paid tiers.** Ad-free everywhere, higher/unlimited server limits, priority processing, premium
+AI, API volume, batch, cloud retention, teams. Explicitly **not** gated: any tool that runs in the
+worker.
+
+**Ads.** Content routes only — home, pricing, blog, guides, documentation, tool *marketing* pages.
+**Never** on `/tools/*` tool bodies, the editor, upload/preview/download states, AI workflows,
+auth, account or billing. No ad that resembles a download button, system notice or app control.
+Paid = zero ads platform-wide.
+
+**Budget.** Bootstrap: near-zero fixed monthly cost at launch, upgrading only from revenue. The
+architecture must therefore stay deployable on one small origin (§33.4) and must never put an
+unmetered server-side feature in the free tier (§33.2).
+
+**Timeline.** First revenue in 1–3 months, with a polished launch rather than a rushed one;
+prices are ratified against a measured cost model (§33.7) and then iterated.
+
+### 33.2 The cost asymmetry — the rule everything else follows
+
+A client-side tool costs **$0 marginal** per use: compute is the user's, bytes never touch us, the
+CDN serves a cached chunk. A server-side job costs real money per use: worker CPU, Redis, storage
+TTL, and (for managed AI) tokens.
+
+Three rules follow, and they are not negotiable while the budget is near-zero:
+
+1. **SEO growth must land on client-side tools.** Free traffic is only free if it runs in the
+   browser. A campaign that drives anonymous traffic into server slugs is a bill, not growth.
+2. **Every free server-side entitlement needs a global circuit breaker,** not only per-subject
+   caps. `quota/quota.ts` enforces per-subject limits today; there is no global daily ceiling, so
+   a botnet with many IPs can still run up CPU and AI spend. Add a deployment-wide budget that
+   fails closed with an honest "capacity reached, try later" message.
+3. **Free managed AI is a cost leak with no revenue.** `AI_MANAGED_*` budgets exist (200k/day
+   signed in, 20k/day anonymous) and are off unless a key is set. Keep it that way: free AI is
+   **BYOK (zero server cost)**, plus at most a small one-time trial under the global breaker.
+   Never an ongoing free managed allowance.
+
+### 33.3 Launch scope — what the first paid release sells
+
+Only features that already exist, or that are a small delta on what exists. A pricing page may not
+advertise anything else (§33.6).
+
+| Sellable now | Already built | Delta needed |
+| --- | --- | --- |
+| Managed AI credits | `apps/api` AI gateway + per-subject budgets | plan-aware budgets, usage ledger |
+| API volume | `/api/v1`, keys, scopes, 8 server slugs | metered monthly ledger, plan tiers |
+| Priority processing | BullMQ worker | a second queue lane + plan check |
+| Cloud retention / history sync | accounts, Mongo, synced history | retention window per plan |
+| Batch running | local batch runner + workflows | higher file caps for paid |
+
+**Explicitly not in the first release** (and therefore not on the pricing page): OCR, Office
+conversion, teams/seats/SSO, hosted MCP, cloud document storage. Each is either a research-grade
+build (conversion), a paid dependency (OCR), or a data model that does not exist (teams). They are
+the *revenue-funded* roadmap, not the launch.
+
+### 33.4 Deployment — the hard blocker before any revenue
+
+Verified absent as of 2026-11-04: no web Dockerfile, no reverse-proxy config, no deploy workflow,
+no `web` service in `docker-compose.yml`, and no hosting doc anywhere in the plan.
+
+**One origin, or none of the auth works.** `apps/web/src/lib/api.ts` calls `/api` with
+`SameSite=Lax` session cookies and **there is no CORS layer in `apps/api`**. Splitting the SPA and
+the API across hosts requires CORS + `SameSite=None; Secure` + re-proving the double-submit CSRF
+design. Do not do that to save $0.
+
+**Chosen shape (bootstrap-compatible):**
+
+```
+Cloudflare (free: DNS, TLS, cache, WAF)
+  └── one VPS (~$5/mo) behind Caddy
+        ├── /            → apps/web/dist (static, SPA fallback)
+        └── /api/*       → api:8080  (docker compose: redis + api + worker)
+```
+
+Why not free-tier serverless first: the worker is a real Node process running BullMQ and PDFium;
+`apps/api` requires a persistent queue and a writable work volume. Free web-service tiers sleep
+(30–60 s cold start on every API call) and do not include background workers. Reusing the existing
+`docker-compose.yml` on one small VPS is *less* work and *more* reliable than re-platforming.
+
+Cloudflare Pages stays useful for previews and the marketing site later; it is not the launch
+target. Free-tier alternatives (Koyeb/Upstash) are recorded as fallbacks, not the plan.
+
+**Exit gate:** production URL, `/api/health` connected, Google sign-in round-trip, one client tool,
+one API job, and `tests/e2e/smoke.mjs` green against `E2E_BASE_URL`.
+
+### 33.5 Ads — scoped so they cannot damage the claim
+
+Prerequisites before applying (all currently missing): a deployed domain, a real **privacy policy**
+disclosing third-party ad cookies, `robots.txt` + `sitemap.xml`, prerendered content, and enough
+substantive copy per page to clear a "low value content" review. The nine `planned` entries must
+be resolved (§31.5) or excluded from the ad-bearing set.
+
+- **Two CSP profiles.** Tool routes keep the strict policy with **zero** ad origins; content
+  routes get an explicit ad allowlist (`script-src`, `connect-src`, `frame-src`, `img-src`). The
+  locality proof from §31.4/D1 is scoped to tool routes, which is where the claim matters.
+- **Non-personalized ads + a Google-certified CMP** (TCF v2.2) for EEA/UK/CH. Lower RPM, intact
+  story. Personalised ads are a later, explicit decision.
+- **A test that fails the build** if an ad origin is reachable from, or an ad slot renders on, a
+  document-processing route.
+- **Revenue honesty:** utility SEO traffic earns little and approval is not guaranteed. Ads are a
+  hedge on content traffic; **subscriptions are the business.** Do not model the plan on ads.
+
+### 33.6 The truthfulness invariant (this is what makes pricing "superb")
+
+One plan catalog — `packages/api-contracts/src/plans.ts` — is the single source of truth for price,
+limits and feature flags. The `/pricing` page, the entitlement resolver, the Stripe price lookup
+and the marketing copy all derive from it.
+
+- **CI parity test:** a plan may not advertise a feature the entitlement resolver cannot enforce,
+  and a rendered limit must equal the enforced limit. A pricing page that lies is a Q1 failure, not
+  a copy bug.
+- **No tier ships before its gate.** Selling "priority queue" before the lane exists is the same
+  class of defect as the toast that claimed there was no account system (fixed 2026-11-04, §8).
+- **Provisional anchors** (to be ratified, not published): Free $0 · Pro ~$7/mo · Team ~$16/seat ·
+  API metered from usage. Annual ≈ two months free. Numbers are set *after* §33.7, never before.
+
+### 33.7 Cost model, then price
+
+Required before any price is published: managed-AI cost per 1k tokens at the default model; worker
+cost per job-minute; Redis/storage per GB-month. Then price at a target gross margin, with the
+free-tier global breaker sized to the monthly infrastructure budget. Same discipline as §30: no
+target before the first measurement.
+
+### 33.8 Licensing — decide before Stripe code lands
+
+PDFShush is **AGPL-3.0-or-later**. Running it as a network service means users are entitled to the
+source of what they interact with, and a billing/entitlement module written into this repository is
+AGPL code like everything else. "Open core with a closed billing module" needs a **CLA and a
+dual-licence decision first**. Options: (a) keep everything AGPL and monetize the hosted service
+(simplest, current default), (b) add a CLA now while the contributor set is small and dual-licence
+later. Decide before `billing/` exists, not after.
+
+### 33.9 Milestones and gates
+
+| | Scope | Exit gate |
+| --- | --- | --- |
+| **M6.1** | Deploy: Caddy + `web` service, production env, Cloudflare DNS/TLS | §33.4 gate green on the public URL |
+| **M6.2** | Content + policy: privacy, terms, about, contact, status; per-tool content; prerender, sitemap, robots, JSON-LD (absorbs M5.5) | crawler sees unique title/h1/canonical per route with JS off |
+| **M6.3** | Plan catalog + entitlements + usage ledger + global budget breaker | parity test green; breaker verified by a load test |
+| **M6.4** | Stripe test mode: Checkout, portal, webhook, subscription state | buy → limit rises → cancel → reverts; replay idempotent |
+| **M6.5** | `/pricing` + landing pricing band, generated from the catalog | Q1 review: every claim maps to an enforced entitlement |
+| **M6.6** | Ads on content routes only, CMP, two CSP profiles | ad absent on every tool route; zero document bytes to ad origins |
+
+### 33.10 Open decisions owned by the project owner
+
+1. Domain + VPS/Cloudflare account access (M6.1 cannot start without them).
+2. Stripe account + business entity/tax details (M6.4; no card data ever reaches us).
+3. AGPL/CLA stance (§33.8) before billing code.
+4. Ratified prices after §33.7.
+5. Keep ads, decline ads, or defer to M7 — the pricing page works either way.
+
