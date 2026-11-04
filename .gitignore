@@ -18,6 +18,7 @@ __pycache__/
 screenshots/
 Stirling-PDF-main/
 tests/fixtures/torture/
+tests/benchmarks/.corpus/
 tests/e2e/artifacts/
 tests/artifacts/
 genoffice-main/

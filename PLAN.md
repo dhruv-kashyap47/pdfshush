@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 📋 **planned 2026-11-03** — instrument-first gate M5.0; see §31 |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0 done 2026-11-04** — baseline recorded in §31.12 and `tests/benchmarks/product-baseline.md`; M5.1 next |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -75,8 +75,8 @@ browser E2Es
 against the running dev server. The full browser smoke, plain-tools, next-tools,
 bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in the same
 campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
-queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 (§31) is planned, not started** — it
-opens with an instrument-first gate, so no target in it is claimed until the baseline exists.
+queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 has started: M5.0's baseline is recorded
+in §31.12 and `tests/benchmarks/product-baseline.md`; M5.1–M5.8 are not claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -700,6 +700,29 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 — M5.0: the product is instrumented and the starting line is recorded.**
+
+  Milestone 5 opens with the gate it specified: measure first. `apps/web` now publishes three inert
+  User Timing marks (`app-ready`, `page-ready`, `tool-ready`) from `lib/marks.ts`, and
+  `tests/benchmarks/m5-0-baseline.mjs` (`pnpm test:baseline`) measures the production build at a 4×
+  CPU throttle. The generated report is `tests/benchmarks/product-baseline.md` (+ `.json`), covering
+  all 49 live tools.
+
+  What the baseline says, without rounding up: **Q3** p95 tool-ready **486 ms** (ceiling ratified at
+  583 ms), worst long task **133 ms** during a 50-page merge, first interaction **19 ms**; **Q6**
+  11 requests, **0 external, 0 non-API uploads** during a client job; **Q7** an iPhone-13 emulated
+  50-page merge completes at **10 MB** heap; **Q1/Q4** all **9/9** corpus cases reach a terminal
+  state and no refusal echoes document text or the filename. Honest failures: **Q2** merge output
+  differs run to run because pdf-lib stamps `/CreationDate` and `/ModDate`; **Q5** **0/49** tool
+  pages are free of serious axe violations (footer contrast, the green "live" badge); the crawler
+  sees **0 characters** of content on every route, confirming the M5.5 SEO gap.
+
+  Gaps are reported, not papered over: no linearised fixture exists and neither qpdf nor Ghostscript
+  is available, so that Q4 edge is listed as a gap rather than faked.
+
+  Verified: `pnpm -r typecheck`, `pnpm test` **1224/1224**, `pnpm test:bundle` (main chunk 138.7 kB,
+  0 engines). The harness itself ran green twice, including the 200 MB refusal.
 
 - **2026-11-04 - Truthfulness fix on the planned-tool CTA, and the monetization decision record.**
 
@@ -5266,6 +5289,42 @@ milestone never ships a target invented before the first measurement — exactly
 One commit per workstream (M5.0…M5.8), each stating the evidence it adds. The status board gains a
 Milestone 5 row the moment M5.0 lands; until then the gate above stays the Phase 4 **SHIP** result and
 nothing in this section is claimed as delivered.
+
+### 31.12 M5.0 result — the instrumented baseline (2026-11-04)
+
+**Delivered.** `apps/web/src/lib/marks.ts` publishes `app-ready`, `page-ready` and `tool-ready` as
+User Timing marks (inert, no network, no storage). `tests/benchmarks/m5-0-baseline.mjs` writes
+`tests/benchmarks/product-baseline.md` and `.json` from a production build behind `vite preview`,
+and `pnpm test:baseline` runs it. Every one of the 49 live tools has a row in the Q1–Q8 matrix; the
+table labels class-inherited evidence instead of implying a per-tool run.
+
+| measured | baseline | ratified ceiling |
+| --- | --- | --- |
+| Q3 tool-ready, p95 @ 4× CPU | **486 ms** | **583 ms** (p95 + 20%, under the 1500 ms spec) |
+| Q3 worst long task, 50-page merge | **133 ms** | 200 ms (spec floor) |
+| Q3 first interaction, worst | **19 ms** | 23 ms |
+| Q7 iPhone 13 50-page merge | completes, **10 MB** heap | 15 MB |
+| Q6 egress during a client job | 11 requests, **0 external / 0 non-API uploads** | zero remains the rule |
+| Q1/Q4 corpus | **9/9 terminal**, no refusal echoes text or filename | all terminal |
+
+**Failures the milestone now has to fix** (this is the point of the gate):
+
+1. **Q2 — non-deterministic output.** Merging the same two files twice produces different bytes:
+   `/CreationDate` and `/ModDate` move with the clock. Same input must not imply same output until
+   this is fixed; the harness names the fields rather than reporting a bare hash.
+2. **Q5 — 0/49 clean.** Every route carries at least one serious axe violation. The two causes are
+   shared chrome, not per-tool markup: the footer's `text-muted-foreground/60` links ("Pricing
+   (soon)", "About (soon)") and the emerald "live" badge on `bg-emerald-500/10`.
+3. **Q8 — currently a heuristic, not proof.** All 49 pages mention a limit because the shared trust
+   note does; that is not the same as surfacing the *specific* limitation where it happens. M5.1
+   replaces this check with per-limit assertions.
+
+**Confirmed gaps:** no route has crawler-visible content (`rootChars` 0 on all 52 routes), which is
+the M5.5 work; no linearised fixture and no qpdf/Ghostscript, so that Q4 edge is recorded as a gap.
+
+**Not claimed:** nothing in M5.1–M5.8 has started. The Phase 4 SHIP result still stands as the last
+full-campaign gate.
+
 
 ---
 

@@ -1,0 +1,4001 @@
+{
+  "generatedAt": "2026-11-04T07:01:09.341Z",
+  "base": "http://localhost:4173",
+  "catalog": {
+    "total": 58,
+    "live": 49
+  },
+  "corpusGaps": [
+    {
+      "edge": "linearized",
+      "reason": "no qpdf/Ghostscript in this environment and no linearised fixture committed; a fake dictionary would test corruption, not linearisation"
+    }
+  ],
+  "readiness": [
+    {
+      "route": "/tools/alternate-mix",
+      "readyMark": "tool-ready",
+      "readyMs": 450.20000000018626,
+      "loadMs": 59.90000000037253,
+      "interactionMs": 5.2000000001862645,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/merge-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 439.09999999962747,
+      "loadMs": 57,
+      "interactionMs": 5.099999999627471,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/organize-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 437.59999999962747,
+      "loadMs": 59.19999999925494,
+      "interactionMs": 1.3999999994412065,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/extract-pages",
+      "readyMark": "tool-ready",
+      "readyMs": 436.70000000018626,
+      "loadMs": 59.09999999962747,
+      "interactionMs": 5.7999999998137355,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/split-by-pages",
+      "readyMark": "tool-ready",
+      "readyMs": 436.90000000037253,
+      "loadMs": 56,
+      "interactionMs": 6.599999999627471,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/split-by-bookmarks",
+      "readyMark": "tool-ready",
+      "readyMs": 437.3999999994412,
+      "loadMs": 55,
+      "interactionMs": 5.7000000001862645,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/split-in-half",
+      "readyMark": "tool-ready",
+      "readyMs": 433,
+      "loadMs": 56.700000000186265,
+      "interactionMs": 8.299999999813735,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/split-by-size",
+      "readyMark": "tool-ready",
+      "readyMs": 434.09999999962747,
+      "loadMs": 55.799999999813735,
+      "interactionMs": 7.5,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/split-by-text",
+      "readyMark": "tool-ready",
+      "readyMs": 437.5,
+      "loadMs": 54.80000000074506,
+      "interactionMs": 5.1000000005587935,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/edit-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 439.5,
+      "loadMs": 58.299999999813735,
+      "interactionMs": 1.2999999998137355,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/fill-sign",
+      "readyMark": "tool-ready",
+      "readyMs": 439,
+      "loadMs": 55.700000000186265,
+      "interactionMs": 4.2999999998137355,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/create-forms",
+      "readyMark": "tool-ready",
+      "readyMs": 440.20000000018626,
+      "loadMs": 55.5,
+      "interactionMs": 4.8999999994412065,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/delete-pages",
+      "readyMark": "tool-ready",
+      "readyMs": 428.5,
+      "loadMs": 52.700000000186265,
+      "interactionMs": 4.900000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/compress-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 426.5,
+      "loadMs": 54.09999999962747,
+      "interactionMs": 4.7999999998137355,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/redact-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 439.40000000037253,
+      "loadMs": 57,
+      "interactionMs": 6.2000000001862645,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/protect-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 429.20000000018626,
+      "loadMs": 56.59999999962747,
+      "interactionMs": 5.400000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/unlock-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 437.59999999962747,
+      "loadMs": 55,
+      "interactionMs": 5.7000000001862645,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/watermark",
+      "readyMark": "tool-ready",
+      "readyMs": 436.80000000074506,
+      "loadMs": 56.60000000055879,
+      "interactionMs": 4.7999999998137355,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/flatten-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 438.90000000037253,
+      "loadMs": 56.80000000074506,
+      "interactionMs": 5,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/pdf-to-jpg",
+      "readyMark": "tool-ready",
+      "readyMs": 436.70000000018626,
+      "loadMs": 53.40000000037253,
+      "interactionMs": 5.7000000001862645,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/pdf-to-text",
+      "readyMark": "tool-ready",
+      "readyMs": 438.6000000005588,
+      "loadMs": 55.80000000074506,
+      "interactionMs": 5.7000000001862645,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/jpg-to-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 437.40000000037253,
+      "loadMs": 57.90000000037253,
+      "interactionMs": 7.400000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/summarize-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 502.79999999981374,
+      "loadMs": 63.799999999813735,
+      "interactionMs": 18.200000000186265,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/chat-with-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 485.79999999981374,
+      "loadMs": 65.40000000037253,
+      "interactionMs": 18.799999999813735,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/edit-pdf-with-ai",
+      "readyMark": "tool-ready",
+      "readyMs": 1331,
+      "loadMs": 904.4000000003725,
+      "interactionMs": 14.700000000186265,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/bates-numbering",
+      "readyMark": "tool-ready",
+      "readyMs": 450.5,
+      "loadMs": 65,
+      "interactionMs": 6.599999999627471,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/create-bookmarks",
+      "readyMark": "tool-ready",
+      "readyMs": 450.6000000005588,
+      "loadMs": 60.10000000055879,
+      "interactionMs": 6,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/crop-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 436.40000000037253,
+      "loadMs": 56.299999999813735,
+      "interactionMs": 5.300000000745058,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/dark-mode-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 436,
+      "loadMs": 57.200000000186265,
+      "interactionMs": 5.5,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/edit-metadata",
+      "readyMark": "tool-ready",
+      "readyMs": 437.70000000018626,
+      "loadMs": 55.200000000186265,
+      "interactionMs": 7.5,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/extract-images",
+      "readyMark": "tool-ready",
+      "readyMs": 437.79999999981374,
+      "loadMs": 59.5,
+      "interactionMs": 5.7000000001862645,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/flip-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 437.79999999981374,
+      "loadMs": 54.799999999813735,
+      "interactionMs": 6.400000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/grayscale-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 438.1000000005588,
+      "loadMs": 57.40000000037253,
+      "interactionMs": 7.599999999627471,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/header-footer",
+      "readyMark": "tool-ready",
+      "readyMs": 437.70000000018626,
+      "loadMs": 54.799999999813735,
+      "interactionMs": 5.400000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/n-up",
+      "readyMark": "tool-ready",
+      "readyMs": 451.40000000037253,
+      "loadMs": 73.90000000037253,
+      "interactionMs": 6.400000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/page-numbers",
+      "readyMark": "tool-ready",
+      "readyMs": 438,
+      "loadMs": 54.09999999962747,
+      "interactionMs": 6.3999999994412065,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/rename-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 442.09999999962747,
+      "loadMs": 58.40000000037253,
+      "interactionMs": 6.900000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/repair-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 433.70000000018626,
+      "loadMs": 54.90000000037253,
+      "interactionMs": 5.5,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/resize-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 436.5,
+      "loadMs": 58.799999999813735,
+      "interactionMs": 6,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/rotate-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 436.80000000074506,
+      "loadMs": 54.90000000037253,
+      "interactionMs": 1.5,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/remove-annotations",
+      "readyMark": "tool-ready",
+      "readyMs": 437.1000000005588,
+      "loadMs": 54.40000000037253,
+      "interactionMs": 6.5,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/workflows",
+      "readyMark": "tool-ready",
+      "readyMs": 439.5,
+      "loadMs": 59.60000000055879,
+      "interactionMs": 9.900000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/batch-run",
+      "readyMark": "tool-ready",
+      "readyMs": 434.90000000037253,
+      "loadMs": 53.60000000055879,
+      "interactionMs": 6,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/api",
+      "readyMark": "tool-ready",
+      "readyMs": 441.59999999962747,
+      "loadMs": 57.200000000186265,
+      "interactionMs": 1.6000000005587935,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/v1/openapi.json"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/mcp",
+      "readyMark": "tool-ready",
+      "readyMs": 425.5,
+      "loadMs": 53.39999999944121,
+      "interactionMs": 7,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/v1/openapi.json"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/image-editor",
+      "readyMark": "tool-ready",
+      "readyMs": 438.5,
+      "loadMs": 55.10000000055879,
+      "interactionMs": 5.300000000745058,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/signature",
+      "readyMark": "tool-ready",
+      "readyMs": 436.70000000018626,
+      "loadMs": 54.299999999813735,
+      "interactionMs": 17.09999999962747,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/stamp",
+      "readyMark": "tool-ready",
+      "readyMs": 447.79999999981374,
+      "loadMs": 60.19999999925494,
+      "interactionMs": 5.6000000005587935,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/tools/combine-pdf",
+      "readyMark": "tool-ready",
+      "readyMs": 433.29999999981374,
+      "loadMs": 56.799999999813735,
+      "interactionMs": 6.400000000372529,
+      "limitCopy": true,
+      "apiFailures": [
+        "502 /api/auth/me"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/",
+      "readyMark": "page-ready",
+      "readyMs": 355.5,
+      "loadMs": 73.40000000037253,
+      "interactionMs": 8.5,
+      "limitCopy": false,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/v1/openapi.json"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    },
+    {
+      "route": "/workflows",
+      "readyMark": "page-ready",
+      "readyMs": 132.5,
+      "loadMs": 55.09999999962747,
+      "interactionMs": 1,
+      "limitCopy": false,
+      "apiFailures": [
+        "502 /api/auth/me",
+        "502 /api/tools"
+      ],
+      "errors": [
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+        "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "route": "/",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 68,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "a[href$=\"alternate-mix\"] > .items-start.gap-2.justify-between > .px-2.py-0\\.5.rounded-full"
+              ],
+              "html": "<span class=\"mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400\">live</span>"
+            },
+            {
+              "target": [
+                ".xl\\:grid-cols-5.lg\\:grid-cols-4.sm\\:grid-cols-3 > .tool-card.bg-secondary[href$=\"merge-pdf\"] > .items-start.gap-2.justify-between > .px-2.py-0\\.5.rounded-full"
+              ],
+              "html": "<span class=\"mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400\">live</span>"
+            },
+            {
+              "target": [
+                ".tool-card.bg-secondary[href$=\"organize-pdf\"] > .items-start.gap-2.justify-between > .px-2.py-0\\.5.rounded-full"
+              ],
+              "html": "<span class=\"mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400\">live</span>"
+            }
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "impact": "serious",
+          "nodes": 1,
+          "help": "Elements must have their visible text as part of their accessible name",
+          "samples": [
+            {
+              "target": [
+                ".hero-dropzone"
+              ],
+              "html": "<div class=\"hero-dropzone mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 px-4 py-8 text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/workflows",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/account",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/edit-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/merge-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/compress-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/delete-pages",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/split-by-pages",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/crop-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/fill-sign",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/redact-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/pdf-to-jpg",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/alternate-mix",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/organize-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/extract-pages",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/split-by-bookmarks",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/split-in-half",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/split-by-size",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/split-by-text",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/create-forms",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/protect-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/unlock-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/watermark",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/flatten-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/pdf-to-text",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/jpg-to-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/summarize-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "impact": "serious",
+          "nodes": 1,
+          "help": "Elements must have their visible text as part of their accessible name",
+          "samples": [
+            {
+              "target": [
+                ".studio-action"
+              ],
+              "html": "<button type=\"button\" class=\"studio-action\" aria-label=\"Connect an AI model\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-state=\"closed\" data-slot=\"popover"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/chat-with-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "impact": "serious",
+          "nodes": 1,
+          "help": "Elements must have their visible text as part of their accessible name",
+          "samples": [
+            {
+              "target": [
+                ".studio-action"
+              ],
+              "html": "<button type=\"button\" class=\"studio-action\" aria-label=\"Connect an AI model\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-state=\"closed\" data-slot=\"popover"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/edit-pdf-with-ai",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/bates-numbering",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/create-bookmarks",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/dark-mode-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/edit-metadata",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/extract-images",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/flip-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/grayscale-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/header-footer",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/n-up",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/page-numbers",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/rename-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/repair-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/resize-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/rotate-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/remove-annotations",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/workflows",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/batch-run",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/api",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/mcp",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/image-editor",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/signature",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/stamp",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tools/combine-pdf",
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 10,
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "samples": [
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
+            },
+            {
+              "target": [
+                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
+              ],
+              "html": "<span class=\"text-xs\">(soon)</span>"
+            },
+            {
+              "target": [
+                ".text-muted-foreground\\/60:nth-child(1)"
+              ],
+              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "crawler": [
+    {
+      "route": "/",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/alternate-mix",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/merge-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/organize-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/extract-pages",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/split-by-pages",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/split-by-bookmarks",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/split-in-half",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/split-by-size",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/split-by-text",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/edit-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/fill-sign",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/create-forms",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/delete-pages",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/compress-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/redact-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/protect-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/unlock-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/watermark",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/flatten-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/pdf-to-jpg",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/pdf-to-text",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/jpg-to-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/summarize-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/chat-with-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/edit-pdf-with-ai",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/bates-numbering",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/create-bookmarks",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/crop-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/dark-mode-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/edit-metadata",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/extract-images",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/flip-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/grayscale-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/header-footer",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/n-up",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/page-numbers",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/rename-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/repair-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/resize-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/rotate-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/remove-annotations",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/workflows",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/batch-run",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/api",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/mcp",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/image-editor",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/signature",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/stamp",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/tools/combine-pdf",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/workflows",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    },
+    {
+      "route": "/account",
+      "status": 200,
+      "htmlBytes": 2445,
+      "visibleTextChars": 58,
+      "rootChars": 0,
+      "title": "PDFShush: Free, private PDF tools that run in your browser",
+      "canonical": null,
+      "h1Count": 0
+    }
+  ],
+  "corpus": [
+    {
+      "id": "empty",
+      "expectation": "refuse",
+      "kind": "refused",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "0-byte file"
+    },
+    {
+      "id": "one-page",
+      "expectation": "accept",
+      "kind": "completed",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "smallest valid document"
+    },
+    {
+      "id": "many-pages",
+      "expectation": "refuse",
+      "kind": "refused",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "2,000 pages, over the 500-page in-browser cap"
+    },
+    {
+      "id": "encrypted",
+      "expectation": "refuse",
+      "kind": "refused",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "AES-128, password-protected"
+    },
+    {
+      "id": "scanned",
+      "expectation": "accept",
+      "kind": "completed",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "image-only page, no text layer"
+    },
+    {
+      "id": "malformed",
+      "expectation": "either",
+      "kind": "completed",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "truncated mid-object (recovery is acceptable, silence is not)"
+    },
+    {
+      "id": "not-a-pdf",
+      "expectation": "refuse",
+      "kind": "refused",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "wrong magic bytes"
+    },
+    {
+      "id": "unicode-name",
+      "expectation": "accept",
+      "kind": "completed",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "non-ASCII filename, valid bytes"
+    },
+    {
+      "id": "oversize",
+      "expectation": "refuse",
+      "kind": "refused",
+      "terminal": true,
+      "echoesFilename": false,
+      "echoesText": false,
+      "note": "200 MB, past the 100 MB per-file limit"
+    }
+  ],
+  "determinism": {
+    "equal": false,
+    "differingFields": [
+      "CreationDate",
+      "ModDate"
+    ],
+    "firstDigest": "06e1512fa61ec61fedbd5735a256fc8e6ad517b17ff83ee9313ce707ba60eae9",
+    "secondDigest": "0c7ec3f830c2c974495469bb4bdfd85f3b84fa516eb939200dacc748be21186b",
+    "bytes": 1471
+  },
+  "network": {
+    "total": 11,
+    "external": 0,
+    "nonApiUploads": 0,
+    "externalSamples": [],
+    "uploadSamples": []
+  },
+  "throttled": {
+    "durationMs": 205,
+    "longTasks": 3,
+    "worstLongTaskMs": 133
+  },
+  "mobile": {
+    "completed": true,
+    "heapMb": 10
+  },
+  "ceilings": {
+    "readyP95": 485.79999999981374,
+    "readyCeiling": 583,
+    "interactionWorst": 18.799999999813735
+  },
+  "qTable": [
+    {
+      "slug": "alternate-mix",
+      "name": "Alternate & Mix",
+      "class": "merge",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 450.20000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "merge-pdf",
+      "name": "Merge PDF files",
+      "class": "merge",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 439.09999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "organize-pdf",
+      "name": "Organize pages",
+      "class": "organize",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.59999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "extract-pages",
+      "name": "Extract Pages",
+      "class": "page-ops",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-pages",
+      "name": "Split by pages",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.90000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-bookmarks",
+      "name": "Split by bookmarks",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.3999999994412,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-in-half",
+      "name": "Split in half",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 433,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-size",
+      "name": "Split by size",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 434.09999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "split-by-text",
+      "name": "Split by text",
+      "class": "split",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "edit-pdf",
+      "name": "Edit PDF",
+      "class": "editor",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 439.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "fill-sign",
+      "name": "Fill & Sign",
+      "class": "editor",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 439,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "create-forms",
+      "name": "Create Forms",
+      "class": "authoring",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 440.20000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "delete-pages",
+      "name": "Delete Pages",
+      "class": "page-ops",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 428.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "compress-pdf",
+      "name": "Compress PDF",
+      "class": "compress",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 426.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "redact-pdf",
+      "name": "Redact PDF",
+      "class": "security",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 439.40000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "protect-pdf",
+      "name": "Protect PDF",
+      "class": "security",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 429.20000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "unlock-pdf",
+      "name": "Unlock PDF",
+      "class": "security",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.59999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "watermark",
+      "name": "Watermark",
+      "class": "stamp",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.80000000074506,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "flatten-pdf",
+      "name": "Flatten PDF",
+      "class": "security",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 438.90000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "pdf-to-jpg",
+      "name": "PDF to JPG",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "pdf-to-text",
+      "name": "PDF to Text",
+      "class": "extract",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 438.6000000005588,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "jpg-to-pdf",
+      "name": "JPG to PDF",
+      "class": "ingest",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.40000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "summarize-pdf",
+      "name": "Summarize PDF",
+      "class": "ai",
+      "Q1": "n/a",
+      "Q2": "n/a",
+      "Q3": "pass",
+      "Q4": "n/a",
+      "Q5": "2-serious",
+      "Q6": "n/a",
+      "Q7": "n/a",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 502.79999999981374,
+        "axeViolations": 2,
+        "axeSerious": 2
+      }
+    },
+    {
+      "slug": "chat-with-pdf",
+      "name": "Chat with PDF",
+      "class": "ai",
+      "Q1": "n/a",
+      "Q2": "n/a",
+      "Q3": "pass",
+      "Q4": "n/a",
+      "Q5": "2-serious",
+      "Q6": "n/a",
+      "Q7": "n/a",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 485.79999999981374,
+        "axeViolations": 2,
+        "axeSerious": 2
+      }
+    },
+    {
+      "slug": "edit-pdf-with-ai",
+      "name": "Edit PDF with AI",
+      "class": "ai",
+      "Q1": "n/a",
+      "Q2": "n/a",
+      "Q3": "pass",
+      "Q4": "n/a",
+      "Q5": "1-serious",
+      "Q6": "n/a",
+      "Q7": "n/a",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 1331,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "bates-numbering",
+      "name": "Bates Numbering",
+      "class": "stamp",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 450.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "create-bookmarks",
+      "name": "Create Bookmarks",
+      "class": "authoring",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 450.6000000005588,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "crop-pdf",
+      "name": "Crop PDF",
+      "class": "geometry",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.40000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "dark-mode-pdf",
+      "name": "Dark Mode PDF",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "edit-metadata",
+      "name": "Edit Metadata",
+      "class": "metadata",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "extract-images",
+      "name": "Extract Images",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.79999999981374,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "flip-pdf",
+      "name": "Flip PDF",
+      "class": "geometry",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.79999999981374,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "grayscale-pdf",
+      "name": "Grayscale PDF",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 438.1000000005588,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "header-footer",
+      "name": "Header & Footer",
+      "class": "stamp",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "n-up",
+      "name": "N-up",
+      "class": "geometry",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 451.40000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "page-numbers",
+      "name": "Page Numbers",
+      "class": "stamp",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 438,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "rename-pdf",
+      "name": "Rename PDF",
+      "class": "metadata",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 442.09999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "repair-pdf",
+      "name": "Repair PDF",
+      "class": "compress",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 433.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "resize-pdf",
+      "name": "Resize PDF",
+      "class": "geometry",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "rotate-pdf",
+      "name": "Rotate PDF",
+      "class": "page-ops",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.80000000074506,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "remove-annotations",
+      "name": "Remove Annotations",
+      "class": "security",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 437.1000000005588,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "workflows",
+      "name": "Workflows",
+      "class": "orchestration",
+      "Q1": "n/a",
+      "Q2": "n/a",
+      "Q3": "pass",
+      "Q4": "n/a",
+      "Q5": "1-serious",
+      "Q6": "n/a",
+      "Q7": "n/a",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 439.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "batch-run",
+      "name": "Batch run",
+      "class": "orchestration",
+      "Q1": "n/a",
+      "Q2": "n/a",
+      "Q3": "pass",
+      "Q4": "n/a",
+      "Q5": "1-serious",
+      "Q6": "n/a",
+      "Q7": "n/a",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 434.90000000037253,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "api",
+      "name": "REST API",
+      "class": "docs",
+      "Q1": "n/a",
+      "Q2": "n/a",
+      "Q3": "pass",
+      "Q4": "n/a",
+      "Q5": "1-serious",
+      "Q6": "n/a",
+      "Q7": "n/a",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 441.59999999962747,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "mcp",
+      "name": "MCP server",
+      "class": "docs",
+      "Q1": "n/a",
+      "Q2": "n/a",
+      "Q3": "pass",
+      "Q4": "n/a",
+      "Q5": "1-serious",
+      "Q6": "n/a",
+      "Q7": "n/a",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 425.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "image-editor",
+      "name": "Image Editor",
+      "class": "raster",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 438.5,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "signature",
+      "name": "Signature",
+      "class": "editor",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 436.70000000018626,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "stamp",
+      "name": "Stamp",
+      "class": "stamp",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 447.79999999981374,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    },
+    {
+      "slug": "combine-pdf",
+      "name": "Combine files",
+      "class": "ingest",
+      "Q1": "class-pass",
+      "Q2": "class-fail",
+      "Q3": "pass",
+      "Q4": "class-pass",
+      "Q5": "1-serious",
+      "Q6": "class-pass",
+      "Q7": "class-pass",
+      "Q8": "heuristic-pass",
+      "evidence": {
+        "readyMs": 433.29999999981374,
+        "axeViolations": 1,
+        "axeSerious": 1
+      }
+    }
+  ]
+}

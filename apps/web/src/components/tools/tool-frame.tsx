@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Zap } from 'lucide-react';
 import { TOOL_CATEGORIES, type ToolDef } from '@/tools/registry';
 import { ToolSlugContext } from '@/tools/tool-context';
+import { mark } from '@/lib/marks';
 import { cn } from '@/lib/utils';
 
 interface ToolFrameProps {
@@ -32,6 +34,12 @@ export function ToolFrame({
   const categoryLabel =
     TOOL_CATEGORIES.find((category) => category.id === tool.category)?.label ?? tool.category;
   const studio = chrome === 'studio';
+
+  // Route-level readiness mark for the M5.0 baseline (PLAN.md §31.6). Re-marked
+  // on SPA navigation so each tool page gets its own measurement.
+  useEffect(() => {
+    mark('tool-ready', { slug: tool.slug });
+  }, [tool.slug]);
 
   return (
     <div
