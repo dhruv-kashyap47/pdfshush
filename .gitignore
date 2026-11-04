@@ -35,13 +35,16 @@ pdfcraft-main/
 .claude/
 .taste-skill/
 skills-lock.json
-# Test inputs are ignored so a session cannot sweep up junk, but the image fixture
-# is committed: it is the only PDF here that exercises pdf.js's scratch-canvas
-# path, and the bug it guards against shipped because it was missing. Re-include
-# needs the parent rule to match files rather than the directory, or git never
-# descends into it.
+# Test inputs are ignored so a session cannot sweep up junk, but the two fixtures
+# the CI browser gates load are committed. `imaged.pdf` is the only PDF here that
+# exercises pdf.js's scratch-canvas path; `alpha.pdf` is the plain text document
+# a11y/keyboard/verify use. Both bugs they guard against shipped because the file
+# was missing, so neither can stay a local-only artifact. Re-include needs the
+# parent rule to match files rather than the directory, or git never descends
+# into it.
 tests/e2e/fixtures/*
 !tests/e2e/fixtures/imaged.pdf
+!tests/e2e/fixtures/alpha.pdf
 
 # Server work directory (uploads + results): runtime state, never committed.
 .work/
