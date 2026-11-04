@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T07:17:56.228Z",
+  "generatedAt": "2026-11-04T14:02:34.831Z",
   "base": "http://localhost:4173",
   "catalog": {
     "total": 58,
@@ -15,9 +15,9 @@
     {
       "route": "/tools/alternate-mix",
       "readyMark": "tool-ready",
-      "readyMs": 436.6000000005588,
-      "loadMs": 55,
-      "interactionMs": 5.5,
+      "readyMs": 437,
+      "loadMs": 92.60000000009313,
+      "interactionMs": 2.6000000000931323,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -30,9 +30,9 @@
     {
       "route": "/tools/merge-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 421.1000000005588,
-      "loadMs": 50.299999999813735,
-      "interactionMs": 6.099999999627471,
+      "readyMs": 424.09999999962747,
+      "loadMs": 73.09999999962747,
+      "interactionMs": 1.8999999999068677,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -45,9 +45,9 @@
     {
       "route": "/tools/organize-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 426.5,
-      "loadMs": 49.200000000186265,
-      "interactionMs": 5.199999999254942,
+      "readyMs": 415,
+      "loadMs": 72.39999999990687,
+      "interactionMs": 2.7999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -63,9 +63,9 @@
     {
       "route": "/tools/extract-pages",
       "readyMark": "tool-ready",
-      "readyMs": 412.59999999962747,
-      "loadMs": 46.299999999813735,
-      "interactionMs": 5.900000000372529,
+      "readyMs": 425.1999999997206,
+      "loadMs": 71.5,
+      "interactionMs": 3.8999999999068677,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -78,9 +78,9 @@
     {
       "route": "/tools/split-by-pages",
       "readyMark": "tool-ready",
-      "readyMs": 429.59999999962747,
-      "loadMs": 47.200000000186265,
-      "interactionMs": 9.899999999441206,
+      "readyMs": 413.10000000009313,
+      "loadMs": 71.39999999990687,
+      "interactionMs": 4.199999999720603,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -93,9 +93,9 @@
     {
       "route": "/tools/split-by-bookmarks",
       "readyMark": "tool-ready",
-      "readyMs": 437.29999999981374,
-      "loadMs": 52.89999999944121,
-      "interactionMs": 6.3999999994412065,
+      "readyMs": 409.6999999997206,
+      "loadMs": 68.59999999962747,
+      "interactionMs": 3.8999999999068677,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -108,9 +108,9 @@
     {
       "route": "/tools/split-in-half",
       "readyMark": "tool-ready",
-      "readyMs": 410.59999999962747,
-      "loadMs": 51,
-      "interactionMs": 6,
+      "readyMs": 424.70000000018626,
+      "loadMs": 72.10000000009313,
+      "interactionMs": 5.100000000093132,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -123,9 +123,9 @@
     {
       "route": "/tools/split-by-size",
       "readyMark": "tool-ready",
-      "readyMs": 421,
-      "loadMs": 48.299999999813735,
-      "interactionMs": 6.2000000001862645,
+      "readyMs": 423.5,
+      "loadMs": 70.1999999997206,
+      "interactionMs": 4,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -138,9 +138,9 @@
     {
       "route": "/tools/split-by-text",
       "readyMark": "tool-ready",
-      "readyMs": 414.8999999994412,
-      "loadMs": 51.69999999925494,
-      "interactionMs": 5.900000000372529,
+      "readyMs": 423.29999999981374,
+      "loadMs": 71.79999999981374,
+      "interactionMs": 3,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -153,9 +153,9 @@
     {
       "route": "/tools/edit-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 420.90000000037253,
-      "loadMs": 46.700000000186265,
-      "interactionMs": 5.2999999998137355,
+      "readyMs": 415.59999999962747,
+      "loadMs": 70.39999999990687,
+      "interactionMs": 3.1000000000931323,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -171,9 +171,9 @@
     {
       "route": "/tools/fill-sign",
       "readyMark": "tool-ready",
-      "readyMs": 410.8999999994412,
-      "loadMs": 46.59999999962747,
-      "interactionMs": 7.599999999627471,
+      "readyMs": 426.10000000009313,
+      "loadMs": 83.20000000018626,
+      "interactionMs": 3.1000000000931323,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -189,9 +189,9 @@
     {
       "route": "/tools/create-forms",
       "readyMark": "tool-ready",
-      "readyMs": 414,
-      "loadMs": 51.40000000037253,
-      "interactionMs": 5.900000000372529,
+      "readyMs": 413.60000000009313,
+      "loadMs": 71.10000000009313,
+      "interactionMs": 3.1999999997206032,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -204,9 +204,9 @@
     {
       "route": "/tools/delete-pages",
       "readyMark": "tool-ready",
-      "readyMs": 421.09999999962747,
-      "loadMs": 48.40000000037253,
-      "interactionMs": 6,
+      "readyMs": 412.3000000002794,
+      "loadMs": 69.40000000037253,
+      "interactionMs": 4.600000000093132,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -219,9 +219,9 @@
     {
       "route": "/tools/compress-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 555.5,
-      "loadMs": 76.5,
-      "interactionMs": 5,
+      "readyMs": 424.39999999990687,
+      "loadMs": 69.5,
+      "interactionMs": 3.3999999999068677,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -234,9 +234,9 @@
     {
       "route": "/tools/redact-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 435.70000000018626,
-      "loadMs": 60.799999999813735,
-      "interactionMs": 5.400000000372529,
+      "readyMs": 426.3000000002794,
+      "loadMs": 70,
+      "interactionMs": 4.199999999720603,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -252,9 +252,9 @@
     {
       "route": "/tools/protect-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 423.59999999962747,
-      "loadMs": 53,
-      "interactionMs": 6,
+      "readyMs": 424.60000000009313,
+      "loadMs": 70.8000000002794,
+      "interactionMs": 5.300000000279397,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -267,9 +267,9 @@
     {
       "route": "/tools/unlock-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 420.40000000037253,
-      "loadMs": 53.200000000186265,
-      "interactionMs": 6.1000000005587935,
+      "readyMs": 412,
+      "loadMs": 69.3000000002794,
+      "interactionMs": 4,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -282,9 +282,9 @@
     {
       "route": "/tools/watermark",
       "readyMark": "tool-ready",
-      "readyMs": 427.40000000037253,
-      "loadMs": 50,
-      "interactionMs": 4.400000000372529,
+      "readyMs": 423.10000000009313,
+      "loadMs": 71.10000000009313,
+      "interactionMs": 5.100000000093132,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -297,9 +297,9 @@
     {
       "route": "/tools/flatten-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 420.40000000037253,
-      "loadMs": 51.5,
-      "interactionMs": 5.400000000372529,
+      "readyMs": 423.39999999990687,
+      "loadMs": 68.89999999990687,
+      "interactionMs": 2.8999999999068677,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -312,9 +312,9 @@
     {
       "route": "/tools/pdf-to-jpg",
       "readyMark": "tool-ready",
-      "readyMs": 437.30000000074506,
-      "loadMs": 51.90000000037253,
-      "interactionMs": 5.599999999627471,
+      "readyMs": 413.60000000009313,
+      "loadMs": 72.20000000018626,
+      "interactionMs": 3,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -327,9 +327,9 @@
     {
       "route": "/tools/pdf-to-text",
       "readyMark": "tool-ready",
-      "readyMs": 420.29999999981374,
-      "loadMs": 50.59999999962747,
-      "interactionMs": 5.400000000372529,
+      "readyMs": 413.8000000002794,
+      "loadMs": 71.60000000009313,
+      "interactionMs": 5.399999999906868,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -342,9 +342,9 @@
     {
       "route": "/tools/jpg-to-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 421.29999999981374,
-      "loadMs": 49.09999999962747,
-      "interactionMs": 5.8999999994412065,
+      "readyMs": 416.5,
+      "loadMs": 69.70000000018626,
+      "interactionMs": 4.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -357,9 +357,9 @@
     {
       "route": "/tools/summarize-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 519.0999999996275,
-      "loadMs": 101.70000000018626,
-      "interactionMs": 14.200000000186265,
+      "readyMs": 498.59999999962747,
+      "loadMs": 116.1999999997206,
+      "interactionMs": 14.399999999906868,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -375,9 +375,9 @@
     {
       "route": "/tools/chat-with-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 528.4000000003725,
-      "loadMs": 97,
-      "interactionMs": 15.299999999813735,
+      "readyMs": 498.8000000002794,
+      "loadMs": 116.3000000002794,
+      "interactionMs": 12.300000000279397,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -393,9 +393,9 @@
     {
       "route": "/tools/edit-pdf-with-ai",
       "readyMark": "tool-ready",
-      "readyMs": 470.30000000074506,
-      "loadMs": 65.20000000018626,
-      "interactionMs": 15.600000000558794,
+      "readyMs": 1192,
+      "loadMs": 796.1000000000931,
+      "interactionMs": 12.299999999813735,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -411,9 +411,9 @@
     {
       "route": "/tools/bates-numbering",
       "readyMark": "tool-ready",
-      "readyMs": 522.8999999994412,
-      "loadMs": 104.19999999925494,
-      "interactionMs": 13.200000000186265,
+      "readyMs": 423.39999999990687,
+      "loadMs": 70.10000000009313,
+      "interactionMs": 3.6999999997206032,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -426,9 +426,9 @@
     {
       "route": "/tools/create-bookmarks",
       "readyMark": "tool-ready",
-      "readyMs": 451.29999999981374,
-      "loadMs": 60.10000000055879,
-      "interactionMs": 7.900000000372529,
+      "readyMs": 423,
+      "loadMs": 68.39999999990687,
+      "interactionMs": 4.100000000093132,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -441,9 +441,9 @@
     {
       "route": "/tools/crop-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 437.5,
-      "loadMs": 53.700000000186265,
-      "interactionMs": 7.7000000001862645,
+      "readyMs": 425,
+      "loadMs": 80.6999999997206,
+      "interactionMs": 3.8000000002793968,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -456,9 +456,9 @@
     {
       "route": "/tools/dark-mode-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 418.8999999994412,
-      "loadMs": 49.799999999813735,
-      "interactionMs": 5.400000000372529,
+      "readyMs": 420.70000000018626,
+      "loadMs": 81.89999999990687,
+      "interactionMs": 4.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -471,9 +471,9 @@
     {
       "route": "/tools/edit-metadata",
       "readyMark": "tool-ready",
-      "readyMs": 419.70000000018626,
-      "loadMs": 48.799999999813735,
-      "interactionMs": 7.2999999998137355,
+      "readyMs": 438.10000000009313,
+      "loadMs": 84.79999999981374,
+      "interactionMs": 4.2999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -486,9 +486,9 @@
     {
       "route": "/tools/extract-images",
       "readyMark": "tool-ready",
-      "readyMs": 426.20000000018626,
-      "loadMs": 49.5,
-      "interactionMs": 6,
+      "readyMs": 420,
+      "loadMs": 79.3000000002794,
+      "interactionMs": 4.2999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -501,9 +501,9 @@
     {
       "route": "/tools/flip-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 582.6000000005588,
-      "loadMs": 124.70000000018626,
-      "interactionMs": 11.099999999627471,
+      "readyMs": 438.59999999962747,
+      "loadMs": 84.29999999981374,
+      "interactionMs": 4,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -516,9 +516,9 @@
     {
       "route": "/tools/grayscale-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 437.70000000018626,
-      "loadMs": 60.200000000186265,
-      "interactionMs": 8.100000000558794,
+      "readyMs": 420.6999999997206,
+      "loadMs": 79.39999999990687,
+      "interactionMs": 3,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -531,9 +531,9 @@
     {
       "route": "/tools/header-footer",
       "readyMark": "tool-ready",
-      "readyMs": 421.09999999962747,
-      "loadMs": 51.19999999925494,
-      "interactionMs": 5.800000000745058,
+      "readyMs": 420.5,
+      "loadMs": 77,
+      "interactionMs": 3.7999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -546,9 +546,9 @@
     {
       "route": "/tools/n-up",
       "readyMark": "tool-ready",
-      "readyMs": 418.70000000018626,
-      "loadMs": 51.59999999962747,
-      "interactionMs": 5.599999999627471,
+      "readyMs": 423.3000000002794,
+      "loadMs": 85.60000000009313,
+      "interactionMs": 3.8000000002793968,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -561,9 +561,9 @@
     {
       "route": "/tools/page-numbers",
       "readyMark": "tool-ready",
-      "readyMs": 452.6000000005588,
-      "loadMs": 65.70000000018626,
-      "interactionMs": 7.8999999994412065,
+      "readyMs": 424.10000000009313,
+      "loadMs": 81.60000000009313,
+      "interactionMs": 3.6999999997206032,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -576,9 +576,9 @@
     {
       "route": "/tools/rename-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 410.8999999994412,
-      "loadMs": 47.59999999962747,
-      "interactionMs": 7.400000000372529,
+      "readyMs": 423.1999999997206,
+      "loadMs": 70.89999999990687,
+      "interactionMs": 3.3999999999068677,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -591,9 +591,9 @@
     {
       "route": "/tools/repair-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 436.40000000037253,
-      "loadMs": 51.90000000037253,
-      "interactionMs": 5.599999999627471,
+      "readyMs": 424.5,
+      "loadMs": 71,
+      "interactionMs": 2.7999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -606,9 +606,9 @@
     {
       "route": "/tools/resize-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 419.90000000037253,
-      "loadMs": 51.80000000074506,
-      "interactionMs": 7.6000000005587935,
+      "readyMs": 414.29999999981374,
+      "loadMs": 72,
+      "interactionMs": 2.2999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -621,9 +621,9 @@
     {
       "route": "/tools/rotate-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 422.19999999925494,
-      "loadMs": 53.39999999944121,
-      "interactionMs": 5.7999999998137355,
+      "readyMs": 424.10000000009313,
+      "loadMs": 71,
+      "interactionMs": 3.900000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -636,9 +636,9 @@
     {
       "route": "/tools/remove-annotations",
       "readyMark": "tool-ready",
-      "readyMs": 420.29999999981374,
-      "loadMs": 48.60000000055879,
-      "interactionMs": 6.5,
+      "readyMs": 423.70000000018626,
+      "loadMs": 73.20000000018626,
+      "interactionMs": 2.7999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -651,9 +651,9 @@
     {
       "route": "/tools/workflows",
       "readyMark": "tool-ready",
-      "readyMs": 426.29999999981374,
-      "loadMs": 51.89999999944121,
-      "interactionMs": 10.099999999627471,
+      "readyMs": 425.3000000002794,
+      "loadMs": 76.10000000009313,
+      "interactionMs": 1.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -673,9 +673,9 @@
     {
       "route": "/tools/batch-run",
       "readyMark": "tool-ready",
-      "readyMs": 419.6000000005588,
-      "loadMs": 46.700000000186265,
-      "interactionMs": 5.099999999627471,
+      "readyMs": 409.39999999990687,
+      "loadMs": 68.6999999997206,
+      "interactionMs": 5.2000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -688,9 +688,9 @@
     {
       "route": "/tools/api",
       "readyMark": "tool-ready",
-      "readyMs": 419.79999999981374,
-      "loadMs": 51.90000000037253,
-      "interactionMs": 4.2000000001862645,
+      "readyMs": 413.1999999997206,
+      "loadMs": 69.6999999997206,
+      "interactionMs": 1.900000000372529,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -706,9 +706,9 @@
     {
       "route": "/tools/mcp",
       "readyMark": "tool-ready",
-      "readyMs": 417,
-      "loadMs": 51.200000000186265,
-      "interactionMs": 6.2000000001862645,
+      "readyMs": 418.39999999990687,
+      "loadMs": 71.29999999981374,
+      "interactionMs": 7.100000000093132,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me",
@@ -724,9 +724,9 @@
     {
       "route": "/tools/image-editor",
       "readyMark": "tool-ready",
-      "readyMs": 417.69999999925494,
-      "loadMs": 48.5,
-      "interactionMs": 5.2000000001862645,
+      "readyMs": 423.5,
+      "loadMs": 72,
+      "interactionMs": 3,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -739,9 +739,9 @@
     {
       "route": "/tools/signature",
       "readyMark": "tool-ready",
-      "readyMs": 415.90000000037253,
-      "loadMs": 50.09999999962747,
-      "interactionMs": 4.3999999994412065,
+      "readyMs": 413.90000000037253,
+      "loadMs": 71.60000000009313,
+      "interactionMs": 3.7000000001862645,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -754,9 +754,9 @@
     {
       "route": "/tools/stamp",
       "readyMark": "tool-ready",
-      "readyMs": 420.5,
-      "loadMs": 54.200000000186265,
-      "interactionMs": 7.7000000001862645,
+      "readyMs": 415.40000000037253,
+      "loadMs": 71.10000000009313,
+      "interactionMs": 3.5,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -769,9 +769,9 @@
     {
       "route": "/tools/combine-pdf",
       "readyMark": "tool-ready",
-      "readyMs": 415.40000000037253,
-      "loadMs": 51.09999999962747,
-      "interactionMs": 7.7000000001862645,
+      "readyMs": 422.89999999990687,
+      "loadMs": 70.1999999997206,
+      "interactionMs": 3.7999999998137355,
       "limitCopy": true,
       "apiFailures": [
         "502 /api/auth/me"
@@ -784,9 +784,9 @@
     {
       "route": "/",
       "readyMark": "page-ready",
-      "readyMs": 285.40000000037253,
-      "loadMs": 60.700000000186265,
-      "interactionMs": 10.100000000558794,
+      "readyMs": 275,
+      "loadMs": 77.89999999990687,
+      "interactionMs": 10.900000000372529,
       "limitCopy": false,
       "apiFailures": [
         "502 /api/auth/me",
@@ -802,9 +802,9 @@
     {
       "route": "/workflows",
       "readyMark": "page-ready",
-      "readyMs": 112.69999999925494,
-      "loadMs": 50.89999999944121,
-      "interactionMs": 8.199999999254942,
+      "readyMs": 111.3000000002794,
+      "loadMs": 50.700000000186265,
+      "interactionMs": 2.7000000001862645,
       "limitCopy": false,
       "apiFailures": [
         "502 /api/auth/me",
@@ -825,2179 +825,733 @@
   "a11y": [
     {
       "route": "/",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 68,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "a[href$=\"alternate-mix\"] > .items-start.gap-2.justify-between > .px-2.py-0\\.5.rounded-full"
-              ],
-              "html": "<span class=\"mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400\">live</span>"
-            },
-            {
-              "target": [
-                ".xl\\:grid-cols-5.lg\\:grid-cols-4.sm\\:grid-cols-3 > .tool-card.bg-secondary[href$=\"merge-pdf\"] > .items-start.gap-2.justify-between > .px-2.py-0\\.5.rounded-full"
-              ],
-              "html": "<span class=\"mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400\">live</span>"
-            },
-            {
-              "target": [
-                ".tool-card.bg-secondary[href$=\"organize-pdf\"] > .items-start.gap-2.justify-between > .px-2.py-0\\.5.rounded-full"
-              ],
-              "html": "<span class=\"mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400\">live</span>"
-            }
-          ]
-        },
-        {
-          "id": "label-content-name-mismatch",
-          "impact": "serious",
-          "nodes": 1,
-          "help": "Elements must have their visible text as part of their accessible name",
-          "samples": [
-            {
-              "target": [
-                ".hero-dropzone"
-              ],
-              "html": "<div class=\"hero-dropzone mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 px-4 py-8 text"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/workflows",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/account",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/edit-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/merge-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/compress-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/delete-pages",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/split-by-pages",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/crop-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/fill-sign",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/redact-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/pdf-to-jpg",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/alternate-mix",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/organize-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/extract-pages",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/split-by-bookmarks",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/split-in-half",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/split-by-size",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/split-by-text",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/create-forms",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/protect-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/unlock-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/watermark",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/flatten-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/pdf-to-text",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/jpg-to-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/summarize-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        },
-        {
-          "id": "label-content-name-mismatch",
-          "impact": "serious",
-          "nodes": 1,
-          "help": "Elements must have their visible text as part of their accessible name",
-          "samples": [
-            {
-              "target": [
-                ".studio-action"
-              ],
-              "html": "<button type=\"button\" class=\"studio-action\" aria-label=\"Connect an AI model\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-state=\"closed\" data-slot=\"popover"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/chat-with-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        },
-        {
-          "id": "label-content-name-mismatch",
-          "impact": "serious",
-          "nodes": 1,
-          "help": "Elements must have their visible text as part of their accessible name",
-          "samples": [
-            {
-              "target": [
-                ".studio-action"
-              ],
-              "html": "<button type=\"button\" class=\"studio-action\" aria-label=\"Connect an AI model\" aria-expanded=\"false\" aria-haspopup=\"dialog\" data-state=\"closed\" data-slot=\"popover"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/edit-pdf-with-ai",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/bates-numbering",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/create-bookmarks",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/dark-mode-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/edit-metadata",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/extract-images",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/flip-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/grayscale-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/header-footer",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/n-up",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/page-numbers",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/rename-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/repair-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/resize-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/rotate-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/remove-annotations",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/workflows",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/batch-run",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/api",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/mcp",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > .space-y-2 > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/image-editor",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/signature",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/stamp",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     },
     {
       "route": "/tools/combine-pdf",
-      "violations": [
-        {
-          "id": "color-contrast",
-          "impact": "serious",
-          "nodes": 10,
-          "help": "Elements must meet minimum color contrast ratio thresholds",
-          "samples": [
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">Pricing <span class=\"text-xs\">(soon)</span></li>"
-            },
-            {
-              "target": [
-                "div:nth-child(3) > ul > .text-muted-foreground\\/60 > .text-xs"
-              ],
-              "html": "<span class=\"text-xs\">(soon)</span>"
-            },
-            {
-              "target": [
-                ".text-muted-foreground\\/60:nth-child(1)"
-              ],
-              "html": "<li class=\"text-sm text-muted-foreground/60\">About <span class=\"text-xs\">(soon)</span></li>"
-            }
-          ]
-        }
-      ]
+      "violations": []
     }
   ],
   "crawler": [
     {
       "route": "/",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
+      "htmlBytes": 14488,
+      "visibleTextChars": 4010,
+      "rootChars": 3951,
       "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "canonical": "https://pdfshush.app/",
+      "h1Count": 1
     },
     {
       "route": "/tools/alternate-mix",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8974,
+      "visibleTextChars": 1116,
+      "rootChars": 1066,
+      "title": "Alternate &amp; Mix - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/alternate-mix",
+      "h1Count": 1
     },
     {
       "route": "/tools/merge-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8986,
+      "visibleTextChars": 1112,
+      "rootChars": 1066,
+      "title": "Merge PDF files - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/merge-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/organize-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8978,
+      "visibleTextChars": 1111,
+      "rootChars": 1066,
+      "title": "Organize pages - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/organize-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/extract-pages",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8935,
+      "visibleTextChars": 1097,
+      "rootChars": 1053,
+      "title": "Extract Pages - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/extract-pages",
+      "h1Count": 1
     },
     {
       "route": "/tools/split-by-pages",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8995,
+      "visibleTextChars": 1098,
+      "rootChars": 1053,
+      "title": "Split by pages - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/split-by-pages",
+      "h1Count": 1
     },
     {
       "route": "/tools/split-by-bookmarks",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8991,
+      "visibleTextChars": 1102,
+      "rootChars": 1053,
+      "title": "Split by bookmarks - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/split-by-bookmarks",
+      "h1Count": 1
     },
     {
       "route": "/tools/split-in-half",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8955,
+      "visibleTextChars": 1097,
+      "rootChars": 1053,
+      "title": "Split in half - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/split-in-half",
+      "h1Count": 1
     },
     {
       "route": "/tools/split-by-size",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8915,
+      "visibleTextChars": 1089,
+      "rootChars": 1045,
+      "title": "Split by size - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/split-by-size",
+      "h1Count": 1
     },
     {
       "route": "/tools/split-by-text",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8940,
+      "visibleTextChars": 1094,
+      "rootChars": 1050,
+      "title": "Split by text - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/split-by-text",
+      "h1Count": 1
     },
     {
       "route": "/tools/edit-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8989,
+      "visibleTextChars": 1135,
+      "rootChars": 1096,
+      "title": "Edit PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/edit-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/fill-sign",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9017,
+      "visibleTextChars": 1142,
+      "rootChars": 1096,
+      "title": "Fill &amp; Sign - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/fill-sign",
+      "h1Count": 1
     },
     {
       "route": "/tools/create-forms",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9037,
+      "visibleTextChars": 1139,
+      "rootChars": 1096,
+      "title": "Create Forms - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/create-forms",
+      "h1Count": 1
     },
     {
       "route": "/tools/delete-pages",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8997,
+      "visibleTextChars": 1139,
+      "rootChars": 1096,
+      "title": "Delete Pages - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/delete-pages",
+      "h1Count": 1
     },
     {
       "route": "/tools/compress-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9001,
+      "visibleTextChars": 1114,
+      "rootChars": 1071,
+      "title": "Compress PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/compress-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/redact-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8946,
+      "visibleTextChars": 1087,
+      "rootChars": 1046,
+      "title": "Redact PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/redact-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/protect-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8934,
+      "visibleTextChars": 1088,
+      "rootChars": 1046,
+      "title": "Protect PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/protect-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/unlock-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8854,
+      "visibleTextChars": 1087,
+      "rootChars": 1046,
+      "title": "Unlock PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/unlock-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/watermark",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8930,
+      "visibleTextChars": 1086,
+      "rootChars": 1046,
+      "title": "Watermark - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/watermark",
+      "h1Count": 1
     },
     {
       "route": "/tools/flatten-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8950,
+      "visibleTextChars": 1090,
+      "rootChars": 1048,
+      "title": "Flatten PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/flatten-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/pdf-to-jpg",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8876,
+      "visibleTextChars": 1083,
+      "rootChars": 1042,
+      "title": "PDF to JPG - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/pdf-to-jpg",
+      "h1Count": 1
     },
     {
       "route": "/tools/pdf-to-text",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8836,
+      "visibleTextChars": 1084,
+      "rootChars": 1042,
+      "title": "PDF to Text - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/pdf-to-text",
+      "h1Count": 1
     },
     {
       "route": "/tools/jpg-to-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8887,
+      "visibleTextChars": 1096,
+      "rootChars": 1055,
+      "title": "JPG to PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/jpg-to-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/summarize-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9074,
+      "visibleTextChars": 1159,
+      "rootChars": 1115,
+      "title": "Summarize PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/summarize-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/chat-with-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9142,
+      "visibleTextChars": 1159,
+      "rootChars": 1115,
+      "title": "Chat with PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/chat-with-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/edit-pdf-with-ai",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9074,
+      "visibleTextChars": 1162,
+      "rootChars": 1115,
+      "title": "Edit PDF with AI - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/edit-pdf-with-ai",
+      "h1Count": 1
     },
     {
       "route": "/tools/bates-numbering",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8988,
+      "visibleTextChars": 1118,
+      "rootChars": 1072,
+      "title": "Bates Numbering - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/bates-numbering",
+      "h1Count": 1
     },
     {
       "route": "/tools/create-bookmarks",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9000,
+      "visibleTextChars": 1119,
+      "rootChars": 1072,
+      "title": "Create Bookmarks - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/create-bookmarks",
+      "h1Count": 1
     },
     {
       "route": "/tools/crop-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8944,
+      "visibleTextChars": 1111,
+      "rootChars": 1072,
+      "title": "Crop PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/crop-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/dark-mode-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 9048,
+      "visibleTextChars": 1116,
+      "rootChars": 1072,
+      "title": "Dark Mode PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/dark-mode-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/edit-metadata",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8913,
+      "visibleTextChars": 1089,
+      "rootChars": 1045,
+      "title": "Edit Metadata - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/edit-metadata",
+      "h1Count": 1
     },
     {
       "route": "/tools/extract-images",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8903,
+      "visibleTextChars": 1087,
+      "rootChars": 1042,
+      "title": "Extract Images - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/extract-images",
+      "h1Count": 1
     },
     {
       "route": "/tools/flip-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8848,
+      "visibleTextChars": 1076,
+      "rootChars": 1037,
+      "title": "Flip PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/flip-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/grayscale-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8923,
+      "visibleTextChars": 1091,
+      "rootChars": 1047,
+      "title": "Grayscale PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/grayscale-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/header-footer",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8984,
+      "visibleTextChars": 1110,
+      "rootChars": 1060,
+      "title": "Header &amp; Footer - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/header-footer",
+      "h1Count": 1
     },
     {
       "route": "/tools/n-up",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8868,
+      "visibleTextChars": 1080,
+      "rootChars": 1045,
+      "title": "N-up - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/n-up",
+      "h1Count": 1
     },
     {
       "route": "/tools/page-numbers",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8893,
+      "visibleTextChars": 1085,
+      "rootChars": 1042,
+      "title": "Page Numbers - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/page-numbers",
+      "h1Count": 1
     },
     {
       "route": "/tools/rename-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8898,
+      "visibleTextChars": 1086,
+      "rootChars": 1045,
+      "title": "Rename PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/rename-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/repair-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8883,
+      "visibleTextChars": 1083,
+      "rootChars": 1042,
+      "title": "Repair PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/repair-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/resize-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8883,
+      "visibleTextChars": 1083,
+      "rootChars": 1042,
+      "title": "Resize PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/resize-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/rotate-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8898,
+      "visibleTextChars": 1085,
+      "rootChars": 1044,
+      "title": "Rotate PDF - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/rotate-pdf",
+      "h1Count": 1
     },
     {
       "route": "/tools/remove-annotations",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8983,
+      "visibleTextChars": 1103,
+      "rootChars": 1054,
+      "title": "Remove Annotations - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/remove-annotations",
+      "h1Count": 1
     },
     {
       "route": "/tools/workflows",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8956,
+      "visibleTextChars": 1104,
+      "rootChars": 1064,
+      "title": "Workflows - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/workflows",
+      "h1Count": 1
     },
     {
       "route": "/tools/batch-run",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8884,
+      "visibleTextChars": 1104,
+      "rootChars": 1064,
+      "title": "Batch run - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/batch-run",
+      "h1Count": 1
     },
     {
       "route": "/tools/api",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8900,
+      "visibleTextChars": 1103,
+      "rootChars": 1064,
+      "title": "REST API - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/api",
+      "h1Count": 1
     },
     {
       "route": "/tools/mcp",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8940,
+      "visibleTextChars": 1105,
+      "rootChars": 1064,
+      "title": "MCP server - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/mcp",
+      "h1Count": 1
     },
     {
       "route": "/tools/image-editor",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8930,
+      "visibleTextChars": 1076,
+      "rootChars": 1033,
+      "title": "Image Editor - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/image-editor",
+      "h1Count": 1
     },
     {
       "route": "/tools/signature",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8878,
+      "visibleTextChars": 1073,
+      "rootChars": 1033,
+      "title": "Signature - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/signature",
+      "h1Count": 1
     },
     {
       "route": "/tools/stamp",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8822,
+      "visibleTextChars": 1069,
+      "rootChars": 1033,
+      "title": "Stamp - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/stamp",
+      "h1Count": 1
     },
     {
       "route": "/tools/combine-pdf",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 8910,
+      "visibleTextChars": 1077,
+      "rootChars": 1033,
+      "title": "Combine files - free and private | PDFShush",
+      "canonical": "https://pdfshush.app/tools/combine-pdf",
+      "h1Count": 1
     },
     {
       "route": "/workflows",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 7877,
+      "visibleTextChars": 463,
+      "rootChars": 408,
+      "title": "Workflows - chain PDF tools and re-run them | PDFShush",
+      "canonical": "https://pdfshush.app/workflows",
+      "h1Count": 1
     },
     {
       "route": "/account",
       "status": 200,
-      "htmlBytes": 2445,
-      "visibleTextChars": 58,
-      "rootChars": 0,
-      "title": "PDFShush: Free, private PDF tools that run in your browser",
-      "canonical": null,
-      "h1Count": 0
+      "htmlBytes": 7687,
+      "visibleTextChars": 390,
+      "rootChars": 355,
+      "title": "Account - optional sync | PDFShush",
+      "canonical": "https://pdfshush.app/account",
+      "h1Count": 1
     }
   ],
   "corpus": [
@@ -3091,25 +1645,25 @@
     "bytes": 1408
   },
   "network": {
-    "total": 11,
+    "total": 13,
     "external": 0,
     "nonApiUploads": 0,
     "externalSamples": [],
     "uploadSamples": []
   },
   "throttled": {
-    "durationMs": 271,
-    "longTasks": 4,
-    "worstLongTaskMs": 178
+    "durationMs": 146,
+    "longTasks": 2,
+    "worstLongTaskMs": 122
   },
   "mobile": {
     "completed": true,
     "heapMb": 10
   },
   "ceilings": {
-    "readyP95": 528.4000000003725,
+    "readyP95": 498.59999999962747,
     "readyCeiling": 583,
-    "interactionWorst": 15.600000000558794,
+    "interactionWorst": 14.399999999906868,
     "interactionCeiling": 23,
     "longTaskCeiling": 200,
     "mobileHeapCeilingMb": 15
@@ -3123,14 +1677,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 436.6000000005588,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 437,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3141,14 +1695,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 421.1000000005588,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 424.09999999962747,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3159,14 +1713,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 426.5,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 415,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3177,14 +1731,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 412.59999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 425.1999999997206,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3195,14 +1749,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 429.59999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 413.10000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3213,14 +1767,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 437.29999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 409.6999999997206,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3231,14 +1785,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 410.59999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 424.70000000018626,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3249,14 +1803,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 421,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.5,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3267,14 +1821,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 414.8999999994412,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.29999999981374,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3285,14 +1839,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 420.90000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 415.59999999962747,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3303,14 +1857,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 410.8999999994412,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 426.10000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3321,14 +1875,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 414,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 413.60000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3339,14 +1893,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 421.09999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 412.3000000002794,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3357,14 +1911,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 555.5,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 424.39999999990687,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3375,14 +1929,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 435.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 426.3000000002794,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3393,14 +1947,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 423.59999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 424.60000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3411,14 +1965,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 420.40000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 412,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3429,14 +1983,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 427.40000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.10000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3447,14 +2001,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 420.40000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.39999999990687,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3465,14 +2019,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 437.30000000074506,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 413.60000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3483,14 +2037,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 420.29999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 413.8000000002794,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3501,14 +2055,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 421.29999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 416.5,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3519,14 +2073,14 @@
       "Q2": "n/a",
       "Q3": "pass",
       "Q4": "n/a",
-      "Q5": "2-serious",
+      "Q5": "pass",
       "Q6": "n/a",
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 519.0999999996275,
-        "axeViolations": 2,
-        "axeSerious": 2
+        "readyMs": 498.59999999962747,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3537,14 +2091,14 @@
       "Q2": "n/a",
       "Q3": "pass",
       "Q4": "n/a",
-      "Q5": "2-serious",
+      "Q5": "pass",
       "Q6": "n/a",
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 528.4000000003725,
-        "axeViolations": 2,
-        "axeSerious": 2
+        "readyMs": 498.8000000002794,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3555,14 +2109,14 @@
       "Q2": "n/a",
       "Q3": "pass",
       "Q4": "n/a",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "n/a",
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 470.30000000074506,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 1192,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3573,14 +2127,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 522.8999999994412,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.39999999990687,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3591,14 +2145,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 451.29999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3609,14 +2163,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 437.5,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 425,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3627,14 +2181,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 418.8999999994412,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 420.70000000018626,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3645,14 +2199,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 419.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 438.10000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3663,14 +2217,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 426.20000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 420,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3681,14 +2235,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 582.6000000005588,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 438.59999999962747,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3699,14 +2253,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 437.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 420.6999999997206,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3717,14 +2271,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 421.09999999962747,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 420.5,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3735,14 +2289,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 418.70000000018626,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.3000000002794,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3753,14 +2307,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 452.6000000005588,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 424.10000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3771,14 +2325,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 410.8999999994412,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.1999999997206,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3789,14 +2343,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 436.40000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 424.5,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3807,14 +2361,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 419.90000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 414.29999999981374,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3825,14 +2379,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 422.19999999925494,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 424.10000000009313,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3843,14 +2397,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 420.29999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.70000000018626,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3861,14 +2415,14 @@
       "Q2": "n/a",
       "Q3": "pass",
       "Q4": "n/a",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "n/a",
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 426.29999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 425.3000000002794,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3879,14 +2433,14 @@
       "Q2": "n/a",
       "Q3": "pass",
       "Q4": "n/a",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "n/a",
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 419.6000000005588,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 409.39999999990687,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3897,14 +2451,14 @@
       "Q2": "n/a",
       "Q3": "pass",
       "Q4": "n/a",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "n/a",
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 419.79999999981374,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 413.1999999997206,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3915,14 +2469,14 @@
       "Q2": "n/a",
       "Q3": "pass",
       "Q4": "n/a",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "n/a",
       "Q7": "n/a",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 417,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 418.39999999990687,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3933,14 +2487,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 417.69999999925494,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 423.5,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3951,14 +2505,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 415.90000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 413.90000000037253,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3969,14 +2523,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 420.5,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 415.40000000037253,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     },
     {
@@ -3987,14 +2541,14 @@
       "Q2": "class-pass",
       "Q3": "pass",
       "Q4": "class-pass",
-      "Q5": "1-serious",
+      "Q5": "pass",
       "Q6": "class-pass",
       "Q7": "class-pass",
       "Q8": "heuristic-pass",
       "evidence": {
-        "readyMs": 415.40000000037253,
-        "axeViolations": 1,
-        "axeSerious": 1
+        "readyMs": 422.89999999990687,
+        "axeViolations": 0,
+        "axeSerious": 0
       }
     }
   ]

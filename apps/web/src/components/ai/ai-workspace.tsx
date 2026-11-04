@@ -475,7 +475,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
         <button
           type="button"
           className="studio-action"
-          aria-label={ready ? 'AI provider settings' : 'Connect an AI model'}
+          aria-label={ready ? 'Model: AI provider settings' : 'Connect model: connect an AI model'}
           aria-expanded={settingsOpen}
         >
           <Settings2 className="h-3.5 w-3.5" />

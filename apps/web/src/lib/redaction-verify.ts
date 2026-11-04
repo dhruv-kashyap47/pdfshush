@@ -3,9 +3,9 @@
  * Redact tool uses before it hands over a file, exposed on a page anyone can
  * point at any PDF.
  *
- * This module does not reimplement any check. It calls `verifyRedaction` and
- * translates its raw check names into sentences, downgrading the two checks it
- * cannot honestly decide from bytes alone:
+ * This module does not reimplement any check. It calls `verifyRedaction` in a
+ * dedicated worker and translates its raw check names into sentences,
+ * downgrading the two checks it cannot honestly decide from bytes alone:
  *
  *  - `marks-burned-in` needs to know where the marks were. With no regions to
  *    compare against the call passes vacuously, so it is reported as **not
@@ -18,32 +18,43 @@
  * identity, and a receipt that changes on every copy is harder to compare.
  */
 
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import {
-  LIMITS,
-  configurePdfjsRuntime,
-  verifyRedaction,
-  type VerificationCheck,
-} from '@pdfshush/pdf-core';
+import { LIMITS, type VerificationCheck } from '@pdfshush/pdf-core';
 import { jobPool } from '@/lib/job-pool';
 
-let pdfjsConfigured = false;
+/** How long a verification worker may hold a file before it is terminated. */
+const VERIFY_TIMEOUT_MS = 60_000;
 
 /**
- * `verifyRedaction` reads the text layer with pdf.js, which needs a worker URL
- * supplied by the host build. The job worker sets this once for every tool; the
- * standalone verifier runs on the main thread, so it sets the same value here
- * instead of silently failing every text check.
+ * Runs the engine verifier in a dedicated worker. The page stays responsive and
+ * the pdf.js/pdf-lib modules stay out of every app chunk; only the worker chunk
+ * carries them. The worker is terminated after every file.
  */
-function ensurePdfjsRuntime(): void {
-  if (pdfjsConfigured || typeof window === 'undefined') return;
-  pdfjsConfigured = true;
-  const base = new URL(import.meta.env.BASE_URL, window.location.origin);
-  configurePdfjsRuntime({
-    workerSrc,
-    cMapUrl: new URL('cmaps/', base).toString(),
-    cMapPacked: true,
-    standardFontDataUrl: new URL('standard_fonts/', base).toString(),
+function runVerificationWorker(
+  bytes: Uint8Array,
+  pageCount: number,
+): Promise<VerificationCheck[]> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('../workers/verify-worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new Error(`verification worker timed out after ${VERIFY_TIMEOUT_MS} ms`));
+    }, VERIFY_TIMEOUT_MS);
+    const finish = (error: Error | null, checks?: VerificationCheck[]) => {
+      clearTimeout(timer);
+      worker.terminate();
+      if (error) reject(error);
+      else resolve(checks ?? []);
+    };
+    worker.onmessage = (event: MessageEvent<{ type?: string; checks?: VerificationCheck[]; error?: string }>) => {
+      if (event.data?.type !== 'pdfshush-verify') return;
+      if (event.data.error) finish(new Error(event.data.error));
+      else finish(null, event.data.checks);
+    };
+    worker.onerror = (event) => finish(new Error(event.message || 'verification worker crashed'));
+    const copy = bytes.slice();
+    worker.postMessage({ bytes: copy.buffer, pageCount }, [copy.buffer]);
   });
 }
 
@@ -207,12 +218,7 @@ export async function verifyUserRedaction(
 
   let checks: VerificationCheck[];
   try {
-    ensurePdfjsRuntime();
-    const result = await verifyRedaction(bytes, {
-      regions: [],
-      expectedPageCount: pageCount ?? 0,
-    });
-    checks = result.checks;
+    checks = await runVerificationWorker(bytes, pageCount ?? 0);
   } catch (error) {
     checks = [
       {
@@ -263,4 +269,6 @@ export function formatReceipt(verification: UserVerification): string {
 
   return lines.join('\n');
 }
+
+
 

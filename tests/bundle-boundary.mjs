@@ -107,7 +107,7 @@ async function main() {
   // page into its own file must not let pdf-lib ride along unobserved. Chunks the
   // worker itself imports are worker code, even when Vite gives them an
   // `index.browser-*` name (pdfium is a dynamic import inside the worker).
-  const workerNames = allAssets.filter((name) => /^job-worker-.*\.js$/.test(name));
+  const workerNames = allAssets.filter((name) => /-worker-.*\.js$/.test(name));
   const workerImports = new Set();
   for (const name of workerNames) {
     const text = await readFile(path.join(DIST, 'assets', name), 'utf8');

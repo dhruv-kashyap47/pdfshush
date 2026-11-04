@@ -72,4 +72,6 @@ jobs:
       - run: pnpm test:perf
       - run: pnpm test:e2e:a11y
       - run: pnpm test:e2e:keyboard
+      - run: pnpm test:e2e:verify
       - run: pnpm test:e2e:reach
+      - run: pnpm test:e2e:offline

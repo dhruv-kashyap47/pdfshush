@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.7 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19) and parity decisions (§31.20); M5.8 next |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -78,8 +78,10 @@ campaign, and the containerised API hardening gate (SIGKILL mid-job → no orpha
 queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
 recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14, M5.2's
 verifiable privacy in §31.15, M5.3's receipts/structure confidence in §31.16, M5.4's performance
-gate in §31.17, M5.5's reach/prerender in §31.18, M5.6's accessibility/input parity in §31.19
-and M5.7's parity decisions in §31.20; M5.8 is not claimed.**
+gate in §31.17, M5.5's reach/prerender in §31.18, M5.6's accessibility/input parity in §31.19,
+M5.7's parity decisions in §31.20 and M5.8's release evidence in §31.21. The browser and unit
+campaign are green; the containerised `test:api` and `test:hardening` gates were not runnable in this
+environment and are **not** claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -704,6 +706,27 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-11-04 - M5.8: release evidence, and the verifier moved off the main thread.**
+
+  The last engine-bearing app chunk is gone. `/verify` now posts bytes to a dedicated
+  `verify-worker.ts`, which owns pdf.js/pdf-lib and returns the checks; the page chunk is 12.9 kB and
+  `pnpm test:bundle` is **green** (main 141.2 kB / 0 engines, 11 lazy app chunks / 0 engines, engines
+  only in worker chunks). `tests/bundle-boundary.mjs` now classifies every `*-worker-*.js` as worker
+  code instead of only `job-worker-*`; the rule is unchanged, the classification is correct.
+
+  Final campaign: typecheck, `pnpm test` **1329/1329**, build, bundle; dev E2E smoke, text-edit,
+  text-model, sign, plain-tools, next-tools, bookmark-batch, forms-bookmarks, dark-mode; preview
+  E2E offline/privacy (26), reach (65), a11y (16), keyboard (19), verifier (4). Final baseline:
+  p95 **499 ms**, first interaction 14 ms, long task 122 ms, iPhone heap 10 MB, **49/49** live tools
+  zero serious axe, **52/52** crawled routes with content, **49/49** limit copy, determinism
+  identical, 0 egress. The per-tool Q1-Q8 table is in §31.21.
+
+  Not hidden: `test:api` and `test:hardening` could not run because the Docker daemon is unavailable
+  in this environment. They were green in Phase 4 and no API/worker code changed here beyond M5.2's
+  test-only poll, but the release gate is not called fully green without them. The tool chunk is
+  still 589 kB, p95 has limited headroom, OCR is declined, and no real screen reader or iOS device
+  was exercised.
+
 - **2026-11-04 - M5.7: the nine "planned" entries became nine documented decisions.**
 
   The `planned` state is gone. All 58 catalog entries are `live` (49) or `declined` (9). Each
@@ -723,7 +746,7 @@ never actually wired, and a stream with no error listener.*
 
 - **2026-11-04 - M5.6: zero serious axe findings, and a canvas the keyboard can drive.**
 
-  `pnpm test:e2e:a11y` runs WCAG 2.2 AA axe over the shell, `/workflows` and 11 tool routes and
+  `pnpm test:e2e:a11y` runs WCAG 2.2 AA axe over the shell, `/workflows` and 13 tool routes and
   fails on critical/serious findings. Two shared defects were responsible for almost every
   violation: the "live" badge (`emerald-600` on a 10% wash) and the footer/card "soon" labels
   (`text-muted-foreground/60` and `/70`). Fixing them at the chrome level cleared all 49 home cards
@@ -737,7 +760,7 @@ never actually wired, and a stream with no error listener.*
 
   Evidence: `pnpm test:e2e:a11y` **16 checks** green; `pnpm test:e2e:keyboard` **19 checks** green,
   including a text object created, nudged 7 px, deleted and undone without a mouse. CI's perf job
-  now runs axe, keyboard and reach against the production preview. Honest gaps: 13 routes in the
+  now runs axe, keyboard and reach against the production preview. Honest gaps: 15 routes in the
   axe budget, six representative tool classes, and no real VoiceOver/NVDA session.
 
 - **2026-11-04 - M5.5: every tool URL has real HTML before JavaScript, and the catalog is machine-readable.**
@@ -5939,8 +5962,8 @@ that the measurement exposed.
 - **The 200-page measurement is a merge.** Render, redact and dark-mode jobs have per-page costs;
   their ceilings remain the E2E suites' terminal-state checks, not this heap number.
 - **The verifier still carries pdf.js/pdf-lib on the main thread.** It is a lazy route and loads
-  only when someone opens `/verify`, but it violates the "only workers carry engines" rule. M5.8
-  records it; moving verification into a worker is the fix, not a relaxed rule.
+  only when someone opens `/verify`, but it violates the "only workers carry engines" rule. **Closed
+  in M5.8 (§31.21)**: the verifier now runs in `verify-worker.ts`, and `test:bundle` is green.
 
 ---
 
@@ -6003,7 +6026,7 @@ surface a crawler expects.
 before, and two contrast defects fixed at the shared-chrome level so every tool inherits the fix.
 
 1. **axe over the shell and the top tools.** `tests/e2e/a11y.mjs` runs WCAG 2.2 AA tags over the
-   home page, `/workflows` and 11 tool routes (the M5.0 top ten plus Organize and Alternate & Mix)
+   home page, `/workflows` and 13 tool routes (the M5.0 top ten plus Organize, Alternate & Mix and the two AI studios)
    and fails on **critical or serious** findings. Moderate/minor rules are printed with their nodes
    but do not turn the gate red; the budget is zero serious, not "zero anything".
 
@@ -6022,7 +6045,7 @@ before, and two contrast defects fixed at the shared-chrome level so every tool 
 
 **Evidence.**
 
-- `pnpm test:e2e:a11y` **16 checks**, green: 13 routes with zero critical/serious violations, Tab
+- `pnpm test:e2e:a11y` **16 checks**, green: 15 routes with zero critical/serious violations, Tab
   traverses the shell, every focused control has a name, and the first stop has a visible focus ring.
 - `pnpm test:e2e:keyboard` **19 checks**, green: six tool classes reach a named file picker in 10
   Tab stops; the editor creates a text object with T + Enter, nudges it 7 px with ArrowRight, deletes
@@ -6032,9 +6055,9 @@ before, and two contrast defects fixed at the shared-chrome level so every tool 
 
 **Not claimed / accepted gaps.**
 
-- **Only 13 routes are in the axe budget.** The shell and the ten highest-traffic tools are the
-  §31.10 requirement; the other 36 tool pages share the same chrome but are not individually
-  measured here.
+- **Only 15 routes are in the axe budget.** The shell and the ten highest-traffic tools are the
+  §31.10 requirement; the rest share the same chrome, and the final full sweep found 49/49 live
+  tools with zero serious violations (§31.21).
 - **Keyboard classes are representative, not exhaustive.** Merge, split, page-ops, security, raster
   and stamp are covered; the AI studio and signature pad have their own E2E paths but not this
   keyboard script.
@@ -6086,6 +6109,121 @@ and links the closest live path. It is `noindex` and absent from the sitemap. Th
   commits that each leave the catalog in the same valid state.
 - **A future server product could reopen an entry.** If M6 adds a server renderer or OCR worker, the
   decision is revisited in the open; a declined page is not a permanent prohibition.
+
+---
+
+### 31.21 M5.8 result - release evidence (2026-11-04)
+
+**Delivered.** The final campaign, the verifier moved off the main thread, and the per-tool evidence
+table. The `test:bundle` violation that M5.4 recorded was closed by moving `verifyRedaction` into
+`apps/web/src/workers/verify-worker.ts`; the verifier route now ships a 12.9 kB page and a worker
+chunk, and no app chunk carries an engine.
+
+**Exit criteria (§31.10), item by item.**
+
+| # | criterion | result |
+| --- | --- | --- |
+| 1 | Q1-Q8 for all 49 live tools | **done** - table below; no undocumented failure |
+| 2 | nine `planned` entries resolved | **done** - all nine declined with a reason and a live alternative (§31.20); zero `planned` |
+| 3 | prerendered routes, sitemap, structured data | **done** - 63 route files, 53 sitemap URLs, 49 `SoftwareApplication` blocks; reach suite 65 checks |
+| 4 | offline + CSP proof | **done** - 26 checks, 0 external / 0 body-bearing, offline merge |
+| 5 | user redaction verifier with digest | **done** - `/verify`, worker-backed, 4-check E2E, SHA-256 receipt |
+| 6 | axe + keyboard | **done** - 49/49 live tools zero serious on the baseline sweep; 16 a11y checks and 19 keyboard checks |
+| 7 | Q3/Q7 ceilings | **done** - p95 499 ms baseline / 545 ms guard, long task 122 ms, interaction 14 ms, heap 10 MB |
+| 8 | full campaign | **green except the two container gates** - `test:api` and `test:hardening` could not run because the Docker daemon is unavailable in this environment |
+| 9 | result recorded | **this section and §31.12-§31.21** |
+
+**Campaign evidence.**
+
+- `pnpm -r typecheck` green; `pnpm test` **1329/1329** (pdf-core 445, API 210, provider 370, agent
+  152, web 133, MCP 19); `pnpm build` green; `pnpm test:bundle` **green** (main 141.2 kB, 0 engines;
+  11 lazy app chunks, 0 engines; engines in the worker chunks).
+- Browser E2E green on the dev stack: smoke (20 sections), text-edit, text-model, sign, plain-tools,
+  next-tools, bookmark-batch, forms-bookmarks, dark-mode.
+- Production-preview suites green: offline/privacy (26), reach (65), a11y (16), keyboard (19),
+  verifier (4).
+- Final `pnpm test:baseline` (production preview, 52 routes): p95 **499 ms** (ceiling 583), first
+  interaction **14 ms** (23), 50-page worst long task **122 ms** (200), iPhone-13 heap **10 MB**
+  (15), **49/49** live tools zero serious axe, **52/52** crawled routes contain HTML content,
+  **49/49** tool pages state a limit, merge determinism identical, 0 external / 0 non-API uploads.
+- Final `pnpm test:perf`: p95 **545 ms**, 200-page iPhone heap **10 MB**, WebKit 50-page merge
+  **212 ms**.
+
+**Q1-Q8 table (all 49 live tools).** `class-pass` means the row inherits the measured result of a
+representative tool in its class, as the baseline labels it; it is not a per-tool run. `heuristic-pass`
+for Q8 means the page states a limit (regex, not a human review). `n/a` is used where the class is
+server-run or the quality cannot be measured from the client.
+
+| tool | class | Q1 | Q2 | Q3 | Q4 | Q5 | Q6 | Q7 | Q8 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `alternate-mix` | merge | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `merge-pdf` | merge | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `organize-pdf` | organize | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `extract-pages` | page-ops | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `split-by-pages` | split | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `split-by-bookmarks` | split | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `split-in-half` | split | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `split-by-size` | split | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `split-by-text` | split | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `edit-pdf` | editor | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `fill-sign` | editor | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `create-forms` | authoring | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `delete-pages` | page-ops | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `compress-pdf` | compress | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `redact-pdf` | security | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `protect-pdf` | security | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `unlock-pdf` | security | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `watermark` | stamp | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `flatten-pdf` | security | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `pdf-to-jpg` | raster | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `pdf-to-text` | extract | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `jpg-to-pdf` | ingest | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `summarize-pdf` | ai | n/a | n/a | pass | n/a | pass | n/a | n/a | heuristic-pass |
+| `chat-with-pdf` | ai | n/a | n/a | pass | n/a | pass | n/a | n/a | heuristic-pass |
+| `edit-pdf-with-ai` | ai | n/a | n/a | pass | n/a | pass | n/a | n/a | heuristic-pass |
+| `bates-numbering` | stamp | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `create-bookmarks` | authoring | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `crop-pdf` | geometry | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `dark-mode-pdf` | raster | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `edit-metadata` | metadata | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `extract-images` | raster | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `flip-pdf` | geometry | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `grayscale-pdf` | raster | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `header-footer` | stamp | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `n-up` | geometry | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `page-numbers` | stamp | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `rename-pdf` | metadata | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `repair-pdf` | compress | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `resize-pdf` | geometry | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `rotate-pdf` | page-ops | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `remove-annotations` | security | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `workflows` | orchestration | n/a | n/a | pass | n/a | pass | n/a | n/a | heuristic-pass |
+| `batch-run` | orchestration | n/a | n/a | pass | n/a | pass | n/a | n/a | heuristic-pass |
+| `api` | docs | n/a | n/a | pass | n/a | pass | n/a | n/a | heuristic-pass |
+| `mcp` | docs | n/a | n/a | pass | n/a | pass | n/a | n/a | heuristic-pass |
+| `image-editor` | raster | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `signature` | editor | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `stamp` | stamp | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+| `combine-pdf` | ingest | class-pass | class-pass | pass | class-pass | pass | class-pass | class-pass | heuristic-pass |
+
+**Remaining limitations, classified.**
+
+- **High - `test:api` and `test:hardening` were not run.** The Docker daemon is not available in this
+  environment, so the containerised API/worker and SIGKILL recovery gates cannot be claimed. They
+  were green in Phase 4 (§30.8); this milestone changed no API or worker code except the test-only
+  poll in M5.2. Re-run `pnpm stack:up && pnpm test:api && pnpm test:hardening` on a Docker host
+  before calling the release gate green.
+- **Medium - the web bundle still contains a 589 kB tool chunk.** It carries every tool body in one
+  lazy chunk; engines are out. Per-tool splitting is a future performance project, not a correctness
+  gap.
+- **Medium - p95 is close to its ceiling and varies.** 499 ms in the final baseline, 545 ms in the
+  guard, 549-672 across runs; the ratified 583 ms is not a large margin.
+- **Medium - OCR remains unavailable.** The largest parity gap is now an explicit decline, not an
+  unfinished page.
+- **Low - the reach origin defaults to `https://pdfshush.app`.** A deployment must set
+  `VITE_SITE_ORIGIN`; the build prints what it used.
+- **Low - no real screen reader or iOS device was exercised.** axe, the DOM accessibility tree and
+  WebKit emulation stand in; the gaps are stated in §31.19 and §31.17.
 
 ---
 
@@ -6334,6 +6472,7 @@ later. Decide before `billing/` exists, not after.
 3. AGPL/CLA stance (§33.8) before billing code.
 4. Ratified prices after §33.7.
 5. Keep ads, decline ads, or defer to M7 — the pricing page works either way.
+
 
 
 

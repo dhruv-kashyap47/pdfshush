@@ -34,6 +34,8 @@ const ROUTES = [
   '/tools/pdf-to-jpg',
   '/tools/alternate-mix',
   '/tools/organize-pdf',
+  '/tools/summarize-pdf',
+  '/tools/chat-with-pdf',
   '/workflows',
 ];
 

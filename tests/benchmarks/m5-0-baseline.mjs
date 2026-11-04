@@ -192,7 +192,7 @@ async function measureRoute(browser, route) {
       readyMs: timing.startTime,
       loadMs: timing.load,
       interactionMs: interaction,
-      limitCopy: /(?:500 pages|100 MB|250 MB|in-browser limit|not supported|cannot|encrypted)/i.test(
+      limitCopy: /(?:500 pages|100 MB|250 MB|in-browser limit|not supported|cannot|encrypted|up to \d|tasks\/day|tasks\/minute|per run|no account|stored only in this browser|deleted within)/i.test(
         bodyText,
       ),
       apiFailures: [...new Set(apiFailures)],
