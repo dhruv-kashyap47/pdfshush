@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.4 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16) and the performance gate (§31.17); M5.5 next |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.5 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), the performance gate (§31.17) and reach/prerender (§31.18); M5.6 next |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -77,8 +77,8 @@ bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in th
 campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
 queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
 recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14, M5.2's
-verifiable privacy in §31.15, M5.3's receipts/structure confidence in §31.16 and M5.4's performance
-gate in §31.17; M5.5-M5.8 are not claimed.**
+verifiable privacy in §31.15, M5.3's receipts/structure confidence in §31.16, M5.4's performance
+gate in §31.17 and M5.5's reach/prerender in §31.18; M5.6-M5.8 are not claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -702,6 +702,26 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 - M5.5: every tool URL has real HTML before JavaScript, and the catalog is machine-readable.**
+
+  The build now prerenders the home page, the four shell routes and all 58 tool URLs to
+  `<route>/index.html` with an h1, description, explanation, limits and related tools. React replaces
+  the subtree on mount, so there is no hydration contract and no second source of truth. Each route
+  gets its title, description, canonical, Open Graph/Twitter tags and a 1200x630 card; the 59 cards
+  were generated once and committed, so the build needs no native canvas. Live tools emit
+  `SoftwareApplication` JSON-LD; not-built pages are `noindex, follow` and stay out of the sitemap.
+
+  `sitemap.xml` has 53 URLs (49 live tools + 4 shell routes), `robots.txt` disallows `/account` and
+  `/api/` and points at it, and a preview-only middleware serves `route/index.html` so local testing
+  matches a static host instead of the SPA fallback. `VITE_SITE_ORIGIN` sets the canonical origin;
+  the default is `https://pdfshush.app` and the build prints what it used.
+
+  Evidence: new `pnpm test:e2e:reach` **65 checks** green against the production preview (crawlable
+  content for 49 tools, 5 unbuilt pages noindex, sitemap/robots, a real PNG card, 3,951 characters of
+  home text without JS); the 26-check offline/privacy suite still passes on the same build. Honest
+  gaps: this is static HTML, not React SSR; the default origin is a placeholder a deploy must
+  override; the cards share one layout.
 
 - **2026-11-04 - M5.4: the performance ceilings became a gate, and the tool route stopped parsing pdf-lib.**
 
@@ -5877,6 +5897,59 @@ that the measurement exposed.
 - **The verifier still carries pdf.js/pdf-lib on the main thread.** It is a lazy route and loads
   only when someone opens `/verify`, but it violates the "only workers carry engines" rule. M5.8
   records it; moving verification into a worker is the fix, not a relaxed rule.
+
+---
+
+### 31.18 M5.5 result - reach without giving up the client (2026-11-04)
+
+**Delivered.** Every route now has real HTML before JavaScript runs, plus the machine-readable
+surface a crawler expects.
+
+1. **Prerender at build time.** `apps/web/build/prerender.ts` writes `dist/<route>/index.html` for
+   the home page, `/workflows`, `/trust`, `/verify`, `/account` and all 58 tool URLs. The body is
+   real content: an h1, the tool description, a plain explanation, the limits and related live
+   tools. React replaces it on mount; there is no hydration contract, so the static copy cannot
+   disagree with the app after load. One URL per tool is preserved.
+
+2. **Metadata per route.** Title, description, canonical, Open Graph/Twitter tags and a 1200x630
+   card under `/og/<slug>.png`. The 59 cards are generated once by `scripts/gen-og.mjs` and
+   committed, so the build does not need a native canvas or a browser. Live tools emit
+   `SoftwareApplication` JSON-LD (`offers.price = 0`, `operatingSystem = Web`); the home page emits
+   `WebSite`. Not-built pages carry `noindex, follow` instead of advertising a missing product.
+
+3. **`sitemap.xml` and `robots.txt`.** The sitemap lists the 49 live tools and the four indexable
+   shell routes (53 URLs), with no duplicates and no not-built entries. `robots.txt` allows the
+   catalog, disallows `/account` and `/api/`, and points at the sitemap.
+
+4. **The local preview serves the files a static host would.** `vite preview` uses the SPA fallback
+   and would answer `/tools/merge-pdf` with the root document; a preview-only middleware rewrites
+   it to the prerendered directory index, so the reach test checks the real bytes. A self-hoster
+   needs directory-index support (the default for static hosts) and sets `VITE_SITE_ORIGIN` to the
+   deployed origin; the default is `https://pdfshush.app`.
+
+**Evidence.**
+
+- New `tests/e2e/reach.mjs` (`pnpm test:e2e:reach`), **65 checks**, green against a production
+  preview: canonical origin, sitemap XML, robots, 49 live tool pages with title/description/h1/
+  visible text/`SoftwareApplication`, 5 not-built pages `noindex`, a real 41 KB PNG OG card, and
+  3,951 characters of visible home text with no JavaScript.
+- `pnpm build` emits 63 route files and 53 sitemap URLs; the offline/privacy suite (26 checks) still
+  passes against the same build, including the offline deep-link path through the service worker.
+- The existing crawler phase of the M5.0 harness will now see content; its old "0 of 52 routes"
+  conclusion is superseded by this workstream.
+
+**Not claimed / accepted gaps.**
+
+- **The static body is not React SSR.** It is a separate, deliberately simple document; interactive
+  state still starts after the bundle loads. The duplication is bounded because React replaces the
+  subtree, but it is not a hydration architecture.
+- **The default origin is a project placeholder.** A deployment that forgets `VITE_SITE_ORIGIN` will
+  publish canonicals for `pdfshush.app`, which may not be the real domain. The build prints the
+  origin it used; M6's deploy step owns setting it.
+- **OG cards are generated, not designed per tool.** They share one layout and differ by name,
+  description, category and live/not-built state. They are honest cards, not bespoke art.
+- **Not-built pages are excluded from the sitemap and `noindex`.** That is deliberate: a search
+  result for a tool that does not exist is the broken promise §31.5 exists to remove.
 
 ---
 

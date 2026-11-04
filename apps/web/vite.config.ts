@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { prerenderPlugin, prerenderedRoutesPlugin } from './build/prerender';
 import { buildCsp } from './src/lib/csp';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
@@ -78,7 +79,17 @@ export default defineConfig(({ mode }) => {
     .filter(Boolean);
 
   return {
-    plugins: [react(), tailwindcss(), cspPlugin(extraCspOrigins), serviceWorkerPlugin()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      cspPlugin(extraCspOrigins),
+      serviceWorkerPlugin(),
+      prerenderPlugin({
+        rootDir,
+        ...(env.VITE_SITE_ORIGIN ? { siteOrigin: env.VITE_SITE_ORIGIN } : {}),
+      }),
+      prerenderedRoutesPlugin(rootDir),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(rootDir, './src'),
