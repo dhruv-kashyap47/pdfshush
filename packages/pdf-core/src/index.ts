@@ -31,6 +31,7 @@ export type {
 export {
   LIMITS,
   MB,
+  IMAGE_LIMITS,
   estimateWorkingSetBytes,
   formatBytes,
   timeoutForPageCount,
@@ -299,7 +300,6 @@ export {
   detectImageKind,
   imagesToPdf,
   planImagePlacement,
-  IMAGE_LIMITS,
 } from './ops/imageDocs.js';
 export type {
   ImageInput,

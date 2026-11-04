@@ -62,7 +62,7 @@ import { EditorAiPanel } from '@/components/editor/editor-ai-panel';
 import { AnimatedContent } from '@/components/reactbits/animated-content';
 import { AiCover } from '@/components/ai/ai-cover';
 import { AiExport } from '@/components/ai/ai-export';
-import { AI_EDIT_COPY } from '@/components/ai/ai-workspace';
+import { AI_EDIT_COPY } from '@/components/ai/tool-copy';
 import { AiSettingsCard } from '@/components/ai/ai-settings-card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { AiSettings } from '@pdfshush/ai-provider/browser';

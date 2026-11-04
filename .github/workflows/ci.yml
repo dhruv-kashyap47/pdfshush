@@ -44,3 +44,29 @@ jobs:
       - run: pnpm build
 
       - run: pnpm test:bundle
+
+  # Q3/Q7 is a browser measurement, not a unit test. It needs no API or Redis,
+  # only the production build and Chromium. CI uses the public spec ceilings
+  # (`M5_PERF_CI=1`); the tighter ratified numbers are measured locally on the
+  # machine that produced them, because a shared runner is not that machine.
+  perf:
+    name: Q3/Q7 ceilings (spec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      M5_PERF_CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: Start preview
+        run: |
+          pnpm --filter @pdfshush/web preview --port 4173 &
+          node scripts/wait-for-url.mjs http://localhost:4173
+      - run: pnpm test:perf

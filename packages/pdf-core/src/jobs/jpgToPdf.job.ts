@@ -8,10 +8,10 @@ import type { JobDefinition } from '../job.js';
 import {
   detectImageKind,
   imagesToPdf,
-  IMAGE_LIMITS,
   type ImageOrientation,
   type ImagePageSize,
 } from '../ops/imageDocs.js';
+import { IMAGE_LIMITS } from '../limits.js';
 import { baseName, safeOutputName, toArrayBuffer } from './helpers.js';
 
 const PAGE_SIZES: ReadonlySet<string> = new Set<ImagePageSize>(['a4', 'letter', 'image']);

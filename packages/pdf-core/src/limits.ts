@@ -9,6 +9,18 @@
 
 export const MB = 1024 * 1024;
 
+/**
+ * Image-to-PDF limits, kept here rather than beside the pdf-lib implementation.
+ *
+ * The tool page needs these numbers to render its limit copy. Exporting them
+ * from `ops/imageDocs.ts` made every tool route import pdf-lib through the
+ * barrel; a constant has no business carrying an engine.
+ */
+export const IMAGE_LIMITS = {
+  maxImages: 100,
+  maxMarginPt: 72,
+} as const;
+
 export const LIMITS = {
   client: {
     /** Largest single file we will parse in a browser tab. */

@@ -48,7 +48,28 @@ type WorkerMessage =
 
 function workerCount(): number {
   const cores = navigator.hardwareConcurrency ?? 2;
-  return Math.max(LIMITS.client.minWorkers, Math.min(LIMITS.client.maxWorkers, cores - 1));
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  return workerCountFor(cores, memory);
+}
+
+/**
+ * Pool size, kept pure so the low-memory rule is testable.
+ *
+ * One worker per spare core, capped at four. A device that reports 2 GB or less
+ * gets a single worker: four pdf-lib heaps in a tab that small is how a phone
+ * tab dies at page 120, and a second worker does not make a single-core device
+ * faster. `deviceMemory` is absent on Safari, where the core count is the only
+ * evidence available (and is reported honestly as such).
+ */
+export function workerCountFor(cores: number, deviceMemoryGb?: number): number {
+  const safeCores = Number.isFinite(cores) ? Math.max(1, Math.floor(cores)) : 1;
+  if (Number.isFinite(deviceMemoryGb) && (deviceMemoryGb as number) <= 2) {
+    return LIMITS.client.minWorkers;
+  }
+  return Math.max(
+    LIMITS.client.minWorkers,
+    Math.min(LIMITS.client.maxWorkers, safeCores - 1),
+  );
 }
 
 export class JobPool {

@@ -11,6 +11,9 @@
  */
 
 import { PDFDocument, type PDFImage } from '@cantoo/pdf-lib';
+import { IMAGE_LIMITS } from '../limits.js';
+
+export { IMAGE_LIMITS } from '../limits.js';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { applyDocumentDates } from './dates.js';
 
@@ -43,11 +46,6 @@ const PAGE_SIZES: Record<'a4' | 'letter', readonly [number, number]> = {
   a4: [595.28, 841.89],
   letter: [612, 792],
 };
-
-export const IMAGE_LIMITS = {
-  maxImages: 100,
-  maxMarginPt: 72,
-} as const;
 
 /** Magic-byte sniffing: extensions lie, and a mislabelled file cannot embed. */
 export function detectImageKind(data: Uint8Array): ImageKind | null {

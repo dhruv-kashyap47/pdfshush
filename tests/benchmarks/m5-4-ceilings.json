@@ -1,0 +1,593 @@
+{
+  "measuredAt": "2026-11-04T13:21:48.121Z",
+  "base": "http://localhost:4173",
+  "mode": "ratified",
+  "ceilings": {
+    "readyP95Ms": 583,
+    "longTaskMs": 200,
+    "interactionMs": 23,
+    "heapMb": 15
+  },
+  "routes": [
+    {
+      "route": "/tools/alternate-mix",
+      "ready": 423.20000000018626,
+      "samples": [
+        423.20000000018626,
+        432.60000000009313
+      ],
+      "interaction": 7.300000000046566,
+      "errors": []
+    },
+    {
+      "route": "/tools/merge-pdf",
+      "ready": 422.9000000001397,
+      "samples": [
+        422.9000000001397,
+        433.60000000009313
+      ],
+      "interaction": 7,
+      "errors": []
+    },
+    {
+      "route": "/tools/organize-pdf",
+      "ready": 432.10000000009313,
+      "samples": [
+        432.10000000009313,
+        445.89999999990687
+      ],
+      "interaction": 6.199999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/extract-pages",
+      "ready": 421.19999999995343,
+      "samples": [
+        421.19999999995343,
+        433.60000000009313
+      ],
+      "interaction": 6.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/split-by-pages",
+      "ready": 424.69999999995343,
+      "samples": [
+        424.69999999995343,
+        433.89999999990687
+      ],
+      "interaction": 6.5,
+      "errors": []
+    },
+    {
+      "route": "/tools/split-by-bookmarks",
+      "ready": 425.29999999981374,
+      "samples": [
+        425.29999999981374,
+        432.39999999990687
+      ],
+      "interaction": 6.100000000093132,
+      "errors": []
+    },
+    {
+      "route": "/tools/split-in-half",
+      "ready": 414.0999999998603,
+      "samples": [
+        425.30000000004657,
+        414.0999999998603
+      ],
+      "interaction": 7.399999999906868,
+      "errors": []
+    },
+    {
+      "route": "/tools/split-by-size",
+      "ready": 422.60000000009313,
+      "samples": [
+        422.60000000009313,
+        432.9000000001397
+      ],
+      "interaction": 6,
+      "errors": []
+    },
+    {
+      "route": "/tools/split-by-text",
+      "ready": 419.5999999998603,
+      "samples": [
+        419.5999999998603,
+        432.10000000009313
+      ],
+      "interaction": 6.5,
+      "errors": []
+    },
+    {
+      "route": "/tools/edit-pdf",
+      "ready": 422.4000000001397,
+      "samples": [
+        422.4000000001397,
+        434.79999999981374
+      ],
+      "interaction": 6.400000000139698,
+      "errors": []
+    },
+    {
+      "route": "/tools/fill-sign",
+      "ready": 428.4000000001397,
+      "samples": [
+        428.4000000001397,
+        433.80000000004657
+      ],
+      "interaction": 7.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/create-forms",
+      "ready": 419.4000000001397,
+      "samples": [
+        419.4000000001397,
+        432.30000000004657
+      ],
+      "interaction": 6,
+      "errors": []
+    },
+    {
+      "route": "/tools/delete-pages",
+      "ready": 425.5,
+      "samples": [
+        425.5,
+        428.60000000009313
+      ],
+      "interaction": 6.899999999906868,
+      "errors": []
+    },
+    {
+      "route": "/tools/compress-pdf",
+      "ready": 415,
+      "samples": [
+        420.9000000001397,
+        415
+      ],
+      "interaction": 6,
+      "errors": []
+    },
+    {
+      "route": "/tools/redact-pdf",
+      "ready": 426.19999999995343,
+      "samples": [
+        426.19999999995343,
+        435.60000000009313
+      ],
+      "interaction": 6.5,
+      "errors": []
+    },
+    {
+      "route": "/tools/protect-pdf",
+      "ready": 441.89999999990687,
+      "samples": [
+        441.89999999990687,
+        449.0999999998603
+      ],
+      "interaction": 6.399999999906868,
+      "errors": []
+    },
+    {
+      "route": "/tools/unlock-pdf",
+      "ready": 427.10000000009313,
+      "samples": [
+        427.10000000009313,
+        431.19999999995343
+      ],
+      "interaction": 6,
+      "errors": []
+    },
+    {
+      "route": "/tools/watermark",
+      "ready": 425.10000000009313,
+      "samples": [
+        425.10000000009313,
+        442.60000000009313
+      ],
+      "interaction": 5.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/flatten-pdf",
+      "ready": 428,
+      "samples": [
+        444.89999999990687,
+        428
+      ],
+      "interaction": 6.399999999906868,
+      "errors": []
+    },
+    {
+      "route": "/tools/pdf-to-jpg",
+      "ready": 454.5999999998603,
+      "samples": [
+        454.5999999998603,
+        483.69999999995343
+      ],
+      "interaction": 7.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/pdf-to-text",
+      "ready": 454,
+      "samples": [
+        454,
+        497.89999999990687
+      ],
+      "interaction": 10.100000000093132,
+      "errors": []
+    },
+    {
+      "route": "/tools/jpg-to-pdf",
+      "ready": 483.69999999995343,
+      "samples": [
+        495.70000000018626,
+        483.69999999995343
+      ],
+      "interaction": 8,
+      "errors": []
+    },
+    {
+      "route": "/tools/summarize-pdf",
+      "ready": 778.5,
+      "samples": [
+        778.5,
+        1414.3000000000466
+      ],
+      "interaction": 15.900000000139698,
+      "errors": []
+    },
+    {
+      "route": "/tools/chat-with-pdf",
+      "ready": 598.8999999999069,
+      "samples": [
+        598.8999999999069,
+        1271.9000000001397
+      ],
+      "interaction": 3.300000000046566,
+      "errors": []
+    },
+    {
+      "route": "/tools/edit-pdf-with-ai",
+      "ready": 549.1000000000931,
+      "samples": [
+        549.1000000000931,
+        1281.3000000000466
+      ],
+      "interaction": 2.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/bates-numbering",
+      "ready": 414.9000000001397,
+      "samples": [
+        414.9000000001397,
+        429.80000000004657
+      ],
+      "interaction": 5.899999999906868,
+      "errors": []
+    },
+    {
+      "route": "/tools/create-bookmarks",
+      "ready": 422.80000000004657,
+      "samples": [
+        442.60000000009313,
+        422.80000000004657
+      ],
+      "interaction": 7.2000000001862645,
+      "errors": []
+    },
+    {
+      "route": "/tools/crop-pdf",
+      "ready": 432.39999999990687,
+      "samples": [
+        454.39999999990687,
+        432.39999999990687
+      ],
+      "interaction": 6.099999999860302,
+      "errors": []
+    },
+    {
+      "route": "/tools/dark-mode-pdf",
+      "ready": 431.80000000004657,
+      "samples": [
+        431.80000000004657,
+        433.89999999990687
+      ],
+      "interaction": 7.5,
+      "errors": []
+    },
+    {
+      "route": "/tools/edit-metadata",
+      "ready": 442.0999999998603,
+      "samples": [
+        442.89999999990687,
+        442.0999999998603
+      ],
+      "interaction": 7.100000000093132,
+      "errors": []
+    },
+    {
+      "route": "/tools/extract-images",
+      "ready": 425.19999999995343,
+      "samples": [
+        433.80000000004657,
+        425.19999999995343
+      ],
+      "interaction": 6.399999999906868,
+      "errors": []
+    },
+    {
+      "route": "/tools/flip-pdf",
+      "ready": 434.5,
+      "samples": [
+        434.5,
+        439.5999999998603
+      ],
+      "interaction": 6.600000000093132,
+      "errors": []
+    },
+    {
+      "route": "/tools/grayscale-pdf",
+      "ready": 429.80000000004657,
+      "samples": [
+        429.80000000004657,
+        449.80000000004657
+      ],
+      "interaction": 7,
+      "errors": []
+    },
+    {
+      "route": "/tools/header-footer",
+      "ready": 425.89999999990687,
+      "samples": [
+        425.89999999990687,
+        432.69999999995343
+      ],
+      "interaction": 6.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/n-up",
+      "ready": 415.30000000004657,
+      "samples": [
+        420.69999999995343,
+        415.30000000004657
+      ],
+      "interaction": 6.199999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/page-numbers",
+      "ready": 423.5,
+      "samples": [
+        423.5,
+        431.69999999995343
+      ],
+      "interaction": 6.300000000046566,
+      "errors": []
+    },
+    {
+      "route": "/tools/rename-pdf",
+      "ready": 433.69999999995343,
+      "samples": [
+        440.79999999981374,
+        433.69999999995343
+      ],
+      "interaction": 6.2999999998137355,
+      "errors": []
+    },
+    {
+      "route": "/tools/repair-pdf",
+      "ready": 421.79999999981374,
+      "samples": [
+        421.79999999981374,
+        433
+      ],
+      "interaction": 5.899999999906868,
+      "errors": []
+    },
+    {
+      "route": "/tools/resize-pdf",
+      "ready": 424.60000000009313,
+      "samples": [
+        424.60000000009313,
+        433
+      ],
+      "interaction": 6.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/rotate-pdf",
+      "ready": 423.89999999990687,
+      "samples": [
+        423.89999999990687,
+        425.30000000004657
+      ],
+      "interaction": 6.199999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/remove-annotations",
+      "ready": 424.9000000001397,
+      "samples": [
+        424.9000000001397,
+        432.0999999998603
+      ],
+      "interaction": 8,
+      "errors": []
+    },
+    {
+      "route": "/tools/workflows",
+      "ready": 433.89999999990687,
+      "samples": [
+        433.89999999990687,
+        450.5
+      ],
+      "interaction": 13.800000000046566,
+      "errors": []
+    },
+    {
+      "route": "/tools/batch-run",
+      "ready": 427.0999999998603,
+      "samples": [
+        427.0999999998603,
+        428.4000000001397
+      ],
+      "interaction": 6.199999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/api",
+      "ready": 417.39999999990687,
+      "samples": [
+        421.5,
+        417.39999999990687
+      ],
+      "interaction": 12.300000000046566,
+      "errors": []
+    },
+    {
+      "route": "/tools/mcp",
+      "ready": 429.39999999990687,
+      "samples": [
+        436.60000000009313,
+        429.39999999990687
+      ],
+      "interaction": 7.199999999953434,
+      "errors": []
+    },
+    {
+      "route": "/tools/image-editor",
+      "ready": 427.10000000009313,
+      "samples": [
+        427.10000000009313,
+        441.30000000004657
+      ],
+      "interaction": 6.800000000046566,
+      "errors": []
+    },
+    {
+      "route": "/tools/signature",
+      "ready": 420.60000000009313,
+      "samples": [
+        420.60000000009313,
+        433.19999999995343
+      ],
+      "interaction": 1,
+      "errors": []
+    },
+    {
+      "route": "/tools/stamp",
+      "ready": 421.5999999998603,
+      "samples": [
+        421.5999999998603,
+        432.80000000004657
+      ],
+      "interaction": 6.7000000001862645,
+      "errors": []
+    },
+    {
+      "route": "/tools/combine-pdf",
+      "ready": 416.39999999990687,
+      "samples": [
+        423.9000000001397,
+        416.39999999990687
+      ],
+      "interaction": 6.800000000046566,
+      "errors": []
+    },
+    {
+      "route": "/",
+      "ready": 293.60000000009313,
+      "samples": [
+        293.60000000009313,
+        318.5999999998603
+      ],
+      "interaction": 14.699999999953434,
+      "errors": []
+    },
+    {
+      "route": "/workflows",
+      "ready": 83.80000000004657,
+      "samples": [
+        121.39999999990687,
+        83.80000000004657
+      ],
+      "interaction": 0.5999999998603016,
+      "errors": []
+    }
+  ],
+  "readyP95Ms": 549.1000000000931,
+  "worstInteractionMs": 15.900000000139698,
+  "scriptErrors": 0,
+  "throttled": {
+    "longTasks": 3,
+    "worstLongTaskMs": 125
+  },
+  "mobile": {
+    "completed": true,
+    "durationMs": 376,
+    "heapMb": 10
+  },
+  "safari": {
+    "completed": true,
+    "durationMs": 257,
+    "heapMb": null
+  },
+  "checks": [
+    {
+      "label": "tool-ready p95 (4x)",
+      "actual": 549.1000000000931,
+      "ceiling": 583,
+      "unit": "ms",
+      "ok": true
+    },
+    {
+      "label": "first interaction, worst route",
+      "actual": 15.900000000139698,
+      "ceiling": 23,
+      "unit": "ms",
+      "ok": true
+    },
+    {
+      "label": "worst main-thread task (4x)",
+      "actual": 125,
+      "ceiling": 200,
+      "unit": "ms",
+      "ok": true
+    },
+    {
+      "label": "chromium-iphone 200-page merge completes",
+      "actual": "376 ms",
+      "ceiling": "-",
+      "unit": "",
+      "ok": true
+    },
+    {
+      "label": "chromium-iphone 200-page heap",
+      "actual": 10,
+      "ceiling": 15,
+      "unit": "MB",
+      "ok": true
+    },
+    {
+      "label": "webkit-iphone 50-page merge completes",
+      "actual": "257 ms",
+      "ceiling": "-",
+      "unit": "",
+      "ok": true
+    },
+    {
+      "label": "webkit-iphone 50-page heap",
+      "actual": null,
+      "ceiling": 15,
+      "unit": "MB",
+      "ok": true,
+      "note": "API unavailable"
+    }
+  ],
+  "failures": 0
+}

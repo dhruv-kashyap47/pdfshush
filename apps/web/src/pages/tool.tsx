@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
+import { lazy } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Clock, Flame, Sparkles } from 'lucide-react';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
-import { ChatWithPdfTool } from '@/components/tools/chat-with-pdf-tool';
 import { CropTool } from '@/components/tools/crop-tool';
 import { DarkModePdfTool } from '@/components/tools/dark-mode-pdf-tool';
 import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
@@ -49,7 +49,6 @@ import { CreateBookmarksTool } from '@/components/tools/create-bookmarks-tool';
 import { SignatureTool } from '@/components/tools/signature-tool';
 import { ApiToolPage } from '@/components/tools/api-tool';
 import { McpToolPage } from '@/components/tools/mcp-tool';
-import { SummarizePdfTool } from '@/components/tools/summarize-pdf-tool';
 import { ToolFrame } from '@/components/tools/tool-frame';
 import { ToolCard } from '@/components/landing/tool-card';
 import { Button } from '@/components/ui/button';
@@ -161,6 +160,28 @@ const PLANNED_COPY: Record<string, PlannedCopy> = {
   },
 };
 
+/**
+ * The AI studio is its own chunk. It carries the provider protocols, the edit
+ * planner and the assistant loop -- none of which a merge or a crop needs.
+ * There is deliberately no inner Suspense: a suspension reaches the App-level
+ * boundary, so `tool-ready` is published only after the studio has actually
+ * mounted, not when a skeleton has.
+ */
+const AiWorkspace = lazy(() =>
+  import('@/components/ai/ai-workspace').then((module) => ({ default: module.AiWorkspace })),
+);
+
+const SUMMARIZE_PROMPT = [
+  'Summarize this document for someone who has not read it.',
+  'Start with a two-sentence overview, then list the key points as short bullets.',
+  'Cite the pages that matter most as [page N]. Keep it under 250 words.',
+].join(' ');
+
+const AI_BODIES: Record<string, { variant: 'summarize' | 'chat'; autoPrompt?: string }> = {
+  'summarize-pdf': { variant: 'summarize', autoPrompt: SUMMARIZE_PROMPT },
+  'chat-with-pdf': { variant: 'chat' },
+};
+
 /** Live tool bodies, keyed by slug. Add a tool here when its job lands. */
 const LIVE_BODIES: Record<string, ComponentType> = {
   'merge-pdf': MergeTool,
@@ -178,8 +199,6 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'n-up': NUpTool,
   'edit-pdf': EditPdfTool,
   'redact-pdf': RedactPdfTool,
-  'summarize-pdf': SummarizePdfTool,
-  'chat-with-pdf': ChatWithPdfTool,
   'edit-pdf-with-ai': EditPdfWithAiTool,
   'fill-sign': FillSignTool,
   signature: SignatureTool,
@@ -226,6 +245,7 @@ export function ToolPage() {
   if (!tool) return <NotFoundPage />;
 
   const Body = LIVE_BODIES[tool.slug];
+  const ai = AI_BODIES[tool.slug];
   const isAi = tool.category === 'ai';
 
   return (
@@ -235,7 +255,13 @@ export function ToolPage() {
       chrome={isAi ? 'studio' : 'default'}
       notes={isAi ? <AiTrustNotes /> : undefined}
     >
-      {Body ? <Body /> : <PlannedNotice tool={tool} />}
+      {ai ? (
+        <AiWorkspace variant={ai.variant} {...(ai.autoPrompt ? { autoPrompt: ai.autoPrompt } : {})} />
+      ) : Body ? (
+        <Body />
+      ) : (
+        <PlannedNotice tool={tool} />
+      )}
     </ToolFrame>
   );
 }

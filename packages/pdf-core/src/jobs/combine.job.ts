@@ -8,8 +8,8 @@
 
 import type { JobDefinition } from '../job.js';
 import { combineToPdf, isPdfBytes, type CombinePart } from '../ops/combine.js';
-import { detectImageKind, IMAGE_LIMITS, type ImageOrientation, type ImagePageSize } from '../ops/imageDocs.js';
-import { LIMITS } from '../limits.js';
+import { detectImageKind, type ImageOrientation, type ImagePageSize } from '../ops/imageDocs.js';
+import { IMAGE_LIMITS, LIMITS } from '../limits.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 const PAGE_SIZES: ReadonlySet<string> = new Set<ImagePageSize>(['a4', 'letter', 'image']);
