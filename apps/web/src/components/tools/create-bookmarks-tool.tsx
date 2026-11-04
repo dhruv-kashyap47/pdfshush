@@ -447,6 +447,13 @@ export function CreateBookmarksTool() {
               </p>
             )}
 
+            {mode === 'headings' && rows !== null && rows.length > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Heading detection is a heuristic. Text inside a figure or caption can be offered as
+                a heading, so check each title before writing the outline.
+              </p>
+            )}
+
             {rows === null && reading && (
               <p className="mt-4 rounded-md border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground">
                 Reading page text to find headings…

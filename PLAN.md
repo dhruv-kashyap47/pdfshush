@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0 done 2026-11-04** — baseline recorded in §31.12 and `tests/benchmarks/product-baseline.md`; M5.1 next |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.1 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13) and the truthful surface (§31.14); M5.2 next |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -75,8 +75,9 @@ browser E2Es
 against the running dev server. The full browser smoke, plain-tools, next-tools,
 bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in the same
 campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
-queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 has started: M5.0's baseline is recorded
-in §31.12 and `tests/benchmarks/product-baseline.md`; M5.1–M5.8 are not claimed.**
+queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
+recorded in §31.12, the Q2 determinism fix in §31.13, and M5.1's truthful surface in §31.14;
+M5.2-M5.8 are not claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -700,6 +701,35 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 - M5.1: the product tells the truth about failure, limits and what is not built.**
+
+  Failures now go through one vocabulary instead of whatever string the worker happened to throw.
+  `apps/web/src/lib/job-errors.ts` classifies a job error by stable code (`encrypted`, `damaged`,
+  `unsupported`, `too-large`, `timeout`, `cancelled`, `canvas-unavailable`, `ai`, `network`,
+  `validation`, `refused`, `internal`), chooses human copy with a next step, and keeps the engine's
+  own sentence when it is more useful than a generic label. Validation failures show the engine's
+  issues rather than "Invalid input"; the fail-closed redaction and text-edit errors get their own
+  `refused` code so their check list is never mislabelled. `use-job-runner` applies it once, so
+  every existing `toast.error(outcome.message)` call site benefits, and logs only the stable code
+  and the error - never document content, a filename or a path.
+
+  Progress can no longer be an endless spinner: the panel shows elapsed time and, after 8 s, says
+  it is still working and that Cancel is immediate. The shared trust card no longer claims "No
+  limits" above a contradicting 500-page cap - every live tool states its own limit from the engine
+  constants. `workflows`, `api` and `mcp` stop claiming "nothing is uploaded"; they say they are
+  server-run and state their quota. The nine planned pages replace "In development" with what the
+  tool will do, the real blocker and a direct link to the closest live alternative. The editor
+  discloses the measured text-model limits (cross-page paragraphs, footnote tails, drop caps,
+  vector figures, forms read as columns, refused mixed-alignment tables, no OCR), and Create
+  Bookmarks says heading detection is a heuristic.
+
+  Evidence: 21 new web tests (`job-errors`, `tool-limits`, `text-model-limits`); `pnpm test`
+  **1253/1253**; `pnpm -r typecheck` and `pnpm build` green. Browser-verified on the production
+  preview: an encrypted file produced "This PDF is password protected. Unlock the PDF first..." and
+  a malformed file produced "That file could not be read as a PDF... Re-download or re-export the
+  file, then try again." The limitations are **disclosed, not fixed** - the engine work belongs to
+  M5.3/M5.7.
 
 - **2026-11-04 - Q2 fixed: the same input now produces the same bytes.**
 
@@ -5390,6 +5420,90 @@ ratified ceilings.
 editing-ladder rules are untouched. No content enters any telemetry, and nothing moved from client
 to server.
 
+### 31.14 M5.1 result - the truthful surface (2026-11-04)
+
+**Delivered.**
+
+1. **One error vocabulary.** `apps/web/src/lib/job-errors.ts` classifies every job failure by stable
+   code - `encrypted`, `damaged`, `unsupported`, `too-large`, `timeout`, `cancelled`,
+   `canvas-unavailable`, `ai`, `network`, `validation`, `refused`, `internal` - by error **name**
+   first (the name survives the worker hop) and message second. `describeJobError` returns
+   `{ code, message, action, retryable, detail, issues }`. `message` is complete on its own and
+   includes the next step, so the existing `toast.error(outcome.message)` call sites improve
+   without being edited one by one. Validation now shows the engine's own issues instead of
+   "Invalid input"; refusals keep their full check-by-check text and are never folded into
+   "unsupported". `refused` was added for the fail-closed redaction and text-edit errors because
+   those messages name specific checks. `use-job-runner` logs `[job:<slug>] <code> failed:` once
+   (no content, no filename, no path) and exposes the structured info on both the hook state and
+   the failed outcome.
+
+2. **No infinite spinners.** `JobProgressPanel` shows an elapsed clock from mount and, after 8 s,
+   says the job is still working, that large documents can take a minute, and that Cancel stops it
+   immediately and keeps the files. Cancel was already always present; the ticking clock is
+   `aria-hidden`, so a screen reader is not read a timer every second. A slow job now looks like a
+   job that is taking time, not a spinner with no end state.
+
+3. **Per-tool limits, not a global boast.** The shared trust card said "No limits." above a
+   contradicting 500-page / 250 MB cap. `apps/web/src/lib/tool-limits.ts` now carries a specific
+   sentence for all 49 live slugs, derived from the engine constants (`LIMITS`, `IMAGE_LIMITS`,
+   `PROTECT_LIMITS`, `RENAME_LIMITS`, `BATES_LIMITS`), so the copy moves when a limit moves.
+   Raster-rebuild tools state their real 150-page cap; combine and JPG-to-PDF state file counts;
+   AI tools state context and turn bounds; workflows, API and MCP state their server quotas.
+
+4. **Server-backed tools stop claiming locality.** `workflows`, `api` and `mcp` have explicit
+   `REMOTE_TRUST` notes: workflows is server-run per step, the API is server-side by design, and
+   the MCP server is a local process that calls the API. The old default note ("nothing is
+   uploaded") was false for all three. Their limit card says "Quotas are explicit." instead of
+   "No account or quota."
+
+5. **Planned pages say what will actually happen.** All nine entries have a `PLANNED_COPY` entry:
+   what the tool will do, the real blocker, and the closest live tool with a direct link and a
+   "Use X" button. The generic "In development" remains only as a fallback for a slug not yet
+   written, and no ship date is invented.
+
+6. **The measured text-model limits are disclosed.** The editor's Document inspector gains a
+   collapsed "What this editor does not do yet" list covering the 29.6/30.10 findings that change
+   what a user sees: cross-page paragraphs are not joined, footnote tails can split, drop caps can
+   detach, vector figures are not regions, forms can read as columns, mixed-alignment tables are
+   refused and merged cells are not reconstructed, and scanned pages have no text layer. The OCR
+   boundary was already stated in three places (`edit-pdf` status, `pdf-to-text` footer,
+   `split-by-text` hint) and is repeated so this one list is complete. Create Bookmarks now warns
+   that heading detection is a heuristic and figure or caption text can be offered as a heading.
+
+**Evidence.**
+
+- 21 new tests: `job-errors.test.ts` (12 - every code class, worker-hop reconstruction, validation
+  issues, refusal preservation, a thrown non-`Error`), `tool-limits.test.ts` (5 - every live slug
+  covered, no orphan entries, no "no limits" claim, a number in every sentence, fallback), and
+  `text-model-limits.test.ts` (4 - every measured limitation mapped, no invented entries, full
+  sentences, the OCR boundary stated plainly).
+- `pnpm test` **1253/1253** (pdf-core 435, API 210, provider 370, agent 152, web 67, MCP 19).
+  `pnpm -r typecheck` green. `pnpm build` green.
+- Browser-verified against the production build on `vite preview` (`:4173`), not the dev server:
+  - an encrypted fixture produced `"This PDF is password protected. Unlock the PDF first, or enter
+    its password if this tool asks for one."` - the classified message plus its action, from a real
+    worker failure;
+  - a non-PDF produced `"That file could not be read as a PDF. Failed to parse PDF document
+    (line:0 col:48 offset=24): No PDF header found. Re-download or re-export the file, then try
+    again."`;
+  - merge read "Up to 500 pages and 250 MB...", redact read "Up to 150 pages and 500 regions...",
+    workflows read "Server-run by design." plus its quota line, and `word-to-pdf` showed the
+    why-it-is-not-here copy with a live `pdf-to-text` alternative;
+  - the editor's limits list expanded to all seven entries on a real arXiv PDF.
+
+**Not claimed / accepted gaps.**
+
+- `retryable` and the structured `action` are exposed, but no surface offers a one-click retry
+  yet. The action is folded into `message`, so no failure is a dead end; retry is still a manual
+  re-run.
+- Failures outside `useJobRunner` (a dropzone's own file-read error, for example) keep their local
+  copy. Those messages were already specific. Converting them to the taxonomy belongs to the
+  surface that owns them, not to a forced rewrite of every component.
+- The 29.6 limitations are **disclosed, not fixed**. Mixed-alignment tables, the IRS-1040 read,
+  cross-page paragraphs, footnote tails and OCR are M5.3/M5.7 work, each behind its own fixture
+  and benchmark. Nothing here changes the engine.
+- No redaction, serialization, hashing, layout-model or editing-ladder code was touched; the only
+  engine import added is constants.
 
 ---
 

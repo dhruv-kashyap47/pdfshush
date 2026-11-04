@@ -113,6 +113,7 @@ import {
   type TextSelectionState,
 } from '@/lib/text-editing';
 import { recordRecent } from '@/tools/recent';
+import { TEXT_MODEL_LIMITS } from '@/lib/text-model-limits';
 import type { SignatureCapture } from '@/components/signature/signature-pad-dialog';
 
 /**
@@ -3210,6 +3211,26 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                           </li>
                         </ul>
                       </div>
+
+                      {/*
+                        The measured text-model limits (PLAN.md 29.6 / 30.10).
+                        Collapsed by default: a user who is mid-edit should not
+                        read a disclaimer first, but a user whose paragraph
+                        behaved strangely needs somewhere to find out why. The
+                        scanned/OCR boundary is already stated in the status
+                        line above; it is repeated here so this one list is
+                        complete on its own.
+                      */}
+                      <details className="editor-panel-limits mt-4" data-testid="editor-limits">
+                        <summary className="cursor-pointer text-xs font-medium text-foreground">
+                          What this editor does not do yet
+                        </summary>
+                        <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                          {TEXT_MODEL_LIMITS.map((limit) => (
+                            <li key={limit.id}>{limit.text}</li>
+                          ))}
+                        </ul>
+                      </details>
                     </div>
                   ) : null}
                 </aside>

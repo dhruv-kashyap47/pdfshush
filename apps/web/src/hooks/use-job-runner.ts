@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  JobAbortedError,
+  isAbortError,
   type JobInputFile,
   type JobProgress,
 } from '@pdfshush/pdf-core';
 import { jobPool } from '@/lib/job-pool';
+import { describeJobError, type JobErrorInfo } from '@/lib/job-errors';
 
 export type JobState<T> =
   | { status: 'idle' }
   | { status: 'running'; progress: JobProgress | null }
   | { status: 'done'; result: T }
-  | { status: 'error'; message: string };
+  | ({ status: 'error' } & JobErrorInfo);
 
 export type RunOutcome<T> =
   | { ok: true; result: T }
   | { ok: false; aborted: true }
-  | { ok: false; aborted: false; message: string };
+  | ({ ok: false; aborted: false } & JobErrorInfo);
 
 /**
  * Runs one job slug with lifecycle state, progress, cancellation and safe
@@ -68,19 +69,26 @@ export function useJobRunner<T>(slug: string) {
         if (isCurrent(runId)) setState({ status: 'done', result });
         return { ok: true, result };
       } catch (error) {
-        const aborted =
-          error instanceof JobAbortedError ||
-          (error instanceof Error && error.name === 'AbortError');
+        const aborted = isAbortError(error);
+        // One classification for the whole app: every call site renders
+        // `outcome.message`, so curated copy reaches all of them without
+        // touching ~45 components. `code`, `action` and `retryable` ride along
+        // for surfaces that want to offer a retry or a details view.
+        const info = describeJobError(error, { slug });
         if (!aborted) {
           // Callers show one short toast, which is right for a user and useless
           // for a bug. The stack rides along on the error (the worker preserves it
           // across the thread hop), so log it once here rather than at every
-          // call site. Only the error object is logged -- no file bytes, page
-          // contents or local paths.
-          console.error(`[job:${slug}] run failed:`, error);
+          // call site. Only the error object and its stable code are logged --
+          // no file bytes, page contents or local paths.
+          console.error(`[job:${slug}] ${info.code} failed:`, error);
         }
-        if (isCurrent(runId)) setState(aborted ? { status: 'idle' } : { status: 'error', message: messageOf(error) });
-        return aborted ? { ok: false, aborted: true } : { ok: false, aborted: false, message: messageOf(error) };
+        if (isCurrent(runId)) {
+          setState(aborted ? { status: 'idle' } : { status: 'error', ...info });
+        }
+        return aborted
+          ? { ok: false, aborted: true }
+          : { ok: false, aborted: false, ...info };
       }
     },
     [slug],
@@ -100,8 +108,4 @@ export function useJobRunner<T>(slug: string) {
   }, []);
 
   return { state, run, cancel, reset };
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
