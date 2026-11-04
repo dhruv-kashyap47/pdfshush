@@ -137,8 +137,17 @@ function normalizeRect(x1: number, y1: number, x2: number, y2: number): Rect {
   return { x, y, width: Math.abs(x2 - x1), height: Math.abs(y2 - y1) };
 }
 
-function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorObject | null {
-  const base = { id: newObjectId(), pageIndex, ...rect };
+/** Screen-reader description for an overlay object, read before selection. */
+export function describeEditorObject(object: EditorObject): string {
+  const kind = object.kind === 'text' ? 'Text' : object.kind.charAt(0).toUpperCase() + object.kind.slice(1);
+  const content =
+    object.kind === 'text'
+      ? `: ${object.text.trim().slice(0, 60) || 'empty'}`
+      : '';
+  return `${kind} object${content}, page ${object.pageIndex + 1}, x ${Math.round(object.x)}, y ${Math.round(object.y)}`;
+}
+
+function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorObject | null {  const base = { id: newObjectId(), pageIndex, ...rect };
   switch (tool) {
     case 'text':
       return {
@@ -582,9 +591,35 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     >
       <div
         ref={containerRef}
-        className="relative select-none overflow-hidden border bg-white"
+        className="relative select-none overflow-hidden border bg-white touch-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         style={{ width: displayW, height: displayH, cursor: tool === 'select' ? 'default' : 'crosshair' }}
         onPointerDown={onPagePointerDown}
+        tabIndex={0}
+        role="group"
+        aria-label={`Page ${pageIndex + 1} editor. Press T for the text tool, then Enter to place a text box at the centre. Arrow keys nudge, Delete removes, Control+Z undoes.`}
+        onKeyDown={(event) => {
+          // Only the page itself, never a text field or a form widget inside it.
+          if (event.target !== event.currentTarget || readOnly) return;
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          if (tool === 'text') {
+            const rect = {
+              x: Math.max(8, width / 2 - 60),
+              y: Math.max(8, height / 2 - 12),
+              width: 120,
+              height: 24,
+            };
+            const object = objectForTool('text', pageIndex, rect);
+            if (!object) return;
+            event.preventDefault();
+            props.onCreate(object);
+            props.onStartEdit(object.id);
+            return;
+          }
+          if (tool === 'select' && pageObjects.length > 0) {
+            event.preventDefault();
+            props.onSelect(pageObjects[pageObjects.length - 1]!.id);
+          }
+        }}
         onMouseDown={(event) => {
           // Consume the focus move that belongs to the opening gesture.
           if (!openingEdit.current) return;
@@ -839,7 +874,7 @@ function ObjectView({
   return (
     <div
       className={cn(
-        'absolute rounded-[1px] transition-[box-shadow,outline-color] duration-150',
+        'absolute rounded-[1px] transition-[box-shadow,outline-color] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600',
         interactive && !selected && !editing &&
           'hover:outline hover:outline-1 hover:outline-blue-500/40 hover:outline-offset-1',
         selected && !editing &&
@@ -854,6 +889,17 @@ function ObjectView({
           : `editor-object-${object.kind}`
       }
       data-object-id={object.id}
+      role={editing ? 'group' : interactive ? 'button' : 'img'}
+      tabIndex={interactive && !editing ? 0 : -1}
+      aria-label={describeEditorObject(object)}
+      aria-pressed={interactive && !editing ? selected : undefined}
+      onKeyDown={(event) => {
+        if (!interactive) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect(object.id);
+        }
+      }}
       onPointerDown={onPointerDown}
       onDoubleClick={() => {
         if (interactive && object.kind === 'text') onStartEdit(object.id);

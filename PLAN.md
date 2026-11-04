@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.5 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), the performance gate (§31.17) and reach/prerender (§31.18); M5.6 next |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.6 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), the performance gate (§31.17), reach/prerender (§31.18) and accessibility/input parity (§31.19); M5.7 next |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -78,7 +78,8 @@ campaign, and the containerised API hardening gate (SIGKILL mid-job → no orpha
 queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
 recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14, M5.2's
 verifiable privacy in §31.15, M5.3's receipts/structure confidence in §31.16, M5.4's performance
-gate in §31.17 and M5.5's reach/prerender in §31.18; M5.6-M5.8 are not claimed.**
+gate in §31.17, M5.5's reach/prerender in §31.18 and M5.6's accessibility/input parity in §31.19;
+M5.7-M5.8 are not claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -702,6 +703,25 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 - M5.6: zero serious axe findings, and a canvas the keyboard can drive.**
+
+  `pnpm test:e2e:a11y` runs WCAG 2.2 AA axe over the shell, `/workflows` and 11 tool routes and
+  fails on critical/serious findings. Two shared defects were responsible for almost every
+  violation: the "live" badge (`emerald-600` on a 10% wash) and the footer/card "soon" labels
+  (`text-muted-foreground/60` and `/70`). Fixing them at the chrome level cleared all 49 home cards
+  and every tool page. The hero dropzone's `aria-label` contradicted its visible text; it now uses
+  the visible sentence as its name.
+
+  The editor gained a real keyboard path. The page is focusable and described; **T** selects the
+  text tool, **Enter** places a text box at the centre and opens it (or selects the topmost object
+  in Select mode), arrow keys nudge, Delete removes and Ctrl+Z restores. Overlay objects are
+  focusable with a spoken description and Enter selects them.
+
+  Evidence: `pnpm test:e2e:a11y` **16 checks** green; `pnpm test:e2e:keyboard` **19 checks** green,
+  including a text object created, nudged 7 px, deleted and undone without a mouse. CI's perf job
+  now runs axe, keyboard and reach against the production preview. Honest gaps: 13 routes in the
+  axe budget, six representative tool classes, and no real VoiceOver/NVDA session.
 
 - **2026-11-04 - M5.5: every tool URL has real HTML before JavaScript, and the catalog is machine-readable.**
 
@@ -5950,6 +5970,54 @@ surface a crawler expects.
   description, category and live/not-built state. They are honest cards, not bespoke art.
 - **Not-built pages are excluded from the sitemap and `noindex`.** That is deliberate: a search
   result for a tool that does not exist is the broken promise §31.5 exists to remove.
+
+---
+
+### 31.19 M5.6 result - accessibility and input parity (2026-11-04)
+
+**Delivered.** A zero-serious axe gate, a keyboard path through the editor that did not exist
+before, and two contrast defects fixed at the shared-chrome level so every tool inherits the fix.
+
+1. **axe over the shell and the top tools.** `tests/e2e/a11y.mjs` runs WCAG 2.2 AA tags over the
+   home page, `/workflows` and 11 tool routes (the M5.0 top ten plus Organize and Alternate & Mix)
+   and fails on **critical or serious** findings. Moderate/minor rules are printed with their nodes
+   but do not turn the gate red; the budget is zero serious, not "zero anything".
+
+2. **The two shared defects.** The "live" badge used `emerald-600` on a 10% emerald wash; it is now
+   `emerald-800` (dark mode `emerald-300`). Footer and tool-card "soon" labels used
+   `text-muted-foreground/60` and `/70`; both are now the full token. One fix cleared all 49 home
+   cards and every tool page because the chrome is shared. The hero dropzone's `aria-label` did not
+   contain its visible text; the label is gone, so its visible sentence is its name.
+
+3. **Keyboard-editable canvas.** The editor page is focusable and described
+   ("Press T for the text tool, then Enter to place a text box at the centre…"). With the page
+   focused, **T** selects the text tool, **Enter** creates a text box and opens its editor (or, in
+   Select mode, selects the topmost object). Overlay objects are focusable with a spoken description
+   (`Text object: …, page 1, x …, y …`); Enter selects. Arrow keys nudge, Delete removes and Ctrl+Z
+   undoes through the existing global handler.
+
+**Evidence.**
+
+- `pnpm test:e2e:a11y` **16 checks**, green: 13 routes with zero critical/serious violations, Tab
+  traverses the shell, every focused control has a name, and the first stop has a visible focus ring.
+- `pnpm test:e2e:keyboard` **19 checks**, green: six tool classes reach a named file picker in 10
+  Tab stops; the editor creates a text object with T + Enter, nudges it 7 px with ArrowRight, deletes
+  it, restores it with Ctrl+Z, and selects an object with Enter in Select mode.
+- CI's perf job now runs axe, keyboard and reach against the same production preview, so the a11y
+  gate is not a local-only ritual.
+
+**Not claimed / accepted gaps.**
+
+- **Only 13 routes are in the axe budget.** The shell and the ten highest-traffic tools are the
+  §31.10 requirement; the other 36 tool pages share the same chrome but are not individually
+  measured here.
+- **Keyboard classes are representative, not exhaustive.** Merge, split, page-ops, security, raster
+  and stamp are covered; the AI studio and signature pad have their own E2E paths but not this
+  keyboard script.
+- **No real screen reader was run.** Names, roles and descriptions are asserted through axe and the
+  accessibility tree's DOM attributes; that is not the same as a VoiceOver/NVDA session.
+- **Focus order starts with the skip-free header.** There is no skip link; Tab reaches the catalog
+  in 10 stops, which is recorded rather than called ideal.
 
 ---
 

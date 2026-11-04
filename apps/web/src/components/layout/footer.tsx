@@ -81,7 +81,7 @@ export function SiteFooter() {
                       </Link>
                     </li>
                   ) : (
-                    <li key={link.label} className="text-sm text-muted-foreground/60">
+                    <li key={link.label} className="text-sm text-muted-foreground">
                       {link.label} <span className="text-xs">(soon)</span>
                     </li>
                   ),

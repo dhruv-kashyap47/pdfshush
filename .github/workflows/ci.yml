@@ -70,3 +70,6 @@ jobs:
           pnpm --filter @pdfshush/web preview --port 4173 &
           node scripts/wait-for-url.mjs http://localhost:4173
       - run: pnpm test:perf
+      - run: pnpm test:e2e:a11y
+      - run: pnpm test:e2e:keyboard
+      - run: pnpm test:e2e:reach

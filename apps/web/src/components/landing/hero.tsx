@@ -325,7 +325,6 @@ export function HeroSection() {
                         fileInputRef.current?.click();
                       }
                     }}
-                    aria-label="Upload PDF to launch tool"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <Upload className="h-5 w-5" />
