@@ -13,10 +13,8 @@
 
 export type TextModelLimitId =
   | 'cross-page-paragraphs'
-  | 'footnote-tails'
   | 'drop-caps'
   | 'vector-figures'
-  | 'forms-as-columns'
   | 'tables'
   | 'scanned-pages';
 
@@ -29,11 +27,7 @@ export interface TextModelLimit {
 export const TEXT_MODEL_LIMITS: readonly TextModelLimit[] = [
   {
     id: 'cross-page-paragraphs',
-    text: 'A paragraph that continues onto the next page stays two paragraphs, so editing the first does not reflow the rest.',
-  },
-  {
-    id: 'footnote-tails',
-    text: 'A footnote whose second line sits above the margin can be treated as a separate paragraph.',
+    text: 'A paragraph that continues onto the next page is linked to its continuation, but editing the first part still does not reflow the rest.',
   },
   {
     id: 'drop-caps',
@@ -44,12 +38,8 @@ export const TEXT_MODEL_LIMITS: readonly TextModelLimit[] = [
     text: 'Only images block reflow. Text drawn inside a vector figure can be read as body text, or offered as a heading.',
   },
   {
-    id: 'forms-as-columns',
-    text: 'Forms with side-by-side boxes can be read as columns. Confidence drops accordingly, and the grouping may be coarse.',
-  },
-  {
     id: 'tables',
-    text: 'This editor does not edit tables. Mixed-alignment tables are refused rather than guessed, and merged cells are not reconstructed.',
+    text: 'A table is reported only when its grid repeats: two rows whose cells align on different edges stay text, and a form-like page needs three rows. Merged cells are not reconstructed.',
   },
   {
     id: 'scanned-pages',

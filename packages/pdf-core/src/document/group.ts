@@ -381,6 +381,35 @@ interface Gutter {
 }
 
 /**
+ * A form page is not a multi-column page: its "columns" are field boxes.
+ *
+ * Dot leaders are the strongest cheap signal that a page is a form. Body prose
+ * has none; a two-column paper has none. On the IRS 1040 they appear on 21 of
+ * 297 lines, and inferring gutters from those gaps splits field labels into
+ * table cells ("than four", "(3)", "dependents,"). Refusing the inference keeps
+ * the labels whole; the page is then read as one column, and only a grid that
+ * repeats across three or more rows is called a table. The test is deliberately
+ * narrow: a form without leaders is not guessed at.
+ */
+function looksLikeForm(rows: readonly FragmentDraft[][]): boolean {
+  const texts = rows
+    .map((row) =>
+      row
+        .map((fragment) => fragment.glyphs.map((entry) => entry.glyph.text).join(''))
+        .join(' ')
+        .trim(),
+    )
+    .filter((text) => text.length > 0);
+  if (texts.length < 20) return false;
+  // Dots are often separate text items, so the row text has a space between
+  // them (". . . . ."); allow that when counting leader runs.
+  const leaders = texts.filter((text) => /\.(?:\s*\.){3,}/.test(text)).length;
+  // Density, not label length: on a form a row is a label *plus* its field, so
+  // it is not short. Dot leaders appear on no line of the paper fixtures.
+  return leaders >= Math.max(5, Math.ceil(texts.length * 0.03));
+}
+
+/**
  * A column gutter is a whitespace corridor that recurs in several rows and
  * survives a large part of the page's text height. Rows that visibly cross it
  * are "spanning" (headlines, wide tables) and keep `columnIndex = -1`.
@@ -548,12 +577,21 @@ function detectTables(
   medianFontSize: number,
   idFactory: IdFactory,
   options: LayoutBuildOptions,
+  /** Form pages keep only grids with three or more rows; two rows are fields. */
+  minRows = 2,
 ): TableDraft[] {
   if (options.detectTables === false) return [];
   const minCellGap = Math.max(4, medianFontSize * 0.55);
   const cellRows: CellRow[] = [];
 
   rows.forEach((fragments, rowIndex) => {
+    // A dot-leader run is a form guide, not a row of cells. When it is split
+    // into one fragment per dot it otherwise aligns with the next form line and
+    // becomes a table whose cells are all "." (observed on IRS 1040 page 2).
+    const rowText = fragments
+      .map((fragment) => fragment.glyphs.map((entry) => entry.glyph.text).join(''))
+      .join('');
+    if (/\.{4,}/.test(rowText)) return;
     const byColumn = new Map<number, FragmentDraft[]>();
     for (const fragment of fragments) {
       if (fragment.columnIndex < 0) continue;
@@ -612,35 +650,76 @@ function detectTables(
   const drafts: TableDraft[] = [];
   let group: CellRow[] = [];
 
+  const alignmentMode = (
+    a: CellRow,
+    b: CellRow,
+    index: number,
+  ): 'start' | 'end' | 'center' | null => {
+    const startDelta = Math.abs(a.starts[index]! - b.starts[index]!);
+    const endDelta = Math.abs(a.ends[index]! - b.ends[index]!);
+    const aMid = (a.starts[index]! + a.ends[index]!) / 2;
+    const bMid = (b.starts[index]! + b.ends[index]!) / 2;
+    if (startDelta <= alignmentTolerance) return 'start';
+    if (endDelta <= alignmentTolerance) return 'end';
+    if (Math.abs(aMid - bMid) <= alignmentTolerance) return 'center';
+    return null;
+  };
+
   const matches = (a: CellRow, b: CellRow): boolean => {
     if (a.columnIndex !== b.columnIndex) return false;
     if (Math.abs(b.cross - a.cross) > rowWindow) return false;
     if (a.fragments.length !== b.fragments.length) return false;
     if (a.gapMids.length !== b.gapMids.length) return false;
-    // Cells in a table share an edge, and they share the *same kind* of edge:
-    // left-aligned cells line up on their starts, right-aligned ones on their
-    // ends. Accepting a different edge per cell let justified-prose lines - which
-    // always end at the right margin - masquerade as a table, splitting the
-    // abstract into cells. One mode must hold for every cell in the row.
-    const aligned = (mode: 'start' | 'end' | 'center'): boolean => {
-      for (let i = 0; i < a.fragments.length; i += 1) {
-        const left = mode === 'end' ? a.ends[i]! : a.starts[i]!;
-        const right = mode === 'end' ? b.ends[i]! : b.starts[i]!;
-        const aMid = (a.starts[i]! + a.ends[i]!) / 2;
-        const bMid = (b.starts[i]! + b.ends[i]!) / 2;
-        const delta =
-          mode === 'center' ? Math.abs(aMid - bMid) : Math.abs(left - right);
-        if (delta > alignmentTolerance) return false;
+
+    // Alignment is judged per cell, not once for the whole row: a real table is
+    // allowed to have left-aligned labels in column 0 and right-aligned numbers
+    // in column 1. The previous one-mode-per-row rule refused that (PLAN §29.6).
+    for (let i = 0; i < a.fragments.length; i += 1) {
+      if (!alignmentMode(a, b, i)) return false;
+    }
+
+    // Per-cell alignment alone would accept justified prose: its first fragment
+    // starts at the left margin, its last ends at the right margin, and the wide
+    // stretched spaces split the line into two "cells". The guard is geometric:
+    // in a table no cell's text may reach into the next column's leftmost start.
+    // In justified prose the split point moves between lines, so an earlier
+    // line's left cell crosses a later line's right-cell start and the group is
+    // rejected.
+    return rangesDisjoint(a, b);
+  };
+
+  const rangesDisjoint = (a: CellRow, b: CellRow): boolean => {
+    for (let i = 0; i < a.fragments.length; i += 1) {
+      for (let j = i + 1; j < a.fragments.length; j += 1) {
+        const leftEnd = Math.max(a.ends[i]!, b.ends[i]!);
+        const rightStart = Math.min(a.starts[j]!, b.starts[j]!);
+        if (leftEnd > rightStart + alignmentTolerance) return false;
       }
-      return true;
-    };
-    return aligned('start') || aligned('end') || aligned('center');
+    }
+    return true;
   };
 
   const flush = (): void => {
-    if (group.length < 2) {
+    if (group.length < minRows) {
       group = [];
       return;
+    }
+    // Two rows whose cells align on *different* edges each are not table
+    // evidence: justified prose does exactly that (left cell starts at the
+    // margin, right cell ends at it), and its stretched word space can leave
+    // two consecutive lines passing the disjointness guard. Three or more such
+    // rows are a grid; two are a line break. Refusing the pair is the honest
+    // choice -- the text stays ordinary prose (PLAN §29.6).
+    if (group.length === 2) {
+      const modes = new Set<string>();
+      for (let i = 0; i < group[0]!.fragments.length; i += 1) {
+        const mode = alignmentMode(group[0]!, group[1]!, i);
+        if (mode) modes.add(mode);
+      }
+      if (modes.size > 1) {
+        group = [];
+        return;
+      }
     }
     const first = group[0]!.fragments[0]!.glyphs[0]!;
     const seed = `${textSeed(first.glyph.text, first.glyph.bbox)}|${group[0]!.columnIndex}`;
@@ -667,8 +746,14 @@ function detectTables(
       continue;
     }
     // A row can legitimately be missing from a sparse table; only break when
-    // the vertical distance or the grid itself changes.
-    if (matches(previous, cellRow) && cellRow.rowIndex > previous.rowIndex) {
+    // the vertical distance or the grid itself changes. Disjointness is checked
+    // against the whole group, not just the previous row: three justified-prose
+    // lines can pass A-B and B-C while A-C overlap.
+    if (
+      matches(previous, cellRow) &&
+      cellRow.rowIndex > previous.rowIndex &&
+      group.every((row) => rangesDisjoint(row, cellRow))
+    ) {
       group.push(cellRow);
       continue;
     }
@@ -927,6 +1012,8 @@ export interface OrientationGroup {
 export interface OrientationBuildResult {
   groups: OrientationGroup[];
   tables: TableDraft[];
+  /** True when at least one orientation family looked like a form. */
+  formLike: boolean;
 }
 
 /**
@@ -953,6 +1040,7 @@ export function buildOrientationGroups(
 
   const groups: OrientationGroup[] = [];
   const tables: TableDraft[] = [];
+  let formLike = false;
 
   for (const [rotationDeg, bucketGlyphs] of [...buckets].sort((a, b) => b[1].length - a[1].length)) {
     const medianFontSize = Math.max(1, median(bucketGlyphs.map((glyph) => glyph.typography.fontSize)));
@@ -962,14 +1050,18 @@ export function buildOrientationGroups(
     const cellGap = Math.max(options.cellGapPt ?? 4, medianFontSize * 0.9);
 
     const rows = rowGlyphs.map((row, rowIndex) => splitRow(row, rowIndex, cellGap));
-    const gutters = detectColumnGutters(rows, pageSpan, medianFontSize, options);
+    const bucketIsForm = looksLikeForm(rows);
+    if (bucketIsForm) formLike = true;
+    const gutters = bucketIsForm
+      ? []
+      : detectColumnGutters(rows, pageSpan, medianFontSize, options);
     for (const row of rows) {
       for (const fragment of row) {
         fragment.columnIndex = columnIndexOf(fragment.advanceStart, fragment.advanceEnd, gutters);
       }
     }
 
-    const pageTables = detectTables(rows, medianFontSize, idFactory, options);
+    const pageTables = detectTables(rows, medianFontSize, idFactory, options, bucketIsForm ? 3 : 2);
     tables.push(...pageTables);
 
     const entries: LineEntry[] = [];
@@ -990,7 +1082,7 @@ export function buildOrientationGroups(
     groups.push({ rotationDeg, direction, entries, gutterCount: gutters.length });
   }
 
-  return { groups, tables };
+  return { groups, tables, formLike };
 }
 
 /* ------------------------------------------------------------ role hints */
@@ -1110,10 +1202,11 @@ function roleHintFor(
 
 /**
  * A footnote wraps: only its first line carries the marker, so the tail lines
- * are hinted as page furniture by the margin band. Re-hint a footer/header line
- * that directly follows a footnote of the same column and typography, so a
- * two-line footnote stays one paragraph instead of becoming a footnote plus a
- * stray footer.
+ * are hinted as page furniture by the margin band. Above the band, a tail is
+ * hinted as body text instead -- so the original test for "footer/header" left
+ * the second line of a footnote as a stray body paragraph. Re-hint any
+ * unmarked line that directly follows a footnote in the same column and
+ * typography, whether the margin rule called it furniture or body.
  */
 function absorbFootnoteTails(
   entries: readonly LineEntry[],
@@ -1132,12 +1225,18 @@ function absorbFootnoteTails(
     for (let i = 1; i < ordered.length; i += 1) {
       const entry = ordered[i]!;
       const hint = hints.get(entry.line.id);
-      if (!hint || (hint.role !== 'footer' && hint.role !== 'header')) continue;
+      // A header can never sit below a footnote; `unknown` carries no evidence.
+      if (!hint || hint.role === 'header' || hint.role === 'unknown') continue;
+      // A marked line starts a new footnote, not a tail of the previous one.
+      if (FOOTNOTE_MARKER.test(entry.line.text.trim())) continue;
       const previous = ordered[i - 1]!;
       const previousHint = hints.get(previous.line.id);
       if (!previousHint || previousHint.role !== 'footnote') continue;
       if (entry.line.baseline - previous.line.baseline > lineHeight * 1.8) continue;
       if (!similarTypography(previous.line, entry.line)) continue;
+      // A tail is the same size, never larger. This is what keeps a body
+      // paragraph that follows a not-quite-bottom footnote out of it.
+      if (entry.line.typography.fontSize > previous.line.typography.fontSize * 1.05) continue;
       hints.set(entry.line.id, { role: 'footnote' });
     }
   }
@@ -1815,43 +1914,38 @@ function buildTableModels(
     });
     if (cells.length < 4) continue;
 
-    const medianFont = median(cells.map((cell) => cell.line.typography.fontSize));
-    const tolerance = Math.max(8, medianFont * 1.2);
-    const starts = [...new Set(cells.map((cell) => Math.round(cell.start * 10) / 10))].sort(
-      (a, b) => a - b,
-    );
-    const clusters: { start: number; startSum: number; count: number; left: number; right: number }[] = [];
-    for (const start of starts) {
-      const cluster = clusters.find((candidate) => Math.abs(start - candidate.startSum / candidate.count) <= tolerance);
-      if (cluster) {
-        cluster.startSum += start;
-        cluster.count += 1;
-        cluster.left = Math.min(cluster.left, start);
-      } else {
-        clusters.push({ start, startSum: start, count: 1, left: start, right: start });
-      }
+    // Columns are the gutters between cells, not clusters of cell *starts*.
+    // Clustering starts split a right-aligned numeric column into one cluster
+    // per number width ("7" and "12,345" start at different x), which reported a
+    // two-column table as three. The gutter between column i and i+1 is measured
+    // on every row and averaged; each cell is then assigned by its midpoint,
+    // which is independent of the cell's own width.
+    const gapCount = Math.max(0, (draft.rows[0]?.length ?? 0) - 1);
+    const gutters: number[] = [];
+    for (let gap = 0; gap < gapCount; gap += 1) {
+      const mids = draft.rows
+        .map((row) => {
+          const left = row[gap];
+          const right = row[gap + 1];
+          return left && right ? (left.advanceEnd + right.advanceStart) / 2 : null;
+        })
+        .filter((mid): mid is number => mid !== null);
+      if (mids.length > 0) gutters.push(average(mids));
     }
-    clusters.sort((a, b) => a.startSum / a.count - (b.startSum / b.count));
-    if (clusters.length < 2) continue;
+    if (gutters.length < 1) continue;
 
-    const columnOf = (start: number): number => {
-      let best = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      clusters.forEach((cluster, index) => {
-        const distance = Math.abs(start - cluster.startSum / cluster.count);
-        if (distance < bestDistance) {
-          best = index;
-          bestDistance = distance;
-        }
-      });
-      return best;
+    const columnOf = (start: number, end: number): number => {
+      const mid = (start + end) / 2;
+      let index = 0;
+      for (const gutter of gutters) if (mid >= gutter) index += 1;
+      return index;
     };
 
     const rows: TableRow[] = [];
     const tableCells: TableCell[] = [];
     const usedByRow = new Map<number, Set<number>>();
     for (const cell of cells) {
-      let column = columnOf(cell.start);
+      let column = columnOf(cell.start, cell.end);
       const used = usedByRow.get(cell.row) ?? new Set<number>();
       while (used.has(column)) column += 1;
       used.add(column);
@@ -1876,11 +1970,6 @@ function buildTableModels(
       } else {
         rows[cell.row] = { index: cell.row, bbox: cell.line.bbox, cells: [tableCell] };
       }
-      const cluster = clusters[column];
-      if (cluster) {
-        cluster.left = Math.min(cluster.left, cell.start);
-        cluster.right = Math.max(cluster.right, cell.end);
-      }
     }
 
     const filledRows: TableRow[] = [];
@@ -1894,16 +1983,15 @@ function buildTableModels(
     if (filledRows.length < 2) continue;
 
     const columnCount = Math.max(
-      clusters.length,
+      gutters.length + 1,
       ...filledRows.map((row) => Math.max(...row.cells.map((cell) => cell.column)) + 1),
     );
-    const columns = Array.from({ length: columnCount }, (_, index) => {
-      const cluster = clusters[index];
-      return {
-        x0: cluster?.left ?? 0,
-        x1: cluster?.right ?? 0,
-      };
-    });
+    const tableLeft = Math.min(...cells.map((cell) => cell.start));
+    const tableRight = Math.max(...cells.map((cell) => cell.end));
+    const columns = Array.from({ length: columnCount }, (_, index) => ({
+      x0: index === 0 ? tableLeft : gutters[index - 1] ?? tableRight,
+      x1: index === columnCount - 1 ? tableRight : gutters[index] ?? tableRight,
+    }));
     const paragraphsById = new Map(paragraphs.map((paragraph) => [paragraph.id, paragraph]));
     const confidence = average(
       filledRows.flatMap((row) =>
@@ -2320,6 +2408,11 @@ export function buildPageLayout(input: PageLayoutInput): PageLayout {
   );
   const entries = built.groups.flatMap((group) => group.entries);
   const activeGroups = built.groups.filter((group) => group.entries.length > 0);
+  if (built.formLike) {
+    warnings.push(
+      'Form-like page: column inference was skipped and only three-row grids are treated as tables, so field labels stay whole',
+    );
+  }
   if (activeGroups.length > 1) {
     warnings.push(
       `${activeGroups.length} text orientations detected; rotated text is kept as separate blocks`,

@@ -40,7 +40,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
-| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.2 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14) and verifiable privacy (§31.15); M5.3 next |
+| **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | 🚧 **M5.0-M5.3 done 2026-11-04** - baseline (§31.12), Q2 determinism fix (§31.13), the truthful surface (§31.14), verifiable privacy (§31.15) and receipts/structure confidence (§31.16); M5.4 next |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 
 **Redaction sub-phases** (detail in §20):
@@ -76,8 +76,9 @@ against the running dev server. The full browser smoke, plain-tools, next-tools,
 bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in the same
 campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
 queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
-recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14 and M5.2's
-verifiable privacy in §31.15; M5.3-M5.8 are not claimed.**
+recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14, M5.2's
+verifiable privacy in §31.15 and M5.3's receipts/structure confidence in §31.16; M5.4-M5.8 are not
+claimed.**
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -701,6 +702,43 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-04 - M5.3: what the export did, and what the engine thinks it read.**
+
+  The editor now keeps two kinds of receipt. The first is the editing ladder made durable: after an
+  export, `ExportReceipt` lists how many edits were rewritten in place, rewritten in the content
+  stream, merely drawn over the original, or left for manual review. The `fallback` sentence says
+  the original words are still in the file underneath, so they remain selectable, searchable and
+  recoverable, and points at Redact when they must be gone. The receipt has no timestamp and is
+  byte-identical for the same export, so it can be copied, downloaded and compared.
+
+  The second is structure confidence. The Document panel shows the engine's banded score, all eight
+  facets, the `basis` sentences that moved them, and an "Explain this extraction" section with the
+  real counts and the limitations. The score is the mean of the facets, never a second measurement,
+  and a page with no text model says so rather than showing a zero.
+
+  The measured §29.6 limitations moved where the engine could close them honestly. Form-like pages
+  are detected from dot leaders and read as one column: the IRS 1040 page went from four columns,
+  nine tables and 229 shredded paragraphs to one column, one table and 141 paragraphs with field
+  labels whole. Mixed-alignment tables (left labels, right numbers) are accepted per cell, and table
+  columns are built from recurring gutters instead of cell starts. Justified prose is still refused,
+  as is a two-row group whose cells align on different edges; form pages need three rows; dot-leader
+  rows are not table cells. Cross-page paragraphs are linked additively (`DocumentLayout.continuations`)
+  without regrouping pages, and a footnote tail above the margin band is absorbed when it matches
+  typography and sits one line pitch below. The editor's disclosed limit list drops the three that
+  are closed and rewrites the table and cross-page sentences to what is still true.
+
+  Evidence: 30 new web tests, 10 new engine tests; `pnpm test` **1321/1321** (pdf-core 445, API 210,
+  provider 370, agent 152, web 125, MCP 19); `pnpm -r typecheck` and `pnpm build` green. Real corpus:
+  IRS page 0 as above; arXiv table counts identical to `HEAD` (4 and 25), so the per-cell change did
+  not inflate tables on prose; continuations 1 (1409) and 2 (BERT). "Fonts" confidence now measures
+  recognised family and font resource name rather than adjacency, which the form fix exposed: the
+  IRS page-1 score of 0.796 for fonts had every family recognised. Honest gaps are recorded in
+  §31.16: two-row grids stay text, a form without dot leaders is still read as columns, a
+  continuation is a link not a reflow, and 2-row false positives on non-form pages are pre-existing
+  and unchanged. `pnpm test:bundle` is still red: the failing lazy-chunk rule moved from `tool-*.js`
+  at `HEAD` to `file-dropzone-*.js` (177) plus `verify-*.js` (3) after this workstream's editor
+  imports; the rule and the engine boundary are unchanged, and M5.4/M5.8 own it.
 
 - **2026-11-04 - M5.2: the privacy claims became things a user can check.**
 
@@ -4937,6 +4975,13 @@ confirmed, and the cache is kept for worker churn rather than a quadratic cost.
 - **OCR** is unchanged: scanned pages still have no text model, and `likelyScanned` still
   drives the capability report.
 
+**Status after M5.3 (2026-11-04, §31.16).** Closed: *forms read as columns* (dot-leader pages are
+read as one column), *mixed-alignment tables* (per-cell alignment, with two-row and form guards),
+*footnote tails* (absorbed when the tail is one line pitch below and not larger), and *cross-page
+paragraphs* (linked as `DocumentLayout.continuations`; still not merged). Still open: drop caps,
+vector figures, merged cells/spans, confidence AUROC and OCR. The measurements above are left as
+they were recorded; they are not re-labelled.
+
 ### 29.7 Phase 4 integration points
 
 - `document/relations.ts` is the geometry substrate for structural editing (move/insert a
@@ -5650,6 +5695,106 @@ post-stop window is longer. Test-only; the watchdog is unchanged.
 - `test:e2e:offline` is deliberately not chained into `pnpm test:e2e`, which starts from the dev
   server, because this suite needs `pnpm build && pnpm preview`. M5.8's campaign run documents the
   two-server sequence rather than pretending one command covers both.
+
+---
+
+### 31.16 M5.3 result - receipts, structure confidence and the measured limitations (2026-11-04)
+
+**Delivered.** Two surfaces and four engine fixes, each with a test that can fail.
+
+1. **D3 - the editing ladder is a receipt, not a toast.** `apps/web/src/lib/edit-receipt.ts` turns
+   `TextEditJobReport` into stable plain text. Every mode has copy that names its consequence;
+   `fallback` says the original text is **still in the file underneath**, so it remains selectable,
+   searchable and recoverable, and points at Redact if the words must be gone. The receipt has no
+   timestamp, so the same export always produces the same bytes. `ExportReceipt` shows it on the
+   result screen with a warning treatment when any original remains, and offers Copy and Download.
+   The existing one-shot toast now points at it instead of being the only record.
+
+2. **D4 - structure confidence is inspectable and explainable.** `StructurePanel` in the Document
+   panel shows the engine's banded overall score (the mean of its eight facets, never a new
+   measurement), every facet with its 0..1 value, the engine's own `basis` sentences, and an
+   "Explain this extraction" section with the counts it actually read (words → lines → paragraphs →
+   blocks, roles, columns, tables, cells, images) plus what it refused to infer. A page with no text
+   model says so and offers to read it. `structure-report.ts` adds no confidence of its own: the
+   bands (`high ≥ 0.85`, `medium ≥ 0.65`, `low`) are thresholds on the engine's values.
+
+3. **Form-like pages are read as one column.** `looksLikeForm` uses dot leaders as the cheap,
+   narrow signal (`≥ 20` rows, leaders on `≥ 3%` of them, at least 5). On the IRS 1040 the leaders
+   appear on 21/297 and 23/396 lines; the arXiv papers have 0. When a page looks like a form, gutter
+   inference is skipped and the warning/basis say so. Page 0 went from **4 columns / 9 tables / 229
+   paragraphs** with shredded cells (`"than four"`, `"(3)"`, `"dependents,"`) to **1 column / 1
+   table / 141 paragraphs**, with `"Your first name and middle initial"` intact.
+
+4. **Mixed-alignment tables are accepted, with limits.** Cell alignment is now judged per cell
+   (a left-aligned label column and a right-aligned number column can coexist), and table columns
+   are built from the recurring gutters rather than clusters of cell starts - the old start-cluster
+   split a right-aligned numeric column into one column per number width. The guards that keep prose
+   out: a cell's text may not reach into the next column's leftmost start, disjointness is checked
+   against the whole group, and a **two-row group whose cells align on different edges is refused**
+   (justified prose produces exactly that pattern). On a form-like page a grid needs **three rows**,
+   and dot-leader rows are excluded from table detection, because the dots otherwise became cells
+   whose text was `"."`.
+
+5. **Cross-page paragraphs are linked, not regrouped.** `DocumentLayout.continuations` records
+   `fromPageIndex/fromParagraphId → toPageIndex/toParagraphId` only when the previous last body
+   paragraph has no terminal punctuation and the next first body paragraph starts lowercase or with
+   a continuation mark, with matching family/size. Pages keep their own paragraphs; the link is an
+   annotation. On the real corpus it emits 1 link for arXiv 1409 (page 2 → 3) and 2 for BERT
+   (0 → 1, 10 → 11).
+
+6. **Footnote tails are kept above the margin band.** `absorbFootnoteTails` no longer requires the
+   margin rule to have called the tail furniture: any unmarked line directly below a footnote, in
+   the same column and typography, one line pitch away, and not larger, is re-hinted as a footnote.
+   A body-sized paragraph below a footnote is not absorbed.
+
+**Evidence.**
+
+- 30 new web tests: `edit-receipt.test.ts` (15 - only modes that occurred, stable order, no
+  timestamp, fallback named by consequence, failed checks carry engine detail, no claim when no
+  checks ran, deterministic file name) and `structure-report.test.ts` (15 - mean not re-measurement,
+  band thresholds, `basis` passed through unchanged, honest unavailable state, deterministic role
+  order, refused-grid wording, image-only page).
+- 10 new engine tests: mixed-alignment table, justified-prose refusal, dot-leader form refusal and
+  non-form control, footnote tail above the band, body-sized text below a footnote, three
+  cross-page cases (linked, terminal punctuation, heading), and the real IRS form assertion.
+- `pnpm test` **1321/1321** (pdf-core 445, API 210, provider 370, agent 152, web 125, MCP 19);
+  `pnpm -r typecheck` and `pnpm build` green.
+- Real corpus: IRS page 0 as above; arXiv table counts are **identical to `HEAD`** (1409: 4, 1810:
+  25), so the per-cell change did not inflate tables on prose. Continuations: 1 + 2 as above.
+- The editor E2Es `pnpm test:e2e:text-model` (15 checks) and `pnpm test:e2e:text-edit` (8 checks)
+  are green on the dev stack after the receipt integration. The text-model suite caught a real
+  regression: the receipt's second download button made the primary one's accessible name ambiguous
+  (`getByRole('button', { name: 'Download' })` resolved to two elements), so the receipt button is
+  labelled **Save receipt**. No E2E selector was weakened to hide it.
+- `fontIdentification` now measures what its name says: family recognised by name plus the font
+  resource name, instead of blending in adjacency. The form fix exposed the old formula: the IRS
+  page 1 scored 0.796 for "Fonts" because its fields sit in many sizes, even though every family
+  was recognised. The real-corpus gate (`> 0.9` for standard Latin faces) passes again for the
+  stated reason, not because the threshold moved.
+
+**Not claimed / accepted gaps.**
+
+- **Two-row grids are still refused when their cells align on different edges**, and on a form-like
+  page any two-row grid is refused. A header plus one data row is therefore text. This is the
+  conservative side of the trade: the alternative was accepting justified prose as a table.
+- **A form without dot leaders is still read as columns.** The heuristic is deliberately narrow; it
+  is not a general form detector. A dotted table of contents will also stay text, because its rows
+  are excluded from table detection with the form lines.
+- **Continuations are links, not reflow.** Editing the first half of a cross-page paragraph still
+  does not move the second half; the editor exposes the link, not a merge.
+- **The overall score is the mean of the facets, not a calibrated probability.** It is useful for
+  comparing pages and for explaining a refusal; it is not a claim that 62% of the structure is
+  right.
+- **Two-row false positives on non-form pages pre-date this work and are unchanged.** arXiv 1810
+  still reports 25 tables, several of them two-line reference or diagram fragments; the count is
+  recorded here rather than presented as a fix.
+- **Nothing here changes the editing ladder's decision rules**, redaction serialization or ID
+  hashing. The receipt reports the engine's outcomes; it does not re-judge them.
+- **`pnpm test:bundle` remains red and pre-existing.** Re-run after this workstream: the main chunk
+  is clean (139.8 kB, 0 engines) but the lazy-chunk rule fails on `file-dropzone-*.js` (177 engine
+  modules) and `verify-*.js` (3). At `HEAD` the same rule failed on `tool-*.js` (161); the failing
+  chunk names moved because this workstream added imports to the editor route, not because the rule
+  or the engine boundary changed. M5.4 owns the tool-page engines; M5.8 owns the campaign gate.
 
 ---
 

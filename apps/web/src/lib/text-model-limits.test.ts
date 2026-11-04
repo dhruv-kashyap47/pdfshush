@@ -1,9 +1,11 @@
 /**
- * The measurement sections (PLAN.md 29.6 / 30.10) list nine limitations. A
- * disclosure that quietly drops one is worse than none, because it reads as a
- * complete list. This pins the mapping from each measured limitation to the
- * sentence shown in the editor, so deleting a limitation from the UI fails the
- * suite instead of silently narrowing the claim.
+ * The measurement sections (PLAN.md 29.6 / 30.10) listed nine limitations;
+ * M5.3 closed three of them (form column reads, footnote tails, and most
+ * mixed-alignment tables). A disclosure that quietly drops a limitation is
+ * worse than none, because it reads as a complete list. This pins the mapping
+ * from each remaining limitation to the sentence shown in the editor, so
+ * deleting one from the UI fails the suite instead of silently narrowing the
+ * claim.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -11,12 +13,10 @@ import { TEXT_MODEL_LIMITS, type TextModelLimitId } from './text-model-limits';
 
 /** Every limitation named in 29.6 / 30.10 that affects what a user sees. */
 const REQUIRED: TextModelLimitId[] = [
-  'cross-page-paragraphs', // 29.6: cross-page paragraphs are not joined
-  'footnote-tails', // 29.6: a footnote tail can split from its paragraph
+  'cross-page-paragraphs', // 29.6/31.16: linked, but editing still does not reflow across pages
   'drop-caps', // 29.6: a drop cap can detach its first letter
   'vector-figures', // 29.6: vector figures are not regions
-  'forms-as-columns', // 29.6: the IRS 1040 reads as four columns
-  'tables', // 29.6: mixed-alignment refusal + rowSpan/colSpan stay 1
+  'tables', // 31.16: a non-repeating grid is refused + rowSpan/colSpan stay 1
   'scanned-pages', // 29.6/30.10: scanned pages are not OCR'd
 ];
 

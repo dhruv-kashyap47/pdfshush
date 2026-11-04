@@ -37,6 +37,7 @@ export type {
   PageLayout,
   DocumentStats,
   DocumentLayout,
+  CrossPageContinuation,
   ParagraphTextEdit,
 } from './types.js';
 
@@ -109,6 +110,7 @@ export type {
 
 export {
   buildDocumentLayout,
+  findCrossPageContinuations,
   findRepeatedFurniture,
   normalizeFurnitureText,
 } from './document.js';

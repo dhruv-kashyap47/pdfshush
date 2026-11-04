@@ -72,6 +72,8 @@ import { managedAvailable } from '@/lib/ai/managed';
 import { aiReady, loadAiSettings, loadAiState, saveAiSettings } from '@/lib/ai/settings';
 import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
 import { EditorInspector } from '@/components/editor/editor-inspector';
+import { ExportReceipt } from '@/components/editor/export-receipt';
+import { StructurePanel } from '@/components/editor/structure-panel';
 import { EditorPage } from '@/components/editor/editor-page';
 import { FileDropzone } from '@/components/tools/file-dropzone';
 import { JobProgressPanel } from '@/components/tools/job-progress';
@@ -114,6 +116,7 @@ import {
 } from '@/lib/text-editing';
 import { recordRecent } from '@/tools/recent';
 import { TEXT_MODEL_LIMITS } from '@/lib/text-model-limits';
+import { totalEdits } from '@/lib/edit-receipt';
 import type { SignatureCapture } from '@/components/signature/signature-pad-dialog';
 
 /**
@@ -310,6 +313,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const [files, setFiles] = useState<File[]>([]);
   const [info, setInfo] = useState<DocInfo | null>(null);
   const [stage, setStage] = useState<'idle' | 'preparing' | 'editing'>('idle');
+  /** Opened from the structure panel so the limits are one click from a low score. */
+  const [limitsOpen, setLimitsOpen] = useState(false);
   const editor = useEditorSession(initialMode);
   const {
     tool,
@@ -2112,7 +2117,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       if (report.inPlace > 0) parts.push(`${report.inPlace} replaced in place`);
       if (report.contentStream > 0) parts.push(`${report.contentStream} via content stream`);
       if (report.fallback > 0) parts.push(`${report.fallback} drawn as an overlay`);
-      toast.success(`Text edits: ${parts.join(', ')}`);
+      toast.success(`Text edits: ${parts.join(', ')}`, {
+        description:
+          report.fallback > 0
+            ? 'Overlaid text leaves the original words selectable underneath. The export receipt says so, and Redact is the tool that removes them.'
+            : 'The export receipt on the result screen records how each edit was applied.',
+      });
     }
     // A newer document may have been loaded while the save was in flight; that
     // one's edits are still unsaved.
@@ -2572,30 +2582,40 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           </>
         }
       >
-        {isSign && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="download-audit-note"
-              disabled={!auditNote}
-              onClick={() => {
-                if (!auditNote) return;
-                downloadBlob(
-                  new Blob([auditNote.json], { type: 'application/json' }),
-                  auditNote.fileName,
-                );
-              }}
-            >
-              {auditNote ? 'Download audit note (JSON)' : 'Audit note unavailable'}
-            </Button>
-            {auditNoteError && (
-              <span className="text-xs text-muted-foreground" data-testid="audit-note-error">
-                {auditNoteError}
-              </span>
-            )}
-          </div>
-        )}
+        <div className="space-y-3">
+          {(totalEdits(result.report) > 0 || result.report.warnings.length > 0) && (
+            <ExportReceipt
+              fileName={result.name}
+              pageCount={result.pageCount}
+              sizeBytes={result.data.byteLength}
+              report={result.report}
+            />
+          )}
+          {isSign && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="download-audit-note"
+                disabled={!auditNote}
+                onClick={() => {
+                  if (!auditNote) return;
+                  downloadBlob(
+                    new Blob([auditNote.json], { type: 'application/json' }),
+                    auditNote.fileName,
+                  );
+                }}
+              >
+                {auditNote ? 'Download audit note (JSON)' : 'Audit note unavailable'}
+              </Button>
+              {auditNoteError && (
+                <span className="text-xs text-muted-foreground" data-testid="audit-note-error">
+                  {auditNoteError}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </ResultPanel>
     );
   }
@@ -3193,6 +3213,19 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         ) : null}
                       </dl>
 
+                      <StructurePanel
+                        layout={
+                          currentMetaPage ? layoutsByPage[currentMetaPage.index] ?? null : null
+                        }
+                        pageNumber={currentDisplayPosition + 1}
+                        onRequestStructure={
+                          currentMetaPage
+                            ? () => void ensureRunsRef.current([currentMetaPage.index])
+                            : undefined
+                        }
+                        onShowLimits={() => setLimitsOpen(true)}
+                      />
+
                       <div className="editor-panel-keys">
                         <p className="editor-panel-kicker">Keyboard</p>
                         <ul>
@@ -3221,7 +3254,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         line above; it is repeated here so this one list is
                         complete on its own.
                       */}
-                      <details className="editor-panel-limits mt-4" data-testid="editor-limits">
+                      <details
+                        className="editor-panel-limits mt-4"
+                        data-testid="editor-limits"
+                        open={limitsOpen}
+                        onToggle={(event) => setLimitsOpen(event.currentTarget.open)}
+                      >
                         <summary className="cursor-pointer text-xs font-medium text-foreground">
                           What this editor does not do yet
                         </summary>

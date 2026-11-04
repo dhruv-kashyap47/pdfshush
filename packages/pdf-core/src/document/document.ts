@@ -10,6 +10,7 @@
 import { unionBBoxes } from './geometry.js';
 import { hashString } from './ids.js';
 import type {
+  CrossPageContinuation,
   DocumentLayout,
   DocumentStats,
   PageLayout,
@@ -183,6 +184,64 @@ function reorderPage(page: PageLayout): void {
   page.regions = rebuildRegions(page);
 }
 
+/**
+ * Finds paragraphs that clearly continue across a page break.
+ *
+ * The rule is deliberately one-sided: a page's last body paragraph must end
+ * without terminal punctuation, and the next page's first body paragraph must
+ * start with a lowercase letter or a continuation mark. That is strong evidence;
+ * anything weaker is left unlinked. The pages themselves are untouched -- this
+ * is an annotation, not a regrouping pass.
+ */
+export function findCrossPageContinuations(
+  pages: readonly PageLayout[],
+): CrossPageContinuation[] {
+  const TERMINAL = /[.!?:;]["'”’)\]]?$/;
+  const CONTINUATION_START = /^[,;:)\]}”’]|^[a-z]/;
+  const continuations: CrossPageContinuation[] = [];
+
+  const bodyInOrder = (page: PageLayout): Paragraph[] => {
+    const byId = new Map(page.paragraphs.map((paragraph) => [paragraph.id, paragraph]));
+    return page.readingOrder
+      .map((id) => byId.get(id))
+      .filter((paragraph): paragraph is Paragraph => paragraph?.role === 'body');
+  };
+
+  for (let index = 0; index < pages.length - 1; index += 1) {
+    const previousPage = pages[index]!;
+    const nextPage = pages[index + 1]!;
+    const previous = bodyInOrder(previousPage).at(-1);
+    const next = bodyInOrder(nextPage)[0];
+    if (!previous || !next) continue;
+
+    const previousText = previous.text.trim();
+    const nextText = next.text.trim();
+    if (!previousText || !nextText) continue;
+    if (TERMINAL.test(previousText)) continue;
+    if (!CONTINUATION_START.test(nextText)) continue;
+
+    const sameFamily = previous.typography.fontFamily === next.typography.fontFamily;
+    const sizeRatio = next.typography.fontSize / Math.max(previous.typography.fontSize, 0.1);
+    if (!sameFamily || sizeRatio < 0.9 || sizeRatio > 1.1) continue;
+
+    const startsLowercase = /^[a-z]/.test(nextText);
+    const confidence = startsLowercase ? 0.92 : 0.85;
+
+    continuations.push({
+      fromPageIndex: previousPage.index,
+      fromParagraphId: previous.id,
+      toPageIndex: nextPage.index,
+      toParagraphId: next.id,
+      confidence,
+      reason: startsLowercase
+        ? 'the previous page ends without terminal punctuation and this paragraph starts mid-sentence in lowercase'
+        : 'the previous page ends without terminal punctuation and this paragraph starts with a continuation mark',
+    });
+  }
+
+  return continuations;
+}
+
 function roleKind(role: Paragraph['role']): TextBlock['kind'] {
   switch (role) {
     case 'heading':
@@ -283,6 +342,7 @@ export function buildDocumentLayout(pages: readonly PageLayout[]): DocumentLayou
     pageCount: pages.length,
     pages: [...pages],
     stats,
+    continuations: findCrossPageContinuations(pages),
     warnings: [...warningSet],
   };
 }

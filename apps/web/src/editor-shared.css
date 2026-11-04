@@ -752,6 +752,242 @@ body.editor-app-active .editor-route-shell {
   color: color-mix(in oklab, var(--foreground) 82%, transparent);
 }
 
+/* ── structure confidence (D4) ───────────────────────────────────────────── */
+.editor-structure {
+  margin-top: 1rem;
+  border-top: 1px solid var(--editor-hairline);
+  padding-top: 0.75rem;
+}
+.editor-structure-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.editor-structure-head .editor-panel-kicker {
+  margin: 0;
+}
+.editor-structure-band {
+  flex-shrink: 0;
+  border: 1px solid var(--editor-hairline);
+  border-radius: 999px;
+  padding: 0.0625rem 0.4375rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.editor-structure-band--high {
+  color: color-mix(in oklab, var(--primary) 76%, var(--foreground));
+  border-color: color-mix(in oklab, var(--primary) 34%, transparent);
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+}
+.editor-structure-band--medium {
+  color: color-mix(in oklab, var(--foreground) 74%, transparent);
+  background: var(--editor-rail);
+}
+.editor-structure-band--low {
+  color: var(--destructive);
+  border-color: color-mix(in oklab, var(--destructive) 32%, transparent);
+  background: color-mix(in oklab, var(--destructive) 8%, transparent);
+}
+.editor-structure-facets {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.editor-structure-facet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.editor-structure-facet-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.editor-structure-facet-value {
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+.editor-structure-bar {
+  height: 0.1875rem;
+  margin-top: 0.1875rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--editor-hairline);
+}
+.editor-structure-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--primary) 68%, transparent);
+  transition: width 180ms ease;
+}
+.editor-structure-facet[data-band='medium'] .editor-structure-bar > span {
+  background: color-mix(in oklab, var(--foreground) 46%, transparent);
+}
+.editor-structure-facet[data-band='low'] .editor-structure-bar > span {
+  background: var(--destructive);
+}
+.editor-structure-facet-detail {
+  display: block;
+  margin-top: 0.1875rem;
+  font-size: 0.625rem;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+.editor-structure-basis {
+  margin-top: 0.75rem;
+}
+.editor-structure-basis ul,
+.editor-structure-lines,
+.editor-structure-limitations ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1rem;
+  list-style: disc;
+  font-size: 0.6875rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.editor-structure-lines {
+  padding-left: 0;
+  list-style: none;
+}
+.editor-structure-lines li + li,
+.editor-structure-basis li + li,
+.editor-structure-limitations li + li {
+  margin-top: 0.25rem;
+}
+.editor-structure-explain {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--editor-hairline);
+  padding-top: 0.625rem;
+}
+.editor-structure-explain .editor-panel-facts {
+  margin-top: 0.5rem;
+}
+.editor-structure-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.editor-structure-roles li {
+  border: 1px solid var(--editor-hairline);
+  border-radius: 999px;
+  background: var(--editor-rail);
+  padding: 0.0625rem 0.375rem;
+  font-size: 0.625rem;
+  color: var(--muted-foreground);
+}
+.editor-structure-roles li span {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.editor-structure-limitations {
+  margin-top: 0.625rem;
+}
+.editor-structure-limitations li {
+  color: color-mix(in oklab, var(--foreground) 74%, transparent);
+}
+
+/* ── export receipt (D3) ─────────────────────────────────────────────────── */
+.editor-receipt {
+  border: 1px solid var(--editor-hairline);
+  border-radius: 0.625rem;
+  background: var(--editor-rail);
+  padding: 0.75rem;
+}
+.editor-receipt--warning {
+  border-color: color-mix(in oklab, var(--destructive) 30%, transparent);
+  background: color-mix(in oklab, var(--destructive) 5%, transparent);
+}
+.editor-receipt-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.editor-receipt-head .editor-panel-kicker {
+  margin: 0;
+}
+.editor-receipt-title {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.editor-receipt-flag {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid color-mix(in oklab, var(--destructive) 30%, transparent);
+  border-radius: 999px;
+  padding: 0.0625rem 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--destructive);
+}
+.editor-receipt-modes {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.625rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.editor-receipt-modes li {
+  border-left: 2px solid var(--editor-hairline);
+  padding-left: 0.5rem;
+}
+.editor-receipt-modes li[data-mode='fallback'] {
+  border-left-color: var(--destructive);
+}
+.editor-receipt-mode-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+.editor-receipt-count {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.editor-receipt-mode-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.editor-receipt-detail {
+  margin: 0.125rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.editor-receipt-verification {
+  margin: 0.625rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.55;
+  color: var(--muted-foreground);
+}
+.editor-receipt-warnings {
+  margin: 0.375rem 0 0;
+  padding-left: 1rem;
+  list-style: disc;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--destructive);
+}
+.editor-receipt .editor-panel-actions {
+  margin-top: 0.625rem;
+}
+
 /* ── assistant inside the rail ───────────────────────────────────────────── */
 .editor-ai-panel {
   display: flex;

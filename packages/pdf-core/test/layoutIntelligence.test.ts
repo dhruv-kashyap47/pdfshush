@@ -120,6 +120,54 @@ describe('tables', () => {
     expect(layout.tables[0]!.columnCount).toBe(2);
   });
 
+  it('accepts a table whose labels are left-aligned and numbers are right-aligned', () => {
+    // One alignment mode per row used to be required, so this table was refused
+    // (PLAN §29.6). Each cell now aligns on its own edge.
+    const rows = [
+      { label: 'Revenue', amount: '1,200' },
+      { label: 'Cost of sales', amount: '12,345' },
+      { label: 'Gross profit', amount: '7' },
+      { label: 'Operating income', amount: '987,654' },
+    ];
+    const items: TextSpec[] = [];
+    rows.forEach((row, index) => {
+      const y = 140 + index * 22;
+      items.push({ text: row.label, x: 72, y });
+      items.push({ text: row.amount, x: 400 - itemWidth(row.amount, 11), y });
+    });
+    const layout = syntheticPage({ items });
+    expect(layout.tables).toHaveLength(1);
+    expect(layout.tables[0]!.rowCount).toBe(4);
+    expect(layout.tables[0]!.columnCount).toBe(2);
+    // The numbers keep their own alignment instead of inheriting the labels'.
+    const amounts = layout.tables[0]!.rows.map((row) => row.cells[1]!.text);
+    expect(amounts).toEqual(['1,200', '12,345', '7', '987,654']);
+  });
+
+  it('still refuses justified prose that starts left and ends at the right margin', () => {
+    // Both rows pass per-cell alignment (left cell starts at 72, right cell ends
+    // at 400), which is exactly why the one-mode rule existed. Two guards reject
+    // it: the first row's left cell crosses the second row's right-cell start, so
+    // the three lines cannot form one group; and the remaining two-line pair
+    // aligns on a different edge per cell, which is not enough evidence for a
+    // grid. Justified prose therefore stays prose.
+    const longLeft = 'A long left cell that reaches much farther than';
+    const shortLeft = 'Short left';
+    const shortRight = 'abcd';
+    const longRight = 'a right cell with more words in it';
+    const layout = syntheticPage({
+      items: [
+        { text: longLeft, x: 72, y: 140 },
+        { text: shortRight, x: 400 - itemWidth(shortRight, 11), y: 140 },
+        { text: shortLeft, x: 72, y: 162 },
+        { text: longRight, x: 400 - itemWidth(longRight, 11), y: 162 },
+        { text: 'Another short left', x: 72, y: 184 },
+        { text: 'a middle-length right side', x: 400 - itemWidth('a middle-length right side', 11), y: 184 },
+      ],
+    });
+    expect(layout.tables).toHaveLength(0);
+  });
+
   it('keeps cell paragraphs owned by a block and in reading order', async () => {
     const testCase = await buildCase('table', 83);
     const layout = (await extractPageLayouts(testCase.bytes))[0]!;
@@ -255,6 +303,71 @@ describe('roles', () => {
     const footnote = layout.paragraphs.find((paragraph) => paragraph.text.startsWith('1 A footnote'));
     expect(footnote?.role).toBe('footnote');
     expect(footnote?.lineIds.length).toBe(2);
+  });
+
+  it('keeps a footnote tail that sits above the footer band', () => {
+    // The tail no longer lands in the margin band, so the page-local rule calls
+    // it body text. It is still the same footnote: same column, same size, one
+    // line pitch below the marked line. PLAN §29.6 listed this as a split.
+    const layout = syntheticPage({
+      items: [
+        { text: 'Body paragraph text that runs on for a while.', x: 72, y: 100 },
+        { text: 'Body paragraph text that runs on for a while.', x: 72, y: 116 },
+        { text: '1 A footnote whose second line sits just above the band', x: 72, y: 700, size: 8 },
+        { text: 'and therefore used to become a stray body paragraph.', x: 72, y: 713, size: 8 },
+      ],
+    });
+    const footnote = layout.paragraphs.find((paragraph) => paragraph.text.startsWith('1 A footnote'));
+    expect(footnote?.role).toBe('footnote');
+    expect(footnote?.lineIds.length).toBe(2);
+  });
+
+  it('does not absorb a body-sized paragraph below a footnote', () => {
+    const layout = syntheticPage({
+      items: [
+        { text: 'Body paragraph text that runs on for a while.', x: 72, y: 100 },
+        { text: 'Body paragraph text that runs on for a while.', x: 72, y: 116 },
+        { text: '1 A footnote set a little smaller than the body.', x: 72, y: 700, size: 10 },
+        { text: 'A new body paragraph that must not join the footnote.', x: 72, y: 716, size: 11 },
+      ],
+    });
+    const tail = layout.paragraphs.find((paragraph) =>
+      paragraph.text.startsWith('A new body paragraph'),
+    );
+    expect(tail?.role).not.toBe('footnote');
+  });
+
+  it('refuses column inference on a dot-leader form page', () => {
+    const items: TextSpec[] = [];
+    for (let index = 0; index < 22; index += 1) {
+      const y = 90 + index * 28;
+      items.push({
+        text: `Field ${index + 1} label${'.'.repeat(18)}`,
+        x: 72,
+        y,
+        size: 9,
+      });
+      items.push({ text: 'amount', x: 360, y, size: 9 });
+    }
+    const layout = syntheticPage({ items });
+    // The gaps between labels and amounts look like a persistent corridor, but
+    // this is a form: reading it as columns split the labels into cells.
+    expect(layout.columns).toHaveLength(1);
+    expect(layout.warnings.join(' ')).toMatch(/Form-like page/);
+    expect(layout.structureConfidence?.basis.join(' ')).toMatch(/Form-like page/);
+  });
+
+  it('does not treat a figure-heavy page with short lines as a form', () => {
+    // No dot leaders: a dense page of short lines must keep its real columns.
+    const items: TextSpec[] = [];
+    for (let index = 0; index < 24; index += 1) {
+      const y = 90 + index * 26;
+      items.push({ text: `Left ${index}`, x: 72, y, size: 9 });
+      items.push({ text: `Right ${index}`, x: 340, y, size: 9 });
+    }
+    const layout = syntheticPage({ items });
+    expect(layout.columns.length).toBeGreaterThan(1);
+    expect(layout.warnings.join(' ')).not.toMatch(/Form-like page/);
   });
 
   it('does not treat a body line starting with "Table" as a caption', () => {
@@ -472,5 +585,64 @@ describe('document-level furniture', () => {
       paragraph.text.startsWith('word based only'),
     );
     expect(topLine?.role).toBe('body');
+  });
+
+  it('links a paragraph that continues across a page break, without regrouping', () => {
+    const pageOne = syntheticPage({
+      items: [
+        { text: 'Body text that establishes the page and its type size.', x: 72, y: 100 },
+        { text: 'The last sentence of this page has no punctuation and continues', x: 72, y: 200 },
+      ],
+    });
+    const pageTwo = syntheticPage({
+      items: [
+        { text: 'onto the next page where the sentence finally ends.', x: 72, y: 90 },
+      ],
+    });
+    pageTwo.index = 1;
+    const paragraphCounts = [pageOne.paragraphs.length, pageTwo.paragraphs.length];
+    const document = buildDocumentLayout([pageOne, pageTwo]);
+
+    expect(document.continuations).toHaveLength(1);
+    const link = document.continuations[0]!;
+    expect(link.fromPageIndex).toBe(0);
+    expect(link.toPageIndex).toBe(1);
+    expect(link.confidence).toBeGreaterThanOrEqual(0.8);
+    const previous = pageOne.paragraphs.find((paragraph) => paragraph.id === link.fromParagraphId);
+    const next = pageTwo.paragraphs.find((paragraph) => paragraph.id === link.toParagraphId);
+    expect(previous?.text).toMatch(/continues$/);
+    expect(next?.text).toMatch(/^onto/);
+    // Additive only: the pages keep their own paragraphs.
+    expect([pageOne.paragraphs.length, pageTwo.paragraphs.length]).toEqual(paragraphCounts);
+  });
+
+  it('leaves a break alone when the previous page ends a sentence', () => {
+    const pageOne = syntheticPage({
+      items: [
+        { text: 'Body text that establishes the page and its type size.', x: 72, y: 100 },
+        { text: 'This sentence ends properly.', x: 72, y: 200 },
+      ],
+    });
+    const pageTwo = syntheticPage({
+      items: [{ text: 'another page starts here with an ordinary sentence.', x: 72, y: 90 }],
+    });
+    pageTwo.index = 1;
+    const document = buildDocumentLayout([pageOne, pageTwo]);
+    expect(document.continuations).toHaveLength(0);
+  });
+
+  it('does not link a heading fragment across pages', () => {
+    const pageOne = syntheticPage({
+      items: [
+        { text: 'Body text that establishes the page and its type size.', x: 72, y: 100 },
+        { text: 'A HEADING WITHOUT PUNCTUATION', x: 72, y: 200, size: 18, bold: true },
+      ],
+    });
+    const pageTwo = syntheticPage({
+      items: [{ text: 'continues on the next page in body type.', x: 72, y: 90 }],
+    });
+    pageTwo.index = 1;
+    const document = buildDocumentLayout([pageOne, pageTwo]);
+    expect(document.continuations).toHaveLength(0);
   });
 });

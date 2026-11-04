@@ -146,6 +146,26 @@ describe('real corpus: landmarks', () => {
     }
   }
 
+  it('refuses column inference on the IRS form page', () => {
+    const spec = REAL_DOCUMENTS.find((entry) => entry.name === 'irs-1040');
+    if (!spec) throw new Error('the IRS fixture is missing');
+    const page = pageOf(spec, 0);
+    // The form's field boxes look exactly like a four-column gutter grid, and
+    // reading them that way shredded labels into cells ("than four", "(3)",
+    // "dependents,"). The page is now read as one column (PLAN §31.6, D4).
+    expect(page.columns).toHaveLength(1);
+    expect(page.warnings.join(' ')).toMatch(/Form-like page/);
+    expect(page.structureConfidence?.basis.join(' ')).toMatch(/Form-like page/);
+    // One real grid survives (the filing-status block); the dot-leader rows are
+    // form guides, not cells, and a two-row field group is not a table.
+    expect(page.tables).toHaveLength(1);
+    expect(
+      page.paragraphs.some((paragraph) =>
+        paragraph.text.includes('Your first name and middle initial'),
+      ),
+    ).toBe(true);
+  });
+
   for (const spec of REAL_DOCUMENTS.filter((entry) => entry.expectTables)) {
     it(`${spec.name} detects its grid as at least one table`, () => {
       const layout = layouts.get(spec.name)!;

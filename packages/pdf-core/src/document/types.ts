@@ -389,7 +389,29 @@ export interface DocumentLayout {
   pageCount: number;
   pages: PageLayout[];
   stats: DocumentStats;
+  /**
+   * Additive hints that a body paragraph continues on the next page. Pages are
+   * never regrouped: this only records the link so a caller can join text or
+   * avoid treating the break as a new paragraph.
+   */
+  continuations: CrossPageContinuation[];
   warnings: string[];
+}
+
+/**
+ * One cross-page paragraph continuation. Emitted only when the evidence is
+ * explicit (no terminal punctuation, and the next page starts mid-sentence);
+ * an uncertain break is left unlinked rather than guessed.
+ */
+export interface CrossPageContinuation {
+  fromPageIndex: number;
+  fromParagraphId: string;
+  toPageIndex: number;
+  toParagraphId: string;
+  /** 0..1 evidence strength. Only links at or above 0.8 are emitted. */
+  confidence: number;
+  /** The evidence, in the engine's words. */
+  reason: string;
 }
 
 /** A page-local edit, the unit Phase 2's native rewrite consumes. */

@@ -61,10 +61,23 @@ export function computeStructureConfidence(layout: PageLayout): StructureConfide
       `${layout.columns.length} columns detected; ${percent(relations.columnAgreement)} of line joins stay in one column`,
     );
   }
+  if (layout.warnings.some((warning) => warning.startsWith('Form-like page'))) {
+    basis.push('Form-like page: column inference was refused so field labels stay whole');
+  }
 
   const knownFamily = lines.filter((line) => line.typography.fontFamily !== 'other').length;
   const familyShare = lines.length > 0 ? knownFamily / lines.length : 1;
-  const fontIdentification = clamp01(0.6 * familyShare + 0.4 * relations.typographyAgreement);
+  // Identification is about the font resource, not about whether neighbouring
+  // lines happen to be set the same. The old formula blended in
+  // `typographyAgreement`, so a page of form fields in many sizes scored as if
+  // its fonts were unrecognised. A synthetic model has no font resource name,
+  // so it is judged on the family alone.
+  const namedShare =
+    lines.length === 0
+      ? 1
+      : lines.filter((line) => line.typography.fontName.length > 0).length / lines.length;
+  const fontIdentification =
+    namedShare > 0 ? clamp01(0.6 * familyShare + 0.4 * namedShare) : clamp01(familyShare);
   if (familyShare < 0.8) {
     basis.push(
       `${percent(1 - familyShare)} of lines use a font family that is not recognised by name`,
