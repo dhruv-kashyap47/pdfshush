@@ -3,14 +3,16 @@ import { ShieldCheck } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { POPULAR_SLUGS, getTool } from '@/tools/registry';
 
+const SOURCE_URL = 'https://github.com/dhruv-kashyap47/pdfshush';
+
 const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon?: boolean }[] }[] = [
   {
     title: 'Product',
     links: [
-      { label: 'All tools', to: '/' },
+      { label: 'All tools', to: '/#all-tools' },
       { label: 'REST API', to: '/tools/api' },
       { label: 'MCP server', to: '/tools/mcp' },
-      { label: 'Workflows', to: '/tools/workflows' },
+      { label: 'Workflows', to: '/workflows' },
       { label: 'Trust & privacy', to: '/trust' },
       { label: 'Verify a redaction', to: '/verify' },
       { label: 'Pricing', soon: true },
@@ -98,9 +100,14 @@ export function SiteFooter() {
               Privacy
             </Link>
             <span>Terms (soon)</span>
-            <Link to="/" className="transition-colors hover:text-foreground">
+            <a
+              href={SOURCE_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="transition-colors hover:text-foreground"
+            >
               Source
-            </Link>
+            </a>
           </p>
         </div>
       </div>

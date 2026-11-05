@@ -312,6 +312,7 @@ export function PdfToImagesTool() {
               <div className="flex rounded-lg border border-border p-0.5" role="group" aria-label="Image format">
                 <button
                   type="button"
+                  aria-pressed={format === 'jpg'}
                   onClick={() => setFormat('jpg')}
                   className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                     format === 'jpg'
@@ -323,6 +324,7 @@ export function PdfToImagesTool() {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={format === 'png'}
                   onClick={() => setFormat('png')}
                   className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                     format === 'png'

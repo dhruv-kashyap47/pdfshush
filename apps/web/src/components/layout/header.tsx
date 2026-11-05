@@ -32,9 +32,10 @@ const QUICK_LINKS = ['merge-pdf', 'organize-pdf', 'compress-pdf', 'pdf-to-jpg'];
  * so the header does not flash "Sign in" at an already-signed-in user.
  */
 function AccountControl() {
-  const { account, loading, signIn, signOut } = useAuth();
+  const { account, loading, accountsEnabled, signIn, signOut } = useAuth();
 
   if (loading) return null;
+  if (!account && !accountsEnabled) return null;
 
   if (!account) {
     return (
@@ -95,7 +96,6 @@ export function SiteHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<number | null>(null);
-  const navigate = useNavigate();
   const location = useLocation();
   const recent = useRecent();
   // Surfaces a failed sign-in once and strips the query, so a refresh does not
@@ -201,10 +201,7 @@ export function SiteHeader() {
                 </SheetTitle>
               </SheetHeader>
               <MobileToolList
-                onNavigate={(slug) => {
-                  setMobileOpen(false);
-                  navigate(`/tools/${slug}`);
-                }}
+                onClose={() => setMobileOpen(false)}
               />
             </SheetContent>
           </Sheet>
@@ -292,8 +289,14 @@ function MegaMenu({
   );
 }
 
-function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) {
+function MobileToolList({ onClose }: { onClose: () => void }) {
   const recent = useRecent();
+  const navigate = useNavigate();
+  const { account, loading, accountsEnabled, signIn, signOut } = useAuth();
+  const go = (path: string) => {
+    onClose();
+    navigate(path);
+  };
 
   // One list, not two. A "live now" chip cloud above the full catalog repeated
   // every tool already reachable one screen lower, which read as clutter rather
@@ -301,6 +304,60 @@ function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) 
   return (
     <ScrollArea className="-mr-4 h-[calc(100svh-8rem)] pr-4">
       <div className="space-y-6 px-4 pb-8">
+        <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Checking your account…</p>
+          ) : account ? (
+            <div className="space-y-1">
+              <p className="truncate text-sm font-medium">
+                {account.name ?? account.email ?? 'Your account'}
+              </p>
+              {account.email && account.name ? (
+                <p className="truncate text-xs text-muted-foreground">{account.email}</p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <Button type="button" variant="outline" size="sm" onClick={() => go('/account')}>
+                  Account
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => go('/workflows')}>
+                  Workflows
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    void signOut();
+                  }}
+                >
+                  Sign out
+                </Button>
+              </div>
+            </div>
+          ) : !accountsEnabled ? (
+            <p className="text-xs text-muted-foreground">
+              Accounts are not enabled on this deployment. Every client-side tool still works.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Accounts are optional: every client-side tool works signed out.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  signIn();
+                }}
+              >
+                Sign in with Google
+              </Button>
+            </div>
+          )}
+        </div>
+
         {recent.length > 0 && (
           <div>
             <p className="mb-1.5 text-[13px] font-medium text-muted-foreground">
@@ -311,7 +368,7 @@ function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) 
                 <li key={entry.id}>
                   <button
                     type="button"
-                    onClick={() => onNavigate(entry.toolSlug)}
+                    onClick={() => go(`/tools/${entry.toolSlug}`)}
                     className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
                   >
                     <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -335,7 +392,7 @@ function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) 
                   <li key={def.slug}>
                     <button
                       type="button"
-                      onClick={() => onNavigate(def.slug)}
+                      onClick={() => go(`/tools/${def.slug}`)}
                       className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
                     >
                       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -347,7 +404,7 @@ function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) 
                         />
                       ) : (
                         <span className="ml-auto shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                          soon
+                          not built
                         </span>
                       )}
                     </button>
@@ -357,6 +414,15 @@ function MobileToolList({ onNavigate }: { onNavigate: (slug: string) => void }) 
             </ul>
           </div>
         ))}
+
+        <div className="flex gap-3 border-t border-border/70 pt-4 text-sm">
+          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/trust')}>
+            Trust &amp; privacy
+          </button>
+          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/verify')}>
+            Verify a redaction
+          </button>
+        </div>
       </div>
     </ScrollArea>
   );

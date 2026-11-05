@@ -39,6 +39,10 @@ export interface StoredWorkflow {
 export const MAX_HISTORY_ENTRIES = 100;
 export const MAX_WORKFLOWS = 50;
 
+function isDuplicateKey(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 11000;
+}
+
 function toHistory(doc: HistoryDoc): HistoryEntry {
   return {
     id: doc._id,
@@ -80,9 +84,15 @@ export class AccountStore {
     accountId: string,
     values: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
+    const fields: Record<string, unknown> = { updatedAt: this.now() };
+    for (const [key, value] of Object.entries(values)) {
+      // Mongo treats dots and `$` as field-path syntax, so a preference key is
+      // restricted to a plain name by the route before it reaches this point.
+      fields[`values.${key}`] = value;
+    }
     const doc = await this.collections.preferences.findOneAndUpdate(
       { _id: accountId },
-      { $set: { values, updatedAt: this.now() } },
+      { $set: fields },
       { upsert: true, returnDocument: 'after' },
     );
     return doc?.values ?? {};
@@ -101,20 +111,43 @@ export class AccountStore {
 
   async addHistory(
     accountId: string,
-    entry: Omit<HistoryEntry, 'id' | 'createdAt'> & { createdAt?: number },
+    entry: Omit<HistoryEntry, 'id' | 'createdAt'> & {
+      createdAt?: number;
+      /** Stable id from the browser row; makes retries and imports idempotent. */
+      clientId?: string;
+    },
   ): Promise<HistoryEntry> {
+    const createdAt = entry.createdAt ?? this.now().getTime();
+    const id = entry.clientId
+      ? `${accountId}:client:${entry.clientId}`
+      : `${accountId}:${createdAt}:${Math.random().toString(36).slice(2, 10)}`;
     const doc: HistoryDoc = {
-      _id: `${accountId}:${entry.createdAt ?? this.now().getTime()}:${Math.random().toString(36).slice(2, 10)}`,
+      _id: id,
       accountId,
       toolSlug: entry.toolSlug.slice(0, 64),
       toolName: entry.toolName.slice(0, 120),
       fileName: entry.fileName.slice(0, 255),
-      createdAt: entry.createdAt ?? this.now().getTime(),
+      createdAt,
+      ...(entry.clientId ? { clientId: entry.clientId } : {}),
       ...(entry.pageCount !== undefined ? { pageCount: entry.pageCount } : {}),
       ...(entry.sizeBytes !== undefined ? { sizeBytes: entry.sizeBytes } : {}),
     };
-    await this.collections.history.insertOne(doc);
-    return toHistory(doc);
+
+    // An import may be retried after a partial network failure. The client id
+    // makes that a no-op instead of a duplicate row; a concurrent insert is
+    // handled by re-reading the winner.
+    const existing = await this.collections.history.findOne({ _id: id });
+    if (existing) return toHistory(existing);
+    try {
+      await this.collections.history.insertOne(doc);
+      return toHistory(doc);
+    } catch (error) {
+      if (isDuplicateKey(error)) {
+        const winner = await this.collections.history.findOne({ _id: id });
+        if (winner) return toHistory(winner);
+      }
+      throw error;
+    }
   }
 
   async clearHistory(accountId: string): Promise<number> {

@@ -116,6 +116,15 @@ export function registerAccountRoutes(app: Express, deps: AccountRoutesDeps): vo
       response.status(400).json({ error: '`values` must be an object.', code: 'validation_failed' });
       return;
     }
+    // Mongo interprets dots and `$` in a `$set` key as a field path/operator.
+    // Preference keys are simple names, not a second query language.
+    if (Object.keys(values).some((key) => !/^[A-Za-z0-9_-]{1,64}$/.test(key))) {
+      response.status(400).json({
+        error: 'Preference keys must be 1-64 letters, digits, underscores or dashes.',
+        code: 'validation_failed',
+      });
+      return;
+    }
     // Bounded so a settings blob cannot become a storage abuse vector.
     if (JSON.stringify(values).length > 8_000) {
       response.status(413).json({ error: 'Preferences are too large.', code: 'too_large' });
@@ -141,10 +150,27 @@ export function registerAccountRoutes(app: Express, deps: AccountRoutesDeps): vo
       response.status(400).json({ error: 'toolSlug, toolName and fileName are required.', code: 'validation_failed' });
       return;
     }
+    const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : undefined;
+    if (clientId !== undefined && !/^[A-Za-z0-9_-]{1,80}$/.test(clientId)) {
+      response.status(400).json({
+        error: '`clientId` must be 1-80 letters, digits, underscores or dashes.',
+        code: 'validation_failed',
+      });
+      return;
+    }
+    const createdAt =
+      typeof body.createdAt === 'number' &&
+      Number.isFinite(body.createdAt) &&
+      body.createdAt > 0 &&
+      body.createdAt <= Date.now() + 5 * 60_000
+        ? body.createdAt
+        : undefined;
     const entry = await deps.account.addHistory(account.id, {
       toolSlug: body.toolSlug,
       toolName: body.toolName,
       fileName: body.fileName,
+      ...(createdAt !== undefined ? { createdAt } : {}),
+      ...(clientId !== undefined ? { clientId } : {}),
       ...(typeof body.pageCount === 'number' ? { pageCount: body.pageCount } : {}),
       ...(typeof body.sizeBytes === 'number' ? { sizeBytes: body.sizeBytes } : {}),
     });

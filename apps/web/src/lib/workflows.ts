@@ -119,6 +119,34 @@ export const SERVER_JOB_LABELS: Record<string, string> = {
   inspect: 'Inspect (report)',
 };
 
+/**
+ * Server jobs whose result is not a document another step can consume.
+ *
+ * `inspect` returns a JSON report. `split-by-pages` returns a ZIP of parts
+ * (plus listings), and the API's upload allow-list refuses the re-typed ZIP as
+ * step 2's input. The engine's `WORKFLOW_OUTPUT_JOBS` has the same rule; this
+ * local set keeps the builder's picker honest even when talking to an older API.
+ */
+export const TERMINAL_JOB_SLUGS: ReadonlySet<string> = new Set(['inspect', 'split-by-pages']);
+
+/** Re-link a linear recipe after an insert, move or delete. */
+export function relinkWorkflowSteps(steps: readonly WorkflowStep[]): WorkflowStep[] {
+  return steps.map((step, index) => {
+    const previous = steps[index - 1];
+    if (!previous) {
+      const { input: _input, ...first } = step;
+      void _input;
+      return first;
+    }
+    return { ...step, input: { kind: 'step' as const, stepId: previous.id } };
+  });
+}
+
+/** True when a terminal step appears anywhere except the final position. */
+export function hasNonFinalTerminalStep(steps: readonly WorkflowStep[]): boolean {
+  return steps.slice(0, -1).some((step) => TERMINAL_JOB_SLUGS.has(step.tool));
+}
+
 /** The steps that stop a recipe from running, so the UI can say which and why. */
 export async function unsupportedSteps(recipe: Recipe): Promise<WorkflowStep[]> {
   const slugs = await fetchServerSlugs();
@@ -143,6 +171,25 @@ export interface RunResult {
 
 const POLL_MS = 900;
 
+/** A delay that rejects promptly when the run is cancelled. */
+function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 async function pollJob(
   jobId: string,
   token: string,
@@ -155,15 +202,19 @@ async function pollJob(
       status: string;
       progress?: { phase: string; ratio?: number };
       files?: { name: string; bytes: number }[];
-      error?: { message: string };
-    }>(`/api/jobs/${jobId}`, { jobToken: token });
+      error?: { message: string; code?: string };
+    }>(`/api/jobs/${jobId}`, { jobToken: token, signal });
 
     if (!state) throw new ApiError(404, 'not_found', 'That job disappeared.');
     if (state.progress) onProgress(state.progress.phase, state.progress.ratio);
     else onProgress(state.status);
 
     if (state.status === 'failed') {
-      throw new ApiError(500, 'job_failed', state.error?.message ?? 'That step failed.');
+      throw new ApiError(
+        500,
+        state.error?.code ?? 'job_failed',
+        state.error?.message ?? 'That step failed.',
+      );
     }
     if (state.status === 'completed') {
       const files = state.files ?? [];
@@ -179,7 +230,7 @@ async function pollJob(
         }),
       );
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    await abortableDelay(POLL_MS, signal);
   }
 }
 
@@ -233,7 +284,17 @@ export async function runRecipe(
           ...(ratio !== undefined ? { ratio } : {}),
         }),
       signal,
-    );
+    ).catch((error: unknown) => {
+      // Cancelling locally must not leave the paid server job running. The
+      // DELETE is best-effort: the caller still gets the original abort/error.
+      if (signal.aborted) {
+        void api(`/api/jobs/${created.jobId}`, {
+          method: 'DELETE',
+          jobToken: created.token,
+        }).catch(() => undefined);
+      }
+      throw error;
+    });
 
     // The first output is the document the rest of the recipe works on. Extra
     // outputs (a split's ZIP members) are kept only for the final download.

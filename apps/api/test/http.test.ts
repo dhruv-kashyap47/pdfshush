@@ -208,10 +208,14 @@ describe('GET /api/tools', () => {
     const body = (await (await fetch(url('/api/tools'))).json()) as {
       slugs: string[];
       maxUploadBytes: number;
+      accounts: { enabled: boolean };
     };
     expect(body.slugs).toContain('merge');
     expect(body.slugs).not.toContain('compress-pdf');
     expect(body.maxUploadBytes).toBe(context.config.quota.maxUploadBytes);
+    // This harness has no auth layer; the SPA must be able to tell that apart
+    // from "nobody is signed in" so it does not advertise a dead Sign in flow.
+    expect(body.accounts.enabled).toBe(false);
   });
 });
 

@@ -7,13 +7,14 @@
  * mid-paste means minting another one.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Copy, EyeOff, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 
 interface ApiKeyRow {
@@ -40,19 +41,34 @@ export function ApiKeysPanel() {
     undefined,
   );
   const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // `undefined` = not loaded yet; `false` = this deployment has no accounts.
   const [available, setAvailable] = useState<boolean | undefined>(undefined);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => () => {
+    if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+  }, []);
 
   const reload = useCallback(async () => {
+    setLoadError(null);
     try {
       const data = await api<{ keys: ApiKeyRow[] }>('/api/account/api-keys');
       setKeys(data?.keys ?? []);
       setAvailable(true);
-    } catch {
-      // Accounts disabled is a permanent state here, not an error: the deploy
-      // simply never turned them on, so the whole panel stays inert.
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 503) {
+        // Accounts disabled is a permanent state here, not an error: the deploy
+        // simply never turned them on, so the whole panel stays inert.
+        setKeys([]);
+        setAvailable(false);
+        return;
+      }
       setKeys([]);
-      setAvailable(false);
+      setAvailable(true);
+      setLoadError(
+        error instanceof Error ? error.message : 'Could not load your API keys.',
+      );
     }
   }, []);
 
@@ -75,8 +91,8 @@ export function ApiKeysPanel() {
       }
       await reload();
       toast.success('Key created. Copy it now — it is shown only once.');
-    } catch {
-      toast.error('Could not create the key.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create the key.');
     } finally {
       setBusy(false);
     }
@@ -88,16 +104,21 @@ export function ApiKeysPanel() {
       await api(`/api/account/api-keys/${key.id}`, { method: 'DELETE' });
       await reload();
       toast.success('Key revoked.');
-    } catch {
-      toast.error('Could not revoke the key.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not revoke the key.');
     }
   };
 
   const copyToken = async () => {
     if (!freshToken) return;
-    await navigator.clipboard.writeText(freshToken.token).catch(() => undefined);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(freshToken.token);
+      setCopied(true);
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('The clipboard refused the copy. Select the key text instead.');
+    }
   };
 
   const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
@@ -120,6 +141,7 @@ export function ApiKeysPanel() {
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <Input
+            aria-label="Key name"
             placeholder="Key name — e.g. «ci-pipeline»"
             value={name}
             maxLength={80}
@@ -134,7 +156,14 @@ export function ApiKeysPanel() {
           </Button>
         </div>
 
-        {available === false ? (
+        {loadError ? (
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
+            <span>{loadError}</span>
+            <Button variant="outline" size="sm" onClick={() => void reload()}>
+              Retry
+            </Button>
+          </div>
+        ) : available === false ? (
           <p className="text-sm text-muted-foreground">
             API keys are not enabled on this deployment (accounts are off), so there is nothing to
             create here.
@@ -175,6 +204,7 @@ export function ApiKeysPanel() {
                         variant="ghost"
                         size="sm"
                         className="shrink-0 text-destructive"
+                        aria-label={`Revoke ${key.name}`}
                         onClick={() => void revoke(key)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -188,34 +218,37 @@ export function ApiKeysPanel() {
         )}
       </CardContent>
 
-      {freshToken && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-lg space-y-4 rounded-xl bg-background p-6 shadow-xl">
-            <div>
-              <h2 className="text-lg font-semibold">Copy your key now</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{freshToken.name}</span> is a bearer
-                credential. It is shown exactly once: if it leaves this screen without being
-                copied, the only fix is minting another key.
-              </p>
-            </div>
-            <code className="block select-all break-all rounded-lg bg-muted px-3 py-2.5 font-mono text-sm">
-              {freshToken.token}
-            </code>
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => void copyToken()}>
-                {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
-                {copied ? 'Copied' : 'Copy key'}
-              </Button>
-              <Button onClick={() => setFreshToken(undefined)}>Done</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={Boolean(freshToken)}
+        onOpenChange={(open) => {
+          if (!open) setFreshToken(undefined);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          {freshToken ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Copy your key now</DialogTitle>
+                <DialogDescription>
+                  <span className="font-medium text-foreground">{freshToken.name}</span> is a bearer
+                  credential. It is shown exactly once: if it leaves this screen without being
+                  copied, the only fix is minting another key.
+                </DialogDescription>
+              </DialogHeader>
+              <code className="block select-all break-all rounded-lg bg-muted px-3 py-2.5 font-mono text-sm">
+                {freshToken.token}
+              </code>
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => void copyToken()}>
+                  {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
+                  {copied ? 'Copied' : 'Copy key'}
+                </Button>
+                <Button onClick={() => setFreshToken(undefined)}>Done</Button>
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

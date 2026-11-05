@@ -11,7 +11,7 @@
  * instead of failing halfway through.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, Loader2, Play, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,10 +26,13 @@ import { api } from '@/lib/api';
 import {
   deleteLocalRecipe,
   fetchServerSlugs,
+  hasNonFinalTerminalStep,
   listLocalRecipes,
+  relinkWorkflowSteps,
   runRecipe,
   saveLocalRecipe,
   SERVER_JOB_LABELS,
+  TERMINAL_JOB_SLUGS,
   unsupportedSteps,
   type Recipe,
   type RunProgress,
@@ -45,7 +48,7 @@ function newStepId(): string {
 }
 
 export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {}) {
-  const { account } = useAuth();
+  const { account, accountsEnabled } = useAuth();
   const [recipes, setRecipes] = useState<StoredRecipe[]>([]);
   const [draft, setDraft] = useState<Recipe>({ name: '', steps: [] });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,6 +57,16 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [runnable, setRunnable] = useState<string[]>([]);
+  const runAbortRef = useRef<AbortController | null>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      runAbortRef.current?.abort();
+    };
+  }, []);
 
   // The picker offers the *job* slugs this deployment can actually run, in a
   // stable order, rather than every tool name in the catalog.
@@ -114,8 +127,11 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
 
   const addStep = (tool: string) => {
     setDraft((current) => {
-      const id = newStepId();
       const previous = current.steps[current.steps.length - 1];
+      // A terminal job cannot feed a later step; the picker hides these once a
+      // recipe has started, and this guard keeps keyboard/quick clicks honest.
+      if (previous && TERMINAL_JOB_SLUGS.has(previous.tool)) return current;
+      const id = newStepId();
       return {
         ...current,
         steps: [
@@ -140,22 +156,17 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
       const [item] = next.splice(index, 1);
       next.splice(target, 0, item!);
       // Re-link the chain so it stays linear and every reference points backwards.
-      const relinked = next.map((step, position) => {
-        const previous = next[position - 1];
-        if (!previous) {
-          const { input, ...rest } = step;
-          void input;
-          return rest;
-        }
-        return { ...step, input: { kind: 'step' as const, stepId: previous.id } };
-      });
-      return { ...current, steps: relinked };
+      return { ...current, steps: relinkWorkflowSteps(next) };
     });
   };
 
   const save = async () => {
     if (draft.steps.length === 0) {
       toast.error('Add at least one step.');
+      return;
+    }
+    if (hasNonFinalTerminalStep(draft.steps)) {
+      toast.error('Inspect and Split by pages must be the final step. Remove what follows them.');
       return;
     }
     if (draft.name.trim().length === 0) {
@@ -206,24 +217,49 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
       toast.error('Choose a PDF to run the workflow on.');
       return;
     }
+    if (blocked.length > 0) {
+      toast.error('Remove steps this deployment cannot run before starting.');
+      return;
+    }
+    if (hasNonFinalTerminalStep(draft.steps)) {
+      toast.error('Inspect and Split by pages must be the final step.');
+      return;
+    }
     setRunning(true);
     setProgress(null);
     const controller = new AbortController();
+    runAbortRef.current = controller;
     try {
       const result = await runRecipe(draft, file, setProgress, controller.signal);
-      downloadBytes(result.bytes, result.name);
-      toast.success('Workflow finished.');
+      if (aliveRef.current) {
+        downloadBytes(result.bytes, result.name);
+        toast.success('Workflow finished.');
+      }
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      if (
+        aliveRef.current &&
+        !(error instanceof DOMException && error.name === 'AbortError')
+      ) {
         toast.error(error instanceof Error ? error.message : 'The workflow failed.');
       }
     } finally {
-      setRunning(false);
-      setProgress(null);
+      if (runAbortRef.current === controller) runAbortRef.current = null;
+      if (aliveRef.current) {
+        setRunning(false);
+        setProgress(null);
+      }
     }
   };
 
   const usingServer = Boolean(account);
+  const chainBlocked = hasNonFinalTerminalStep(draft.steps);
+  const lastStep = draft.steps[draft.steps.length - 1];
+  const canAddStep = !lastStep || !TERMINAL_JOB_SLUGS.has(lastStep.tool);
+  const selectableJobs =
+    draft.steps.length === 0
+      ? runnable
+      : runnable.filter((slug) => !TERMINAL_JOB_SLUGS.has(slug));
+  const cannotRun = blocked.length > 0 || chainBlocked;
 
   return (
     <div className={embedded ? 'space-y-6' : 'mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8'}>
@@ -303,7 +339,9 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
                       onClick={() =>
                         setDraft((current) => ({
                           ...current,
-                          steps: current.steps.filter((entry) => entry.id !== step.id),
+                          steps: relinkWorkflowSteps(
+                            current.steps.filter((entry) => entry.id !== step.id),
+                          ),
                         }))
                       }
                     >
@@ -318,18 +356,27 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
               aria-label="Add a step"
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               value=""
+              disabled={!canAddStep}
               onChange={(event) => {
                 if (event.target.value) addStep(event.target.value);
                 event.target.value = '';
               }}
             >
-              <option value="">+ Add a step…</option>
-              {runnable.map((slug) => (
+              <option value="">
+                {canAddStep ? '+ Add a step…' : 'This step must be last; save or remove it to continue'}
+              </option>
+              {selectableJobs.map((slug) => (
                 <option key={slug} value={slug}>
                   {SERVER_JOB_LABELS[slug] ?? slug}
                 </option>
               ))}
             </select>
+            {chainBlocked ? (
+              <p role="alert" className="text-xs text-destructive">
+                Inspect and Split by pages must be the final step. Move or remove the steps after them
+                before saving or running.
+              </p>
+            ) : null}
             <p className="text-xs text-muted-foreground">
               Steps run with each tool’s default options. Configurable options arrive with the
               workflow builder’s next pass.
@@ -380,7 +427,7 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
               <Progress value={progress.ratio !== undefined ? Math.round(progress.ratio * 100) : undefined} />
             </div>
           )}
-          <Button disabled={running || draft.steps.length === 0} onClick={() => void run()}>
+          <Button disabled={running || draft.steps.length === 0 || cannotRun} onClick={() => void run()}>
             {running ? (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             ) : (
@@ -388,6 +435,11 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
             )}
             Run workflow
           </Button>
+          {running ? (
+            <Button variant="outline" onClick={() => runAbortRef.current?.abort()}>
+              Stop
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -424,7 +476,7 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
         ))}
       </div>
 
-      {!usingServer && (
+      {!usingServer && accountsEnabled && (
         <p className="mt-8 text-sm text-muted-foreground">
           <Link to="/account" className="underline">
             Sign in

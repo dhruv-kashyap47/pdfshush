@@ -221,6 +221,27 @@ export function ImageEditorTool() {
     };
   };
 
+  /** Keyboard crop path: move with arrows, resize with Shift + arrows. */
+  const nudgeCrop = (dx: number, dy: number, resize: boolean) => {
+    const clamp = (value: number, min: number, max: number) =>
+      Math.min(max, Math.max(min, value));
+    setSelection((current) => {
+      const base = current ?? { x: 0.1, y: 0.1, width: 0.8, height: 0.8 };
+      if (!resize) {
+        return {
+          ...base,
+          x: clamp(base.x + dx, 0, 1 - base.width),
+          y: clamp(base.y + dy, 0, 1 - base.height),
+        };
+      }
+      return {
+        ...base,
+        width: clamp(base.width + dx, 0.05, 1 - base.x),
+        height: clamp(base.height + dy, 0.05, 1 - base.y),
+      };
+    });
+  };
+
   const pushOp = (op: ImageOp) => {
     setOps((current) => [...current, op]);
     setSelection(null);
@@ -350,7 +371,7 @@ export function ImageEditorTool() {
               </p>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="text-xs text-muted-foreground">
-                  {selection ? 'Selection ready' : 'Drag to crop'}
+                  {selection ? 'Selection ready' : 'Drag or use the crop keys'}
                 </span>
                 <Button
                   variant="ghost"
@@ -373,7 +394,38 @@ export function ImageEditorTool() {
             <div className="relative mx-auto w-full max-w-xl overflow-hidden rounded-lg border border-border bg-[repeating-conic-gradient(#e5e5e5_0%_25%,#ffffff_0%_50%)] bg-[length:16px_16px]">
               <canvas ref={canvasRef} className="block h-auto w-full" data-testid="image-canvas" />
               <div
-                className="absolute inset-0 cursor-crosshair touch-none"
+                className="absolute inset-0 cursor-crosshair touch-none rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                role="group"
+                tabIndex={0}
+                aria-label="Crop selection. Press Enter to place a box, arrow keys move it, Shift plus arrow keys resize it, and Escape clears it."
+                onKeyDown={(event) => {
+                  if (running) return;
+                  if ((event.key === 'Enter' || event.key === ' ') && !selection) {
+                    event.preventDefault();
+                    setSelection({ x: 0.1, y: 0.1, width: 0.8, height: 0.8 });
+                    return;
+                  }
+                  if (event.key === 'Escape' && selection) {
+                    event.preventDefault();
+                    setSelection(null);
+                    return;
+                  }
+                  const step = event.shiftKey ? 0.05 : 0.01;
+                  const move = event.shiftKey ? 'resize' : 'move';
+                  if (event.key === 'ArrowLeft') {
+                    event.preventDefault();
+                    nudgeCrop(-step, 0, move === 'resize');
+                  } else if (event.key === 'ArrowRight') {
+                    event.preventDefault();
+                    nudgeCrop(step, 0, move === 'resize');
+                  } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    nudgeCrop(0, -step, move === 'resize');
+                  } else if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    nudgeCrop(0, step, move === 'resize');
+                  }
+                }}
                 onPointerDown={(event) => {
                   if (running) return;
                   event.currentTarget.setPointerCapture(event.pointerId);

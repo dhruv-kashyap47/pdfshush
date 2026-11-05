@@ -95,7 +95,7 @@ describe('validateWorkflow', () => {
   });
 
   it('rejects chaining from a tool that produces no document', () => {
-    for (const tool of ['inspect', 'thumbnails', 'text-runs', 'pdf-to-images']) {
+    for (const tool of ['inspect', 'thumbnails', 'text-runs', 'pdf-to-images', 'split-by-pages']) {
       const result = validateWorkflow(
         recipe({
           steps: [
@@ -107,6 +107,9 @@ describe('validateWorkflow', () => {
       expect(result.ok, `${tool} should not be chainable`).toBe(false);
       expect(issuesOf(result).join(' ')).toMatch(/does not produce a document/);
     }
+    // Split-by-pages returns a ZIP of parts, so a later PDF step cannot consume
+    // its output even though the recipe may end on it.
+    expect(WORKFLOW_OUTPUT_JOBS.has('split-by-pages')).toBe(false);
   });
 
   it('only lists registered, document-producing tools as chainable', () => {

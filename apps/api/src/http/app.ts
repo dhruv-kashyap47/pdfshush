@@ -222,6 +222,11 @@ export function createApp(context: ApiContext): Express {
         tasksPerDay: context.config.quota.tasksPerDay,
       },
       ai: { enabled: context.config.ai.enabled },
+      // The SPA needs to distinguish "nobody signed in" from "this deployment
+      // has no account system"; `/api/auth/me` answers 204 for both. Without
+      // this, an accounts-off deployment advertises a Sign in button that lands
+      // on a 503 JSON response.
+      accounts: { enabled: Boolean(context.auth) },
     });
   });
 

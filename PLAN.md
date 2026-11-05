@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-11-04
+**Last updated:** 2026-11-05
 
 ---
 
@@ -34,7 +34,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Security batch** | Real AES-256 Protect PDF (open/owner passwords + permission flags) and a Smart Compress pass that re-encodes safe embedded images while preserving text, links and forms | ✅ **shipped 2026-10-27** — see §8 first entry |
 | **Dark-mode batch** | Dark Mode PDF: three pixel-remap kinds (theme / smart hue-preserving / invert) over a live before/after wipe preview, ported from the MIT-licensed `chizkiyahu/pdf-dark-mode-converter` | ✅ **shipped 2026-10-28** — see §8 first entry |
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
-| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | ⬜ **P7.1–P7.3 next** |
+| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | 🟡 **P7.2/P7.3 absorbed by M5.5/M5.6; P7.1 partial** — the Q4 corpus covers 0-byte, 1-page, 2 000-page, encrypted, scanned, truncated, non-PDF, non-ASCII and 200 MB, but 10k-page, broken-font and linearized fixtures are still missing (§4, §31.21) |
 | **Text editing Phase 1** | Serializable glyph→word→line→paragraph→block→region model, centralized geometry, hit testing, inline paragraph editing | ✅ **done 2026-10-31** — engine 339 tests, web 39; see §27 |
 | **Text editing Phase 2** | Native object editing ladder, content-stream fallback, font metrics/substitution, layout reflow, OCR-layer/scan capability, export + pixel verification | ✅ **done 2026-10-31** — engine 362 tests, web 39, both text E2Es; see §28 |
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
@@ -42,6 +42,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
+| **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8 top entry; 1 344 unit tests, browser suites not re-run |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -64,30 +65,21 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-03 for **Phase 4 — production hardening**
-(`pnpm -r typecheck`, `pnpm test` — **1216/1216 unit** — `pnpm build`, `pnpm test:bundle`, the
-layout benchmark and the full browser E2E campaign all green; the profile, before/after
-numbers, hardening fixes, licensing audit and the SHIP gate are recorded in §30). The Phase 3
-document-intelligence benchmark (§29) is unchanged, the Phase 2.5 adversarial audit and its
-four verification fixes are still in force (§28.10), and the Phase 4 campaign re-ran the Phase 2
-browser E2Es
-(`tests/e2e/text-edit.mjs`, `tests/e2e/text-model.mjs`) green on 2026-11-03
-against the running dev server. The full browser smoke, plain-tools, next-tools,
-bookmark-batch, forms/bookmarks, dark-mode and redaction checks were green in the same
-campaign, and the containerised API hardening gate (SIGKILL mid-job → no orphan files,
-queue recovers) passed on 2026-11-03 (§30.8). **Milestone 5 is in progress: M5.0's baseline is
-recorded in §31.12, the Q2 determinism fix in §31.13, M5.1's truthful surface in §31.14, M5.2's
-verifiable privacy in §31.15, M5.3's receipts/structure confidence in §31.16, M5.4's performance
-gate in §31.17, M5.5's reach/prerender in §31.18, M5.6's accessibility/input parity in §31.19,
-M5.7's parity decisions in §31.20 and M5.8's release evidence in §31.21. The browser and unit
-campaign are green; the containerised `test:api` and `test:hardening` gates were not runnable in this
-environment and are **not** claimed.**
+**Current gate:** re-measured 2026-11-05 for the **reliability pass** and the M5 close-out
+(`pnpm -r typecheck`, `pnpm test` — **1 344/1 344 unit** — `pnpm build`, `pnpm test:bundle`
+green; main chunk 149.3 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
+worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
+document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
+fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and the
+2026-11-05 reliability pass is recorded in §8. The browser suites and the containerised
+`test:api`/`test:hardening` gates were **not** re-run in the 2026-11-05 pass; Docker is not
+available in this environment, so those checks stay unclaimed (§31.21).
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
 hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API
 (§25.3) and P6.3 MCP server (§25.4) all still hold.
-**49 of 57 tools live** (ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**49 of 58 catalog entries live** (9 declined with a documented reason, §31.20; ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
 `jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; seven on
@@ -100,7 +92,7 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1215/1215 unit** (**427 engine** · **208 API** · 370 provider · 152 agent · **39 web** ·
+**1 344/1 344 unit** (**445 engine** · **214 API** · 370 provider · 152 agent · **144 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
 export/pixel verification), Phase 2.5 added 27 more (adversarial corpus + verification/
 robustness gates), and Phase 3 added 38 (held-out synthetic benchmark, real-PDF gate,
@@ -156,9 +148,11 @@ export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
 0 pdf.js / 0 pdfium / 0 `signature_pad` / 0 Caveat, enforced by the extended `pnpm test:bundle`
 (PDFium is a lazy 4.6 MB asset fetched on first text edit; `signature_pad` + the bundled Caveat
 faces ride the 33 kB lazy signature-pad dialog chunk).
-**Next: P7.1 — the adversarial torture suite.** P7.0 (2026-10-25) closed the cheap §24.5 backlog
-and added CI; the remaining P7 work is the fixture corpus + abuse gate (P7.1), SEO prerender
-(P7.2) and the perf/a11y pass (P7.3). R2 stays
+**Next: M6.1 — deploy to a real origin** (§33.4), which is blocked on the owner supplying a domain,
+VPS/Cloudflare access and the AGPL/CLA stance; **M6.3's global budget breaker** is the one M6 item
+that protects the free tier and can start before deployment. P7 is closed except for P7.1's remaining
+edge fixtures (10k-page, broken fonts, linearized) and the containerised gates; P7.2 SEO prerender and
+P7.3 perf/a11y were absorbed by M5.5/M5.6. R2 stays
 deferred until R1 is proven in production, and P4.4 triggers stay gated on the SSRF/scheduling design.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
 rooted-tree silent-loop pair (§8, 2026-10-18 entry), gated by typecheck, a fresh production build, the
@@ -179,9 +173,10 @@ Do not relitigate these without a strong reason; each was researched and chosen.
 - **Reverse-engineering target:** Sejda ≈ ~40 tools across Merge / Split / Edit&Sign /
   Compress / Security / Convert / Other / Scans / Workflows. Free tier: 3 tasks/hr,
   200 pages, 50 MB. We mirror the catalog, URLs, and IA — but **no task quotas** for
-  in-browser work (limits instead, §4). Our own catalog is **53 slugs**: Sejda's set plus
-  the disruption extras (AI, e-sign, API/MCP, workflows); every slug has a permanent page
-  from day one, so unshipped tools render an honest "In development" state.
+  in-browser work (limits instead, §4). Our own catalog is **58 entries** (49 live, 9 declined):
+  Sejda's set plus the disruption extras (AI, e-sign, API/MCP, workflows); every slug has a
+  permanent page from day one, so a declined tool renders an honest "not built" decision page
+  with the real blocker and the closest live alternative (§31.20).
 - **UI foundation:** `shadcnstore/shadcn-dashboard-landing-template` (**MIT**, `vite-version/`
   branch) — keep landing sections + shadcn/ui + theme system + auth/dashboard/error pages;
   strip mail/tasks/chat/calendar demos. Attribution preserved in `licenses/`.
@@ -256,7 +251,7 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 57 tools (**49 live**), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 58 entries (**49 live**, 9 declined), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
 │   └── src/components/tools/*      45 tool-body files
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
@@ -363,6 +358,14 @@ vector output via `toSVG()` → `drawSvgPath`, gated on tests) · public REST AP
 ### P7 — Hardening / torture suite
 Adversarial fixture corpus: malformed PDFs, 10k-page files, encrypted docs, broken fonts,
 interrupted jobs, cleanup verification. Plus SEO prerendering, Lighthouse/perf, a11y pass.
+
+**Status (2026-11-05).** P7.2 (SEO prerender) and P7.3 (perf/a11y) were absorbed by M5.5/M5.6 and
+are closed. P7.1 is **partial**: `tests/support/corpus.mjs` covers 0-byte, 1-page, 2 000-page,
+encrypted, scanned, truncated, non-PDF, non-ASCII and 200 MB through the merge class (Q4,
+§31.21), and the SIGKILL/TTL recovery gate exists but needs Docker (`test:hardening`). Still
+missing: 10k-page documents, broken-font fixtures, and linearized PDFs (`CORPUS_GAPS` records why
+no honest fixture exists here). Do not call P7 fully green until those land and the container
+gates run.
 
 ### R1 — Secure redaction → **security gate** *(shipped 2026-10-14 — see §20)*
 Rasterization-first. Every page is re-rendered, the marks are burned into the pixels, and a
@@ -705,6 +708,52 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-05 — Reliability pass: one auth owner, real history sync, and honest failure boundaries.**
+
+  The engine, redaction serialization and editing ladder were not touched. This pass closed a set of
+  surface defects found by asking the account, workflow and editor screens to prove their own claims.
+
+  - **Accounts have one owner.** `use-auth.ts` is now an `AuthProvider`; the header, account page and
+    workflows page used to mount three independent copies, so signing out in one left the others
+    showing a stale user until reload. Refreshes are abortable and ignore results after unmount, a
+    failed sign-out no longer pretends the server session was revoked, and `/api/tools` now reports
+    `accounts.enabled` so an accounts-off deployment hides the sign-in control instead of sending
+    users to a 503.
+  - **History sync writes through.** Previously the "sync history" switch copied the browser's
+    entries once and stopped. New `lib/history-sync.ts` mirrors every later `recordRecent` to
+    `/api/account/history` while the preference is on; uploads are best-effort and never fail a
+    finished tool. The account page imports existing rows once per account (localStorage marker),
+    sends `clientId` + `createdAt`, and the store makes duplicate imports idempotent (one row, re-read
+    on a duplicate-key race). Export now includes history, workflows and jobs.
+  - **API hardening.** Preference keys are restricted to `[A-Za-z0-9_-]{1,64}` before reaching a
+    Mongo `$set` (a dot or `$` is a field path/operator, not a name); `clientId` is length/charset
+    checked and `createdAt` is bounded to `now + 5 min`; preferences now merge per key instead of
+    replacing the whole `values` object. The auth callback validates a return path and sends a
+    cancelled or failed sign-in back where it started, while still consuming the single-use state.
+  - **Failure boundaries and navigation.** A route-level `ErrorBoundary` (keyed by pathname) keeps
+    the shell and a way home when a lazy chunk fails after a deploy; SPA navigation resets scroll;
+    a skip link precedes the header and `main` is focusable; an HTML/non-JSON API body now becomes a
+    typed `ApiError` instead of a raw `SyntaxError`.
+  - **Mobile, editor and a11y parity.** The mobile sheet gained account/sign-in controls (it had none);
+    the editor text layer is keyboard-drivable (arrow/Home/End between paragraphs, Enter to edit,
+    Escape to clear) and resize handles take arrow keys; form widgets are labelled; the image editor
+    crops with the keyboard; the theme provider no longer depends on `next-themes` and follows OS
+    theme changes live; editor select mode allows vertical touch scrolling.
+  - **Workflows can be cancelled and cannot be mis-chained.** `inspect` and `split-by-pages` are
+    terminal: they cannot feed a later step and are only allowed last. Cancelling a run now rejects
+    the poll delay promptly and best-effort `DELETE`s the server job, so a local cancel does not leave
+    a paid job running. The builder re-links steps through one tested helper.
+
+  **Evidence.** `pnpm -r typecheck`, `pnpm test` **1 344/1 344** (pdf-core 445, API 214, provider 370,
+  agent 152, web 144, MCP 19), `pnpm build`, `pnpm test:bundle` green (main 149.3 kB / 0 engines;
+  17 lazy app chunks / 0 engines; engines only in worker chunks). No engine test changed.
+
+  **Not claimed.** The browser suites were not re-run in this pass, and `test:api`/`test:hardening`
+  remain unrunnable here (Docker daemon unavailable). The new editor keyboard paths are documented and
+  unit-adjacent but **not** covered by `test:e2e:keyboard` yet; the accounts-disabled header state is
+  unit-tested, not browser-tested.
+
 
 - **2026-11-04 - Post-ship bug pass: the editor's selected state, declined metadata and the popular row.**
 
@@ -2589,7 +2638,7 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all seven workspace projects
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1093 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 344 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
@@ -2598,6 +2647,16 @@ pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (22 checks: 17 seeded + 5 keyless overlay)
 pnpm test:e2e:ai-managed # managed trial via its own API on :8080 -- stop the Docker api container first (11 checks)
+pnpm test:e2e:text-model  # structured text model + native paragraph edit (Select tool)
+pnpm test:e2e:bookmark-batch # stamp, repair, combine, bookmarks, batch ZIP, image editor (29 checks)
+pnpm test:e2e:forms-bookmarks # Create Forms + Create Bookmarks, downloaded bytes (49 checks)
+pnpm test:e2e:offline    # production preview: manifest, CSP, service worker, offline merge (26 checks)
+pnpm test:e2e:reach      # prerendered content, sitemap, robots, OG cards (production preview)
+pnpm test:e2e:a11y       # axe WCAG 2.2 AA on the shell + tool routes (zero serious)
+pnpm test:e2e:keyboard   # keyboard-only path through tool classes and the editor
+pnpm test:e2e:verify     # the user-facing redaction verifier (needs `pnpm build` + preview)
+pnpm test:perf           # Q3/Q7 ceilings against a production build (writes tests/benchmarks)
+pnpm test:baseline       # product baseline: performance, a11y, crawler, corpus, network
 pnpm test:bundle      # after `pnpm build`: entry chunk must carry no PDF engine
 pnpm test:sweep       # responsive sweep (not a gate): overflow, reveal + size/contrast outliers
 pnpm build            # production build (web + api bundles)
@@ -2634,11 +2693,14 @@ back-to-back quota-consuming runs (smoke → hardening) leave the anonymous day 
 spent — `docker compose restart redis` resets them. *(2026-10-18 addendum: Docker's server **is**
 on PATH now — `docker compose up -d --build` works directly from the session.)*
 
-**Next move:** **P7.1 — the adversarial torture suite** (malformed/encrypted/broken-font fixtures,
-10k-page files, interrupted jobs, cleanup verification), then P7.2 SEO prerender and P7.3 perf/a11y.
+**Next move:** **M6.1 — deploy to a real origin** (§33.4) once the owner supplies a domain,
+VPS/Cloudflare access and the AGPL/CLA stance; **M6.3's global budget breaker** is the one M6 item
+that can start now. The remaining P7.1 edges (10k-page, broken-font and linearized fixtures) and the
+containerised `test:api`/`test:hardening` gates are the only open hardening checks; P7.2 and P7.3
+were absorbed by M5.5/M5.6.
 **P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
 L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
-The 2026-10-28 dark-mode batch (§8) took the catalog to 49 of 57 live tools and the engine to
+The 2026-10-28 dark-mode batch (§8) took the catalog to 49 of 58 live entries and the engine to
 315 tests with its own 8-check E2E; the 2026-10-27 security batch left it at 48 of 57 with 301
 tests and a 36-check E2E; the 2026-10-26 authoring batch left it at 47 with 293
 tests, the 2026-10-25 bookmark batch at 45 with 267 tests,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Check, Eye, EyeOff, KeyRound, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -61,6 +61,12 @@ export function AiSettingsCard({
 }: AiSettingsCardProps) {
   const [draft, setDraft] = useState<AiSettings>(settings);
   const [showKey, setShowKey] = useState(false);
+  const uid = useId();
+  const providerFieldId = `${uid}-provider`;
+  const modelFieldId = `${uid}-model`;
+  const modelListId = `${uid}-model-options`;
+  const keyFieldId = `${uid}-key`;
+  const baseUrlFieldId = `${uid}-baseurl`;
 
   // Adopt external changes (e.g. settings loaded after mount).
   useEffect(() => setDraft(settings), [settings]);
@@ -151,14 +157,14 @@ export function AiSettingsCard({
         <>
           <div className="studio-settings-fields">
             <div className="studio-field">
-              <Label htmlFor="ai-provider" className="studio-field-label">
+              <Label htmlFor={providerFieldId} className="studio-field-label">
                 Provider
               </Label>
               <Select
                 value={providerId}
                 onValueChange={(value) => pickProvider(value as AiProviderId)}
               >
-                <SelectTrigger id="ai-provider">
+                <SelectTrigger id={providerFieldId}>
                   <SelectValue placeholder="Choose a provider" />
                 </SelectTrigger>
                 <SelectContent>
@@ -190,17 +196,17 @@ export function AiSettingsCard({
             </div>
 
             <div className="studio-field">
-              <Label htmlFor="ai-model" className="studio-field-label">
+              <Label htmlFor={modelFieldId} className="studio-field-label">
                 Model
               </Label>
               <Input
-                id="ai-model"
-                list="ai-model-options"
+                id={modelFieldId}
+                list={modelListId}
                 value={config.model}
                 placeholder={meta?.defaultModel || 'model-id'}
                 onChange={(event) => patchConfig({ model: event.target.value })}
               />
-              <datalist id="ai-model-options">
+              <datalist id={modelListId}>
                 {(meta?.models ?? []).map((model) => (
                   <option key={model} value={model} />
                 ))}
@@ -208,12 +214,12 @@ export function AiSettingsCard({
             </div>
 
             <div className="studio-field studio-field--wide">
-              <Label htmlFor="ai-key" className="studio-field-label">
+              <Label htmlFor={keyFieldId} className="studio-field-label">
                 {meta?.needsBaseUrl ? 'API key (optional)' : 'API key'}
               </Label>
               <div className="flex gap-1.5">
                 <Input
-                  id="ai-key"
+                  id={keyFieldId}
                   type={showKey ? 'text' : 'password'}
                   autoComplete="off"
                   spellCheck={false}
@@ -236,11 +242,11 @@ export function AiSettingsCard({
 
             {meta?.needsBaseUrl ? (
               <div className="studio-field studio-field--wide">
-                <Label htmlFor="ai-baseurl" className="studio-field-label">
+                <Label htmlFor={baseUrlFieldId} className="studio-field-label">
                   Base URL
                 </Label>
                 <Input
-                  id="ai-baseurl"
+                  id={baseUrlFieldId}
                   value={config.baseUrl ?? ''}
                   placeholder="https://api.example.com/v1"
                   onChange={(event) => patchConfig({ baseUrl: event.target.value })}

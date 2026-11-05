@@ -15,7 +15,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
 import {
@@ -724,7 +723,10 @@ function TextControls({
   disabled?: boolean;
 }) {
   const [size, setSize] = useState(String(Math.round(object.fontSize)));
-  useEffect(() => setSize(String(Math.round(object.fontSize))), [object.fontSize]);
+  useEffect(
+    () => setSize(String(Math.round(object.fontSize))),
+    [object.fontSize, object.id],
+  );
   const commitSize = () => {
     const value = Number(size);
     if (Number.isFinite(value)) onPatch({ fontSize: Math.min(72, Math.max(4, value)) });
@@ -884,10 +886,16 @@ export const EditorPageRail = memo(function EditorPageRail({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMenu(null);
     };
+    // Move focus into the menu so the context action just opened from the
+    // keyboard is actually operable from the keyboard.
+    const frame = requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('.editor-page-menu')?.focus();
+    });
     window.addEventListener('pointerdown', close);
     window.addEventListener('blur', close);
     window.addEventListener('keydown', onKey);
     return () => {
+      cancelAnimationFrame(frame);
       window.removeEventListener('pointerdown', close);
       window.removeEventListener('blur', close);
       window.removeEventListener('keydown', onKey);
@@ -934,9 +942,8 @@ export const EditorPageRail = memo(function EditorPageRail({
                 onToggleSelected={onToggleSelected}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}
-                onContextMenu={(event, pageIndex) => {
-                  event.preventDefault();
-                  setMenu({ x: event.clientX, y: event.clientY, pageIndex });
+                onOpenActions={(pageIndex, x, y) => {
+                  setMenu({ x, y, pageIndex });
                 }}
               />
             ))}
@@ -947,6 +954,7 @@ export const EditorPageRail = memo(function EditorPageRail({
         <div
           className="editor-page-menu"
           role="menu"
+          tabIndex={-1}
           style={{ left: Math.min(menu.x, window.innerWidth - 176), top: Math.min(menu.y, window.innerHeight - 96) }}
           onPointerDown={(event) => event.stopPropagation()}
         >
@@ -1000,7 +1008,7 @@ function PageRailThumb({
   onToggleSelected,
   onDelete,
   onDuplicate,
-  onContextMenu,
+  onOpenActions,
 }: {
   item: PageRailItem;
   active: boolean;
@@ -1012,7 +1020,7 @@ function PageRailThumb({
   onToggleSelected: (pageIndex: number) => void;
   onDelete?: (pageIndexes: number[]) => void;
   onDuplicate?: (pageIndex: number) => void;
-  onContextMenu?: (event: ReactMouseEvent, pageIndex: number) => void;
+  onOpenActions?: (pageIndex: number, x: number, y: number) => void;
 }) {
   const sortable = useSortable({
     id: String(item.position),
@@ -1036,12 +1044,21 @@ function PageRailThumb({
       data-page-index={item.pageIndex}
       {...(reorderable ? sortable.attributes : {})}
       {...(reorderable ? sortable.listeners : {})}
-      onContextMenu={(event) => onContextMenu?.(event, item.pageIndex)}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onOpenActions?.(item.pageIndex, event.clientX, event.clientY);
+      }}
     >
       <button
         type="button"
         className="editor-page-thumb-hit"
         aria-label={`Page ${item.displayNumber}`}
+        onKeyDown={(event) => {
+          if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+          event.preventDefault();
+          const rect = event.currentTarget.getBoundingClientRect();
+          onOpenActions?.(item.pageIndex, rect.left, rect.bottom);
+        }}
         aria-current={active ? 'page' : undefined}
         onClick={(event) => {
           if (event.ctrlKey || event.metaKey || event.shiftKey) onToggleSelected(item.pageIndex);

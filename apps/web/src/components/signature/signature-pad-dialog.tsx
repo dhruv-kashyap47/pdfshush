@@ -177,6 +177,16 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
   const [assets, setAssets] = useState<SignatureAssetRecord[]>([]);
   /** Asset adopted from the strip: the preview shows its PNG, not the pad. */
   const [adopted, setAdopted] = useState<SignatureAssetRecord | null>(null);
+  const [adoptedUrl, setAdoptedUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!adopted) {
+      setAdoptedUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(adopted.png);
+    setAdoptedUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [adopted]);
 
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -562,12 +572,11 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
                 }}
                 data-testid={`signature-canvas-${tab}`}
               />
-              {adopted && (
+              {adopted && adoptedUrl && (
                 <img
-                  src={URL.createObjectURL(adopted.png)}
+                  src={adoptedUrl}
                   alt=""
                   className="pointer-events-none absolute inset-0 z-20 m-auto max-h-[85%] max-w-[80%] object-contain"
-                  onLoad={(event) => URL.revokeObjectURL(event.currentTarget.src)}
                 />
               )}
               {!adopted && tab === 'draw' && padEmpty && (

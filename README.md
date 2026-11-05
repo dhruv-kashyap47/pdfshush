@@ -26,7 +26,7 @@ the exact same job contract.
 | Accounts (P4) | ✅ Google sign-in; every tool stays anonymous-only when no Mongo/Google config is present |
 | AI (P5) | ✅ BYOK keys never leave the browser; 21 providers incl. **Groq** (permanently free tier) with a first-run onboarding overlay; the managed trial runs on OpenRouter free models and is off unless `AI_MANAGED_API_KEY` is set (model defaults to the strongest live `:free` id) |
 | E-sign / public API / MCP (P6) | ✅ Fill & Sign with a fail-closed audit sidecar; `/api/v1` with scoped keys; `@pdfshush/mcp` stdio server; P6.4 hardening (rotation drill, multipart sniff, base-URL smuggle class) |
-| P7 — hardening | ✅ Folded into **M5** (PLAN §31) and complete: adversarial torture suite (Q4), SEO prerender (M5.5), perf/a11y pass (M5.4/M5.6), verifiable locality, parity debt and release evidence (§31.21). The containerised API/hardening gates were not runnable in the dev environment and are recorded as such |
+| P7 — hardening | 🟡 Folded into **M5** (§31): SEO prerender (M5.5), perf/a11y (M5.4/M5.6) and a Q4 adversarial corpus shipped. P7.1's remaining edge fixtures (10k-page, broken fonts, linearized) and the containerised API/hardening gates are still open |
 | M6 — Monetization | 📋 Decision record in PLAN §33; not started |
 
 Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools show an honest
@@ -39,7 +39,7 @@ Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools s
 pnpm install
 pnpm dev              # web app: http://localhost:5173 (every client-side tool + BYOK AI)
 pnpm typecheck        # tsc across all workspace projects
-pnpm test             # vitest unit suites (1216 tests across six packages)
+pnpm test             # vitest unit suites (1 344 tests across six packages)
 pnpm build            # production web bundle
 ```
 
@@ -86,6 +86,12 @@ pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, sma
 pnpm test:e2e:bookmark-batch # stamp, repair, combine, bookmarks, batch ZIP, image editor (29 checks)
 pnpm test:e2e:forms-bookmarks # Create Forms + Create Bookmarks, downloaded bytes (49 checks)
 pnpm test:e2e:dark-mode    # Dark Mode PDF: live preview pixels, download (8 checks)
+pnpm test:e2e:offline      # production preview: manifest, CSP, service worker, offline merge (26 checks)
+pnpm test:e2e:reach        # prerendered content, sitemap, robots, OG cards (production preview)
+pnpm test:e2e:a11y         # axe WCAG 2.2 AA on the shell + tool routes (zero serious)
+pnpm test:e2e:keyboard     # keyboard-only path through tool classes and the editor
+pnpm test:e2e:verify       # the user-facing redaction verifier
+pnpm test:perf             # Q3/Q7 ceilings against a production build
 pnpm test:bundle       # every app chunk: no pdf-lib / pdf.js / pdfium, no Node built-ins
 pnpm test:api          # API integration suite (37 checks with PSH_SMOKE_MONGODB_URI; 21 without §6)
 pnpm test:hardening    # hardening gate: SIGKILL recovery, TTL sweep (19 checks, needs the stack)

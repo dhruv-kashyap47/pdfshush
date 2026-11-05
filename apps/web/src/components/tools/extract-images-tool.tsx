@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileImage, Images, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { timeoutForPageCount, type ImagesJobOutput } from '@pdfshush/pdf-core';
@@ -31,15 +31,23 @@ export function ExtractImagesTool() {
   const [files, setFiles] = useState<File[]>([]);
   const [ready, setReady] = useState(false);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const galleryRef = useRef<GalleryItem[]>([]);
   const runner = useJobRunner<ImagesJobOutput>('extract-images');
   const running = runner.state.status === 'running';
 
-  // The gallery owns object URLs; revoke them when it unmounts or refills.
+  const replaceGallery = (items: GalleryItem[]) => {
+    for (const item of galleryRef.current) URL.revokeObjectURL(item.url);
+    galleryRef.current = items;
+    setGallery(items);
+  };
+
+  // The gallery owns object URLs; revoke whatever is current at unmount. A ref
+  // is required here: an empty-deps effect closed over the initial empty array.
   useEffect(() => {
     return () => {
-      for (const item of gallery) URL.revokeObjectURL(item.url);
+      for (const item of galleryRef.current) URL.revokeObjectURL(item.url);
+      galleryRef.current = [];
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- revoke only on unmount; refills revoke in-place below
   }, []);
 
   const handleFiles = async (incoming: File[]) => {
@@ -75,8 +83,7 @@ export function ExtractImagesTool() {
       return;
     }
     // Fresh result: drop the previous URLs before replacing the gallery.
-    for (const item of gallery) URL.revokeObjectURL(item.url);
-    setGallery(
+    replaceGallery(
       outcome.result.files.map((image) => ({
         name: image.name,
         url: URL.createObjectURL(new Blob([image.data as BlobPart], { type: mimeFor(image.ext) })),
@@ -105,8 +112,7 @@ export function ExtractImagesTool() {
           downloadLabel="Download all (ZIP)"
           onDownload={() => downloadBytes(result.zip, result.zipName, 'application/zip')}
           onReset={() => {
-            for (const item of gallery) URL.revokeObjectURL(item.url);
-            setGallery([]);
+            replaceGallery([]);
             runner.reset();
             setFiles([]);
             setReady(false);

@@ -6,6 +6,7 @@
  */
 
 import { RECENT_STORE, pdfshushDb } from '@/lib/idb';
+import { syncHistoryEntry } from '@/lib/history-sync';
 
 export interface RecentEntry {
   id: string;
@@ -117,6 +118,8 @@ export function recordRecent(entry: Omit<RecentEntry, 'id' | 'createdAt'>): Prom
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error ?? new Error('Recent-history write aborted'));
       });
+      // The local row is committed first; the account copy is best-effort.
+      void syncHistoryEntry(record);
     } catch {
       // Storage is a convenience; never let it break the tool.
     } finally {

@@ -66,6 +66,8 @@ export function AiWelcomeOverlay({
   const panelRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const stepBodyRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const dismissTimerRef = useRef<number | null>(null);
 
   const groqMeta = AI_PROVIDERS.find((m) => m.id === 'groq');
 
@@ -108,12 +110,51 @@ export function AiWelcomeOverlay({
   }, [step, motion]);
 
   // Escape backs out like "Skip for now" — the overlay must never trap a user.
+  // It is modal, so it also owns initial focus, Tab containment and focus
+  // restoration; without that, Tab wandered into the page behind the backdrop.
   useEffect(() => {
+    restoreFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const focusables = () => {
+      const panel = panelRef.current;
+      if (!panel) return [] as HTMLElement[];
+      return Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+    };
+    (focusables()[0] ?? panelRef.current)?.focus();
+
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onDismiss();
+      if (event.key === 'Escape') {
+        onDismiss();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) {
+        event.preventDefault();
+        panelRef.current?.focus();
+        return;
+      }
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (dismissTimerRef.current !== null) clearTimeout(dismissTimerRef.current);
+      restoreFocusRef.current?.focus();
+    };
   }, [onDismiss]);
 
   /* ── Actions ──────────────────────────────────────────────────────────── */
@@ -150,7 +191,7 @@ export function AiWelcomeOverlay({
       },
     });
     // The badge pauses a beat so the pulse reads, then the parent unmounts us.
-    window.setTimeout(() => onDismiss(), 650);
+    dismissTimerRef.current = window.setTimeout(() => onDismiss(), 650);
   }, [groqMeta, key, onDismiss, onSave, settings]);
 
   const successPulse = useCallback(
@@ -168,7 +209,8 @@ export function AiWelcomeOverlay({
         role="dialog"
         aria-modal="true"
         aria-label="Getting started with AI"
-        className="studio-welcome relative w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+        tabIndex={-1}
+        className="studio-welcome relative w-full max-w-lg overflow-hidden rounded-xl border border-border bg-card shadow-xl outline-none"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border px-6 pb-5 pt-5">
           <div className="flex items-start gap-3">
@@ -206,7 +248,7 @@ export function AiWelcomeOverlay({
         </div>
         <p
           className="px-6 pt-2 text-[0.7rem] uppercase tracking-wide text-muted-foreground"
-          aria-hidden="true"
+          aria-live="polite"
         >
           Step {step} of {STEP_COUNT}
         </p>

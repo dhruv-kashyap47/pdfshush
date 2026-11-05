@@ -6,13 +6,6 @@ import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
 import { CropTool } from '@/components/tools/crop-tool';
 import { DarkModePdfTool } from '@/components/tools/dark-mode-pdf-tool';
 import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
-import {
-  EditPdfTool,
-  FillSignTool,
-  OrganizePdfTool,
-  RedactPdfTool,
-} from '@/components/tools/edit-pdf-tool';
-import { EditPdfWithAiTool } from '@/components/tools/edit-pdf-with-ai-tool';
 import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
 import { NUpTool } from '@/components/tools/n-up-tool';
@@ -90,6 +83,26 @@ const ROADMAP_URL =
  */
 const AiWorkspace = lazy(() =>
   import('@/components/ai/ai-workspace').then((module) => ({ default: module.AiWorkspace })),
+);
+
+/**
+ * The editor family is 100+ kB of canvas, selection and form machinery that a
+ * merge or a crop never touches. Keep it in its own chunk, loaded only by the
+ * slugs that actually open the editor.
+ */
+const loadEditor = () => import('@/components/tools/edit-pdf-tool');
+const EditPdfTool = lazy(() => loadEditor().then((module) => ({ default: module.EditPdfTool })));
+const FillSignTool = lazy(() => loadEditor().then((module) => ({ default: module.FillSignTool })));
+const OrganizePdfTool = lazy(() =>
+  loadEditor().then((module) => ({ default: module.OrganizePdfTool })),
+);
+const RedactPdfTool = lazy(() =>
+  loadEditor().then((module) => ({ default: module.RedactPdfTool })),
+);
+const EditPdfWithAiTool = lazy(() =>
+  import('@/components/tools/edit-pdf-with-ai-tool').then((module) => ({
+    default: module.EditPdfWithAiTool,
+  })),
 );
 
 const SUMMARIZE_PROMPT = [

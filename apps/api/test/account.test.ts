@@ -53,7 +53,24 @@ function matches(doc: Doc, filter: Record<string, unknown>): boolean {
 
 function applyUpdate(doc: Doc, update: Record<string, unknown>): void {
   const set = update.$set as Record<string, unknown> | undefined;
-  if (set) Object.assign(doc, set);
+  if (set) {
+    for (const [key, value] of Object.entries(set)) {
+      if (!key.includes('.')) {
+        doc[key] = value;
+        continue;
+      }
+      const parts = key.split('.');
+      let target: Record<string, unknown> = doc;
+      for (const part of parts.slice(0, -1)) {
+        const next = target[part];
+        if (!next || typeof next !== 'object' || Array.isArray(next)) {
+          target[part] = {};
+        }
+        target = target[part] as Record<string, unknown>;
+      }
+      target[parts.at(-1)!] = value;
+    }
+  }
   const onInsert = update.$setOnInsert as Record<string, unknown> | undefined;
   // `$setOnInsert` only applies when the row is being created, which the caller
   // handles; on an update it is a no-op, matching the driver.
@@ -297,6 +314,13 @@ describe('sign-in rate limiting', () => {
 /* --------------------------------------------------------------- tests ---- */
 
 describe('account routes: authorisation', () => {
+  it('advertises accounts as enabled when the auth layer is mounted', async () => {
+    const { call } = await harness();
+    const response = await call('/api/tools');
+    const payload = (await body<{ accounts: { enabled: boolean } }>(response));
+    expect(payload.accounts.enabled).toBe(true);
+  });
+
   it('refuses every account route without a session', async () => {
     const { url } = await harness();
     for (const [method, suffix] of [
@@ -420,10 +444,35 @@ describe('preferences', () => {
     });
   });
 
+  it('merges keys instead of replacing the stored settings document', async () => {
+    const { call } = await harness();
+    await call('/api/account/preferences', {
+      method: 'PUT',
+      body: JSON.stringify({ values: { theme: 'dark', defaultZoom: 1.5 } }),
+    });
+    const merged = await call('/api/account/preferences', {
+      method: 'PUT',
+      body: JSON.stringify({ values: { syncHistory: true } }),
+    });
+    expect((await body(merged)).preferences).toEqual({
+      theme: 'dark',
+      defaultZoom: 1.5,
+      syncHistory: true,
+    });
+  });
+
   it('rejects a malformed or oversized blob', async () => {
     const { call } = await harness();
     expect((await call('/api/account/preferences', { method: 'PUT', body: JSON.stringify({ values: 42 }) })).status).toBe(400);
     expect((await call('/api/account/preferences', { method: 'PUT', body: JSON.stringify(['x']) })).status).toBe(400);
+    expect(
+      (
+        await call('/api/account/preferences', {
+          method: 'PUT',
+          body: JSON.stringify({ values: { 'profile.name': 'Ada' } }),
+        })
+      ).status,
+    ).toBe(400);
     const huge = { values: { blob: 'x'.repeat(9_000) } };
     expect((await call('/api/account/preferences', { method: 'PUT', body: JSON.stringify(huge) })).status).toBe(413);
   });
@@ -457,6 +506,40 @@ describe('history', () => {
       body: JSON.stringify({ toolSlug: 'merge-pdf' }),
     });
     expect(response.status).toBe(400);
+  });
+
+  it('keeps the browser timestamp and treats a repeated client id as the same row', async () => {
+    const { call } = await harness();
+    const createdAt = Date.now() - 60_000;
+    const first = await call('/api/account/history', {
+      method: 'POST',
+      body: JSON.stringify({
+        toolSlug: 'merge-pdf',
+        toolName: 'Merge',
+        fileName: 'first.pdf',
+        createdAt,
+        clientId: 'row-123',
+      }),
+    });
+    expect(first.status).toBe(201);
+    const firstEntry = (await body<{ entry: { id: string; createdAt: number } }>(first)).entry;
+    expect(firstEntry.createdAt).toBe(createdAt);
+
+    const retry = await call('/api/account/history', {
+      method: 'POST',
+      body: JSON.stringify({
+        toolSlug: 'merge-pdf',
+        toolName: 'Merge',
+        fileName: 'different-name.pdf',
+        createdAt: createdAt + 5_000,
+        clientId: 'row-123',
+      }),
+    });
+    expect(retry.status).toBe(201);
+    const retryEntry = (await body<{ entry: { id: string; fileName: string; createdAt: number } }>(retry)).entry;
+    expect(retryEntry.id).toBe(firstEntry.id);
+    expect(retryEntry.fileName).toBe('first.pdf');
+    expect(retryEntry.createdAt).toBe(createdAt);
   });
 });
 

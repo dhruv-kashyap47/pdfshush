@@ -43,15 +43,15 @@ export function usePageThumbnails() {
   const [tiles, setTiles] = useState<PageTile[]>([]);
   const [preparing, setPreparing] = useState(false);
   const urlsRef = useRef<string[]>([]);
+  const mountedRef = useRef(true);
+  const cancelRef = useRef<() => void>(() => {});
 
   const inspectRunner = useJobRunner<InspectOutput>('inspect');
   const thumbsRunner = useJobRunner<ThumbnailsOutput>('thumbnails');
-
-  const revokeUrls = useCallback(() => {
-    for (const url of urlsRef.current) URL.revokeObjectURL(url);
-    urlsRef.current = [];
-  }, []);
-  useEffect(() => () => revokeUrls(), [revokeUrls]);
+  cancelRef.current = () => {
+    inspectRunner.cancel();
+    thumbsRunner.cancel();
+  };
 
   /**
    * Monotonic id for `prepare` calls. A grid tool can be re-entered while the
@@ -63,8 +63,26 @@ export function usePageThumbnails() {
    */
   const loadSequence = useRef(0);
 
-  /** True while this call is still the newest request. */
-  const isCurrent = (id: number) => id === loadSequence.current;
+  const revokeUrls = useCallback(() => {
+    for (const url of urlsRef.current) URL.revokeObjectURL(url);
+    urlsRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      // Navigating away must stop work that is already in flight, not just
+      // revoke the URLs that happened to exist at that instant. Without the id
+      // bump, the next await would create fresh blob URLs after unmount.
+      mountedRef.current = false;
+      loadSequence.current += 1;
+      cancelRef.current();
+      revokeUrls();
+    };
+  }, [revokeUrls]);
+
+  /** True while this call is still the newest request and the hook is mounted. */
+  const isCurrent = (id: number) => mountedRef.current && id === loadSequence.current;
 
   const prepare = useCallback(
     async (incoming: File[], options: PrepareOptions = {}): Promise<boolean> => {
@@ -83,7 +101,7 @@ export function usePageThumbnails() {
         largestFileBytes: largestBytes(incoming),
       });
       if (!byteVerdict.ok) {
-        if (isCurrent(request)) setPreparing(false);
+        setPreparing(false);
         toast.error(byteVerdict.message);
         return false;
       }
@@ -95,8 +113,14 @@ export function usePageThumbnails() {
       // pointing at dead blob URLs -- broken thumbnails with no explanation.
 
       // Inspect first: page count decides whether rendering previews is safe.
-      const inspected = await inspectRunner.run(await readAsInputFiles(incoming));
-      if (!isCurrent(request)) return false; // superseded mid-inspect
+      const inspectInput = await readAsInputFiles(incoming);
+      // Reading the File list is not abortable; re-check both the request id and
+      // the mount before starting a worker job after that gap.
+      if (!isCurrent(request)) return true;
+      const inspected = await inspectRunner.run(inspectInput);
+      // `false` means "this request failed"; a superseded request returns true
+      // so the newer call's caller does not clear the tool that is now loading.
+      if (!isCurrent(request)) return true;
       if (!inspected.ok) {
         setPreparing(false);
         if (!inspected.aborted) toast.error(inspected.message);
@@ -125,15 +149,17 @@ export function usePageThumbnails() {
 
       // Thumbnail width degradation for huge documents lives in the engine
       // (LIMITS.client.thumbnailDegradeAtPages) -- one source of truth.
+      const thumbnailInput = await readAsInputFiles(incoming);
+      if (!isCurrent(request)) return true;
       const outcome = await thumbsRunner.run(
-        await readAsInputFiles(incoming),
+        thumbnailInput,
         {
           ...(options.pageIndexes ? { pageIndexes: options.pageIndexes } : {}),
           ...(options.targetWidthPx ? { targetWidthPx: options.targetWidthPx } : {}),
         },
         { timeoutMs: timeoutForPageCount(Math.max(pageCount, 60)) },
       );
-      if (!isCurrent(request)) return false; // superseded mid-render
+      if (!isCurrent(request)) return true; // superseded mid-render
       setPreparing(false);
 
       if (!outcome.ok) {
@@ -158,6 +184,11 @@ export function usePageThumbnails() {
           });
         });
       });
+      // The unmount/clear path can win while the blob URLs are being built.
+      if (!isCurrent(request)) {
+        for (const url of created) URL.revokeObjectURL(url);
+        return true;
+      }
       // Swap only now: the fresh URLs exist, so the previous grid is replaced
       // rather than broken.
       revokeUrls();

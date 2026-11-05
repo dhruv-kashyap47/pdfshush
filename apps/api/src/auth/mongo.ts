@@ -94,6 +94,8 @@ export interface HistoryDoc {
   pageCount?: number;
   sizeBytes?: number;
   createdAt: number;
+  /** Browser row id, used to make imports/retries idempotent. */
+  clientId?: string;
 }
 
 export interface WorkflowDoc {

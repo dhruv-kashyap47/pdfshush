@@ -94,6 +94,8 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const [activePage, setActivePage] = useState(1);
   const [pageSizes, setPageSizes] = useState<{ width: number; height: number }[] | null>(null);
   const [cited, setCited] = useState<number[]>([]);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewNonce, setPreviewNonce] = useState(0);
 
   const [planVersion, setPlanVersion] = useState(0);
   const [applying, setApplying] = useState(false);
@@ -168,6 +170,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     setRefused(null);
     setPageSizes(null);
     setCited([]);
+    setPreviewError(null);
     setActivePage(1);
     setPlanVersion((version) => version + 1);
     setDocKey((key) => key + 1);
@@ -176,14 +179,19 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   useEffect(() => {
     if (!file) return;
     const runId = (runIdRef.current += 1);
-    const current = () => runIdRef.current === runId;
+    const controller = new AbortController();
+    const current = () => runIdRef.current === runId && !controller.signal.aborted;
     setExtracting(true);
     setExtractProgress(0);
     setError(null);
     const extract = variant === 'edit' ? extractEditDocument : extractDocumentText;
-    extract(file, (ratio) => {
-      if (current()) setExtractProgress(ratio);
-    })
+    extract(
+      file,
+      (ratio) => {
+        if (current()) setExtractProgress(ratio);
+      },
+      controller.signal,
+    )
       .then((next) => {
         if (!current()) return;
         setDoc(next);
@@ -195,6 +203,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
       .finally(() => {
         if (current()) setExtracting(false);
       });
+    return () => controller.abort();
   }, [file, variant]);
 
   // One legible render of the active page. `prepare` supersedes in flight work,
@@ -202,6 +211,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   useEffect(() => {
     if (!file) return;
     let alive = true;
+    setPreviewError(null);
     void prepareRef.current([file], {
       pageIndexes: [Math.max(0, activePage - 1)],
       targetWidthPx: PREVIEW_WIDTH_PX,
@@ -213,11 +223,17 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
         }));
         if (sizes.length > 0) setPageSizes(sizes);
       },
+    }).then((ok) => {
+      if (!alive || ok) return;
+      setPreviewError('This page could not be rendered. The document is still open.');
+    }).catch((cause: unknown) => {
+      if (!alive) return;
+      setPreviewError(cause instanceof Error ? cause.message : 'This page could not be rendered.');
     });
     return () => {
       alive = false;
     };
-  }, [file, activePage]);
+  }, [file, activePage, previewNonce]);
 
   const reset = useCallback(() => {
     resetPreview();
@@ -231,6 +247,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     setRefused(null);
     setPageSizes(null);
     setCited([]);
+    setPreviewError(null);
     setActivePage(1);
     setApplyStep(null);
     setApplying(false);
@@ -600,7 +617,9 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
               markers={markers}
               changedPages={changedPages}
               cited={cited}
-              loading={!previewTile}
+              loading={!previewTile && !previewError}
+              error={previewError}
+              onRetry={() => setPreviewNonce((value) => value + 1)}
             />
           </div>
 

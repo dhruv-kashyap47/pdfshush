@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
@@ -125,6 +126,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
   });
 
   const [hover, setHover] = useState<HoverState>({ blockId: null, paragraphId: null });
+  const [keyboardParagraphId, setKeyboardParagraphId] = useState<string | null>(null);
 
   const blockById = useMemo(
     () => new Map(layout.blocks.map((block) => [block.id, block])),
@@ -226,6 +228,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
   useEffect(() => {
     if (!active) {
       setHover({ blockId: null, paragraphId: null });
+      setKeyboardParagraphId(null);
       cancelPendingDoubleClick();
     }
   }, [active]);
@@ -313,12 +316,67 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
 
   function onPointerLeave() {
     if (dragRef.current) return;
+    // A hover frame can already be queued; clearing only the state lets that
+    // frame re-apply the outline after the pointer has left the layer.
+    pendingHover.current = null;
+    if (hoverFrame.current !== null) {
+      cancelAnimationFrame(hoverFrame.current);
+      hoverFrame.current = null;
+    }
     setHover((previous) =>
       previous.blockId === null && previous.paragraphId === null
         ? previous
         : { blockId: null, paragraphId: null },
     );
   }
+
+  /** Keyboard path: whole-paragraph selection and inline editing. */
+  const selectParagraph = (paragraphId: string) => {
+    const p = propsRef.current;
+    const paragraph = paragraphById.get(paragraphId);
+    if (!paragraph) return;
+    const blockId = paragraphToBlock.get(paragraph.id) ?? null;
+    p.onBlockSelect(blockId);
+    p.onSelectionChange(paragraphSelectionState(p.model, p.layout.index, paragraph.id));
+    setKeyboardParagraphId(paragraph.id);
+  };
+
+  const onTextLayerKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!active || editing) return;
+    const paragraphs = layout.paragraphs;
+    if (paragraphs.length === 0) return;
+    const current = keyboardParagraphId
+      ? paragraphs.findIndex((paragraph) => paragraph.id === keyboardParagraphId)
+      : -1;
+
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      setKeyboardParagraphId(null);
+      propsRef.current.onSelectionChange(null);
+      propsRef.current.onBlockSelect(null);
+      return;
+    }
+    if (event.key === 'Enter' && current >= 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      const paragraph = paragraphs[current];
+      if (paragraph) propsRef.current.onParagraphEdit(paragraph.id, null);
+      return;
+    }
+    if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'].includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    let next = current < 0 ? 0 : current;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = current + 1;
+    else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = current - 1;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = paragraphs.length - 1;
+    next = Math.max(0, Math.min(paragraphs.length - 1, next));
+    const paragraph = paragraphs[next];
+    if (paragraph) selectParagraph(paragraph.id);
+  };
 
   /* -------------------------------------------------------------- pointerdown */
 
@@ -516,10 +574,14 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
   return (
     <div
       ref={overlayRef}
-      className="absolute inset-0"
+      className="absolute inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
       style={{ pointerEvents: active ? 'auto' : 'none' }}
       data-testid="editor-text-layer"
       data-page-index={layout.index}
+      role="group"
+      tabIndex={active ? 0 : -1}
+      aria-label="Page text. Use arrow keys to move between paragraphs, Enter to edit the selected paragraph, and Escape to clear."
+      onKeyDown={onTextLayerKeyDown}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerLeave={onPointerLeave}

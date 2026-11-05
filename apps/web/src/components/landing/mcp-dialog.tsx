@@ -646,15 +646,14 @@ function DialogPanels({
           </div>
 
           {/* Tool picker: the chips are the tools, not decoration. */}
-          <div className="mt-4 flex flex-wrap gap-1.5" role="tablist" aria-label="MCP tools">
+          <div className="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="MCP tools">
             {cases.map((item) => {
               const selected = item.slug === active.slug;
               return (
                 <button
                   key={item.slug}
                   type="button"
-                  role="tab"
-                  aria-selected={selected}
+                  aria-pressed={selected}
                   data-mcp="chip"
                   onClick={() => onPick(item.slug)}
                   className={`rounded-md px-2.5 py-1.5 font-mono text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 ${

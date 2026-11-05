@@ -6,7 +6,7 @@
  * user away would be the one place it is treated as a problem.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, LogOut, ShieldAlert, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,6 +18,7 @@ import { ApiKeysPanel } from '@/components/account/api-keys';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/api';
 import { downloadBytes } from '@/lib/download';
+import { setHistorySyncEnabled } from '@/lib/history-sync';
 import { clearRecent, getRecent } from '@/tools/recent';
 import { getTool } from '@/tools/registry';
 import { timeAgo } from '@/lib/format';
@@ -38,16 +39,26 @@ interface JobRow {
 }
 
 export function AccountPage() {
-  const { account, loading, signIn, signOut } = useAuth();
+  const { account, loading, accountsEnabled, signIn, signOut } = useAuth();
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [syncHistory, setSyncHistory] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadSequence = useRef(0);
 
   const reload = useCallback(async () => {
+    const request = (loadSequence.current += 1);
+    const current = () => request === loadSequence.current;
+    setLoadError(null);
     if (!account) {
-      setHistory(await getRecent());
-      setJobs([]);
+      const local = await getRecent();
+      if (current()) {
+        setHistory(local);
+        setJobs([]);
+        setSyncHistory(false);
+        setHistorySyncEnabled(false);
+      }
       return;
     }
     try {
@@ -56,11 +67,15 @@ export function AccountPage() {
         api<{ history: HistoryRow[] }>('/api/account/history'),
         api<{ jobs: JobRow[] }>('/api/account/jobs'),
       ]);
-      setSyncHistory(Boolean(prefs?.preferences?.syncHistory));
+      if (!current()) return;
+      const syncing = Boolean(prefs?.preferences?.syncHistory);
+      setSyncHistory(syncing);
+      setHistorySyncEnabled(syncing);
       setHistory(remoteHistory?.history ?? []);
       setJobs(remoteJobs?.jobs ?? []);
     } catch {
-      toast.error('Could not load your account data.');
+      if (!current()) return;
+      setLoadError('Could not load your account data.');
     }
   }, [account]);
 
@@ -69,35 +84,77 @@ export function AccountPage() {
   }, [reload]);
 
   const toggleSync = async (next: boolean) => {
+    if (!account) return;
+    const previous = syncHistory;
     setSyncHistory(next);
     try {
       await api('/api/account/preferences', { method: 'PUT', body: { values: { syncHistory: next } } });
+      setHistorySyncEnabled(next);
       if (next) {
-        // One-way push of what this browser already has. Metadata only: a
-        // filename and a tool, never a document.
-        for (const entry of await getRecent()) {
-          await api('/api/account/history', {
-            method: 'POST',
-            body: {
-              toolSlug: entry.toolSlug,
-              toolName: entry.toolName,
-              fileName: entry.fileName,
-              ...(entry.pageCount !== undefined ? { pageCount: entry.pageCount } : {}),
-              ...(entry.sizeBytes !== undefined ? { sizeBytes: entry.sizeBytes } : {}),
-            },
-          }).catch(() => undefined);
+        // One-time import of what this browser already has. A marker prevents
+        // every off/on flip from re-posting the same rows to the server.
+        const importKey = `pdfshush.history-imported.${account.id}`;
+        let alreadyImported = false;
+        try {
+          alreadyImported = window.localStorage.getItem(importKey) === '1';
+        } catch {
+          // Storage unavailable: importing again is harmless, just noisy.
+        }
+        if (!alreadyImported) {
+          // One-way push of what this browser already has. Metadata only: a
+          // filename and a tool, never a document.
+          let importFailed = false;
+          for (const entry of await getRecent()) {
+            await api('/api/account/history', {
+              method: 'POST',
+              body: {
+                toolSlug: entry.toolSlug,
+                toolName: entry.toolName,
+                fileName: entry.fileName,
+                createdAt: entry.createdAt,
+                clientId: entry.id,
+                ...(entry.pageCount !== undefined ? { pageCount: entry.pageCount } : {}),
+                ...(entry.sizeBytes !== undefined ? { sizeBytes: entry.sizeBytes } : {}),
+              },
+            }).catch(() => {
+              importFailed = true;
+            });
+          }
+          if (!importFailed) {
+            try {
+              window.localStorage.setItem(importKey, '1');
+            } catch {
+              // The write-through path still works; only the import marker is lost.
+            }
+          }
         }
       }
       await reload();
       toast.success(next ? 'History sync on.' : 'History sync off.');
     } catch {
+      // The switch is optimistic; a failed PUT must not keep showing a value
+      // the server never stored.
+      setSyncHistory(previous);
+      setHistorySyncEnabled(previous);
       toast.error('Could not change that setting.');
     }
   };
 
   const exportData = async () => {
     try {
-      const payload = await api<Record<string, unknown>>('/api/account');
+      const [accountPayload, historyPayload, workflowsPayload, jobsPayload] = await Promise.all([
+        api<Record<string, unknown>>('/api/account'),
+        api<{ history: HistoryRow[] }>('/api/account/history'),
+        api<{ workflows: unknown[] }>('/api/account/workflows'),
+        api<{ jobs: JobRow[] }>('/api/account/jobs'),
+      ]);
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        ...accountPayload,
+        history: historyPayload?.history ?? [],
+        workflows: workflowsPayload?.workflows ?? [],
+        jobs: jobsPayload?.jobs ?? [],
+      };
       downloadBytes(
         new TextEncoder().encode(JSON.stringify(payload, null, 2)),
         'pdfshush-account.json',
@@ -126,7 +183,11 @@ export function AccountPage() {
   };
 
   if (loading) {
-    return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading…</div>;
+    return (
+      <div role="status" className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
   if (!account) {
@@ -135,14 +196,24 @@ export function AccountPage() {
         <h1 className="sr-only">Account</h1>
         <Card>
           <CardHeader>
-            <CardTitle>Accounts are optional</CardTitle>
+            <CardTitle>
+              {accountsEnabled ? 'Accounts are optional' : 'Accounts are not enabled here'}
+            </CardTitle>
             <CardDescription>
-              Every tool works without signing in. An account only adds saved workflows, history
-              that follows you between devices, and API keys for programmatic access.
+              {accountsEnabled
+                ? 'Every tool works without signing in. An account only adds saved workflows, history that follows you between devices, and API keys for programmatic access.'
+                : 'This deployment keeps every tool local and has no account system. Your history stays in this browser.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={signIn}>Sign in with Google</Button>
+            {accountsEnabled ? (
+              <Button onClick={signIn}>Sign in with Google</Button>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Accounts are not enabled on this deployment. Every tool still works, and history
+                stays in this browser.
+              </p>
+            )}
             <div>
               <p className="mb-2 text-sm font-medium">History on this device</p>
               {history.length === 0 ? (
@@ -171,6 +242,17 @@ export function AccountPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-12 sm:px-6">
       <h1 className="sr-only">Account</h1>
+      {loadError ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm"
+        >
+          <span>{loadError}</span>
+          <Button variant="outline" size="sm" onClick={() => void reload()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-3">

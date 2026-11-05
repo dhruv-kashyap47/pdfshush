@@ -173,6 +173,7 @@ export function AlternateMixTool() {
                   <button
                     key={slot}
                     type="button"
+                    aria-pressed={startWith === slot}
                     onClick={() => setStartWith(slot)}
                     className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                       startWith === slot

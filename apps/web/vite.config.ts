@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
-import { prerenderPlugin, prerenderedRoutesPlugin } from './build/prerender';
-import { buildCsp } from './src/lib/csp';
+import { prerenderPlugin, prerenderedRoutesPlugin } from './build/prerender.ts';
+import { buildCsp } from './src/lib/csp.ts';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 

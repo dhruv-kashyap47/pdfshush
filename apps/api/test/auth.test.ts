@@ -689,6 +689,21 @@ describe('auth routes', () => {
     expect(response.headers.getSetCookie?.() ?? []).toHaveLength(0);
   });
 
+  it('returns to the originating page after a cancelled sign-in', async () => {
+    const { url } = await harness({ withAuth: true });
+    const start = await fetch(url('/api/auth/google/start?returnTo=/tools/edit-pdf'), {
+      redirect: 'manual',
+    });
+    const state = new URL(start.headers.get('location') as string).searchParams.get('state');
+    const response = await fetch(
+      url(`/api/auth/callback?error=access_denied&state=${state as string}`),
+      { redirect: 'manual' },
+    );
+    expect(response.headers.get('location')).toBe(
+      'http://localhost:5173/tools/edit-pdf?auth=error&reason=cancelled',
+    );
+  });
+
   it('ignores a callback with no code or state', async () => {
     const { url } = await harness({ withAuth: true });
     const response = await fetch(url('/api/auth/callback'), { redirect: 'manual' });
@@ -699,14 +714,16 @@ describe('auth routes', () => {
 
   it('does not leak whether credentials are misconfigured', async () => {
     const { url } = await harness({ withAuth: true });
-    const start = await fetch(url('/api/auth/google/start'), { redirect: 'manual' });
+    const start = await fetch(url('/api/auth/google/start?returnTo=/tools/merge'), {
+      redirect: 'manual',
+    });
     const state = new URL(start.headers.get('location') as string).searchParams.get('state');
     // Force the exchange to fail (the stub only accepts `good-code`).
     const response = await fetch(url(`/api/auth/callback?code=bad-code&state=${state as string}`), {
       redirect: 'manual',
     });
     expect(response.headers.get('location')).toBe(
-      'http://localhost:5173/?auth=error&reason=signin_failed',
+      'http://localhost:5173/tools/merge?auth=error&reason=signin_failed',
     );
   });
 });

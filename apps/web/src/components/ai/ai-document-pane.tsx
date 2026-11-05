@@ -52,6 +52,9 @@ interface AiDocumentPaneProps {
   cited?: number[];
   /** A page render is in flight. */
   loading?: boolean;
+  /** The page render failed; show a retry instead of a permanent skeleton. */
+  error?: string | null;
+  onRetry?(): void;
 }
 
 const TONE: Record<OverlayMarker['tone'], string> = {
@@ -74,6 +77,8 @@ export function AiDocumentPane({
   changedPages = [],
   cited = [],
   loading = false,
+  error = null,
+  onRetry,
 }: AiDocumentPaneProps) {
   const motion = useMotionScope();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -293,6 +298,8 @@ export function AiDocumentPane({
                     draggable={false}
                     className="studio-paper-image"
                   />
+                ) : error ? (
+                  <PageRenderError message={error} onRetry={onRetry} />
                 ) : (
                   <PageSkeleton page={page} loading={loading} />
                 )}
@@ -356,6 +363,27 @@ export function AiDocumentPane({
           </div>
         </div>
     </section>
+  );
+}
+
+/** The failed-render state: keep the sheet, explain, and offer one retry. */
+function PageRenderError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: (() => void) | undefined;
+}) {
+  return (
+    <div className="studio-skeleton" role="alert">
+      <p className="mt-10 text-sm font-medium text-foreground">This page could not be rendered.</p>
+      <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+      {onRetry ? (
+        <button type="button" onClick={onRetry} className="studio-text-link mt-4">
+          Try again
+        </button>
+      ) : null}
+    </div>
   );
 }
 

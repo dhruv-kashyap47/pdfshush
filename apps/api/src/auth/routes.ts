@@ -93,27 +93,35 @@ export function registerAuthRoutes(app: Express, deps: AuthRoutesDeps): void {
 
   /** Google redirects here. This is the URL registered in Cloud Console. */
   app.get('/api/auth/callback', async (request: Request, response: Response) => {
-    const fail = (reason: string) => {
-      const url = new URL(deps.webOrigin);
+    if (!ready(response)) return;
+    const deps2 = deps as Required<Pick<AuthRoutesDeps, 'store' | 'oidc'>> & AuthRoutesDeps;
+
+    const state = typeof request.query.state === 'string' ? request.query.state : '';
+    const takeTransaction = async () => {
+      if (!state) return undefined;
+      return deps2.store.takeTransaction(state).catch((error: unknown) => {
+        deps.logger.error({ error: String(error) }, 'could not read the auth transaction');
+        return undefined;
+      });
+    };
+    const fail = (reason: string, returnTo = '/') => {
+      const url = new URL(safeReturnTo(returnTo), deps.webOrigin);
       url.searchParams.set('auth', 'error');
       url.searchParams.set('reason', reason);
       response.redirect(302, url.toString());
     };
 
-    if (!ready(response)) return;
-    const deps2 = deps as Required<Pick<AuthRoutesDeps, 'store' | 'oidc'>> & AuthRoutesDeps;
+    // Taking it consumes it, so a cancelled or failed callback cannot be
+    // replayed. Its stored return path is still the best destination: a failed
+    // sign-in from /tools/edit-pdf should not dump the user on the homepage.
+    const transaction = await takeTransaction();
 
-    if (typeof request.query.error === 'string') return fail('cancelled');
+    if (typeof request.query.error === 'string') {
+      return fail('cancelled', transaction?.returnTo ?? '/');
+    }
 
     const code = typeof request.query.code === 'string' ? request.query.code : '';
-    const state = typeof request.query.state === 'string' ? request.query.state : '';
-    if (!code || !state) return fail('invalid_request');
-
-    // Single-use: taking it consumes it, so a replayed callback finds nothing.
-    const transaction = await deps2.store.takeTransaction(state).catch((error: unknown) => {
-      deps.logger.error({ error: String(error) }, 'could not read the auth transaction');
-      return undefined;
-    });
+    if (!code || !state) return fail('invalid_request', transaction?.returnTo ?? '/');
     if (!transaction) return fail('expired');
 
     let profile;
@@ -128,7 +136,7 @@ export function registerAuthRoutes(app: Express, deps: AuthRoutesDeps): void {
       // cannot be turned into an oracle about our configuration.
       const reason = error instanceof GoogleOidcError ? error.code : 'unexpected';
       deps.logger.warn({ reason, error: String(error) }, 'sign-in failed');
-      return fail('signin_failed');
+      return fail('signin_failed', transaction.returnTo);
     }
 
     const account = await deps2.store.upsertAccount(profile);

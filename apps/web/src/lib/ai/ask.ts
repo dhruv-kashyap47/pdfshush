@@ -45,7 +45,9 @@ export const managedAsk: AiAsk = async (system, user, signal) => {
       { onDelta: (text) => { content += text; } },
       signal,
     );
-    return { ok: true, content };
+    const trimmed = content.trim();
+    if (!trimmed) return { ok: false, error: 'The model returned no text.' };
+    return { ok: true, content: trimmed };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, error: redactSecrets(message) };

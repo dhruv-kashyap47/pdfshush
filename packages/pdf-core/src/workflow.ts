@@ -48,9 +48,10 @@ export interface Workflow {
  * Jobs whose output can feed another step.
  *
  * A later step may only consume an earlier one's *document* output. `inspect`,
- * `text-runs` and `thumbnails` answer questions about a document; `pdf-to-images`
- * produces pictures. None of them can be handed to a PDF tool as though it were
- * a PDF, so chaining from one is rejected up front instead of failing mid-run.
+ * `text-runs` and `thumbnails` answer questions about a document;
+ * `pdf-to-images` produces pictures, and `split-by-pages` produces a ZIP. None
+ * of them can be handed to a PDF tool as though it were a PDF, so chaining from
+ * one is rejected up front instead of failing mid-run.
  *
  * The final step of a recipe may be any job — analysis and conversion are
  * perfectly good things to *end* on, they just cannot be built upon.
@@ -59,7 +60,6 @@ export const WORKFLOW_OUTPUT_JOBS: ReadonlySet<string> = new Set([
   'edit',
   'merge',
   'organize',
-  'split-by-pages',
   'split-in-half',
   'stamp',
   'n-up',

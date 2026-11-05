@@ -71,6 +71,8 @@ export function DarkModePdfTool() {
   const urlRef = useRef<string | null>(null);
   /** Pristine page-1 pixels; every transform repaints from this copy. */
   const sourcePixelsRef = useRef<ImageData | null>(null);
+  /** Latest file-load request; older inspect/preview results are discarded. */
+  const loadIdRef = useRef(0);
 
   const running =
     inspectRunner.state.status === 'running' ||
@@ -87,6 +89,18 @@ export function DarkModePdfTool() {
   }, []);
 
   useEffect(() => () => resetPreview(), [resetPreview]);
+
+  // A file-load sequence can outlive the page. Bump the request id, stop both
+  // workers and revoke the preview URL; the awaits below re-check the id before
+  // installing anything into state or creating another object URL.
+  useEffect(
+    () => () => {
+      loadIdRef.current += 1;
+      inspectRunner.cancel();
+      previewRunner.cancel();
+    },
+    [inspectRunner.cancel, previewRunner.cancel],
+  );
 
   /** Paints the visible canvas from pristine pixels + the current settings. */
   const paint = useCallback((desired: { kind: DarkModeKind; themeId: DarkModeThemeId }) => {
@@ -124,7 +138,11 @@ export function DarkModePdfTool() {
   }, [kind, themeId, previewReady, paint]);
 
   const handleFiles = async (incoming: File[]) => {
+    const request = (loadIdRef.current += 1);
+    const current = () => loadIdRef.current === request;
     if (incoming.length === 0) {
+      inspectRunner.cancel();
+      previewRunner.cancel();
       setFile(null);
       setInspect(null);
       resetPreview();
@@ -141,13 +159,17 @@ export function DarkModePdfTool() {
       return;
     }
     announceCapacityWarning(verdict);
+    inspectRunner.cancel();
+    previewRunner.cancel();
     setFile(candidate);
     setInspect(null);
     resetPreview();
 
     const inspected = await inspectRunner.run(await readAsInputFiles([candidate]));
+    if (!current()) return;
     if (!inspected.ok) {
       if (!inspected.aborted) toast.error(inspected.message);
+      setFile(null);
       return;
     }
     const doc = inspected.result.documents[0];
@@ -169,6 +191,7 @@ export function DarkModePdfTool() {
       { pageIndexes: [0], targetWidthPx: 1000 },
       { timeoutMs: timeoutForPageCount(Math.max(doc.pageCount, 60)) },
     );
+    if (!current()) return;
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -181,10 +204,19 @@ export function DarkModePdfTool() {
     const bytes = new Uint8Array(thumb.data.slice(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: thumb.mimeType }));
     const bitmap = await createImageBitmap(new Blob([bytes], { type: thumb.mimeType }));
+    if (!current()) {
+      URL.revokeObjectURL(url);
+      bitmap.close();
+      return;
+    }
 
     const stage = new OffscreenCanvas(bitmap.width, bitmap.height);
     const stageContext = stage.getContext('2d', { willReadFrequently: true });
-    if (!stageContext) return;
+    if (!stageContext) {
+      URL.revokeObjectURL(url);
+      bitmap.close();
+      return;
+    }
     stageContext.drawImage(bitmap, 0, 0);
     const pristine = stageContext.getImageData(0, 0, bitmap.width, bitmap.height);
     bitmap.close();

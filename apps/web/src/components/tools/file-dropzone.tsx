@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { FilePlus2, Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { PDF_ACCEPT, isPdfLike, shortName } from '@/lib/files';
 import { formatBytes } from '@/lib/format';
@@ -56,12 +57,15 @@ export function FileDropzone({
     const all = Array.from(incoming);
     const picked = all.filter(isAccepted);
     const rejected = all.length - picked.length;
-    if (rejected > 0) {
-      // Non-matching files are silently dropped rather than hard-failed:
-      // drag-drop often grabs a sibling file by accident.
+    if (picked.length === 0) {
+      if (rejected > 0) toast.error(`Choose ${kind} files only.`);
       return;
     }
-    if (picked.length === 0) return;
+    if (rejected > 0) {
+      toast.error(
+        `${rejected} file${rejected === 1 ? ' was' : 's were'} ignored: this tool accepts only ${kind} files.`,
+      );
+    }
     onFiles(multiple ? [...files, ...picked] : [picked[0]!]);
   };
 
@@ -72,6 +76,7 @@ export function FileDropzone({
         type="file"
         accept={accept ?? PDF_ACCEPT}
         multiple={multiple}
+        aria-label={`Choose ${kind} files`}
         className="hidden"
         onChange={(event) => {
           acceptFiles(event.target.files);

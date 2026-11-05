@@ -592,7 +592,14 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       <div
         ref={containerRef}
         className="relative select-none overflow-hidden border bg-white touch-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        style={{ width: displayW, height: displayH, cursor: tool === 'select' ? 'default' : 'crosshair' }}
+        style={{
+          width: displayW,
+          height: displayH,
+          cursor: tool === 'select' ? 'default' : 'crosshair',
+          // Read/select mode must not trap vertical scrolling on phones. A
+          // drawing tool owns the gesture, so it keeps touch-none.
+          touchAction: tool === 'select' ? 'pan-y' : 'none',
+        }}
         onPointerDown={onPagePointerDown}
         tabIndex={0}
         role="group"
@@ -738,6 +745,9 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             onAutoHeight={props.onAutoHeight}
             onEndEdit={props.onEndEdit}
             startGesture={startGesture}
+            onBeginTx={props.onBeginTx}
+            onResizeLive={props.onResizeLive}
+            onEndTx={props.onEndTx}
           />
         ))}
 
@@ -778,6 +788,9 @@ interface ObjectViewProps {
   onAutoHeight?: (id: string, height: number) => void;
   onEndEdit: () => void;
   startGesture: (gesture: Gesture) => void;
+  onBeginTx: () => void;
+  onResizeLive: (id: string, rect: Rect) => void;
+  onEndTx: () => void;
 }
 
 function ObjectView({
@@ -793,6 +806,9 @@ function ObjectView({
   onAutoHeight,
   onEndEdit,
   startGesture,
+  onBeginTx,
+  onResizeLive,
+  onEndTx,
 }: ObjectViewProps) {
   const box: CSSProperties = {
     left: object.x * zoom,
@@ -838,7 +854,9 @@ function ObjectView({
   }, [editing]);
   const textKey = object.kind === 'text' ? object.text : '';
   const textFontSize = object.kind === 'text' ? object.fontSize : 0;
+  const textFontFamily = object.kind === 'text' ? (object.fontFamily ?? 'helvetica') : '';
   const textBold = object.kind === 'text' ? Boolean(object.bold) : false;
+  const textItalic = object.kind === 'text' ? Boolean(object.italic) : false;
   useEffect(() => {
     if (object.kind !== 'text' || editing || !onAutoHeight) return;
     const height = measureTextHeight(object, object.text);
@@ -846,7 +864,18 @@ function ObjectView({
     // object.height is deliberately not a dependency: it is the value we set,
     // and including it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [textKey, textFontSize, textBold, object.width, object.kind, object.id, editing, onAutoHeight]);
+  }, [
+    textKey,
+    textFontSize,
+    textFontFamily,
+    textBold,
+    textItalic,
+    object.width,
+    object.kind,
+    object.id,
+    editing,
+    onAutoHeight,
+  ]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!interactive || editing) return;
@@ -907,10 +936,10 @@ function ObjectView({
       {renderBody()}
       {selected && interactive ? (
         <>
-          <ResizeHandle corner="nw" cursor="nwse-resize" object={object} startGesture={startGesture} />
-          <ResizeHandle corner="ne" cursor="nesw-resize" object={object} startGesture={startGesture} />
-          <ResizeHandle corner="sw" cursor="nesw-resize" object={object} startGesture={startGesture} />
-          <ResizeHandle corner="se" cursor="nwse-resize" object={object} startGesture={startGesture} />
+          <ResizeHandle corner="nw" cursor="nwse-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
+          <ResizeHandle corner="ne" cursor="nesw-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
+          <ResizeHandle corner="sw" cursor="nesw-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
+          <ResizeHandle corner="se" cursor="nwse-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
         </>
       ) : null}
     </div>
@@ -924,6 +953,7 @@ function ObjectView({
             <textarea
               value={object.text}
               spellCheck={false}
+              aria-label="Edit text"
               data-testid="editor-text-input"
               className="absolute inset-0 resize-none overflow-hidden rounded-[2px] border border-blue-500/70 bg-white/96 text-left outline-none transition-shadow focus:border-blue-600 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.18)]"
               style={{
@@ -1065,11 +1095,17 @@ function ResizeHandle({
   cursor,
   object,
   startGesture,
+  onBeginTx,
+  onResizeLive,
+  onEndTx,
 }: {
   corner: 'nw' | 'ne' | 'sw' | 'se';
   cursor: string;
   object: EditorObject;
   startGesture: (gesture: Gesture) => void;
+  onBeginTx: () => void;
+  onResizeLive: (id: string, rect: Rect) => void;
+  onEndTx: () => void;
 }) {
   const positions: Record<string, CSSProperties> = {
     // Sit just outside the selection box so handles do not cover the first or
@@ -1079,11 +1115,43 @@ function ResizeHandle({
     sw: { left: -3, top: 'calc(100% + 3px)' },
     se: { left: 'calc(100% + 3px)', top: 'calc(100% + 3px)' },
   };
+
+  const keyboardResize = (dx: number, dy: number) => {
+    let { x, y, width, height } = object;
+    if (corner.includes('e')) width = Math.max(MIN_SIZE, width + dx);
+    if (corner.includes('w')) {
+      const next = Math.max(MIN_SIZE, width - dx);
+      x += width - next;
+      width = next;
+    }
+    if (corner.includes('s')) height = Math.max(MIN_SIZE, height + dy);
+    if (corner.includes('n')) {
+      const next = Math.max(MIN_SIZE, height - dy);
+      y += height - next;
+      height = next;
+    }
+    onBeginTx();
+    onResizeLive(object.id, { x, y, width, height });
+    onEndTx();
+  };
+
   return (
     <div
-      className="absolute z-10 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border-[1.5px] border-blue-600 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.35)] transition-transform hover:scale-110"
+      className="absolute z-10 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border-[1.5px] border-blue-600 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.35)] transition-transform hover:scale-110 focus-visible:scale-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
       style={{ ...positions[corner], cursor }}
       data-testid={`editor-handle-${corner}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Resize from the ${corner} corner. Use arrow keys; hold Shift for a larger step.`}
+      onKeyDown={(event) => {
+        if (!event.key.startsWith('Arrow')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const step = event.shiftKey ? 10 : 1;
+        const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0;
+        const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0;
+        keyboardResize(dx, dy);
+      }}
       onPointerDown={(event) => {
         event.stopPropagation();
         startGesture({
@@ -1139,6 +1207,11 @@ function FormWidget({
           name={widget.type === 'radio' ? widget.name : undefined}
           disabled={!interactive}
           checked={widget.type === 'radio' ? value === widget.option : Boolean(value)}
+          aria-label={
+            widget.type === 'radio' && widget.option
+              ? `${widget.label ?? widget.name}: ${widget.option}`
+              : (widget.label ?? widget.name)
+          }
           onChange={(event) =>
             widget.type === 'radio'
               ? onChange(widget.name, widget.option ?? event.target.value)
@@ -1159,6 +1232,7 @@ function FormWidget({
         value={typeof value === 'string' ? value : ''}
         onPointerDown={stop}
         onChange={(event) => onChange(widget.name, event.target.value)}
+        aria-label={widget.label ?? widget.name}
         data-testid="editor-form-select"
       >
         <option value="">Select an option</option>

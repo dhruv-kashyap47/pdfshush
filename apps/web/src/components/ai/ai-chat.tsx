@@ -247,12 +247,17 @@ export function AiChat({
           lastCum = '';
           updateAssistant((message) => {
             let text = message.text || settledRef.current || result.text;
-            if (result.cancelled) text = text || 'Stopped.';
-            if (result.truncated) text = `${text}\n\n_(Response cut off by the output limit.)_`;
+            if (result.cancelled && !result.turnLimit) text = text || 'Stopped.';
+            const notes: string[] = [];
+            if (result.truncated) notes.push('Response cut off by the output limit.');
+            if (result.turnLimit) {
+              notes.push('Stopped at the turn limit; ask a narrower follow-up to continue.');
+            }
+            if (notes.length > 0) text = [text, ...notes].filter(Boolean).join('\n\n');
             return { ...message, text, error: false };
           });
           const pages = citedPages(fullTextRef.current || result.text);
-          if (pages.length > 0) citedRef.current?.(pages);
+          citedRef.current?.(pages);
         },
         onError(error) {
           setBusy(false);
@@ -405,13 +410,23 @@ export function AiChat({
         <span
           className={cn('studio-live', busy ? 'is-busy' : 'is-quiet')}
           title={busy ? 'The assistant is working' : 'The assistant is idle'}
+          role="status"
+          aria-live="polite"
         >
           <span className="studio-live-dot" aria-hidden />
           {busy ? 'Working' : 'Ready'}
         </span>
       </header>
 
-      <div ref={scrollRef} onScroll={onScroll} className="studio-thread">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="studio-thread"
+        role="log"
+        aria-label="Assistant conversation"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
         {messages.length === 0 ? (
           <div className="studio-empty">
             <p data-motion-id="welcome:lead" className="studio-empty-lead">
@@ -543,6 +558,7 @@ export function AiChat({
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 send(input);

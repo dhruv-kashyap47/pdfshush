@@ -29,6 +29,11 @@ function readCookie(name: string): string {
   return match?.[1] ? decodeURIComponent(match[1]) : '';
 }
 
+/** The double-submit token for callers that build their own request (AI SSE). */
+export function csrfToken(): string {
+  return readCookie(CSRF_COOKIE);
+}
+
 export interface ApiOptions {
   method?: string;
   body?: unknown;
@@ -71,10 +76,16 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
     let message = `Request failed (${response.status})`;
     let details: unknown;
     try {
-      const payload = (await response.json()) as { error?: string; code?: string; issues?: unknown };
+      const payload = (await response.json()) as {
+        error?: string;
+        code?: string;
+        issues?: unknown;
+        details?: unknown;
+      };
       if (payload.error) message = payload.error;
       if (payload.code) code = payload.code;
       if (payload.issues) details = payload.issues;
+      else if (payload.details) details = payload.details;
     } catch {
       // Non-JSON error body: keep the generic message rather than throwing.
     }
@@ -82,5 +93,16 @@ export async function api<T = unknown>(path: string, options: ApiOptions = {}): 
   }
 
   const text = await response.text();
-  return text ? (JSON.parse(text) as T) : undefined;
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // A proxy's HTML error page or a truncated body must still enter the app's
+    // typed error path, not escape as a raw SyntaxError.
+    throw new ApiError(
+      response.status,
+      'invalid_response',
+      'The server returned a response this app could not read.',
+    );
+  }
 }

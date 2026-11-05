@@ -2279,31 +2279,39 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         fitWidth();
         return;
       }
-      if (event.key === 'PageDown' || event.key === 'PageUp') {
-        event.preventDefault();
-        goToPage(currentPage + (event.key === 'PageDown' ? 1 : -1));
-        return;
-      }
-      if (mod && key === 'd' && !typing) {
-        event.preventDefault();
-        transformSelected('duplicate');
-        return;
-      }
       if (event.key === 'Escape') {
         if (paragraphEditRef.current) {
           cancelParagraphEdit();
           return;
         }
+        // Escape closes the object text editor even though focus is in its
+        // textarea. Other form fields and the AI composer keep their own Escape.
+        if (editingId) {
+          endEdit();
+          return;
+        }
+        if (typing) return;
         if (textSelectionRef.current) {
           setTextSelection(null);
           setSelectedTextBlock(null);
           return;
         }
-        if (editingId) endEdit();
-        else setSelectedId(null);
+        setSelectedId(null);
         return;
       }
+      // Everything below acts on the document. While a form field, composer or
+      // inline text editor has focus, its own keyboard handling owns the keys.
       if (typing) return;
+      if (event.key === 'PageDown' || event.key === 'PageUp') {
+        event.preventDefault();
+        goToPage(currentPage + (event.key === 'PageDown' ? 1 : -1));
+        return;
+      }
+      if (mod && key === 'd') {
+        event.preventDefault();
+        transformSelected('duplicate');
+        return;
+      }
       // Structured text selection: clipboard operations act on the extracted
       // text, not on the overlay objects. Editing a paragraph uses native
       // textarea clipboard handling above.
@@ -2383,7 +2391,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     const hasWork =
       editor.doc.objects.length > 0 ||
       Object.keys(editor.doc.formValues).length > 0 ||
-      paragraphEdit !== null;
+      paragraphEdit !== null ||
+      (stage === 'editing' && pageOrderDirty);
     if (!hasWork || editor.doc === savedDocRef.current) return;
     const handler = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -2391,7 +2400,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [stage, editor.doc, paragraphEdit]);
+  }, [stage, editor.doc, editor.pageOrderDirty, paragraphEdit, pageOrderDirty]);
 
   /* -------------------------------------------------------------- views */
 

@@ -96,9 +96,13 @@ export function useJobRunner<T>(slug: string) {
 
   const cancel = useCallback(() => {
     // A cancel is a user action on the *current* run, so it retires that run's
-    // id: its eventual abort handler must not write state either.
+    // id: its eventual abort handler must not write state either. The idle write
+    // happens here, because the retired run's handler is deliberately ignored --
+    // otherwise every Cancel left the progress panel and disabled form stuck.
     runIdRef.current += 1;
     controllerRef.current?.abort();
+    controllerRef.current = null;
+    if (mountedRef.current) setState({ status: 'idle' });
   }, []);
 
   const reset = useCallback(() => {

@@ -78,6 +78,7 @@ export function WatermarkTool() {
   const handleFiles = async (incoming: File[]) => {
     if (incoming.length === 0) {
       setImage(null);
+      reset();
       return;
     }
     const verdict = checkClientCapacity({

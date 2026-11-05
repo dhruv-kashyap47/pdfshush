@@ -20,6 +20,7 @@ import type {
   AgentToolDef,
   AgentTransport,
 } from '@pdfshush/ai-agent';
+import { csrfToken } from '@/lib/api';
 
 const ENDPOINT = '/api/ai/chat';
 const STATUS_ENDPOINT = '/api/tools';
@@ -32,10 +33,16 @@ export function managedAvailable(): Promise<boolean> {
   probe ??= (async () => {
     try {
       const response = await fetch(STATUS_ENDPOINT, { credentials: 'same-origin' });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        // A transient outage must not disable the trial for the whole session;
+        // the next mount may retry.
+        probe = null;
+        return false;
+      }
       const data = (await response.json()) as { ai?: { enabled?: boolean } };
       return Boolean(data.ai?.enabled);
     } catch {
+      probe = null;
       return false;
     }
   })();
@@ -49,8 +56,8 @@ export function resetManagedProbe(): void {
 
 /** The double-submit CSRF token, when the SPA has one (the API does not require it, but echoes the convention). */
 function csrfHeader(): Record<string, string> {
-  const match = document.cookie.match(/(?:^|; )pdfshush_csrf=([^;]*)/);
-  return match?.[1] ? { 'x-csrf-token': decodeURIComponent(match[1]) } : {};
+  const token = csrfToken();
+  return token ? { 'x-csrf-token': token } : {};
 }
 
 export interface ManagedHandlers {
