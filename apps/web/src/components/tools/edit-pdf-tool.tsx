@@ -76,12 +76,20 @@ import { AiCover } from '@/components/ai/ai-cover';
 import { AiExport } from '@/components/ai/ai-export';
 import { AI_EDIT_COPY } from '@/components/ai/tool-copy';
 import { AiSettingsCard } from '@/components/ai/ai-settings-card';
+import { AiSetupSection } from '@/components/ai/ai-setup-section';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { AiSettings } from '@pdfshush/ai-provider/browser';
 import { proposeSensitiveRegions } from '@/lib/ai/redaction-propose';
 import { managedAsk } from '@/lib/ai/ask';
 import { managedAvailable } from '@/lib/ai/managed';
-import { aiReady, loadAiSettings, loadAiState, saveAiSettings } from '@/lib/ai/settings';
+import {
+  aiReady,
+  clearAiSettings,
+  loadAiSettings,
+  loadAiState,
+  saveAiSettings,
+  storedKeyPresent,
+} from '@/lib/ai/settings';
 import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
 import { EditorInspector } from '@/components/editor/editor-inspector';
 import { ExportReceipt } from '@/components/editor/export-receipt';
@@ -1821,6 +1829,23 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     redactAiMode === 'managed' && redactAiManaged ? 'managed' : 'byok';
   const redactAiUsable =
     effectiveRedactAiMode === 'managed' ? true : aiReady(redactAiSettings);
+
+  // The frontispiece's connect-a-model card writes the same connection record
+  // the assistant and the redaction assist read, so one saved key serves all
+  // three surfaces.
+  const saveCoverAiSettings = (next: AiSettings) => {
+    setRedactAiSettings(saveAiSettings(next));
+  };
+  const changeCoverAiMode = (next: AiMode) => {
+    setRedactAiMode(next);
+    saveAiMode(next);
+  };
+  const forgetCoverAiKey = () => {
+    void clearAiSettings().then((next) => {
+      setRedactAiSettings(next);
+      toast.success('Key removed', { description: 'The stored key was erased from this browser.' });
+    });
+  };
 
   /**
    * AI-assisted redaction keeps the old contract: the model only proposes
@@ -3680,15 +3705,27 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       {stage !== 'editing' && (
         mode === 'ai' ? (
           <div className="studio editor-ai-cover-shell" data-testid="editor-ai-cover">
-            <AiCover
-              title={AI_EDIT_COPY.title}
-              lead={AI_EDIT_COPY.lead}
-              quote={AI_EDIT_COPY.quote}
-              marginTitle={AI_EDIT_COPY.marginTitle}
-              marks={AI_EDIT_COPY.marks}
-              onFiles={(next) => void handleFiles(next)}
-              note={AI_EDIT_COPY.note}
-            />
+            <div className="studio-cover-wrap">
+              <AiCover
+                title={AI_EDIT_COPY.title}
+                lead={AI_EDIT_COPY.lead}
+                quote={AI_EDIT_COPY.quote}
+                marginTitle={AI_EDIT_COPY.marginTitle}
+                marks={AI_EDIT_COPY.marks}
+                onFiles={(next) => void handleFiles(next)}
+                note={AI_EDIT_COPY.note}
+              />
+              {stage === 'idle' && !redactAiUsable ? (
+                <AiSetupSection
+                  settings={redactAiSettings}
+                  mode={effectiveRedactAiMode}
+                  managedAvailable={redactAiManaged}
+                  onSave={saveCoverAiSettings}
+                  onModeChange={changeCoverAiMode}
+                  {...(storedKeyPresent(redactAiSettings) ? { onForget: forgetCoverAiKey } : {})}
+                />
+              ) : null}
+            </div>
             {stage === 'preparing' && inspectState.status === 'running' && (
               <div className="mt-4">
                 <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />

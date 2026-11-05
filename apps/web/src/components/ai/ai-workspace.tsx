@@ -12,15 +12,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  FileWarning,
-  KeyRound,
-  Loader2,
-  RotateCcw,
-  Settings2,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react';
+import { FileWarning, Loader2, RotateCcw, Settings2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AiSettings } from '@pdfshush/ai-provider/browser';
 import { AiChat } from '@/components/ai/ai-chat';
@@ -28,6 +20,7 @@ import { AiCover } from '@/components/ai/ai-cover';
 import { AiDocumentPane, type OverlayMarker } from '@/components/ai/ai-document-pane';
 import { AiExport } from '@/components/ai/ai-export';
 import { AiSettingsCard } from '@/components/ai/ai-settings-card';
+import { AiSetupSection } from '@/components/ai/ai-setup-section';
 import { AiWelcomeOverlay } from '@/components/ai/ai-welcome-overlay';
 import { EditPlanPanel, type BlockedEditChange } from '@/components/ai/edit-plan-panel';
 import { StudioMasthead } from '@/components/ai/studio-masthead';
@@ -562,24 +555,14 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
           />
 
           {!ready ? (
-            <section className="studio-setup" aria-labelledby="studio-setup-title">
-              <div className="studio-setup-intro">
-                <span className="studio-setup-glyph" aria-hidden>
-                  <KeyRound className="h-4 w-4" />
-                </span>
-                <h2 id="studio-setup-title" className="studio-setup-title">
-                  Connect a model
-                </h2>
-                <p className="studio-setup-copy">
-                  Bring your own key, or use the PDFShush trial. Your key stays in this browser.
-                </p>
-                <p className="studio-setup-note">
-                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                  No account. The file is parsed in this tab.
-                </p>
-              </div>
-              <div className="studio-setup-form">{settingsCard(false)}</div>
-            </section>
+            <AiSetupSection
+              settings={settings}
+              mode={effectiveMode}
+              managedAvailable={managedOk}
+              onSave={onSaveSettings}
+              onModeChange={changeMode}
+              {...(storedKeyPresent(settings) ? { onForget: onForgetKey } : {})}
+            />
           ) : null}
         </div>
       ) : error && !doc ? (
