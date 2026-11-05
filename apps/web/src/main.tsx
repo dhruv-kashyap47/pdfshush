@@ -1,9 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { installBuildRecovery } from './lib/build-recovery';
 import { mark, observeFirstInteraction } from './lib/marks';
 import { registerServiceWorker } from './lib/service-worker';
 import './index.css';
+
+installBuildRecovery();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root container missing');

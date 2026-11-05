@@ -41,7 +41,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
-| **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 354 unit tests, responsive sweep clean, phone/tablet editor checks green |
+| **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 356 unit tests, responsive sweep clean, phone/tablet editor checks green |
+| **Deploy recovery** | Stale hashed CSS/JS can no longer strand an open tab: empty stylesheet/SPA-fallback detection, one guarded fresh-shell reload, hard-reset reload, service-worker navigation cache bypass, critical fallback CSS | ? **done 2026-11-05** - see section 34.7; stale-build E2E 8/8 |
 | **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 top entry; 50 of 58 live, 8 declined, 1 354 unit tests |
@@ -68,11 +69,11 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
 **Current gate:** re-measured 2026-11-05 for the **scans batch**, the reliability pass and the
-responsive product shell (`pnpm -r typecheck`, `pnpm test` — **1 354/1 354 unit** — `pnpm build`,
-`pnpm test:bundle` green; main chunk 150.8 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
+responsive product shell and stale-build recovery (`pnpm -r typecheck`, `pnpm test` - **1 356/1 356 unit** - `pnpm build`,
+`pnpm test:bundle` green; main chunk 152.7 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
 worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
 document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
-fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and all three
+fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and the
 2026-11-05 passes are recorded in §8. Browser suites re-run green against the responsive commit:
 smoke, deskew, dark-mode, plain-tools, next-tools, a11y, keyboard, offline, reach and verify; the
 responsive sweep is clean across 6 breakpoints × 2 themes × 6 routes. The containerised
@@ -96,7 +97,7 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1 354/1 354 unit** (**455 engine** · **214 API** · 370 provider · 152 agent · **144 web** ·
+**1 356/1 356 unit** (**455 engine** · **214 API** · 370 provider · 152 agent · **146 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
 export/pixel verification), Phase 2.5 added 27 more (adversarial corpus + verification/
 robustness gates), and Phase 3 added 38 (held-out synthetic benchmark, real-PDF gate,
@@ -712,6 +713,20 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-05 - Stale-build recovery: an old tab can no longer strand users on an unstyled shell.**
+
+  A `/tools/edit-pdf#main` report showed the giant wordmark, un-styled nav/footer and the route
+  error boundary. The tab had outlived a rebuild: its HTML pointed at hashed assets that the new
+  build deleted. Vite preview's SPA fallback answers a missing CSS file with `index.html` and a 200,
+  so the browser held a stylesheet object with zero rules (no `error` event), and a missing lazy
+  chunk opened the route boundary. `lib/build-recovery.ts` now detects chunk/preload errors and
+  empty same-origin stylesheets, unregisters the old PDFShush worker, clears only `pdfshush-*`
+  caches and performs one guarded reload with a `__build` cache-buster. The boundary's Reload is
+  the same hard reset, service-worker navigations use `cache: 'no-store'`, and `index.html` carries
+  a minimal critical fallback style so a missing stylesheet is readable rather than a full-screen
+  wordmark. The new `tests/e2e/stale-build.mjs` (8/8) reproduces both failures. Web tests are now
+  **146**; total **1 356/1 356**. See section 34.7.
 
 - **2026-11-05 - Responsive product shell: desktop workstation, tablet editor, phone app.**
 
@@ -6782,9 +6797,9 @@ request audit confirms zero `/hero/` requests at 390 px and only the active them
 ### 34.5 Verification
 
 - `pnpm -r typecheck` - all packages.
-- `pnpm test` - **1 354/1 354** unit tests: engine 455, API 214, provider 370, agent 152, web 144,
+- `pnpm test` - **1 356/1 356** unit tests: engine 455, API 214, provider 370, agent 152, web 146,
   MCP 19.
-- `pnpm build` - green; `pnpm test:bundle` - green (main 150.8 kB, 0 engines, 17 lazy app chunks
+- `pnpm build` - green; `pnpm test:bundle` - green (main 152.7 kB, 0 engines, 17 lazy app chunks
   with 0 engines, engines only in worker chunks).
 - `pnpm audit --prod --audit-level high` - no known vulnerabilities.
 - Browser E2E against the dev stack and the production preview: full smoke, `deskew`, `dark-mode`,
@@ -6801,6 +6816,10 @@ request audit confirms zero `/hero/` requests at 390 px and only the active them
   additionally verified the bottom nav, HUD, properties sheet open/close, unsaved-close guard,
   phone save/download and tablet nav hiding.
 
+- `pnpm test:e2e:stale-build` - 8/8. Simulates a missing hashed stylesheet (SPA fallback returns
+  HTML with zero CSS rules) and an aborted lazy route chunk; both recover to a fresh shell once,
+  with real style rules, the tool page and a usable file input.
+
 ### 34.6 Boundaries and next device pass
 
 - No new dependencies and no new network requests from the responsive work.
@@ -6811,3 +6830,43 @@ request audit confirms zero `/hero/` requests at 390 px and only the active them
   the real model path.
 - The containerised `test:api` / `test:hardening` gates remain unrun (Docker unavailable), as
   recorded in section 31.21.
+
+### 34.7 Stale-build recovery (2026-11-05 follow-up)
+
+A report from `localhost:4173/tools/edit-pdf#main` showed an unstyled page - a giant wordmark,
+inline nav/footer and the route error boundary. Reproduction on the same preview was clean, so the
+state was a tab that had outlived a rebuild: its HTML referenced a hashed stylesheet/lazy chunk
+that the new build had deleted. Vite preview's SPA fallback answers a missing `/assets/*.css`
+request with `index.html` and a 200, so the browser had a stylesheet object with **zero rules**
+instead of a 404. The missing route chunk then opened the error boundary. A reload alone was not
+guaranteed to clear a waiting worker or the old shell.
+
+The fix is in `lib/build-recovery.ts`, wired from `main.tsx`:
+
+- `vite:preloadError` and chunk-shaped `unhandledrejection` errors trigger a fresh-shell reload.
+- Same-origin stylesheets are considered failed when `link.sheet` is null **or** `cssRules.length`
+  is zero. The zero-rule case is the SPA-fallback failure that a normal `error` event never sees.
+- Recovery is allowed once per 15 s. It unregisters PDFShush's service worker, deletes only
+  `pdfshush-*` caches, and reloads with a `__build=<timestamp>` query so neither the browser nor a
+  worker can hand back the old shell.
+- The route error boundary's **Reload page** now performs the same hard reset instead of a plain
+  `window.location.reload()`.
+- Service-worker navigations fetch with `cache: 'no-store'`; the offline `/index.html` remains the
+  fallback when the network is genuinely unavailable.
+- Vite preview now returns a real 404 for a missing `/assets/*` file instead of its history
+  fallback shell. The empty-stylesheet case is still handled for production servers that fall back,
+  but locally the mismatch now fails visibly.
+- `index.html` gained a tiny critical fallback style: body surface/ink and a 9 rem cap on the
+  wordmark SVG. Even if a future deploy loses the stylesheet entirely, the failure is readable
+  instead of a full-viewport logo. It deliberately does not redefine Tailwind's `sr-only`; the
+  accessibility utility stays owned by the layered stylesheet.
+
+A permanent regression suite, `tests/e2e/stale-build.mjs` (`pnpm test:e2e:stale-build`), simulates
+both failures against the production preview and fails if recovery does not happen. It passes 8/8:
+a fresh `__build` URL, 749 real style rules, no error boundary, no stale link, the Edit PDF heading,
+a usable file input and no route boundary after the chunk retry.
+
+**Verification for this follow-up:** `pnpm -r typecheck`; `pnpm test` **1 356/1 356** (web 146,
+including the new recovery-guard tests); `pnpm build`; `pnpm test:bundle` green; `a11y` green; the
+new `stale-build` E2E green. An already-open tab from a previous build still needs one manual
+refresh to pick up this recovery code; every later stale state is handled automatically.

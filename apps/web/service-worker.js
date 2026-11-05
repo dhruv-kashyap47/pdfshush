@@ -128,7 +128,10 @@ self.addEventListener('fetch', (event) => {
 async function networkFirstNavigation(request) {
   const cache = await caches.open(CACHE);
   try {
-    const response = await fetch(request);
+    // `no-store` matters on a deploy: a route HTML cached by the browser can
+    // point at hashed assets the new build deleted. Always ask the network for
+    // the shell; the create-on-install cache remains the offline fallback.
+    const response = await fetch(request, { cache: 'no-store' });
     if (response && response.ok) {
       // Store under `/index.html`, not under the requested tool URL: one shell
       // serves every route, and per-route copies would pin old HTML.

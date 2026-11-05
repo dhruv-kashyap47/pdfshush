@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { hardReload } from '@/lib/build-recovery';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -41,7 +42,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           tool from the catalog.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Button onClick={() => window.location.reload()}>
+          <Button onClick={() => void hardReload()}>
             <RotateCcw className="mr-1.5 h-4 w-4" /> Reload page
           </Button>
           <Button variant="outline" asChild>

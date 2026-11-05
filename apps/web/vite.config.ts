@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
@@ -69,6 +69,43 @@ function serviceWorkerPlugin(): Plugin {
   };
 }
 
+/**
+ * Preview only: a missing `/assets/*` file must be a 404, not the SPA shell.
+ *
+ * Vite preview's history fallback returns index.html for every unknown path. A
+ * tab from an older build then receives HTML where it expected CSS or a module:
+ * the stylesheet has zero rules (so `error` never fires) and the module fails as
+ * a MIME error. Production servers already behave this way; preview should too.
+ */
+function previewAsset404Plugin(): Plugin {
+  return {
+    name: 'pdfshush-preview-assets-404',
+    configurePreviewServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (request.method !== 'GET' || !request.url) return next();
+        let pathname: string;
+        try {
+          pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+        } catch {
+          return next();
+        }
+        if (!pathname.startsWith('/assets/')) return next();
+        const distDir = path.resolve(rootDir, 'dist');
+        const file = path.resolve(distDir, `.${pathname}`);
+        if (!file.startsWith(distDir + path.sep)) {
+          response.statusCode = 404;
+          response.end('Not found');
+          return;
+        }
+        if (existsSync(file)) return next();
+        response.statusCode = 404;
+        response.setHeader('content-type', 'text/plain; charset=utf-8');
+        response.end('Not found');
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootDir, '');
   // Comma-separated origins for self-hosters whose AI endpoint is not in the
@@ -84,6 +121,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       cspPlugin(extraCspOrigins),
       serviceWorkerPlugin(),
+      previewAsset404Plugin(),
       prerenderPlugin({
         rootDir,
         ...(env.VITE_SITE_ORIGIN ? { siteOrigin: env.VITE_SITE_ORIGIN } : {}),
