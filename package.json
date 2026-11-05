@@ -31,6 +31,7 @@
     "test:e2e:verify": "node tests/e2e/verify.mjs",
     "test:e2e:forms-bookmarks": "node tests/support/preflight.mjs && node tests/e2e/forms-bookmarks.mjs",
     "test:e2e:dark-mode": "node tests/support/preflight.mjs && node tests/e2e/dark-mode.mjs",
+    "test:e2e:deskew": "node tests/support/preflight.mjs && node tests/e2e/deskew.mjs",
     "test:bundle": "node tests/bundle-boundary.mjs",
     "test:baseline": "node tests/benchmarks/m5-0-baseline.mjs",
     "test:perf": "node tests/benchmarks/m5-4-ceilings.mjs",

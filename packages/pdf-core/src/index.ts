@@ -143,6 +143,13 @@ export type { DarkModeKind, DarkModeTheme, DarkModeThemeId } from './darkmode/da
 export { darkModeDocument } from './darkmode/dark.js';
 export type { DarkModeOptions, DarkModeResult } from './darkmode/dark.js';
 
+// Deskew (2026-11-05): the estimator is pure so it can be tested in Node; the
+// rebuild itself is browser-only and shares the raster contract above.
+export { SKEW_LIMITS, estimateSkewAngle, isValidOverrideAngle } from './deskew/skew.js';
+export type { SkewEstimateOptions } from './deskew/skew.js';
+export { deskewDocument } from './deskew/deskew.js';
+export type { DeskewOptions, DeskewResult } from './deskew/deskew.js';
+
 // Rendering
 export { configurePdfjsRuntime, loadPdfForRender } from './render/pdfjsRuntime.js';
 export type { PdfjsRuntimeConfig, LoadedPdf } from './render/pdfjsRuntime.js';
@@ -235,6 +242,8 @@ export { grayscaleJob } from './jobs/grayscale.job.js';
 export type { GrayscaleJobInput, GrayscaleJobOutput, GrayscaleJobOptions } from './jobs/grayscale.job.js';
 export { darkModeJob } from './jobs/darkMode.job.js';
 export type { DarkModeJobInput, DarkModeJobOutput, DarkModeJobOptions } from './jobs/darkMode.job.js';
+export { deskewJob } from './jobs/deskew.job.js';
+export type { DeskewJobInput, DeskewJobOutput, DeskewJobOptions } from './jobs/deskew.job.js';
 export { resizeJob } from './jobs/resize.job.js';
 export type { ResizeJobInput, ResizeJobOutput, ResizeJobOptions } from './jobs/resize.job.js';
 export { imagesJob } from './jobs/images.job.js';

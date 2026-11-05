@@ -27,8 +27,8 @@ describe('catalog decisions', () => {
 
   it('keeps the published counts stable', () => {
     expect(ALL_TOOLS).toHaveLength(58);
-    expect(liveTools()).toHaveLength(49);
-    expect(ALL_TOOLS.filter((tool) => tool.status === 'declined')).toHaveLength(9);
+    expect(liveTools()).toHaveLength(50);
+    expect(ALL_TOOLS.filter((tool) => tool.status === 'declined')).toHaveLength(8);
   });
 
   it('gives every decision a real reason, not a placeholder', () => {

@@ -1,7 +1,7 @@
 /**
  * The parity-debt decisions (PLAN.md §31.5, M5.7).
  *
- * These nine URLs stay reachable, but the pages say **not built** and explain
+ * These eight URLs stay reachable, but the pages say **not built** and explain
  * the real blocker. They are not "in development": there is no date, no email
  * capture and no roadmap CTA. Each names the closest live path instead. When a
  * tool ships, its entry moves to `LIVE` in the registry and this record loses a
@@ -51,14 +51,6 @@ export const DECLINED_COPY: Record<string, DeclinedCopy> = {
     why: 'It needs a headless browser on a server, plus SSRF protection and a network policy. That is a server product, not a browser tool, so it cannot sit behind the “nothing is uploaded” promise.',
     alternative: {
       note: 'Use your browser’s Print → Save as PDF, then bring the result here to edit, sign or compress it.',
-    },
-  },
-  deskew: {
-    what: 'would detect the skew angle of a scanned page and rotate it back to level.',
-    why: 'Reliable angle detection needs image analysis, and a wrong guess crops or blurs the page edge. The engine will not ship a guess that silently damages a scan.',
-    alternative: {
-      slug: 'rotate-pdf',
-      note: 'fixes 90° orientation exactly; for small angles, crop the margin after rotating.',
     },
   },
   'ocr-pdf': {

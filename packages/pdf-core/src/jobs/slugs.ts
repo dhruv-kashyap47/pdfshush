@@ -55,6 +55,8 @@ export const JOB_SLUGS = [
   'protect',
   // Dark-mode batch (2026-10-28).
   'dark-mode',
+  // Scans batch (2026-11-05).
+  'deskew',
 ] as const;
 
 export type JobSlugLiteral = (typeof JOB_SLUGS)[number];

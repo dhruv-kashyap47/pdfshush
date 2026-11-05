@@ -1227,25 +1227,49 @@ async function main() {
   check('recipe can be deleted', true);
   }
 
-  await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
-  check(
-    'account page offers sign-in without gating anything',
-    await page.getByText(/Accounts are optional/i).isVisible(),
-  );
-  check(
-    'account page states the privacy boundary',
-    await page.getByText(/Every tool works without signing in/i).isVisible(),
-  );
+  // `/api/auth/me` answers 204 both for "nobody signed in" and for "this
+  // deployment has no account system". The header must not advertise a sign-in
+  // control that lands on a 503, so the assertions branch on the deployment
+  // switch rather than assuming accounts are configured.
+  const catalog = await fetch(`${BASE}/api/tools`)
+    .then((response) => response.json())
+    .catch(() => null);
+  const accountsEnabled = catalog?.accounts?.enabled !== false;
 
-  // Accounts are disabled in this environment, so `/api/auth/me` answers 204 and
-  // the header must render the sign-in control rather than the Phase 4
-  // placeholder that used to sit there.
+  await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
+  if (accountsEnabled) {
+    check(
+      'account page offers sign-in without gating anything',
+      await page.getByText(/Accounts are optional/i).isVisible(),
+    );
+    check(
+      'account page states the privacy boundary',
+      await page.getByText(/Every tool works without signing in/i).isVisible(),
+    );
+  } else {
+    check(
+      'accounts-off page says so instead of offering a dead sign-in',
+      await page.getByText(/Accounts are not enabled here/i).isVisible(),
+    );
+    check(
+      'accounts-off page still explains local history',
+      await page.getByText(/history stays in this browser/i).first().isVisible(),
+    );
+  }
+
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   const signIn = page.getByRole('button', { name: 'Sign in' });
-  check(
-    'header shows a working sign-in control once auth state resolves',
-    await waitFor(async () => (await signIn.count()) > 0, 15_000, 'sign-in control'),
-  );
+  if (accountsEnabled) {
+    check(
+      'header shows a working sign-in control once auth state resolves',
+      await waitFor(async () => (await signIn.count()) > 0, 15_000, 'sign-in control'),
+    );
+  } else {
+    check(
+      'header hides sign-in when the deployment has no accounts',
+      (await signIn.count()) === 0,
+    );
+  }
 
   /* 19b. Redact PDF (raster-first, verified) */
   // The whole point of this tool is that the output is a different document, so

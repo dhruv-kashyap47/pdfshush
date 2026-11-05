@@ -13,6 +13,7 @@ import { compressJob } from './compress.job.js';
 import { createBookmarksJob } from './createBookmarks.job.js';
 import { createFormsJob } from './createForms.job.js';
 import { darkModeJob } from './darkMode.job.js';
+import { deskewJob } from './deskew.job.js';
 import { editJob } from './edit.job.js';
 import { flattenJob } from './flatten.job.js';
 import { flipJob } from './flip.job.js';
@@ -88,6 +89,8 @@ export const JOBS = {
   [protectJob.slug]: protectJob as AnyJob,
   // Dark-mode batch (2026-10-28): every page rasterized, remapped, rebuilt.
   [darkModeJob.slug]: darkModeJob as AnyJob,
+  // Scans batch (2026-11-05): skew estimated per page, then rasterized rebuilt.
+  [deskewJob.slug]: deskewJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;

@@ -36,6 +36,7 @@ import { LIMITS } from '../limits.js';
 import { classifyImageStream, isImageStream } from '../ops/images.js';
 import { loadPdfDocument } from '../ops/pages.js';
 import { applyDocumentDates } from '../ops/dates.js';
+import { addRasterPage } from '../ops/rasterPage.js';
 import { loadPdfForRender } from '../render/pdfjsRuntime.js';
 import { renderPageToCanvas } from '../render/renderPage.js';
 
@@ -416,8 +417,7 @@ async function rasterCompress(
         throw new Error(`Could not encode page ${index} as a JPEG.`);
       }
       const jpeg = new Uint8Array(await blob.arrayBuffer());
-      await out.embedJpg(jpeg);
-      out.addPage([unit.width, unit.height]);
+      await addRasterPage(out, jpeg, unit.width, unit.height);
       page.cleanup();
       rendered.canvas.release?.();
 

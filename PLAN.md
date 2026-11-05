@@ -42,7 +42,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
-| **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8 top entry; 1 344 unit tests, browser suites not re-run |
+| **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
+| **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 top entry; 50 of 58 live, 8 declined, 1 354 unit tests |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -65,34 +66,35 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-05 for the **reliability pass** and the M5 close-out
-(`pnpm -r typecheck`, `pnpm test` — **1 344/1 344 unit** — `pnpm build`, `pnpm test:bundle`
+**Current gate:** re-measured 2026-11-05 for the **scans batch** and the reliability pass
+(`pnpm -r typecheck`, `pnpm test` — **1 354/1 354 unit** — `pnpm build`, `pnpm test:bundle`
 green; main chunk 149.3 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
 worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
 document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
-fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and the
-2026-11-05 reliability pass is recorded in §8. The browser suites and the containerised
-`test:api`/`test:hardening` gates were **not** re-run in the 2026-11-05 pass; Docker is not
-available in this environment, so those checks stay unclaimed (§31.21).
+fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and both
+2026-11-05 passes are recorded in §8. Browser suites re-run green against this commit: smoke,
+deskew, dark-mode, plain-tools, next-tools, a11y, keyboard, offline, reach and verify. The
+containerised `test:api`/`test:hardening` gates were **not** re-run; Docker is not available in
+this environment, so those checks stay unclaimed (§31.21).
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
 hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API
 (§25.3) and P6.3 MCP server (§25.4) all still hold.
-**49 of 58 catalog entries live** (9 declined with a documented reason, §31.20; ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**50 of 58 catalog entries live** (8 declined with a documented reason, §31.20; ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
 `jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; seven on
 2026-10-25: `stamp`, `repair-pdf`, `combine-pdf`, `image-editor`, `batch-run`,
 `split-by-bookmarks`, `workflows`; three on 2026-10-26/27: `create-forms`, `create-bookmarks`,
-`protect-pdf`; one on 2026-10-28: `dark-mode-pdf`; `redact-pdf` in
+`protect-pdf`; one on 2026-10-28: `dark-mode-pdf`; one on 2026-11-05: `deskew`; `redact-pdf` in
 Security; `summarize-pdf` +
 `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1 344/1 344 unit** (**445 engine** · **214 API** · 370 provider · 152 agent · **144 web** ·
+**1 354/1 354 unit** (**455 engine** · **214 API** · 370 provider · 152 agent · **144 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
 export/pixel verification), Phase 2.5 added 27 more (adversarial corpus + verification/
 robustness gates), and Phase 3 added 38 (held-out synthetic benchmark, real-PDF gate,
@@ -173,7 +175,7 @@ Do not relitigate these without a strong reason; each was researched and chosen.
 - **Reverse-engineering target:** Sejda ≈ ~40 tools across Merge / Split / Edit&Sign /
   Compress / Security / Convert / Other / Scans / Workflows. Free tier: 3 tasks/hr,
   200 pages, 50 MB. We mirror the catalog, URLs, and IA — but **no task quotas** for
-  in-browser work (limits instead, §4). Our own catalog is **58 entries** (49 live, 9 declined):
+  in-browser work (limits instead, §4). Our own catalog is **58 entries** (50 live, 8 declined):
   Sejda's set plus the disruption extras (AI, e-sign, API/MCP, workflows); every slug has a
   permanent page from day one, so a declined tool renders an honest "not built" decision page
   with the real blocker and the closest live alternative (§31.20).
@@ -251,7 +253,7 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 58 entries (**49 live**, 9 declined), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 58 entries (**50 live**, 8 declined), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
 │   └── src/components/tools/*      45 tool-body files
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
@@ -708,6 +710,36 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-05 — The scans batch: Deskew shipped, and three raster tools stopped producing blank pages.**
+
+  The first of the nine declined tools is now live. **Deskew** estimates each page's skew with a
+  projection-profile estimator (the angle that collapses the text rows into the sharpest horizontal
+  profile), rotates the page pixels back to level, and rebuilds a fresh document. Automatic
+  detection is bounded to ±10°; a manual override covers ±45°. The UI states the cost before the
+  run — pages become images, text stops being selectable, and a rotated page keeps its corners with
+  thin white wedges — and reports the angle actually applied to each page.
+
+  **A real bug found while building it.** Grayscale PDF, Dark Mode PDF and strong (raster) Compress
+  embedded their JPEG and then added an empty page: `embedJpg()` followed by `addPage()` without
+  `drawImage()` leaves the image unreferenced, so the downloaded pages rendered blank. Their E2E
+  suites only asserted `DCTDecode` and the file name, which is why it hid. All three now go through
+  one `addRasterPage()` helper that embeds *and* draws, and a Node test pins the page's `/XObject`
+  resource so the blank-page regression cannot come back.
+
+  **The estimator is pure and tested.** `estimateSkewAngle()` takes an ink matrix and returns the
+  angle; the worker only reduces a rendered page to that matrix. Synthetic rulers at +4° and −3° are
+  recovered within 0.6°, a straight page returns 0, and a blank/malformed matrix refuses to guess.
+  The browser E2E does the only assertion that matters: after one pass, the downloaded file is
+  re-opened, detected again, and must come back straight (≤ 1.5°).
+
+  **Verification.** `pnpm -r typecheck`; `pnpm test` **1 354/1 354** (pdf-core 455, API 214,
+  provider 370, agent 152, web 144, MCP 19); `pnpm build`; `pnpm test:bundle` green (main 149.3 kB,
+  0 engines, 17 lazy chunks with 0 engines). Browser suites re-run against this commit: the new
+  `test:e2e:deskew`, full smoke, dark-mode, plain-tools, next-tools, a11y (now 16 routes incl.
+  deskew), keyboard, offline, reach (**50 live, 54 sitemap URLs**) and verify — all green.
+  Catalogue: **58 entries, 50 live, 8 declined**. `test:api`/`test:hardening` remain unrun because
+  Docker is unavailable here; they are not claimed.
 
 - **2026-11-05 — Reliability pass: one auth owner, real history sync, and honest failure boundaries.**
 
@@ -2638,11 +2670,12 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all seven workspace projects
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 344 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 354 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:e2e:dark-mode   # Dark Mode PDF: preview pixels exact, download checks (8 checks)
+pnpm test:e2e:deskew      # Deskew: +4° detection, output reopened and re-detected as straight
 pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (22 checks: 17 seeded + 5 keyless overlay)
@@ -6454,7 +6487,7 @@ ever picking it up again. A promise with no owner is the §31.5 failure mode.
 ungated**; revenue comes from server-side and premium services. This is not a concession — it is
 the cost model (§33.2).
 
-**Free tier.** All 49 client-side tools, no sign-up, no watermark, no task quota; BYOK AI; tight
+**Free tier.** All 50 client-side tools, no sign-up, no watermark, no task quota; BYOK AI; tight
 server quotas; content-page ads.
 
 **Paid tiers.** Ad-free everywhere, higher/unlimited server limits, priority processing, premium

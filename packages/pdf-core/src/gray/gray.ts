@@ -20,6 +20,7 @@
 import { PDFDocument } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { applyDocumentDates } from '../ops/dates.js';
+import { addRasterPage } from '../ops/rasterPage.js';
 import { LIMITS } from '../limits.js';
 import { loadPdfForRender } from '../render/pdfjsRuntime.js';
 import { renderPageToCanvas } from '../render/renderPage.js';
@@ -94,8 +95,7 @@ export async function grayscaleDocument(
 
       const blob = await canvas.toBlob('image/jpeg', quality);
       const jpeg = new Uint8Array(await blob.arrayBuffer());
-      await out.embedJpg(jpeg);
-      out.addPage([unit.width, unit.height]);
+      await addRasterPage(out, jpeg, unit.width, unit.height);
       page.cleanup();
 
       // Zero the backing store now rather than at GC convenience; a 150-page

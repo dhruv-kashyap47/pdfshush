@@ -158,6 +158,8 @@ const LIVE = new Set([
   // Dark-mode batch (2026-10-28): rasterize-remap-rebuild, ported from the
   // MIT-licensed chizkiyahu/pdf-dark-mode-converter.
   'dark-mode-pdf',
+  // Scans batch (2026-11-05): projection-profile skew detection, raster rebuild.
+  'deskew',
 ]);
 
 /**
@@ -216,6 +218,8 @@ const TOOL_NEXT: Record<string, string[]> = {
   'protect-pdf': ['unlock-pdf', 'compress-pdf'],
   // Dark-mode batch (2026-10-28).
   'dark-mode-pdf': ['compress-pdf', 'resize-pdf'],
+  // Scans batch (2026-11-05).
+  deskew: ['rotate-pdf', 'pdf-to-jpg'],
 };
 
 const tool = (

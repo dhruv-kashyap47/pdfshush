@@ -5,6 +5,7 @@ import { Clock, Flame, Sparkles } from 'lucide-react';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
 import { CropTool } from '@/components/tools/crop-tool';
 import { DarkModePdfTool } from '@/components/tools/dark-mode-pdf-tool';
+import { DeskewTool } from '@/components/tools/deskew-tool';
 import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
 import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
@@ -170,6 +171,8 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'create-bookmarks': CreateBookmarksTool,
   // Dark-mode batch (2026-10-28).
   'dark-mode-pdf': DarkModePdfTool,
+  // Scans batch (2026-11-05).
+  deskew: DeskewTool,
 };
 
 export function ToolPage() {

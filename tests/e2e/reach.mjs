@@ -102,7 +102,7 @@ check(
   `${sitemapUrls.length} URLs`,
 );
 
-const declined = ['pdf-to-word', 'ocr-pdf', 'deskew', 'sign-workflow', 'convert-batch'];
+const declined = ['pdf-to-word', 'ocr-pdf', 'sign-workflow', 'convert-batch'];
 for (const slug of declined) {
   const route = `/tools/${slug}`;
   const page = await text(route);

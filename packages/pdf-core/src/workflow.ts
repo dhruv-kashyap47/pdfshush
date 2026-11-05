@@ -79,6 +79,8 @@ export const WORKFLOW_OUTPUT_JOBS: ReadonlySet<string> = new Set([
   'unlock',
   // Dark-mode batch (2026-10-28): document-in, document-out.
   'dark-mode',
+  // Scans batch (2026-11-05): document-in, document-out.
+  'deskew',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
