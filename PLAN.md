@@ -41,7 +41,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
-| **M6 — Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
+| **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ? **done 2026-11-05** - see section 34; 9 widths checked, 1 354 unit tests, mobile axe clean |
+| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 top entry; 50 of 58 live, 8 declined, 1 354 unit tests |
 
@@ -66,12 +67,12 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-05 for the **scans batch** and the reliability pass
-(`pnpm -r typecheck`, `pnpm test` — **1 354/1 354 unit** — `pnpm build`, `pnpm test:bundle`
-green; main chunk 149.3 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
+**Current gate:** re-measured 2026-11-05 for the **scans batch**, the reliability pass and the
+responsive product shell (`pnpm -r typecheck`, `pnpm test` - **1 354/1 354 unit** - `pnpm build`,
+`pnpm test:bundle` green; main chunk 150.4 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
 worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
 document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
-fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and both
+fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and the
 2026-11-05 passes are recorded in §8. Browser suites re-run green against this commit: smoke,
 deskew, dark-mode, plain-tools, next-tools, a11y, keyboard, offline, reach and verify. The
 containerised `test:api`/`test:hardening` gates were **not** re-run; Docker is not available in
@@ -711,7 +712,42 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
-- **2026-11-05 — The scans batch: Deskew shipped, and three raster tools stopped producing blank pages.**
+- **2026-11-05 - Responsive product shell: desktop workstation, tablet editor, phone app.**
+
+  The editor now adapts its **interaction model**, not just its width, while keeping one PDF
+  engine, document session, command set and undo history. Desktop (>=1100 px) keeps the full
+  three-column workstation. Tablet (600-1099 px) gets larger targets, a collapsible page drawer,
+  a bottom inspector in portrait and a right drawer in landscape; 1024 px iPads are tablets now.
+  Phone (<=599 px) becomes a document-first app: one compact top bar, a canvas HUD for page/zoom,
+  a horizontal thumb tool strip, four bottom destinations (Edit, Annotate, Pages, AI), a
+  contextual properties sheet and a bottom document-actions sheet. Pinch-to-zoom, rotation
+  re-fit, safe-area padding and an explicit unsaved-changes close gate were added. The mobile
+  marketing surface drops the photographic plate, frosted hero panels, document image and feature
+  video; the AI mock becomes three compact tool links.
+
+  **Bugs found and fixed during the pass.** (1) The first mobile build placed two `useCallback`
+  hooks after the result-state early returns; saving then crashed with React error #300
+  ("rendered fewer hooks than expected"). The handlers are now plain functions after the early
+  returns, and hooks remain above them. (2) The result panel's action row clipped the Download
+  button at 390 px; actions now stack full-width on phones. (3) The mobile AI links overflowed the
+  viewport (438 px document width at 390 px) because the grid item kept a nowrap min-content
+  width; `grid-cols-1` + `min-w-0` fixed it. (4) The decorative Greek plate was still downloaded
+  on phones even though CSS hid it; `<picture><source media="(min-width:1024px)">` now replaces it
+  with a 1x1 transparent fallback below 1024 px. (5) Mobile axe found a visible-label/accessible-
+  name mismatch on the zoom readout and a serious contrast failure in the comparison table; both
+  are fixed.
+
+  **Verification.** `pnpm -r typecheck`; `pnpm test` **1 354/1 354** (engine 455, API 214,
+  provider 370, agent 152, web 144, MCP 19); `pnpm build`; `pnpm test:bundle` green (main 150.4 kB,
+  0 engines, 17 lazy chunks with 0 engines). `pnpm audit --prod --audit-level high`: no known
+  vulnerabilities. Browser: `keyboard`, `a11y` (all routes + editor), and `reach` green against the
+  production preview; dark-mode functional checks pass while its console gate still counts two
+  502s from the intentionally absent API. Manual Playwright at 320/390/430/599/600/700/768/1024/
+  1280 px: zero horizontal overflow, annotation/undo/redo, page nav/delete, properties sheet, AI
+  workspace, save and PDF download verified; pinch 65% -> 130%; no `/hero/` request below
+  1024 px. Mobile axe (390 px) clean on home, editor and editor-with-properties. See section 34.
+
+- **2026-11-05 - The scans batch: Deskew shipped, and three raster tools stopped producing blank pages.**
 
   The first of the nine declined tools is now live. **Deskew** estimates each page's skew with a
   projection-profile estimator (the angle that collapses the text rows into the sharpest horizontal
@@ -6646,3 +6682,105 @@ later. Decide before `billing/` exists, not after.
 
 
 
+
+---
+
+## 34. Responsive product shell (2026-11-05)
+
+### 34.1 One session, three interaction models
+
+The PDF engine, `useEditorDoc` snapshot history, `useEditorSession`, page order, save/export
+pipelines, annotations, text editing and AI proposal flow are untouched. Only the chrome and the
+shell's layout rules changed. There is no mobile fork and no second editor.
+
+- **Desktop (>=1100 px):** the existing three-column workstation. Tool rail, page rail and
+  properties inspector stay docked; the full toolbar, hints, zoom controls and keyboard help
+  remain. The desktop marketing hero is unchanged.
+- **Tablet (600-1099 px):** the same surfaces with touch-sized controls and reduced density.
+  The page rail is a collapsible overlay. The inspector is a bottom panel in portrait and a right
+  drawer in landscape. The tool rail is 56 px wide with 38 px buttons. 1024 px is deliberately
+  classified as tablet, not desktop.
+- **Phone (<=599 px):** a document-first application (below). The marketing site is a quiet
+  editorial page rather than a compressed desktop composition.
+
+### 34.2 Phone editor
+
+- **Top bar:** back, filename, page count, save state/save action, and a document-actions sheet
+  (save, open another file, workspaces, start over, close). The site header is hidden while the
+  editor is open, so the application owns the full viewport.
+- **Canvas:** maximum height. Small gutters, no decorative radial wash. Floating page/zoom HUD with
+  36-40 px targets. Pinch-to-zoom owns two-finger gestures; one-finger pan and drawing keep their
+  existing pointer path. Rotating the device re-fits the page when the user has not chosen a zoom.
+- **Tools:** the existing tool registry rendered as a horizontal thumb strip. Group labels and the
+  page-rail toggle are hidden; the active tool gets a filled accent.
+- **Bottom navigation:** Edit, Annotate, Pages, AI. Annotate is not a second mode: it opens Edit
+  with the highlighter armed. Sign and Redact routes substitute their own first tab.
+- **Contextual controls:** object/style actions come first in the context bar; detailed colour,
+  font, size and stroke controls scroll after them. The properties sheet is explicitly opened via
+  the sliders button and dismissed via close or deselect. Creating a new mark does not slam a
+  sheet over the page.
+- **Workspaces:** Pages becomes a full-width two-column page grid with page actions. AI becomes a
+  full-height pane with its own composer and model gate. Redaction keeps its disclosure panel
+  visible.
+- **Safety:** closing a dirty document opens an explicit Keep editing / Discard and close dialog.
+  Bottom bars and sheets account for `env(safe-area-inset-bottom)`; the top bar announces save
+  state through a polite live region.
+
+### 34.3 Marketing
+
+Phones no longer receive the Greek plate, frosted hero panels, document poster image or feature
+video. The hero keeps one functional upload console. The AI section keeps only an "AI tools" kicker
+and three compact links; the large interactive mock is desktop/tablet only. The comparison table
+and CTA keep their content with reduced padding. At 600-1023 px the marketing page uses the same
+clean editorial treatment, while >=1024 px keeps the full photographic composition.
+
+The hero plate is also no longer downloaded below 1024 px: `<picture><source media="(min-width:
+1024px)">` chooses the real image on desktop and a 1x1 transparent fallback elsewhere. A Playwright
+request audit confirms zero `/hero/` requests at 390 px and only the active theme's plate at 1024 px
+(light: day; dark: night).
+
+### 34.4 Defects found and fixed in this session
+
+1. **Hook-order crash on save (critical).** Two `useCallback` hooks were placed after the
+   `editState.status === 'done'` early return. Saving changed the hook count and React aborted the
+   route with error #300. The handlers became plain functions below the early returns; every hook
+   is now above them. Verified by saving and downloading on a 390 px viewport.
+2. **Result action row clipped Download (mobile).** `shrink-0` prevented the three actions from
+   fitting at 390 px. Buttons now stack full-width under `sm` and return to a row at `sm+`.
+3. **Mobile AI links overflowed the page.** A nowrap child set the grid item's min-content width,
+   producing a 438 px document at a 390 px viewport. `grid-cols-1` and `min-w-0` fixed it; the
+   overflow sweep is now clean on home, editor, merge, workflows and trust.
+4. **Mobile still downloaded the decorative hero.** CSS `display:none` does not stop an eager
+   image request. The `<picture>` media source removes the transfer entirely below 1024 px.
+5. **Accessibility regressions caught by axe at 390 px.** The zoom readout's accessible name did
+   not include its visible percentage, and the comparison table's emerald text failed AA contrast.
+   The name now starts with the visible percentage and the row uses the theme's deep emerald
+   `text-primary`.
+
+### 34.5 Verification
+
+- `pnpm -r typecheck` - all packages.
+- `pnpm test` - **1 354/1 354** unit tests: engine 455, API 214, provider 370, agent 152, web 144,
+  MCP 19.
+- `pnpm build` - green; `pnpm test:bundle` - green (main 150.4 kB, 0 engines, 17 lazy app chunks
+  with 0 engines, engines only in worker chunks).
+- `pnpm audit --prod --audit-level high` - no known vulnerabilities.
+- Browser E2E against the production preview: `keyboard` (all checks), `a11y` (all routes plus the
+  editor with a selected object, zero critical/serious axe findings), `reach` (all checks).
+  `dark-mode` functional checks pass; its console gate counts two 502s from the deliberately absent
+  API in this preview and is not treated as a responsive regression.
+- Manual Playwright at **320, 390, 430, 599, 600, 700, 768, 1024 and 1280 px**: no horizontal
+  overflow; editor opens; annotation draw; undo/redo; page next/previous; page delete; properties
+  sheet; AI workspace; save and browser PDF download; pinch 65% -> 130% and fit reset. Mobile axe
+  (390 px) is clean on home, editor and editor-with-properties.
+
+### 34.6 Boundaries and next device pass
+
+- No new dependencies and no new network requests from the responsive work.
+- Chrome/Edge emulation with real touch events was used; a physical iOS Safari and Android Chrome
+  pass is still the right next check (notch safe areas, software keyboard, pinch inertia).
+- AI model completion was not exercised here because no provider key is configured in this
+  environment; the panel, model gate and navigation were verified, and the existing AI E2E covers
+  the real model path.
+- The containerised `test:api` / `test:hardening` gates remain unrun (Docker unavailable), as
+  recorded in section 31.21.

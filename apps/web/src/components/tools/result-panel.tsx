@@ -58,18 +58,18 @@ export function ResultPanel({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:shrink-0 sm:items-center">
           {onContinue && (
-            <Button variant="ghost" onClick={onContinue} data-testid="result-continue">
+            <Button variant="ghost" className="w-full sm:w-auto" onClick={onContinue} data-testid="result-continue">
               <Pencil className="mr-1.5 h-4 w-4" />
               {continueLabel}
             </Button>
           )}
-          <Button variant="outline" onClick={onReset}>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={onReset}>
             <RotateCcw className="mr-1.5 h-4 w-4" />
             Start over
           </Button>
-          <Button onClick={onDownload}>
+          <Button className="w-full sm:w-auto" onClick={onDownload}>
             <Download className="mr-1.5 h-4 w-4" />
             {downloadLabel}
           </Button>

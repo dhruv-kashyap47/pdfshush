@@ -27,7 +27,17 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { Loader2, Settings2, ShieldAlert, Sparkles, Type as TypeIcon } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Settings2,
+  ShieldAlert,
+  Sparkles,
+  Type as TypeIcon,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import {
   JobAbortedError,
   LIMITS,
@@ -52,11 +62,13 @@ import {
 } from '@pdfshush/pdf-core';
 import {
   EditorContextBar,
+  EditorMobileNav,
   EditorPageRail,
   EditorStatusBar,
   EditorToolRail,
   EditorTopBar,
   editorStepZoom,
+  type EditorMobileTab,
 } from '@/components/editor/editor-chrome';
 import { EditorAiPanel } from '@/components/editor/editor-ai-panel';
 import { AnimatedContent } from '@/components/reactbits/animated-content';
@@ -344,6 +356,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const [paragraphEdit, setParagraphEdit] = useState<ParagraphEditState | null>(null);
   /** Redaction review confirmation: never run the destructive job without it. */
   const [confirmRedact, setConfirmRedact] = useState(false);
+  /** Mobile back/close guard: leaving mid-edit must not silently drop changes. */
+  const [confirmExit, setConfirmExit] = useState(false);
+  /** Phone properties sheet. Closed by default so the canvas keeps its height. */
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   /** Page rail multi-selection (organise mode). */
   const [selectedPages, setSelectedPages] = useState<Set<number>>(() => new Set());
   /** AI proposals are read-only overlays until the ledger is applied. */
@@ -530,7 +546,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   // On a phone the page rail is an overlay. Start it closed so the document is
   // the first thing on screen; the rail button opens it.
   useEffect(() => {
-    if (window.matchMedia?.('(max-width: 1023px)').matches) editor.toggleRail(false);
+    if (window.matchMedia?.('(max-width: 1099px)').matches) editor.toggleRail(false);
   }, [editor.toggleRail]);
 
   /* ------------------------------------------------------------ rasters */
@@ -1022,6 +1038,87 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setZoom(computeFitZoom(container, info.pages));
   }, [stage, info, computeFitZoom, editor.railOpen]);
 
+  /**
+   * Touch pinch-to-zoom on the document surface. A two-finger gesture owns the
+   * canvas; one-finger taps, pans and drawing keep their existing pointer
+   * handlers. The listener is non-passive because the browser's page zoom must
+   * not fight the document zoom, and it is rebuilt only when a document opens.
+   */
+  useEffect(() => {
+    if (stage !== 'editing') return undefined;
+    const element = scrollRef.current;
+    if (!element) return undefined;
+    let startDistance = 0;
+    let startZoom = 1;
+    let pinching = false;
+
+    const distance = (touches: TouchList) => {
+      const first = touches[0];
+      const second = touches[1];
+      if (!first || !second) return 0;
+      return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      pinching = true;
+      startDistance = distance(event.touches);
+      startZoom = zoomRef.current;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!pinching || event.touches.length !== 2 || startDistance <= 0) return;
+      event.preventDefault();
+      const scale = distance(event.touches) / startDistance;
+      zoomTouchedRef.current = true;
+      setZoom(clampZoom(startZoom * scale));
+    };
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) {
+        pinching = false;
+        startDistance = 0;
+      }
+    };
+
+    element.addEventListener('touchstart', onTouchStart, { passive: true });
+    element.addEventListener('touchmove', onTouchMove, { passive: false });
+    element.addEventListener('touchend', onTouchEnd, { passive: true });
+    element.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      element.removeEventListener('touchstart', onTouchStart);
+      element.removeEventListener('touchmove', onTouchMove);
+      element.removeEventListener('touchend', onTouchEnd);
+      element.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [stage, setZoom]);
+
+  /**
+   * Rotation and window resizes should re-fit a document that the user has not
+   * zoomed by hand. Without this, a phone rotated to landscape keeps the
+   * portrait fit and wastes half the canvas.
+   */
+  useEffect(() => {
+    if (stage !== 'editing') return undefined;
+    let frame = 0;
+    const onResize = () => {
+      if (zoomTouchedRef.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const container = scrollRef.current;
+        const pages = infoRef.current?.pages;
+        if (container && pages && container.clientWidth > 0) {
+          setZoom(computeFitZoom(container, pages));
+        }
+      });
+    };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, [stage, computeFitZoom, setZoom]);
+
   // Warm the structured text model around the current page. Extraction is
   // incremental by page: opening a 500-page book must not parse every page just
   // because the Select or Text tool is active. Pages near the viewport are
@@ -1050,6 +1147,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       setSelectedId(object.id);
       setTextSelection(null);
       setSelectedTextBlock(null);
+      // A fresh mark should not slam a half-screen properties sheet over the
+      // page the user is annotating; the context bar already carries its quick
+      // controls, and Properties is one tap away.
+      setMobileInspectorOpen(false);
     },
     [atObjectLimit, editor.apply],
   );
@@ -1593,8 +1694,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       setTool(defaultToolForMode(next));
       setConfirmRedact(false);
       setSelectedPages(new Set());
+      // Pages is a workspace, not a hidden panel: on tablet and phone the rail
+      // is an overlay, so entering it must reveal the rail explicitly.
+      if (next === 'organize') editor.toggleRail(true);
     },
-    [mode, saving, setTool],
+    [mode, saving, setTool, editor],
   );
 
   /** The page order the viewport paints. Falls back to source order while loading. */
@@ -2444,6 +2548,18 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     .map((paragraph) => paragraphDisplayText(paragraph))
     .join(' ')
     .slice(0, 220);
+
+  // The phone sheet follows the selection instead of pinning itself to the
+  // canvas. It also retires on a workspace change, so no stale panel survives
+  // a mode switch.
+  useEffect(() => {
+    if (!selectedObject && !selectedBlockModel && !isRedact) {
+      setMobileInspectorOpen(false);
+    }
+  }, [selectedObject, selectedBlockModel, isRedact]);
+  useEffect(() => {
+    setMobileInspectorOpen(false);
+  }, [mode]);
   const selectedBlockCapability = selectedTextBlock
     ? capabilitiesByPage[selectedTextBlock.pageIndex] ?? null
     : null;
@@ -2666,6 +2782,48 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     : isOrganize
       ? organizeRunner.cancel
       : editRunner.cancel;
+
+  /**
+   * Phone navigation maps four thumb-sized destinations onto the same
+   * workspaces the desktop tab strip owns. "Annotate" opens Edit with the
+   * highlighter already armed, so no second editing model exists.
+   */
+  const handleMobileTab = (tab: EditorMobileTab) => {
+    if (saving) return;
+    switch (tab) {
+      case 'edit':
+        if (mode !== 'edit') changeMode('edit');
+        setTool('select');
+        break;
+      case 'annotate':
+        if (mode !== 'edit' && mode !== 'sign') changeMode('edit');
+        setTool('highlight');
+        break;
+      case 'pages':
+        if (mode !== 'organize') changeMode('organize');
+        break;
+      case 'ai':
+        if (mode === 'sign') setTool('ai');
+        else if (mode !== 'ai') changeMode('ai');
+        break;
+      case 'sign':
+        if (mode !== 'sign') changeMode('sign');
+        else setTool('signature');
+        break;
+      case 'redact':
+        if (mode !== 'redact') changeMode('redact');
+        break;
+    }
+  };
+
+  /** Close the document; unsaved work gets an explicit, reversible gate. */
+  const requestExit = () => {
+    if (dirty || hasEdits || aiChangeCount > 0) {
+      setConfirmExit(true);
+      return;
+    }
+    resetAll();
+  };
   const selectionLabel = selectedObject
     ? isRedact && selectedObject.kind === 'rect'
       ? 'Redaction mark selected'
@@ -2720,6 +2878,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             onSave={() => void onSave()}
             onChangeFile={() => pdfInputRef.current?.click()}
             onReset={resetAll}
+            onBack={requestExit}
             modes={
               initialMode === 'sign'
                 ? undefined
@@ -2801,6 +2960,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                   if (next !== null) onZoomChange(next);
                 }}
                 onFitWidth={fitWidth}
+                onOpenInspector={() => setMobileInspectorOpen((open) => !open)}
+                inspectorOpen={mobileInspectorOpen}
                 disabled={saving}
                 redactCount={redactMarks.length}
                 onRedactReview={() => setConfirmRedact(true)}
@@ -2817,6 +2978,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
               <div
                 className="editor-workspace"
                 data-rail={editor.railOpen ? 'open' : 'closed'}
+                data-inspector={mobileInspectorOpen ? 'open' : 'closed'}
                 data-panel={
                   assistantActive
                     ? 'ai'
@@ -2919,6 +3081,78 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                       No pages remain. Restore the order or open another file.
                     </p>
                   ) : null}
+                </div>
+
+                {/*
+                  Phone HUD: page navigation and zoom stay on the canvas instead
+                  of taking a permanent row of their own. Large enough for a
+                  thumb, translucent enough that the sheet below stays legible.
+                */}
+                <div className="editor-mobile-hud" data-testid="editor-mobile-hud">
+                  <div className="editor-mobile-hud-group" aria-label="Page navigation">
+                    <button
+                      type="button"
+                      className="editor-mobile-hud-btn"
+                      aria-label="Previous page"
+                      data-testid="mobile-prev-page"
+                      disabled={currentDisplayPosition <= 0}
+                      onClick={() => goToDisplayPage(currentDisplayPosition - 1)}
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
+                    <span className="editor-mobile-hud-readout" data-testid="mobile-page-status">
+                      {Math.min(currentDisplayPosition + 1, pageCount || 1)}
+                      <span className="text-muted-foreground/70"> / </span>
+                      {pageCount}
+                    </span>
+                    <button
+                      type="button"
+                      className="editor-mobile-hud-btn"
+                      aria-label="Next page"
+                      data-testid="mobile-next-page"
+                      disabled={currentDisplayPosition >= pageCount - 1}
+                      onClick={() => goToDisplayPage(currentDisplayPosition + 1)}
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
+                  </div>
+                  <span className="editor-mobile-hud-sep" aria-hidden />
+                  <div className="editor-mobile-hud-group" aria-label="Zoom">
+                    <button
+                      type="button"
+                      className="editor-mobile-hud-btn"
+                      aria-label="Zoom out"
+                      data-testid="mobile-zoom-out"
+                      onClick={() => {
+                        const next = editorStepZoom(zoom, 'out');
+                        if (next !== null) onZoomChange(next);
+                      }}
+                    >
+                      <ZoomOut className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="editor-mobile-hud-readout editor-mobile-hud-fit"
+                      aria-label={`${Math.round(zoom * 100)}% — fit page width`}
+                      title="Fit page width"
+                      data-testid="mobile-zoom-level"
+                      onClick={fitWidth}
+                    >
+                      {Math.round(zoom * 100)}%
+                    </button>
+                    <button
+                      type="button"
+                      className="editor-mobile-hud-btn"
+                      aria-label="Zoom in"
+                      data-testid="mobile-zoom-in"
+                      onClick={() => {
+                        const next = editorStepZoom(zoom, 'in');
+                        if (next !== null) onZoomChange(next);
+                      }}
+                    >
+                      <ZoomIn className="size-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <aside
@@ -3285,6 +3519,13 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             </div>
           </div>
 
+          <EditorMobileNav
+            mode={mode}
+            tool={tool}
+            disabled={saving}
+            onSelect={handleMobileTab}
+          />
+
           <EditorStatusBar
             fileName={files[0]?.name ?? 'Document'}
             mode={mode}
@@ -3344,6 +3585,52 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setConfirmRedact(false)}>
                     Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {confirmExit ? (
+            <div
+              className="editor-confirm-layer"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.stopPropagation();
+                  setConfirmExit(false);
+                }
+              }}
+            >
+              <div
+                className="editor-confirm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="editor-exit-title"
+              >
+                <span className="editor-confirm-glyph" aria-hidden>
+                  <ChevronLeft className="size-4" />
+                </span>
+                <h2 id="editor-exit-title" className="editor-confirm-title">
+                  Close this document?
+                </h2>
+                <p className="editor-confirm-copy">
+                  You have unsaved changes. Closing now discards them and returns to the file
+                  picker; saving first keeps the verified copy.
+                </p>
+                <div className="editor-confirm-actions">
+                  <Button variant="ghost" size="sm" autoFocus onClick={() => setConfirmExit(false)}>
+                    Keep editing
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    data-testid="editor-confirm-exit"
+                    onClick={() => {
+                      setConfirmExit(false);
+                      resetAll();
+                    }}
+                  >
+                    Discard and close
                   </Button>
                 </div>
               </div>

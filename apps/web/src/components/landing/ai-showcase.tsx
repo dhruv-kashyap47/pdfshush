@@ -645,22 +645,25 @@ export function AiShowcase() {
   return (
     <section id="ai-studio" className="bg-background py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section header */}
+        {/* Section header. On phones the long framing paragraph is removed;
+            three honest tool links carry the section instead of a mock. */}
         <div className="max-w-3xl" data-reveal>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="sr-only text-3xl font-bold tracking-tight text-foreground md:not-sr-only md:block sm:text-4xl">
             AI that cites the page.
           </h2>
-          {/* Orientation for the demo: a working mock, not a screenshot. */}
-          <p className="mt-3 text-base text-foreground sm:text-lg">
+          <p className="mt-3 hidden text-base text-foreground md:block sm:text-lg">
             Pick a capability, click an example, and watch the document react. This console
             is a live mock of the real tools, same engine, same privacy: your key and your
             file stay in this tab.
+          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground md:hidden">
+            AI tools
           </p>
         </div>
 
         {/* Mode tabs */}
         <div
-          className="mt-8 flex flex-wrap gap-2"
+          className="mt-8 hidden flex-wrap gap-2 lg:flex"
           role="tablist"
           aria-label="AI capabilities"
           data-reveal
@@ -699,10 +702,34 @@ export function AiShowcase() {
         {/* Mode explainer — italic, plain language, swaps with the mode. */}
         <p
           key={modeId}
-          className="showcase-swap mt-3 max-w-2xl text-[13px] italic leading-relaxed text-muted-foreground sm:text-sm"
+          className="showcase-swap mt-3 hidden max-w-2xl text-[13px] italic leading-relaxed text-muted-foreground sm:text-sm lg:block"
         >
           {mode.blurb}
         </p>
+
+        {/* Phone: three real destinations instead of a 1300px simulated
+            console. The demo is a desktop presentation, not a phone screen. */}
+        <div className="mt-6 grid grid-cols-1 gap-2 lg:hidden">
+          {MODES.map((entry) => {
+            const Icon = entry.icon;
+            return (
+              <Link
+                key={entry.id}
+                to={`/tools/${entry.slug}`}
+                className="flex min-w-0 items-center gap-3 rounded-lg border border-border/70 bg-card px-3.5 py-3 transition-colors hover:border-primary/40"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-foreground">{entry.label}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{entry.toolNote}</span>
+                </span>
+                <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            );
+          })}
+        </div>
 
         {/* Interactive studio console — the product's own interface, shown
             rendered: document viewport left, assistant right. data-ui marks
@@ -712,7 +739,7 @@ export function AiShowcase() {
           id="ai-studio-panel"
           role="tabpanel"
           aria-labelledby={`ai-tab-${mode.id}`}
-          className="mt-6 grid gap-6 lg:grid-cols-12 lg:items-stretch"
+          className="mt-6 hidden gap-6 lg:grid lg:grid-cols-12 lg:items-stretch"
           data-ui
         >
           {/* Left column: simulated document viewport */}

@@ -183,7 +183,7 @@ export function FeaturesSection() {
             </p>
           </div>
 
-          <figure className="lg:col-span-5" data-reveal data-reveal-delay="120">
+          <figure className="feature-loop hidden lg:col-span-5 lg:block" data-reveal data-reveal-delay="120">
             {/* One deliberate loop, no caption: the section's second visual. */}
             <DocumentLoopVideo />
           </figure>
@@ -217,7 +217,7 @@ export function FeaturesSection() {
                       </span>
                     </td>
                     <td className="px-6 py-3.5 font-medium text-foreground">
-                      <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                      <span className="flex items-center gap-1.5 text-primary">
                         <Check className="h-3.5 w-3.5" />
                         {row.pdfshush}
                       </span>

@@ -89,11 +89,11 @@ export function DocumentBand() {
           decoding="async"
           draggable={false}
           data-bleed
-          className="band-photo block h-[320px] w-full object-cover sm:h-[440px] lg:h-[500px]"
+          className="band-photo hidden h-[320px] w-full object-cover sm:block sm:h-[440px] lg:h-[500px]"
           style={{ objectPosition: '50% 46%' }}
         />
       </div>
-      <div className="mx-auto max-w-7xl px-4 pb-16 pt-16 sm:px-6 sm:pb-24 sm:pt-20 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:pb-24 sm:pt-20 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <p
             className="text-balance text-2xl font-semibold leading-snug tracking-tight text-white sm:text-4xl"

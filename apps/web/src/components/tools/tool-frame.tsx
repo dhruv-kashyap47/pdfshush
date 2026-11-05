@@ -71,8 +71,12 @@ export function ToolFrame({
   return (
     <div
       className={cn(
-        'mx-auto px-4 sm:px-6 lg:px-10',
-        studio ? 'max-w-[86rem] pb-10 pt-4 sm:pt-5' : wide ? 'max-w-6xl py-8' : 'max-w-5xl py-8',
+        'mx-auto px-3 sm:px-6 lg:px-10',
+        studio
+          ? 'max-w-[86rem] pb-8 pt-3 sm:pb-10 sm:pt-5'
+          : wide
+            ? 'max-w-6xl py-6 sm:py-8'
+            : 'max-w-5xl py-6 sm:py-8',
       )}
     >
       <nav

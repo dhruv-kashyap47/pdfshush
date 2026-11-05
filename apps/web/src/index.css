@@ -1279,7 +1279,7 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
     0 1px 2px oklch(0 0 0 / 55%),
     0 20px 44px -24px oklch(0 0 0 / 90%);
 }
-@media (min-width: 1024px) {
+@media (min-width: 1100px) {
   .editor-workspace {
     grid-template-columns: minmax(0, 1fr) clamp(19rem, 23vw, 23rem);
   }
@@ -1288,7 +1288,7 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
     border-left: 1px solid var(--border);
   }
 }
-@media (max-width: 1023px) {
+@media (max-width: 1099px) {
   .editor-workspace:has(.editor-inspector-rail[data-empty='false']) {
     grid-template-rows: minmax(0, 1fr) minmax(0, min(20rem, 42svh));
   }
@@ -1484,5 +1484,186 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   .motion-gate {
     opacity: 1 !important;
     transform: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHONE MARKETING SURFACE
+
+   The desktop page is a photographic, layered composition. A phone does not
+   have the width to carry that composition, and compressing it makes the copy
+   unreadable. Below 768px the site becomes a quiet editorial page: no plate,
+   no frosted panels, no parallax, no decorative wash, no large mockups. The
+   catalogue and the tools remain the product.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  /* Animations are an enhancement, never a gate on content. */
+  [data-reveal],
+  .motion-gate {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .hero-section {
+    margin-top: 0 !important;
+    padding-top: calc(var(--site-header-height) + 0.75rem) !important;
+    padding-bottom: 2.25rem !important;
+    background: var(--background) !important;
+  }
+  .hero-backdrop,
+  .hero-backdrop-image,
+  .hero-backdrop-wash,
+  .hero-backdrop-scrim,
+  .hero-copy::before {
+    display: none !important;
+  }
+  .hero-copy-field,
+  :root:not(.dark) .hero-copy-field,
+  :root:not(.dark) .hero-copy > p.hero-copy-field {
+    color: var(--foreground) !important;
+    text-shadow: none !important;
+  }
+  .hero-headline,
+  :root:not(.dark) .hero-headline {
+    max-width: none !important;
+    font-size: clamp(1.875rem, 8.8vw, 2.35rem) !important;
+    line-height: 1.08 !important;
+    font-weight: 650 !important;
+    letter-spacing: -0.03em !important;
+  }
+  .hero-copy > p.hero-copy-field {
+    margin-top: 0.875rem !important;
+    font-size: 0.9375rem !important;
+    line-height: 1.6 !important;
+    color: var(--muted-foreground) !important;
+  }
+  .hero-actions {
+    margin-top: 1.25rem !important;
+    gap: 0.5rem !important;
+  }
+  .hero-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 2.875rem;
+  }
+  .hero-rail {
+    gap: 0.5rem !important;
+    margin-top: 0.625rem !important;
+  }
+  .hero-rail .hero-chip:nth-child(n + 5) {
+    display: none;
+  }
+  .hero-chip,
+  :root:not(.dark) .hero-chip {
+    min-height: 0 !important;
+    padding: 0.625rem !important;
+    border-color: var(--border) !important;
+    background-color: var(--card) !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .hero-chip:hover {
+    transform: none;
+  }
+  .hero-rail-label {
+    margin-top: 0.75rem !important;
+    color: var(--muted-foreground) !important;
+  }
+  .hero-console,
+  :root:not(.dark) .hero-console {
+    margin-top: 1.25rem;
+    padding: 1rem !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    background: var(--card) !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .hero-console > div > .mt-5 {
+    margin-top: 0.875rem !important;
+  }
+  .hero-dropzone {
+    padding-block: 1.5rem !important;
+  }
+  .hero-ai-tile,
+  :root:not(.dark) .hero-ai-tile {
+    background: var(--muted) !important;
+  }
+  .hero-proof,
+  :root:not(.dark) .hero-proof {
+    margin: 1.75rem 0 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .hero-proof-item > p:last-child {
+    font-size: 0.75rem !important;
+    line-height: 1.45 !important;
+    color: var(--muted-foreground) !important;
+  }
+
+  /* Section rhythm tightens; whitespace stays, spectacle does not. */
+  .hero-proof + * {
+    margin-top: 0;
+  }
+  .trust-table th,
+  .trust-table td {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.75rem !important;
+    line-height: 1.4;
+  }
+  .cta-field {
+    padding: 2.25rem 1.25rem !important;
+    border-radius: var(--radius-lg) !important;
+  }
+}
+
+/* Tablets keep the composition but lose the tallest air gaps and the video
+   column height that would force a portrait scroll past two screens. The
+   photographic plate is desktop-only: at tablet width it crops into a narrow
+   strip that weakens both the picture and the copy, so the page becomes an
+   editorial surface with the same components. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .hero-backdrop,
+  .hero-copy::before {
+    display: none !important;
+  }
+  .hero-section {
+    margin-top: 0 !important;
+    padding-top: calc(var(--site-header-height) + 1.25rem) !important;
+    padding-bottom: 3.5rem !important;
+    background: var(--background) !important;
+  }
+  .hero-copy-field,
+  :root:not(.dark) .hero-copy > p.hero-copy-field {
+    color: var(--foreground) !important;
+    text-shadow: none !important;
+  }
+  .hero-console,
+  :root:not(.dark) .hero-console {
+    padding: 1.25rem;
+    border: 1px solid var(--border) !important;
+    background: var(--card) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .hero-proof,
+  :root:not(.dark) .hero-proof {
+    margin: 2rem 0 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .hero-chip,
+  :root:not(.dark) .hero-chip {
+    background-color: var(--card) !important;
+    border-color: var(--border) !important;
   }
 }

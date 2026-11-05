@@ -30,16 +30,22 @@ import {
   FileText,
   FileUp,
   GripVertical,
+  Highlighter,
   Italic,
+  LayoutGrid,
   Loader2,
   Maximize2,
+  MoreVertical,
   PanelLeftClose,
   PanelLeftOpen,
+  PenLine,
   Redo2,
   RotateCcw,
   Save,
   SendToBack,
   ShieldAlert,
+  SlidersHorizontal,
+  Sparkles,
   Trash2,
   Undo2,
   X,
@@ -60,6 +66,13 @@ import type { EditorObject } from '@pdfshush/pdf-core';
 import { AnimatedContent } from '@/components/reactbits/animated-content';
 import { SpotlightCard } from '@/components/reactbits/spotlight-card';
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useMotionScope } from '@/hooks/use-motion';
 import {
@@ -87,6 +100,8 @@ export interface EditorTopBarProps {
   onSave: () => void;
   onChangeFile: () => void;
   onReset: () => void;
+  /** Mobile back affordance: closes the document and returns to the picker. */
+  onBack?: () => void;
   showSave?: boolean;
   modes?: Array<{ id: EditorMode; label: string }>;
   onModeChange?: (mode: EditorMode) => void;
@@ -104,13 +119,29 @@ export function EditorTopBar({
   onSave,
   onChangeFile,
   onReset,
+  onBack,
   showSave = true,
   modes,
   onModeChange,
   status,
 }: EditorTopBarProps) {
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const run = (action: () => void) => {
+    setActionsOpen(false);
+    action();
+  };
+
   return (
     <header className="editor-topbar" data-testid="editor-topbar">
+      <button
+        type="button"
+        className="editor-mobile-icon editor-mobile-back"
+        aria-label="Close document and return to the file picker"
+        onClick={onBack ?? onReset}
+      >
+        <ChevronLeft className="size-5" />
+      </button>
+
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="editor-doc-glyph" aria-hidden>
           <FileText className="size-3.5" />
@@ -119,10 +150,12 @@ export function EditorTopBar({
           <p className="editor-doc-name" title={fileName}>
             {fileName}
           </p>
-          <p className="editor-doc-meta">
+          <p className="editor-doc-meta" aria-live="polite">
             {pageCount.toLocaleString()} page{pageCount === 1 ? '' : 's'}
             <span aria-hidden> / </span>
-            <span data-testid="editor-dirty-state">{dirty ? 'Unsaved changes' : 'Up to date'}</span>
+            <span data-testid="editor-dirty-state">
+              {saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Up to date'}
+            </span>
           </p>
         </div>
         <Button
@@ -166,7 +199,7 @@ export function EditorTopBar({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-7 text-muted-foreground"
+              className="editor-topbar-reset size-7 text-muted-foreground"
               aria-label="Start over"
               onClick={onReset}
             >
@@ -181,13 +214,106 @@ export function EditorTopBar({
           className="editor-save-button"
           data-testid="editor-save"
           disabled={saving || saveDisabled}
+          aria-label={saving ? 'Saving' : saveLabel}
           onClick={onSave}
           hidden={!showSave}
         >
           {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
           <span>{saving ? 'Saving...' : saveLabel}</span>
         </Button>
+        <button
+          type="button"
+          className="editor-mobile-icon editor-mobile-more"
+          aria-label="Document actions"
+          aria-haspopup="dialog"
+          onClick={() => setActionsOpen(true)}
+        >
+          <MoreVertical className="size-5" />
+        </button>
       </div>
+
+      <Sheet open={actionsOpen} onOpenChange={setActionsOpen}>
+        <SheetContent side="bottom" className="editor-action-sheet">
+          <SheetHeader>
+            <SheetTitle>Document</SheetTitle>
+            <SheetDescription className="truncate">{fileName}</SheetDescription>
+          </SheetHeader>
+          <div className="editor-action-list">
+            {showSave ? (
+              <button
+                type="button"
+                className="editor-action-row"
+                disabled={saving || saveDisabled}
+                onClick={() => run(onSave)}
+              >
+                <span className="editor-action-glyph" aria-hidden>
+                  <Save className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="editor-action-title">
+                    {saving ? 'Saving…' : saveLabel}
+                  </span>
+                  <span className="editor-action-detail">
+                    {dirty ? 'Writes a verified copy to your device.' : 'No pending changes.'}
+                  </span>
+                </span>
+                {saving ? <Loader2 className="size-4 animate-spin text-primary" /> : null}
+              </button>
+            ) : null}
+
+            <button type="button" className="editor-action-row" onClick={() => run(onChangeFile)}>
+              <span className="editor-action-glyph" aria-hidden>
+                <FileUp className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1 text-left">
+                <span className="editor-action-title">Open another file</span>
+                <span className="editor-action-detail">Replace this document.</span>
+              </span>
+            </button>
+
+            {modes && onModeChange ? (
+              <div className="editor-action-group">
+                <p className="editor-action-group-label">Workspaces</p>
+                <div className="editor-action-chips">
+                  {modes.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      className="editor-action-chip"
+                      aria-current={entry.id === mode ? 'page' : undefined}
+                      onClick={() => run(() => onModeChange(entry.id))}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <button type="button" className="editor-action-row" onClick={() => run(onReset)}>
+              <span className="editor-action-glyph" aria-hidden>
+                <RotateCcw className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1 text-left">
+                <span className="editor-action-title">Start over</span>
+                <span className="editor-action-detail">Discard this session and reopen a file.</span>
+              </span>
+            </button>
+
+            {onBack ? (
+              <button type="button" className="editor-action-row" onClick={() => run(onBack)}>
+                <span className="editor-action-glyph" aria-hidden>
+                  <ChevronLeft className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="editor-action-title">Close document</span>
+                  <span className="editor-action-detail">Return to the file picker.</span>
+                </span>
+              </button>
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
     </header>
   );
 }
@@ -205,6 +331,94 @@ function modeLabel(mode: EditorMode): string {
     default:
       return 'Editing';
   }
+}
+
+/* ---------------------------------------------------------- mobile nav */
+
+export type EditorMobileTab = 'edit' | 'annotate' | 'pages' | 'ai' | 'sign' | 'redact';
+
+export interface EditorMobileNavProps {
+  mode: EditorMode;
+  tool: EditorTool;
+  disabled?: boolean;
+  onSelect: (tab: EditorMobileTab) => void;
+}
+
+/**
+ * The phone's primary navigation. Four destinations, thumb-height targets, and
+ * the same workspace state the desktop tabs drive. "Annotate" is not a separate
+ * mode: it opens the Edit workspace with the highlighter ready, so the document
+ * session never forks.
+ */
+export function EditorMobileNav({ mode, tool, disabled, onSelect }: EditorMobileNavProps) {
+  const annotating =
+    (mode === 'edit' || mode === 'sign') &&
+    (tool === 'highlight' || tool === 'strikeout' || tool === 'underline' || tool === 'whiteout');
+
+  const tabs =
+    mode === 'sign'
+      ? [
+          { id: 'sign' as const, label: 'Sign', icon: PenLine },
+          { id: 'annotate' as const, label: 'Annotate', icon: Highlighter },
+          { id: 'pages' as const, label: 'Pages', icon: LayoutGrid },
+          { id: 'ai' as const, label: 'AI', icon: Sparkles },
+        ]
+      : mode === 'redact'
+        ? [
+            { id: 'redact' as const, label: 'Redact', icon: ShieldAlert },
+            { id: 'edit' as const, label: 'Edit', icon: PenLine },
+            { id: 'pages' as const, label: 'Pages', icon: LayoutGrid },
+            { id: 'ai' as const, label: 'AI', icon: Sparkles },
+          ]
+        : [
+            { id: 'edit' as const, label: 'Edit', icon: PenLine },
+            { id: 'annotate' as const, label: 'Annotate', icon: Highlighter },
+            { id: 'pages' as const, label: 'Pages', icon: LayoutGrid },
+            { id: 'ai' as const, label: 'AI', icon: Sparkles },
+          ];
+
+  const active: EditorMobileTab =
+    mode === 'ai' || tool === 'ai'
+      ? 'ai'
+      : mode === 'organize'
+        ? 'pages'
+        : mode === 'redact'
+          ? 'redact'
+          : mode === 'sign'
+            ? annotating
+              ? 'annotate'
+              : 'sign'
+            : annotating
+              ? 'annotate'
+              : 'edit';
+
+  return (
+    <nav
+      className="editor-mobile-nav"
+      aria-label="PDF workspace"
+      data-testid="editor-mobile-nav"
+    >
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            className="editor-mobile-tab"
+            aria-current={active === tab.id ? 'page' : undefined}
+            data-testid={`editor-mobile-tab-${tab.id}`}
+            disabled={disabled}
+            onClick={() => onSelect(tab.id)}
+          >
+            <span className="editor-mobile-tab-icon" aria-hidden>
+              <Icon className="size-4" strokeWidth={1.9} />
+            </span>
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
 }
 
 /* ------------------------------------------------------------- tool rail */
@@ -368,6 +582,9 @@ export interface EditorContextBarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFitWidth: () => void;
+  /** Phone-only properties sheet toggle. */
+  onOpenInspector?: () => void;
+  inspectorOpen?: boolean;
   disabled?: boolean;
   /** Redaction-only actions. */
   redactCount?: number;
@@ -401,6 +618,8 @@ export function EditorContextBar(props: EditorContextBarProps) {
     onZoomIn,
     onZoomOut,
     onFitWidth,
+    onOpenInspector,
+    inspectorOpen,
     disabled,
     redactCount = 0,
     onRedactReview,
@@ -442,6 +661,17 @@ export function EditorContextBar(props: EditorContextBarProps) {
       </div>
 
       <div className="editor-context-actions">
+        {onOpenInspector ? (
+          <ContextIcon
+            label={inspectorOpen ? 'Hide properties' : 'Show properties'}
+            testId="editor-toggle-inspector"
+            className="editor-context-mobile"
+            disabled={!hasSelection && mode !== 'redact'}
+            onClick={onOpenInspector}
+          >
+            <SlidersHorizontal className="size-3.5" />
+          </ContextIcon>
+        ) : null}
         <ContextIcon label="Undo (Ctrl+Z)" testId="editor-undo" disabled={!canUndo} onClick={onUndo}>
           <Undo2 className="size-3.5" />
         </ContextIcon>
@@ -477,6 +707,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
             <ContextIcon
               label="Bring forward"
               testId="editor-bring-forward"
+              className="editor-context-reorder"
               disabled={!canReorder}
               onClick={() => onReorder('forward')}
             >
@@ -485,6 +716,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
             <ContextIcon
               label="Send backward"
               testId="editor-send-backward"
+              className="editor-context-reorder"
               disabled={!canSendBack}
               onClick={() => onReorder('backward')}
             >
@@ -492,17 +724,36 @@ export function EditorContextBar(props: EditorContextBarProps) {
             </ContextIcon>
           </>
         ) : null}
-        <span className="editor-context-divider" aria-hidden />
-        <ContextIcon label="Zoom out (Ctrl+-)" testId="editor-zoom-out" onClick={onZoomOut}>
+        <span className="editor-context-divider editor-context-zoom" aria-hidden />
+        <ContextIcon
+          label="Zoom out (Ctrl+-)"
+          testId="editor-zoom-out"
+          className="editor-context-zoom"
+          onClick={onZoomOut}
+        >
           <ZoomOut className="size-3.5" />
         </ContextIcon>
-        <span className="editor-zoom-readout" data-testid="editor-zoom-level" aria-live="polite">
+        <span
+          className="editor-zoom-readout editor-context-zoom"
+          data-testid="editor-zoom-level"
+          aria-live="polite"
+        >
           {Math.round(zoom * 100)}%
         </span>
-        <ContextIcon label="Zoom in (Ctrl++)" testId="editor-zoom-in" onClick={onZoomIn}>
+        <ContextIcon
+          label="Zoom in (Ctrl++)"
+          testId="editor-zoom-in"
+          className="editor-context-zoom"
+          onClick={onZoomIn}
+        >
           <ZoomIn className="size-3.5" />
         </ContextIcon>
-        <ContextIcon label="Fit width (Ctrl+0)" testId="editor-fit-width" onClick={onFitWidth}>
+        <ContextIcon
+          label="Fit width (Ctrl+0)"
+          testId="editor-fit-width"
+          className="editor-context-zoom"
+          onClick={onFitWidth}
+        >
           <Maximize2 className="size-3.5" />
         </ContextIcon>
       </div>
@@ -516,6 +767,7 @@ function ContextIcon({
   disabled,
   onClick,
   destructive,
+  className,
   children,
 }: {
   label: string;
@@ -523,6 +775,7 @@ function ContextIcon({
   disabled?: boolean;
   onClick: () => void;
   destructive?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -530,7 +783,11 @@ function ContextIcon({
       <TooltipTrigger asChild>
         <button
           type="button"
-          className={cn('editor-context-icon', destructive && 'editor-context-icon--danger')}
+          className={cn(
+            'editor-context-icon',
+            destructive && 'editor-context-icon--danger',
+            className,
+          )}
           aria-label={label}
           data-testid={testId}
           disabled={disabled}

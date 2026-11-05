@@ -163,26 +163,38 @@ export function HeroSection() {
           byte for byte from /hero/greek-light-mode.png. Both plates live in the
           DOM so switching themes is a pure class swap. */}
       <div className="hero-backdrop" aria-hidden="true">
-        <img
-          src="/hero/greek-light-mode.png"
-          width={1672}
-          height={941}
-          alt=""
-          draggable={false}
-          decoding="async"
-          fetchPriority="high"
-          loading="eager"
-          className="hero-backdrop-image hero-backdrop-image--day block dark:hidden"
-        />
-        <img
-          src="/hero/greek-night.webp"
-          srcSet="/hero/greek-night-sm.webp 1080w, /hero/greek-night.webp 1572w"
-          sizes="100vw"
-          alt=""
-          draggable={false}
-          decoding="async"
-          className="hero-backdrop-image hero-backdrop-image--night hidden dark:block"
-        />
+        {/* The plate is desktop-only. <source media> prevents phones and
+            tablets from downloading a decorative image that the layout hides;
+            the fallback is a 1×1 transparent pixel, not a large file. */}
+        <picture>
+          <source media="(min-width: 1024px)" srcSet="/hero/greek-light-mode.png" />
+          <img
+            src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+            width={1672}
+            height={941}
+            alt=""
+            draggable={false}
+            decoding="async"
+            fetchPriority="high"
+            loading="lazy"
+            className="hero-backdrop-image hero-backdrop-image--day block dark:hidden"
+          />
+        </picture>
+        <picture className="hidden dark:block">
+          <source
+            media="(min-width: 1024px)"
+            srcSet="/hero/greek-night-sm.webp 1080w, /hero/greek-night.webp 1572w"
+            sizes="100vw"
+          />
+          <img
+            src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+            alt=""
+            draggable={false}
+            decoding="async"
+            loading="lazy"
+            className="hero-backdrop-image hero-backdrop-image--night hidden dark:block"
+          />
+        </picture>
         <div className="hero-backdrop-wash" />
         <div className="hero-backdrop-scrim" />
       </div>
