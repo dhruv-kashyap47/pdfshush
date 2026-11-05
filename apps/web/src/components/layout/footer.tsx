@@ -40,7 +40,7 @@ export function SiteFooter() {
             </Link>
             <p className="mt-3 max-w-sm text-sm text-muted-foreground">
               Free PDF tools that run entirely in your browser. No sign-up, no watermarks, no
-              upload -- your files never leave this device.
+              upload. Your files never leave this device.
             </p>
             <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
               <ShieldCheck className="h-4 w-4 text-primary" />
@@ -93,8 +93,16 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; {new Date().getFullYear()} PDFShush · AGPL-3.0 licensed · Not affiliated with Sejda</p>
+        {/* Oversized brand close: the wordmark fades into the page, so the
+            footer ends on the identity rather than a line of small print. */}
+        <div className="footer-wordmark mt-12 select-none overflow-hidden" aria-hidden="true" data-reveal>
+          <span className="block whitespace-nowrap bg-gradient-to-b from-foreground/80 via-foreground/40 to-transparent bg-clip-text text-center text-[clamp(3.5rem,16vw,14rem)] font-light leading-[0.8] tracking-[-0.06em] text-transparent">
+            pdf<span className="font-bold">shush</span>
+          </span>
+        </div>
+
+        <div className="mt-10 flex flex-col gap-3 border-t border-border/60 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <p>&copy; {new Date().getFullYear()} PDFShush</p>
           <p className="flex items-center gap-4">
             <Link to="/trust" className="transition-colors hover:text-foreground">
               Privacy

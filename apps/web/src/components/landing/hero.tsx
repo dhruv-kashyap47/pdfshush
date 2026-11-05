@@ -261,7 +261,7 @@ export function HeroSection() {
                         key={item.slug}
                         to={`/tools/${item.slug}`}
                         data-tool-chip
-                        className="hero-chip group rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-card/62 dark:hover:border-primary/45"
+                        className="hero-chip group flex h-full flex-col rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-card/62 dark:hover:border-primary/45"
                       >
                         <div className="flex items-center gap-2">
                           <span
@@ -269,17 +269,17 @@ export function HeroSection() {
                           >
                             <Icon className="h-3.5 w-3.5" />
                           </span>
-                          <p className="whitespace-nowrap text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
+                          <p className="min-w-0 truncate text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
                             {item.label}
                           </p>
                         </div>
-                        {/* The promise, below the tool, in readable italics; the
-                            "soon" badge rides this row so it never forces the
-                            label to wrap. */}
-                        <p className="mt-1.5 text-[11px] italic leading-snug text-muted-foreground">
+                        {/* The promise sits below the tool at a readable size;
+                            two lines keep every chip the same height, and the
+                            "soon" badge rides this row without wrapping the label. */}
+                        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/80">
                           {item.desc}
                           {item.soon && (
-                            <span className="ml-1.5 inline-block -translate-y-px rounded-full bg-muted px-1.5 text-[9px] font-semibold not-italic uppercase tracking-wide text-muted-foreground">
+                            <span className="ml-1.5 inline-block -translate-y-px rounded-full bg-muted px-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                               soon
                             </span>
                           )}
@@ -356,12 +356,12 @@ export function HeroSection() {
                           <Link
                             key={item.slug}
                             to={`/tools/${item.slug}`}
-                            className="hero-ai-tile group rounded-lg bg-background/55 p-3 text-left transition-colors hover:bg-background/85 dark:bg-background/52 dark:hover:bg-background/72"
+                            className="hero-ai-tile group flex h-full flex-col justify-center rounded-lg bg-background/55 p-3 text-left transition-colors hover:bg-background/85 dark:bg-background/52 dark:hover:bg-background/72"
                           >
-                            <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary">
+                            <p className="text-sm font-semibold text-foreground group-hover:text-primary">
                               {item.name}
                             </p>
-                            <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                               {item.desc}
                             </p>
                           </Link>
@@ -459,10 +459,10 @@ export function HeroSection() {
             Their reveal stays on the CSS/IO system (use-reveal). */}
         <div className="hero-proof mt-12 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 sm:gap-x-10">
           {[
-            { icon: Cpu, label: 'All client-side', desc: 'PDFium and pdf.js render and rebuild files inside sandboxed Web Workers.' },
-            { icon: Lock, label: 'Keys stay put', desc: 'Bring your own API key. It lives in browser storage and never leaves this device.' },
-            { icon: CheckCircle2, label: 'Deletion you can verify', desc: 'Redactions destroy the underlying pixels and strip the text layer, then prove it.' },
-            { icon: Zap, label: 'No toll gates', desc: 'No page limits, watermarks or sign-ups for anything that runs in your browser.' },
+            { icon: Cpu, label: 'All client-side', desc: 'Runs in your browser. Files never leave the tab.' },
+            { icon: Lock, label: 'Keys stay put', desc: 'Your API key stays in this browser.' },
+            { icon: CheckCircle2, label: 'Deletion you can verify', desc: 'Redactions wipe the pixels and text, then check the result.' },
+            { icon: Zap, label: 'No toll gates', desc: 'No page limits, watermarks or sign-ups.' },
           ].map((item, i) => {
             const Icon = item.icon;
             return (
@@ -476,7 +476,7 @@ export function HeroSection() {
                   <Icon className="h-4 w-4 text-primary" />
                   <span>{item.label}</span>
                 </p>
-                <p className="text-base leading-relaxed text-foreground/80 dark:text-muted-foreground">{item.desc}</p>
+                <p className="text-sm leading-relaxed text-foreground/80 dark:text-muted-foreground">{item.desc}</p>
               </div>
             );
           })}

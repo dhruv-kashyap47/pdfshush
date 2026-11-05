@@ -1479,6 +1479,11 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
     transform: none !important;
     transition: none !important;
   }
+  /* Word reveals are an enhancement: the copy is always readable. */
+  [data-word] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
   /* Same guarantee for the anime.js gates: if JS was ever cut short, content
      must not stay hidden. */
   .motion-gate {
@@ -1500,6 +1505,10 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   /* Animations are an enhancement, never a gate on content. */
   [data-reveal],
   .motion-gate {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  [data-word] {
     opacity: 1 !important;
     transform: none !important;
   }

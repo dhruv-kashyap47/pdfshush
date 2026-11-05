@@ -40,7 +40,9 @@ export function ToolCard({ tool, compact = false }: ToolCardProps) {
         )}
       </div>
       {!compact && (
-        <p className="text-[11px] italic leading-snug text-muted-foreground">{tool.description}</p>
+        <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/80">
+          {tool.description}
+        </p>
       )}
     </Link>
   );
