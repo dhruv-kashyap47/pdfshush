@@ -41,7 +41,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Text editing Phase 3** | Advanced document intelligence: layout-relationship engine, evidence-based structure confidence, table/column/role/typography fixes, image obstacles for reflow, held-out synthetic **and** real-PDF benchmark | ✅ **done 2026-11-02** — 38 new engine tests, 12 defects fixed; see §29 |
 | **Phase 4 — Production hardening** | Audit-first performance work (profiled, output-preserving), native/worker lifecycle fixes, document-intelligence stabilization, editing/logging privacy, export/redaction isolation, dependency + bundle audit, full E2E campaign, observability | ✅ **done 2026-11-03** — see §30; **SHIP** |
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
-| **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ? **done 2026-11-05** - see section 34; 9 widths checked, 1 354 unit tests, mobile axe clean |
+| **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 354 unit tests, responsive sweep clean, phone/tablet editor checks green |
 | **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 top entry; 50 of 58 live, 8 declined, 1 354 unit tests |
@@ -68,15 +68,16 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
 **Current gate:** re-measured 2026-11-05 for the **scans batch**, the reliability pass and the
-responsive product shell (`pnpm -r typecheck`, `pnpm test` - **1 354/1 354 unit** - `pnpm build`,
-`pnpm test:bundle` green; main chunk 150.4 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
+responsive product shell (`pnpm -r typecheck`, `pnpm test` — **1 354/1 354 unit** — `pnpm build`,
+`pnpm test:bundle` green; main chunk 150.8 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
 worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
 document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
-fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and the
-2026-11-05 passes are recorded in §8. Browser suites re-run green against this commit: smoke,
-deskew, dark-mode, plain-tools, next-tools, a11y, keyboard, offline, reach and verify. The
-containerised `test:api`/`test:hardening` gates were **not** re-run; Docker is not available in
-this environment, so those checks stay unclaimed (§31.21).
+fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and all three
+2026-11-05 passes are recorded in §8. Browser suites re-run green against the responsive commit:
+smoke, deskew, dark-mode, plain-tools, next-tools, a11y, keyboard, offline, reach and verify; the
+responsive sweep is clean across 6 breakpoints × 2 themes × 6 routes. The containerised
+`test:api`/`test:hardening` gates were **not** re-run; Docker is not available in this environment,
+so those checks stay unclaimed (§31.21).
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -737,14 +738,23 @@ never actually wired, and a stream with no error listener.*
   name mismatch on the zoom readout and a serious contrast failure in the comparison table; both
   are fixed.
 
+  **Bug-check follow-up (same day).** Three issues survived the first pass and were fixed before
+  this record was finalised. (6) The desktop hero's day plate had become `loading="lazy"` while
+  still carrying `fetchPriority="high"`; it is eager again, so the <1024 px saving does not cost
+  desktop LCP. (7) The responsive sweep counted hidden `data-reveal` blocks (the phone-hidden AI
+  tabs and feature video) as "unrevealed"; it now ignores `display:none` blocks, so the sweep is
+  clean across 6 breakpoints × 2 themes × 6 routes. (8) The decorative studio waves legitimately
+  extend past the viewport inside an `overflow:hidden` cover; they are now marked `data-bleed`,
+  the sweep's documented exception for clipped art, instead of being reported as layout overflow.
+
   **Verification.** `pnpm -r typecheck`; `pnpm test` **1 354/1 354** (engine 455, API 214,
-  provider 370, agent 152, web 144, MCP 19); `pnpm build`; `pnpm test:bundle` green (main 150.4 kB,
+  provider 370, agent 152, web 144, MCP 19); `pnpm build`; `pnpm test:bundle` green (main 150.8 kB,
   0 engines, 17 lazy chunks with 0 engines). `pnpm audit --prod --audit-level high`: no known
-  vulnerabilities. Browser: `keyboard`, `a11y` (all routes + editor), and `reach` green against the
-  production preview; dark-mode functional checks pass while its console gate still counts two
-  502s from the intentionally absent API. Manual Playwright at 320/390/430/599/600/700/768/1024/
-  1280 px: zero horizontal overflow, annotation/undo/redo, page nav/delete, properties sheet, AI
-  workspace, save and PDF download verified; pinch 65% -> 130%; no `/hero/` request below
+  vulnerabilities. Browser: full smoke, `deskew`, `dark-mode`, `plain-tools`, `next-tools`, `a11y`
+  (all routes + editor), `keyboard`, `offline`, `reach` and `verify` green against the dev stack and
+  the production preview; `test:sweep` clean. Manual Playwright at 320/390/430/599/600/700/768/
+  1024/1280 px: zero horizontal overflow, annotation/undo/redo, page nav/delete, properties sheet,
+  AI workspace, save and PDF download verified; pinch 65% -> 130%; no `/hero/` request below
   1024 px. Mobile axe (390 px) clean on home, editor and editor-with-properties. See section 34.
 
 - **2026-11-05 - The scans batch: Deskew shipped, and three raster tools stopped producing blank pages.**
@@ -6756,23 +6766,40 @@ request audit confirms zero `/hero/` requests at 390 px and only the active them
    not include its visible percentage, and the comparison table's emerald text failed AA contrast.
    The name now starts with the visible percentage and the row uses the theme's deep emerald
    `text-primary`.
+6. **The desktop hero regressed to lazy loading.** The phone-saving change left the day plate at
+   `loading="lazy"` while still asking for `fetchPriority="high"`. Those are contradictory: the
+   plate is above the fold on desktop, so it is eager again. The `<source media>` still prevents
+   the download below 1024 px, which is the actual mobile saving.
+7. **The responsive sweep counted hidden content as unrevealed.** The phone hides two
+   `data-reveal` blocks (the AI tabs and the feature video); an IntersectionObserver can never
+   reveal `display:none`, so the sweep now ignores non-rendered blocks. It is clean across 6
+   breakpoints × 2 themes × 6 routes.
+8. **Decorative studio waves were reported as overflow.** They extend past the viewport inside an
+   `overflow:hidden` cover, so the page never scrolls; they are now marked `data-bleed` (the
+   sweep's documented exception for deliberately clipped art) instead of being treated as a
+   layout defect.
 
 ### 34.5 Verification
 
 - `pnpm -r typecheck` - all packages.
 - `pnpm test` - **1 354/1 354** unit tests: engine 455, API 214, provider 370, agent 152, web 144,
   MCP 19.
-- `pnpm build` - green; `pnpm test:bundle` - green (main 150.4 kB, 0 engines, 17 lazy app chunks
+- `pnpm build` - green; `pnpm test:bundle` - green (main 150.8 kB, 0 engines, 17 lazy app chunks
   with 0 engines, engines only in worker chunks).
 - `pnpm audit --prod --audit-level high` - no known vulnerabilities.
-- Browser E2E against the production preview: `keyboard` (all checks), `a11y` (all routes plus the
-  editor with a selected object, zero critical/serious axe findings), `reach` (all checks).
-  `dark-mode` functional checks pass; its console gate counts two 502s from the deliberately absent
-  API in this preview and is not treated as a responsive regression.
+- Browser E2E against the dev stack and the production preview: full smoke, `deskew`, `dark-mode`,
+  `plain-tools`, `next-tools`, `keyboard`, `a11y` (all routes plus the editor with a selected
+  object, zero critical/serious axe findings), `offline`, `reach` and `verify` all green. The
+  preview's intentionally absent API still produces two 502 console entries on the AI route; the
+  suite reports them honestly and they are not a responsive failure.
+- `pnpm test:sweep` - clean across 6 breakpoints × 2 themes × 6 routes after ignoring hidden
+  reveal blocks and marking the clipped studio waves as `data-bleed`.
 - Manual Playwright at **320, 390, 430, 599, 600, 700, 768, 1024 and 1280 px**: no horizontal
   overflow; editor opens; annotation draw; undo/redo; page next/previous; page delete; properties
   sheet; AI workspace; save and browser PDF download; pinch 65% -> 130% and fit reset. Mobile axe
-  (390 px) is clean on home, editor and editor-with-properties.
+  (390 px) is clean on home, editor and editor-with-properties. An independent 390/768 px pass
+  additionally verified the bottom nav, HUD, properties sheet open/close, unsaved-close guard,
+  phone save/download and tablet nav hiding.
 
 ### 34.6 Boundaries and next device pass
 

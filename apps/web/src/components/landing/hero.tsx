@@ -176,7 +176,7 @@ export function HeroSection() {
             draggable={false}
             decoding="async"
             fetchPriority="high"
-            loading="lazy"
+            loading="eager"
             className="hero-backdrop-image hero-backdrop-image--day block dark:hidden"
           />
         </picture>

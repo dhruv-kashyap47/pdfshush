@@ -88,9 +88,17 @@ for (const theme of ['light', 'dark']) {
             }
           }
         }
+        // A `data-reveal` block hidden by the responsive shell (display:none)
+        // never intersects, so it is not an unrevealed-content bug. Only count
+        // blocks that are actually rendered and still waiting to appear.
+        const unrevealed = [...document.querySelectorAll('[data-reveal]:not([data-revealed])')].filter((el) => {
+          const style = getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        }).length;
         return {
           overflow: doc.scrollWidth - window.innerWidth,
-          unrevealed: document.querySelectorAll('[data-reveal]:not([data-revealed])').length,
+          unrevealed,
           offenders: offenders.slice(0, 4),
         };
       });

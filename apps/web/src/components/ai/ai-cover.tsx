@@ -130,7 +130,7 @@ export function AiCover({
 
   return (
     <div ref={rootRef} className="studio-cover studio-plate">
-      <div className="studio-cover-waves" aria-hidden>
+      <div className="studio-cover-waves" aria-hidden data-bleed>
         <StudioWaves />
       </div>
 
