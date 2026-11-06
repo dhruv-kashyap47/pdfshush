@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Check, Play, ShieldCheck, X } from 'lucide-react';
+import { Check, ShieldCheck, X } from 'lucide-react';
 import { AsciiLoop } from '@/components/landing/ascii-loop';
 import { RevealText } from '@/components/landing/reveal-text';
-import { useIsDark } from '@/hooks/use-is-dark';
 
 const CLAIMS = [
   {
@@ -47,113 +45,7 @@ const COMPARISON_ROWS = [
   },
 ];
 
-/**
- * Dark-mode loop for the section's second visual: luminous data fragments
- * reassemble into a rooted silver tree. Silent and self-contained: playback
- * arms only when the frame is near the viewport (IntersectionObserver with
- * edge hysteresis), and the browser pauses it offscreen. Visitors whose
- * system asks for reduced motion, or whose browser denies autoplay, get the
- * matching poster still plus a small one-click play control, so the motion
- * preference is respected without ever leaving dead content.
- *
- * Light mode swaps this medium for the ASCII drawing (AsciiLoop): same slot,
- * same 3:4 frame, so the theme flips the artwork and never the layout.
- */
-function DocumentLoopVideo() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  // True whenever the automatic start is withheld (reduced motion or a
-  // blocked autoplay promise); a durable play control is offered instead.
-  const [gated, setGated] = useState(true);
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    let observer: IntersectionObserver | null = null;
-    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-    const armAutoplay = () => {
-      observer?.disconnect();
-      if (mql.matches) {
-        setGated(true);
-        return;
-      }
-      // Hysteresis so the loop never stutters at the viewport edge: playback
-      // starts once a fifth of the frame is visible, and pauses only when the
-      // frame has fully left (the 240px lead warms the fetch before arrival).
-      observer = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (entry.intersectionRatio >= 0.2) {
-              void el
-                .play()
-                .then(() => setGated(false))
-                .catch(() => setGated(true));
-            } else if (entry.intersectionRatio === 0) {
-              el.pause();
-            }
-          }
-        },
-        { threshold: [0, 0.2], rootMargin: '0px 0px 240px 0px' },
-      );
-      observer.observe(el);
-    };
-
-    armAutoplay();
-    mql.addEventListener('change', armAutoplay);
-    return () => {
-      observer?.disconnect();
-      mql.removeEventListener('change', armAutoplay);
-      el.pause();
-    };
-  }, []);
-
-  useEffect(() => {
-    // React sets the `muted` attribute after the element mounts, which lets
-    // Safari play a frame of audio on first load; force the DOM property.
-    if (videoRef.current) videoRef.current.muted = true;
-  }, []);
-
-  // One quiet gesture starts the loop whenever the browser withheld it.
-  const startLoop = () => {
-    void videoRef.current
-      ?.play()
-      .then(() => setGated(false))
-      .catch(() => {});
-  };
-
-  return (
-    <div className="relative overflow-hidden rounded-lg">
-      <video
-        ref={videoRef}
-        // Fast-start MP4 (moov first): ~2.6 MB, H.264, 720x1280, 10 s loop.
-        // preload only fetches the header; the body arrives when playback is armed.
-        preload="metadata"
-        poster="/brand/pindown-tree-poster.jpg"
-        loop
-        muted
-        playsInline
-        aria-label="Fragments of luminous data reassembling into a silver tree with deep roots, looping on black"
-        className="aspect-[3/4] w-full object-cover"
-        style={{ objectPosition: '50% 40%' }}
-        src="/brand/pindown-tree.mp4"
-      />
-      {gated && (
-        <button
-          type="button"
-          onClick={startLoop}
-          aria-label="Play the document loop"
-          className="absolute bottom-5 left-1/2 flex h-12 w-12 -translate-x-1/2 items-center justify-center rounded-full bg-white/12 text-white ring-1 ring-white/25 transition-colors hover:bg-white/25 hover:ring-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-        >
-          <Play className="ml-0.5 h-4.5 w-4.5" />
-        </button>
-      )}
-    </div>
-  );
-}
-
 export function FeaturesSection() {
-  const isDark = useIsDark();
-
   return (
     <section id="architecture" className="bg-muted/15 py-16 sm:py-24 dark:bg-[oklch(0.05_0_0)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -193,8 +85,8 @@ export function FeaturesSection() {
 
           <figure className="feature-loop hidden lg:col-span-5 lg:block" data-reveal data-reveal-delay="120">
             {/* One deliberate loop, no caption: the section's second visual.
-                The medium follows the theme; the frame never moves. */}
-            {isDark ? <DocumentLoopVideo /> : <AsciiLoop />}
+                One drawing, inked for paper or for light; the frame never moves. */}
+            <AsciiLoop />
           </figure>
         </div>
 
@@ -280,3 +172,4 @@ export function FeaturesSection() {
     </section>
   );
 }
+
