@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Play, ShieldCheck, X } from 'lucide-react';
+import { AsciiLoop } from '@/components/landing/ascii-loop';
 import { RevealText } from '@/components/landing/reveal-text';
+import { useIsDark } from '@/hooks/use-is-dark';
 
 const CLAIMS = [
   {
@@ -46,13 +48,16 @@ const COMPARISON_ROWS = [
 ];
 
 /**
- * Cinematic loop for the section's second visual: luminous data fragments
+ * Dark-mode loop for the section's second visual: luminous data fragments
  * reassemble into a rooted silver tree. Silent and self-contained: playback
  * arms only when the frame is near the viewport (IntersectionObserver with
  * edge hysteresis), and the browser pauses it offscreen. Visitors whose
  * system asks for reduced motion, or whose browser denies autoplay, get the
  * matching poster still plus a small one-click play control, so the motion
  * preference is respected without ever leaving dead content.
+ *
+ * Light mode swaps this medium for the ASCII drawing (AsciiLoop): same slot,
+ * same 3:4 frame, so the theme flips the artwork and never the layout.
  */
 function DocumentLoopVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -147,6 +152,8 @@ function DocumentLoopVideo() {
 }
 
 export function FeaturesSection() {
+  const isDark = useIsDark();
+
   return (
     <section id="architecture" className="bg-muted/15 py-16 sm:py-24 dark:bg-[oklch(0.05_0_0)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -185,8 +192,9 @@ export function FeaturesSection() {
           </div>
 
           <figure className="feature-loop hidden lg:col-span-5 lg:block" data-reveal data-reveal-delay="120">
-            {/* One deliberate loop, no caption: the section's second visual. */}
-            <DocumentLoopVideo />
+            {/* One deliberate loop, no caption: the section's second visual.
+                The medium follows the theme; the frame never moves. */}
+            {isDark ? <DocumentLoopVideo /> : <AsciiLoop />}
           </figure>
         </div>
 
