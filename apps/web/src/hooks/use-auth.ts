@@ -173,6 +173,17 @@ const AUTH_ERRORS: Record<string, string> = {
 };
 
 /**
+ * Own-property lookup only: `reason` comes from the query string, and a plain
+ * indexed read would resolve `constructor`/`__proto__`/`toString` on the
+ * prototype chain and hand a function/object to `toast.error()`, which crashes
+ * React with error #31.
+ */
+export function authErrorMessage(reason: string): string {
+  return (Object.hasOwn(AUTH_ERRORS, reason) ? AUTH_ERRORS[reason] : undefined) ??
+    'Sign-in failed. Please try again.';
+}
+
+/**
  * Surfaces the callback's outcome once, then strips it from the URL.
  *
  * The callback redirects back with `?auth=error&reason=…` rather than rendering
@@ -187,7 +198,7 @@ export function useAuthRedirectNotice(onSignedIn?: () => void): void {
 
     if (outcome === 'error') {
       const reason = params.get('reason') ?? 'signin_failed';
-      toast.error(AUTH_ERRORS[reason] ?? 'Sign-in failed. Please try again.');
+      toast.error(authErrorMessage(reason));
     } else {
       onSignedIn?.();
     }

@@ -32,6 +32,7 @@ import {
   runRecipe,
   saveLocalRecipe,
   SERVER_JOB_LABELS,
+  serverJobLabel,
   TERMINAL_JOB_SLUGS,
   unsupportedSteps,
   type Recipe,
@@ -78,7 +79,7 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
         setRunnable(
           Object.keys(SERVER_JOB_LABELS)
             .filter((slug) => slugs.has(slug))
-            .sort((a, b) => (SERVER_JOB_LABELS[a] ?? a).localeCompare(SERVER_JOB_LABELS[b] ?? b)),
+            .sort((a, b) => serverJobLabel(a).localeCompare(serverJobLabel(b))),
         );
       })
       .catch(() => {
@@ -311,7 +312,7 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
                   >
                     <span className="text-xs text-muted-foreground">{index + 1}</span>
                     <span className="flex-1 truncate text-sm">
-                      {SERVER_JOB_LABELS[step.tool] ?? step.tool}
+                    {serverJobLabel(step.tool)}
                     </span>
                     {unsupported && <Badge variant="destructive">server cannot run this</Badge>}
                     <Button
@@ -367,7 +368,7 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
               </option>
               {selectableJobs.map((slug) => (
                 <option key={slug} value={slug}>
-                  {SERVER_JOB_LABELS[slug] ?? slug}
+                  {serverJobLabel(slug)}
                 </option>
               ))}
             </select>
@@ -456,7 +457,7 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{recipe.name}</p>
               <p className="truncate text-xs text-muted-foreground">
-                {recipe.steps.map((step) => SERVER_JOB_LABELS[step.tool] ?? step.tool).join(' → ')}
+                {recipe.steps.map((step) => serverJobLabel(step.tool)).join(' → ')}
               </p>
             </div>
             <Button

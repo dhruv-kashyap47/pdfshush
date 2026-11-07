@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   hasNonFinalTerminalStep,
   relinkWorkflowSteps,
+  serverJobLabel,
   type WorkflowStep,
 } from './workflows';
 
@@ -45,5 +46,21 @@ describe('terminal workflow jobs', () => {
     expect(hasNonFinalTerminalStep([step('a', 'inspect'), step('b', 'merge')])).toBe(true);
     expect(hasNonFinalTerminalStep([step('a', 'split-by-pages')])).toBe(false);
     expect(hasNonFinalTerminalStep([step('a', 'split-by-pages'), step('b', 'stamp')])).toBe(true);
+  });
+});
+
+describe('server job labels', () => {
+  it('labels known jobs and falls back to the slug itself', () => {
+    expect(serverJobLabel('merge')).toBe('Merge PDFs');
+    expect(serverJobLabel('not-a-job')).toBe('not-a-job');
+  });
+
+  it('never resolves inherited Object.prototype keys as labels', () => {
+    // Step tools come from saved recipes; a plain indexed read would hand the
+    // inherited `constructor` value to the render.
+    expect(serverJobLabel('constructor')).toBe('constructor');
+    expect(serverJobLabel('__proto__')).toBe('__proto__');
+    expect(typeof serverJobLabel('toString')).toBe('string');
+    expect(serverJobLabel('toString')).toBe('toString');
   });
 });

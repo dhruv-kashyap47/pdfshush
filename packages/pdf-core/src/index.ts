@@ -334,7 +334,7 @@ export { unlockDocument } from './ops/unlock.js';
 export type { UnlockResult } from './ops/unlock.js';
 export { protectDocument, validateProtectOptions, normalizePermissions } from './ops/protect.js';
 export type { ProtectOptions, ProtectResult } from './ops/protect.js';
-export { PROTECT_DEFAULT_PERMISSIONS, PROTECT_LIMITS } from './ops/protectConfig.js';
+export { PROTECT_DEFAULT_PERMISSIONS, PROTECT_LIMITS, passwordByteLength } from './ops/protectConfig.js';
 export type { ProtectPermissions } from './ops/protectConfig.js';
 export { repairPdf } from './ops/repair.js';
 export type { RepairOptions, RepairResult } from './ops/repair.js';

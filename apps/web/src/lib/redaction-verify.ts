@@ -101,7 +101,10 @@ export const CHECK_LABELS: Record<string, string> = {
 };
 
 export function labelForCheck(name: string): string {
-  return CHECK_LABELS[name] ?? name.replaceAll('-', ' ');
+  // Own-property lookup: check names travel through worker messages, and the
+  // fallback must apply to inherited keys too rather than returning a function.
+  const label = Object.hasOwn(CHECK_LABELS, name) ? CHECK_LABELS[name] : undefined;
+  return label ?? name.replaceAll('-', ' ');
 }
 
 /**

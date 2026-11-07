@@ -9,9 +9,25 @@
 export const PROTECT_LIMITS = {
   /** A short password is the weakest link in an otherwise sound cipher. */
   minPasswordLength: 8,
-  maxPasswordLength: 256,
+  /**
+   * ISO 32000-2 revision 6 truncates the password to 127 **bytes**. That is
+   * the limit that decides how much of the secret is actually used, so the
+   * character limit cannot exceed it: a 200-character password whose first 127
+   * bytes match another one opens the same document.
+   */
+  maxPasswordLength: 127,
+  /** The real cap: the encoded password, in bytes. */
+  maxPasswordBytes: 127,
   algorithm: 'AES-256',
 } as const;
+
+/**
+ * The length of a password in the unit the standard actually caps: UTF-8
+ * bytes. 127 characters of ASCII is 127 bytes; 127 characters of CJK is 381.
+ */
+export function passwordByteLength(password: string): number {
+  return new TextEncoder().encode(password).length;
+}
 
 export interface ProtectPermissions {
   /** Printing, including high-resolution printing. */

@@ -103,9 +103,9 @@ async function hydrate(): Promise<AiState> {
   }
 
   const legacy = readLegacy();
+  // readLegacy consumes the legacy keys in all cases (even corrupt data).
   if (legacy) {
     snapshot = legacy;
-    clearLegacy();
     await writeRecord(legacy);
     return snapshot;
   }
@@ -144,14 +144,22 @@ function coerceRecord(raw: unknown): AiState | null {
 /** The pre-IndexedDB pair, if either half is still present in localStorage. */
 function readLegacy(): AiState | null {
   if (typeof localStorage === 'undefined') return null;
+  let hadLegacy = false;
   try {
     const rawSettings = localStorage.getItem(LEGACY_SETTINGS_KEY);
     const rawMode = localStorage.getItem(LEGACY_MODE_KEY);
     if (!rawSettings && !rawMode) return null;
+    hadLegacy = true;
     const parsed: unknown = rawSettings ? JSON.parse(rawSettings) : undefined;
     const legacy = coerceRecord({ settings: parsed, mode: rawMode });
-    return legacy ?? { settings: defaultAiSettings(), mode: 'byok' };  } catch {
+    return legacy ?? { settings: defaultAiSettings(), mode: 'byok' };
+  } catch {
+    // Unusable stored JSON: report nothing, but consume the keys anyway (see
+    // finally). A corrupt record must not leave a plaintext BYOK key sitting
+    // in the flat localStorage map forever.
     return null;
+  } finally {
+    if (hadLegacy) clearLegacy();
   }
 }
 

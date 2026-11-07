@@ -68,14 +68,47 @@ interface CacheEntry {
 const CACHE_LIMIT = 3;
 const cache = new Map<string, CacheEntry>();
 
-/** FNV-1a over the bytes; identifies a document without keeping a copy of it. */
-function documentKey(data: Uint8Array, password: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < data.length; index += 1) {
-    hash ^= data[index]!;
-    hash = Math.imul(hash, 0x01000193) >>> 0;
+/**
+ * SHA-256 over the bytes plus a digest of the password; identifies a document
+ * without keeping a copy of it.
+ *
+ * Two properties the old 32-bit FNV-1a key could not give:
+ *  - a collision is not a stability problem. FNV-1a is a 32-bit hash, so a
+ *    collision would hand a *different* parsed document to the caller.
+ *    SHA-256 makes that unreachable in practice.
+ *  - the password never lives in the key. It used to be spliced in plaintext,
+ *    so every password used with a parsed document sat in a long-lived Map
+ *    key for the cache's lifetime. It now enters the key only as a digest.
+ */
+
+/** `subtle.digest` needs a real ArrayBuffer, not a view over a shared buffer. */
+function asPlainBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+}
+
+export async function documentKey(data: Uint8Array, password: string): Promise<string> {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.subtle) {
+    throw new Error(
+      'This environment has no secure hashing, so parsed documents cannot be cached safely. Run PDFShush in a browser worker or a modern Node.',
+    );
   }
-  return `${hash.toString(16)}:${data.length}:${password}`;
+  const [fileDigest, passwordDigest] = await Promise.all([
+    cryptoApi.subtle.digest('SHA-256', asPlainBuffer(data)),
+    password.length > 0
+      ? cryptoApi.subtle.digest('SHA-256', asPlainBuffer(new TextEncoder().encode(password)))
+      : Promise.resolve(new ArrayBuffer(0)),
+  ]);
+  const hex = (buffer: ArrayBuffer): string => {
+    if (buffer.byteLength === 0) return '';
+    return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join(
+      '',
+    );
+  };
+  return `${hex(fileDigest)}:${data.length}:${hex(passwordDigest)}`;
 }
 
 /** Releases every cached pdf.js document. Used by tests and by app shutdown. */
@@ -109,7 +142,7 @@ export async function loadPdfForRender(
     throw new Error('pdf.js runtime not configured: call configurePdfjsRuntime({ workerSrc }) first');
   }
 
-  const key = documentKey(data, options.password ?? '');
+  const key = await documentKey(data, options.password ?? '');
   const cached = cache.get(key);
   if (cached) {
     cached.users += 1;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parseOutputCapRejection, resetOutputCaps } from '../src/output-cap'
+import { parseOutputCapRejection, resetOutputCaps, withOutputCapFallback } from '../src/output-cap'
 import { streamForProvider } from '../src/stream'
 import { errorResponse, okResponse, sseStream } from './test-utils'
 
@@ -48,6 +48,42 @@ describe('parseOutputCapRejection', () => {
     expect(parseOutputCapRejection('HTTP 400: max_output_tokens must be <= 65536', 32768)).toBe(
       null,
     )
+  })
+})
+
+describe('cap cache policy', () => {
+  it('evicts the oldest entries and keeps the freshest ceiling', async () => {
+    const capError = new Error(
+      'HTTP 400: {"error":{"message":"max_tokens is too large. This model supports at most 8192 completion tokens."}}',
+    )
+    const seed = async (i: number): Promise<void> => {
+      let first = true
+      await withOutputCapFallback(`https://ep${i}.test`, 'm', 100000, async (maxTokens: number) => {
+        if (first) {
+          first = false
+          throw capError
+        }
+        return maxTokens
+      })
+    }
+    for (let i = 0; i < 600; i += 1) await seed(i)
+
+    // The newest entry survives without a second 400.
+    const fresh: number[] = []
+    await withOutputCapFallback(`https://ep599.test`, 'm', 100000, async (maxTokens: number) => {
+      fresh.push(maxTokens)
+      return maxTokens
+    })
+    expect(fresh).toEqual([8192])
+
+    // The oldest entry was evicted: the retry path runs again from the request.
+    const evicted: number[] = []
+    await withOutputCapFallback(`https://ep0.test`, 'm', 100000, async (maxTokens: number) => {
+      evicted.push(maxTokens)
+      if (evicted.length === 1) throw capError
+      return maxTokens
+    })
+    expect(evicted).toEqual([100000, 8192])
   })
 })
 

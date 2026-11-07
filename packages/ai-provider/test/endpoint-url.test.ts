@@ -66,6 +66,21 @@ describe('custom base URL normalization', () => {
   })
 })
 
+describe('provider registry lookup', () => {
+  it('resolves known ids and rejects unknown ones', () => {
+    expect(getProviderAdapter('custom').capabilities.auth).toBe('api-key')
+    expect(() => getProviderAdapter('not-a-provider' as never)).toThrow(/Unknown provider/)
+  })
+
+  it('never resolves inherited Object.prototype keys', () => {
+    // Provider ids come from user-edited settings files; a plain indexed read
+    // would resolve '__proto__' to Object.prototype and skip the guard.
+    for (const hostile of ['__proto__', 'constructor', 'toString']) {
+      expect(() => getProviderAdapter(hostile as never)).toThrow(/Unknown provider/)
+    }
+  })
+})
+
 describe('requests against a base URL with a query', () => {
   it('puts /chat/completions in the path, not inside the query', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>

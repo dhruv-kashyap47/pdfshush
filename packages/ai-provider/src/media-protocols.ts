@@ -161,12 +161,14 @@ function asRecord(v: unknown): Record<string, unknown> {
  * A 200 carrying an HTML shell / empty / truncated body (gateway soft-failure) makes
  * `resp.json()` throw, and that SyntaxError reached the user from a media call that
  * already knows how to report a failure. Same guard the chat protocols use: read the
- * text, parse it here, and shape a non-JSON body through httpBodyDetail. Read whole,
- * as `json()` did — a valid body can carry a multi-megabyte base64 image, so this
- * deliberately does not reuse the capped error-body read.
+ * text, parse it here, and shape a non-JSON body through httpBodyDetail. Read through
+ * `readCapped`: a valid body can carry a multi-megabyte base64 image, so the cap is the
+ * download ceiling (50 MB), not the tiny error-body cap — but a hostile or broken
+ * endpoint can no longer stream an unbounded body into memory before the parse.
  */
 async function readJson(label: string, resp: Response): Promise<Record<string, unknown>> {
-  const body = await resp.text()
+  const bytes = await readCapped(resp, label)
+  const body = new TextDecoder('utf-8').decode(bytes)
   try {
     return asRecord(JSON.parse(body))
   } catch {

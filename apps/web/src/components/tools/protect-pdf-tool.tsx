@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import {
   PROTECT_DEFAULT_PERMISSIONS,
   PROTECT_LIMITS,
+  passwordByteLength,
   timeoutForPageCount,
   type InspectOutput,
   type ProtectJobOutput,
@@ -103,9 +104,17 @@ export function ProtectPdfTool() {
 
   const passwordTooShort =
     password.length > 0 && password.length < PROTECT_LIMITS.minPasswordLength;
+  // The cipher caps the password at 127 UTF-8 *bytes*, so a long multibyte
+  // password would be silently truncated by the encryptor.
+  const passwordTooLong =
+    password.length > 0 && passwordByteLength(password) > PROTECT_LIMITS.maxPasswordBytes;
   const mismatch = confirm.length > 0 && password !== confirm;
   const ownerTooShort =
     advanced && ownerPassword.length > 0 && ownerPassword.length < PROTECT_LIMITS.minPasswordLength;
+  const ownerTooLong =
+    advanced &&
+    ownerPassword.length > 0 &&
+    passwordByteLength(ownerPassword) > PROTECT_LIMITS.maxPasswordBytes;
   const ownerMatches = advanced && ownerPassword.length > 0 && ownerPassword === password;
   const strength = password.length > 0 ? passwordStrength(password) : null;
   const canRun =
@@ -114,7 +123,9 @@ export function ProtectPdfTool() {
     !running &&
     password.length >= PROTECT_LIMITS.minPasswordLength &&
     password === confirm &&
+    !passwordTooLong &&
     !ownerTooShort &&
+    !ownerTooLong &&
     !ownerMatches;
 
   const handleFiles = async (incoming: File[]) => {
@@ -284,7 +295,9 @@ export function ProtectPdfTool() {
                   error={
                     passwordTooShort
                       ? `Use at least ${PROTECT_LIMITS.minPasswordLength} characters.`
-                      : undefined
+                      : passwordTooLong
+                        ? `That password encodes to more than ${PROTECT_LIMITS.maxPasswordBytes} bytes and would be cut short. Use a shorter password.`
+                        : undefined
                   }
                 />
                 <PasswordField
@@ -347,9 +360,11 @@ export function ProtectPdfTool() {
                     error={
                       ownerTooShort
                         ? `Use at least ${PROTECT_LIMITS.minPasswordLength} characters, or leave it blank.`
-                        : ownerMatches
-                          ? 'Use a different password from the open password.'
-                          : undefined
+                        : ownerTooLong
+                          ? `That owner password encodes to more than ${PROTECT_LIMITS.maxPasswordBytes} bytes and would be cut short. Use a shorter password.`
+                          : ownerMatches
+                            ? 'Use a different password from the open password.'
+                            : undefined
                     }
                   />
                 </div>

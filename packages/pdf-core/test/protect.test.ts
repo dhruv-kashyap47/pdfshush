@@ -160,6 +160,21 @@ describe('protect', () => {
     ).toThrow(/at least 8/i);
     expect(() => validateProtectOptions({ userPassword: 'x'.repeat(257) })).toThrow(/too long/i);
 
+    // Regression: ISO 32000-2 caps the password at 127 *bytes*, not
+    // characters. `@cantoo/pdf-lib` silently truncates past that, so a long
+    // multibyte password used to be weakened without any error.
+    expect(() => validateProtectOptions({ userPassword: 'あ'.repeat(100) })).toThrow(
+      /127 bytes|encodes to (\d+) bytes/,
+    );
+    expect(() =>
+      validateProtectOptions({
+        userPassword: OPEN,
+        ownerPassword: 'い'.repeat(100),
+      }),
+    ).toThrow(/owner password is too long/i);
+    // 127 ASCII characters is exactly the byte cap and stays allowed.
+    expect(() => validateProtectOptions({ userPassword: 'a'.repeat(127) })).not.toThrow();
+
     expect(normalizePermissions(undefined)).toEqual(PROTECT_DEFAULT_PERMISSIONS);
     expect(normalizePermissions({ copying: true, printing: false })).toMatchObject({
       copying: true,

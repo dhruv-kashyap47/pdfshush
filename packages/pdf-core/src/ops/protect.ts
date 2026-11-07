@@ -19,8 +19,11 @@ import type { JobContext } from '../job.js';
 import {
   PROTECT_DEFAULT_PERMISSIONS,
   PROTECT_LIMITS,
+  passwordByteLength,
   type ProtectPermissions,
 } from './protectConfig.js';
+
+export { passwordByteLength } from './protectConfig.js';
 
 export type { ProtectPermissions } from './protectConfig.js';
 
@@ -110,9 +113,21 @@ export async function protectDocument(
   const pageCount = doc.getPageCount();
   const bytes = await doc.save({ useObjectStreams: true });
 
-  // Never trust that "encrypt() ran" means the output is encrypted. A missing
-  // /Encrypt trailer is exactly the fake-protection failure we refuse to ship.
-  if (!containsAscii(bytes, '/Encrypt') || !containsAscii(bytes, '/AESV3')) {
+  // Never trust that "encrypt() ran" means the output is encrypted. The word
+  // scan this replaces (`/Encrypt`, `/AESV3` substrings) proves nothing: those
+  // words may or may not be visible depending on how the writer containers
+  // its dictionaries, and they are ordinary dictionary noise. The honest
+  // post-condition is the same proof the verifier uses — the output must
+  // reload under the open password, decrypting all `pageCount` pages. It
+  // costs one extra parse, which is the price of a real guarantee.
+  let reopened: PDFDocument | null = null;
+  try {
+    reopened = await PDFDocument.load(bytes, { password: options.userPassword });
+  } catch {
+    reopened = null;
+  }
+  const verified = reopened !== null && reopened.getPageCount() === pageCount;
+  if (!verified) {
     throw new Error('The encrypted copy could not be verified. Keep the original and try again.');
   }
 
@@ -140,6 +155,15 @@ export function validateProtectOptions(options: ProtectOptions): void {
       `That password is too long. Keep it under ${PROTECT_LIMITS.maxPasswordLength} characters.`,
     );
   }
+  // ISO 32000-2 caps the password at 127 *bytes*; the encryptor truncates
+  // silently past that, so a long multibyte password would be weakened
+  // without the caller ever knowing. Refuse instead.
+  const userBytes = passwordByteLength(user);
+  if (userBytes > PROTECT_LIMITS.maxPasswordBytes) {
+    throw new Error(
+      `That password is too long to use fully: it encodes to ${userBytes} bytes and the limit is ${PROTECT_LIMITS.maxPasswordBytes}. Use a shorter password.`,
+    );
+  }
 
   const owner = options.ownerPassword;
   if (owner !== undefined) {
@@ -152,6 +176,12 @@ export function validateProtectOptions(options: ProtectOptions): void {
     if (owner.length > PROTECT_LIMITS.maxPasswordLength) {
       throw new Error(
         `That owner password is too long. Keep it under ${PROTECT_LIMITS.maxPasswordLength} characters.`,
+      );
+    }
+    // Same byte-cap reasoning as the open password above.
+    if (owner.length > 0 && passwordByteLength(owner) > PROTECT_LIMITS.maxPasswordBytes) {
+      throw new Error(
+        `That owner password is too long to use fully: it encodes to more than ${PROTECT_LIMITS.maxPasswordBytes} bytes. Use a shorter password.`,
       );
     }
     if (owner.length > 0 && owner === user) {
@@ -187,17 +217,4 @@ function randomOwnerPassword(): string {
   }
   const bytes = cryptoApi.getRandomValues(new Uint8Array(24));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function containsAscii(bytes: Uint8Array, needle: string): boolean {
-  const first = needle.charCodeAt(0);
-  const limit = bytes.length - needle.length;
-  outer: for (let i = 0; i <= limit; i += 1) {
-    if (bytes[i] !== first) continue;
-    for (let j = 1; j < needle.length; j += 1) {
-      if (bytes[i + j] !== needle.charCodeAt(j)) continue outer;
-    }
-    return true;
-  }
-  return false;
 }

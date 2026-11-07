@@ -41,6 +41,15 @@ import { useMotionScope } from '@/hooks/use-motion';
 import { cn } from '@/lib/utils';
 import { EASE, dur, staggerUI, prefersReducedMotion } from '@/lib/motion';
 
+/**
+ * Own-property lookup for a tool verb. Tool names come from the model event
+ * stream, so the indexed read must not resolve inherited keys like
+ * `constructor` and pass a function downstream.
+ */
+function toolCopy(tool: string): string | undefined {
+  return Object.hasOwn(TOOL_COPY, tool) ? TOOL_COPY[tool] : undefined;
+}
+
 /** Composer growth cap in px; beyond it the textarea scrolls internally. */
 const COMPOSER_MAX_HEIGHT = 148;
 
@@ -391,7 +400,7 @@ export function AiChat({
 
   const lastAssistantId = [...messages].reverse().find((message) => message.role === 'assistant')?.id;
   const statusLine = runningTool
-    ? (TOOL_COPY[runningTool] ?? 'Working') + '…'
+    ? (toolCopy(runningTool) ?? 'Working') + '…'
     : busy
       ? 'Thinking…'
       : null;
@@ -498,7 +507,7 @@ export function AiChat({
                         <span className="studio-step-dot" aria-hidden>
                           <Loader2 className="h-2.5 w-2.5 animate-spin" />
                         </span>
-                        <span className="truncate">{TOOL_COPY[runningTool] ?? 'Working'}…</span>
+                        <span className="truncate">{toolCopy(runningTool) ?? 'Working'}…</span>
                       </li>
                     ) : null}
                   </ol>

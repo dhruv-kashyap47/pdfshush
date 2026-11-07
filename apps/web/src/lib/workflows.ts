@@ -129,6 +129,15 @@ export const SERVER_JOB_LABELS: Record<string, string> = {
  */
 export const TERMINAL_JOB_SLUGS: ReadonlySet<string> = new Set(['inspect', 'split-by-pages']);
 
+/**
+ * Own-property lookup for a job label. Step tools can come from saved recipes
+ * (and older server data), so the indexed read must not resolve inherited
+ * `Object.prototype` keys like `constructor`.
+ */
+export function serverJobLabel(slug: string): string {
+  return (Object.hasOwn(SERVER_JOB_LABELS, slug) ? SERVER_JOB_LABELS[slug] : undefined) ?? slug;
+}
+
 /** Re-link a linear recipe after an insert, move or delete. */
 export function relinkWorkflowSteps(steps: readonly WorkflowStep[]): WorkflowStep[] {
   return steps.map((step, index) => {

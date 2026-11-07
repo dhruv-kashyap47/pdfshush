@@ -262,7 +262,11 @@ export const AI_PROVIDER_ADAPTERS: Record<AiProviderId, ProviderAdapter> = {
 
 /** Throws on ids not in the registry — settings files are user data and can carry anything. */
 export function getProviderAdapter(provider: AiProviderId): ProviderAdapter {
-  const adapter = AI_PROVIDER_ADAPTERS[provider]
+  // Own-property lookup only: provider ids come from user-edited settings
+  // files, and a plain indexed read would resolve '__proto__' to Object.prototype.
+  const adapter = Object.hasOwn(AI_PROVIDER_ADAPTERS, provider)
+    ? AI_PROVIDER_ADAPTERS[provider]
+    : undefined
   if (!adapter) throw new Error(`Unknown provider: ${provider}`)
   return adapter
 }

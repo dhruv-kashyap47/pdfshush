@@ -91,6 +91,44 @@ function predictorOf(dict: PDFDict): number | undefined {
 const SUPPORTED_FILTERS = new Set(['FlateDecode', 'DCTDecode']);
 
 /**
+ * Inflates a Flate image stream into a buffer that cannot grow.
+ *
+ * `unzlibSync` without an `out` buffer estimates the output size and doubles
+ * its buffer as it goes, with no ceiling: a 2 MB stream that expands to 1 GB is
+ * fully materialised *before* the caller gets to compare it against the image
+ * limits. That is a decompression bomb, and the size check that is supposed to
+ * stop it (`LIMITS.tool.maxImageBytes`) only ran afterwards.
+ *
+ * Passing `out` makes fflate write into a fixed buffer instead of growing one.
+ * A stream longer than the buffer is truncated rather than rejected, so the
+ * buffer is sized one byte past the raster the dictionary declares: a stream
+ * that matches the declared raster still fits with room to spare, and a stream
+ * that does not fills the buffer completely and is caught by the length check
+ * in `classifyImageStream`.
+ *
+ * `expectedBytes` is the sample count the declared raster implies. It is
+ * attacker-controlled, so the allocation is additionally capped at the image
+ * ceiling: a dictionary claiming a gigabyte gets the ceiling, not the claim.
+ */
+function inflateBounded(raw: Uint8Array, expectedBytes: number): Uint8Array | null {
+  const expected = Number.isFinite(expectedBytes) ? Math.max(0, Math.ceil(expectedBytes)) : 0;
+  const cap = Math.min(LIMITS.tool.maxImageBytes, expected) + 1;
+  const out = new Uint8Array(cap);
+  let inflated: Uint8Array;
+  try {
+    inflated = unzlibSync(raw, { out });
+  } catch {
+    return null;
+  }
+  // The buffer filled completely: the stream was longer than the declared
+  // raster. Nothing above the ceiling is ever accepted.
+  if (inflated.length > LIMITS.tool.maxImageBytes) return null;
+  // Copy out of the (possibly much larger) backing buffer, so a small image
+  // does not keep a 12 MB allocation alive for as long as its samples are.
+  return inflated.slice();
+}
+
+/**
  * Classifies one image stream. Returns the workable case or `null` (skip).
  * Honestly skips: any other filter, CMYK/indexed/ICC/16-bit components,
  * unsupported predictors, and streams whose sample count disagrees with
@@ -137,30 +175,34 @@ export function classifyImageStream(dict: PDFDict, raw: Uint8Array): RawImageInf
   // FlateDecode: decode, honour predictors 1/none and 12/15 (PNG filters),
   // then require the sample count to agree with the declared raster.
   if (components === undefined) return null;
-  let samples: Uint8Array;
-  try {
-    samples = unzlibSync(raw);
-  } catch {
-    return null;
-  }
   const predictor = predictorOf(dict);
   if (predictor !== undefined && predictor !== 1 && predictor !== 12 && predictor !== 15) {
     return null;
   }
+  // The sample count the declared raster implies. A PNG-predictor stream
+  // carries one filter byte per row on top of the samples; a plain one does
+  // not. The predictor is read before the inflate because it decides how much
+  // room the buffer needs.
+  const stride = width * components;
+  const expectedSamples =
+    predictor === 12 || predictor === 15 ? height * (stride + 1) : stride * height;
+  const samples = inflateBounded(raw, expectedSamples);
+  if (!samples) return null;
+  let decoded = samples;
   if (predictor === 12 || predictor === 15) {
     try {
-      samples = decodePngPredictor(samples, width, height, components);
+      decoded = decodePngPredictor(samples, width, height, components);
     } catch {
       return null;
     }
-  } else if (samples.length !== width * height * components) {
+  } else if (samples.length !== stride * height) {
     return null;
   }
   return {
     width,
     height,
     components,
-    samples,
+    samples: decoded,
     isJpeg: false,
     hasSMask,
     colorSpace: colorName,

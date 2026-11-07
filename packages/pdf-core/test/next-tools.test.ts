@@ -22,7 +22,7 @@ import {
 import { expandRenamePattern, sanitizeStem } from '../src/ops/renamePattern.js';
 import { planSplitByText } from '../src/ops/splitByText.js';
 import { unlockDocument } from '../src/ops/unlock.js';
-import { compressDocument, COMPRESS_DEFAULTS } from '../src/compress/compress.js';
+import { compressDocument, COMPRESS_DEFAULTS, withinSmartPixelCeiling } from '../src/compress/compress.js';
 import { loadPdfDocument } from '../src/ops/pages.js';
 import { encodePng } from './png.js';
 import { makeFixturePdf, testContext } from './fixtures.js';
@@ -376,6 +376,57 @@ describe('compress', () => {
     });
     expect(compressJob.validate(inputFor(new Uint8Array(1), { quality: 0.1 }))).toMatchObject({ ok: false });
     expect(compressJob.validate(inputFor(new Uint8Array(1), { dpi: 600 }))).toMatchObject({ ok: false });
+  });
+
+  test('the smart pixel ceiling is held against the JPEG, not against the dictionary', () => {
+    // A JPEG header carrying its true dimensions in the SOF marker.
+    const jpeg = (width: number, height: number): Uint8Array => {
+      const bytes = new Uint8Array(16);
+      bytes[0] = 0xff;
+      bytes[1] = 0xd8;
+      bytes[2] = 0xff;
+      bytes[3] = 0xc0; // SOF0
+      bytes[4] = 0x00;
+      bytes[5] = 0x11;
+      bytes[6] = 0x08; // precision
+      bytes[7] = (height >> 8) & 0xff;
+      bytes[8] = height & 0xff;
+      bytes[9] = (width >> 8) & 0xff;
+      bytes[10] = width & 0xff;
+      return bytes;
+    };
+
+    // A dictionary that lies about the size: 1x1 declared, 16000x16000 real.
+    // The decoder would materialise 1 GB of RGBA before the mismatch showed.
+    expect(
+      withinSmartPixelCeiling({
+        isJpeg: true,
+        samples: jpeg(16000, 16000),
+        width: 1,
+        height: 1,
+      }),
+    ).toBe(false);
+
+    // An honest image at the ceiling is still accepted (16 MP exactly).
+    expect(
+      withinSmartPixelCeiling({
+        isJpeg: true,
+        samples: jpeg(4000, 4000),
+        width: 4000,
+        height: 4000,
+      }),
+    ).toBe(true);
+
+    // A JPEG whose header cannot be measured is skipped rather than decoded
+    // on faith.
+    expect(
+      withinSmartPixelCeiling({
+        isJpeg: true,
+        samples: new Uint8Array([0xff, 0xd8, 0x00, 0x00]),
+        width: 4,
+        height: 4,
+      }),
+    ).toBe(false);
   });
 });
 

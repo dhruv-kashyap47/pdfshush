@@ -61,6 +61,15 @@ describe('check mapping', () => {
   it('renders an unknown future check as words rather than leaking its slug', () => {
     expect(labelForCheck('some-new-check')).toBe('some new check');
   });
+
+  it('never resolves inherited Object.prototype keys as labels', () => {
+    // A worker message or recipe can carry an arbitrary name; the label lookup
+    // must not return the inherited `constructor`/`__proto__` values.
+    expect(labelForCheck('constructor')).toBe('constructor');
+    expect(labelForCheck('__proto__')).toBe('__proto__');
+    expect(labelForCheck('toString')).toBe('toString');
+    expect(String(labelForCheck('valueOf'))).not.toMatch(/native code/iu);
+  });
 });
 
 describe('verdict', () => {

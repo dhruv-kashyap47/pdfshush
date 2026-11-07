@@ -212,6 +212,52 @@ const MARK_MAX_LUMA = 60;
 /** Variance a page must retain outside its marks, or it was rebuilt blank. */
 const MIN_CONTENT_SPREAD = 12;
 
+/** Grid pitch of the contrast scan. A fine stride matters: text is sparse. */
+const CONTRAST_STRIDE = 4;
+
+/**
+ * Rasterizes the page's redaction regions onto the sample grid the contrast
+ * scan walks.
+ *
+ * The membership test used to be a linear scan over every region, evaluated
+ * once per sampled pixel. At the documented limits -- 500 regions on a
+ * 150-page redaction, each page sampled every fourth pixel -- that is
+ * billions of comparisons inside a worker, and the run simply timed out. The
+ * grid is painted once per page instead, so each sample costs one array read.
+ *
+ * The mask is exactly the old predicate: a sample is inside a region when its
+ * coordinates fall within the region's pixel-space rectangle, bounds
+ * inclusive.
+ */
+export function buildMarkMask(
+  regions: readonly { x: number; y: number; width: number; height: number }[],
+  scaleX: number,
+  scaleY: number,
+  gridWidth: number,
+  gridHeight: number,
+  stride: number,
+): Uint8Array {
+  const mask = new Uint8Array(gridWidth * gridHeight);
+  for (const region of regions) {
+    const left = region.x * scaleX;
+    const right = (region.x + region.width) * scaleX;
+    const top = region.y * scaleY;
+    const bottom = (region.y + region.height) * scaleY;
+    // The samples are at multiples of `stride`, so the covered range is the
+    // grid indices whose sample coordinate lands inside the rectangle.
+    const gx0 = Math.max(0, Math.ceil(left / stride));
+    const gx1 = Math.min(gridWidth - 1, Math.floor(right / stride));
+    const gy0 = Math.max(0, Math.ceil(top / stride));
+    const gy1 = Math.min(gridHeight - 1, Math.floor(bottom / stride));
+    if (gx1 < gx0 || gy1 < gy0) continue;
+    for (let gy = gy0; gy <= gy1; gy += 1) {
+      const row = gy * gridWidth;
+      for (let gx = gx0; gx <= gx1; gx += 1) mask[row + gx] = 1;
+    }
+  }
+  return mask;
+}
+
 export async function verifyRedaction(
   bytes: Uint8Array,
   options: VerifyOptions,
@@ -383,18 +429,23 @@ export async function verifyRedaction(
     // would report a legitimate page as blank.
     let darkest = 255;
     let lightest = 0;
-    const stride = 4;
-    for (let y = 0; y < decoded.height; y += stride) {
-      for (let x = 0; x < decoded.width; x += stride) {
-        const inside = pageRegions.some(
-          (region) =>
-            x >= region.x * scaleX &&
-            x <= (region.x + region.width) * scaleX &&
-            y >= region.y * scaleY &&
-            y <= (region.y + region.height) * scaleY,
-        );
-        if (inside) continue;
-        const luma = luminanceAt(decoded, x, y);
+    const stride = CONTRAST_STRIDE;
+    const gridWidth = Math.ceil(decoded.width / stride);
+    const gridHeight = Math.ceil(decoded.height / stride);
+    const markMask = buildMarkMask(
+      pageRegions,
+      scaleX,
+      scaleY,
+      gridWidth,
+      gridHeight,
+      stride,
+    );
+    for (let gy = 0; gy < gridHeight; gy += 1) {
+      const y = gy * stride;
+      const row = gy * gridWidth;
+      for (let gx = 0; gx < gridWidth; gx += 1) {
+        if (markMask[row + gx]) continue;
+        const luma = luminanceAt(decoded, gx * stride, y);
         if (luma < darkest) darkest = luma;
         if (luma > lightest) lightest = luma;
       }

@@ -22,7 +22,7 @@ import { PDFDocument, StandardFonts, degrees } from '@cantoo/pdf-lib';
 import { describe, expect, it } from 'vitest';
 import { configurePdfjsRuntime } from '../src/render/pdfjsRuntime.js';
 import { redactPdf } from '../src/redact/redact.js';
-import { verifyRedaction } from '../src/redact/verify.js';
+import { verifyRedaction, buildMarkMask } from '../src/redact/verify.js';
 import { RedactionUnsafeError, RedactionVerificationError } from '../src/redact/types.js';
 import type { RasterizedPage, Rasterizer } from '../src/redact/rasterize.js';
 import { redactJob } from '../src/jobs/redact.job.js';
@@ -402,5 +402,66 @@ describe('the marks are in the pixels', () => {
     expect(report.regions).toBe(1);
     expect(report.markedPixels).toBeGreaterThan(REGION.width * REGION.height * 0.5);
     expect(report.imageBytes).toBeGreaterThan(1000);
+  });
+});
+
+/* --------------------------------------------------- the contrast-scan mask -- */
+
+describe('the marked-sample mask', () => {
+  it('agrees with the per-sample region test it replaced', () => {
+    const stride = 4;
+    const scaleX = 1.7;
+    const scaleY = 2.3;
+    const width = 64;
+    const height = 48;
+    const gridWidth = Math.ceil(width / stride);
+    const gridHeight = Math.ceil(height / stride);
+    const regions = [
+      { x: 0, y: 0, width: 10, height: 6 },
+      { x: 12.5, y: 3.25, width: 4, height: 4 },
+      { x: 30, y: 20, width: 40, height: 30 },
+      { x: -5, y: -5, width: 8, height: 8 },
+      { x: 62, y: 46, width: 10, height: 10 },
+    ];
+
+    const mask = buildMarkMask(regions, scaleX, scaleY, gridWidth, gridHeight, stride);
+
+    for (let gy = 0; gy < gridHeight; gy += 1) {
+      const y = gy * stride;
+      for (let gx = 0; gx < gridWidth; gx += 1) {
+        const x = gx * stride;
+        const expected = regions.some(
+          (region) =>
+            x >= region.x * scaleX &&
+            x <= (region.x + region.width) * scaleX &&
+            y >= region.y * scaleY &&
+            y <= (region.y + region.height) * scaleY,
+        );
+        expect(mask[gy * gridWidth + gx]).toBe(expected ? 1 : 0);
+      }
+    }
+  });
+
+  it('stays cheap at the documented region limit', () => {
+    // The old test was a linear scan over every region for every sampled
+    // pixel: at the documented limits that is billions of comparisons and the
+    // job timed out. The mask is painted once per page.
+    const stride = 4;
+    const width = 1275;
+    const height = 1650;
+    const gridWidth = Math.ceil(width / stride);
+    const gridHeight = Math.ceil(height / stride);
+    const regions = Array.from({ length: LIMITS.tool.maxRedactRegions }, (_, index) => ({
+      x: (index % 25) * 48,
+      y: Math.floor(index / 25) * 60,
+      width: 40,
+      height: 50,
+    }));
+
+    const started = Date.now();
+    const mask = buildMarkMask(regions, 1, 1, gridWidth, gridHeight, stride);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(mask.length).toBe(gridWidth * gridHeight);
+    expect(mask.some((cell) => cell === 1)).toBe(true);
   });
 });

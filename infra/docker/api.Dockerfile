@@ -11,8 +11,9 @@
 FROM node:24-alpine AS deps
 WORKDIR /repo
 
-# Use exactly the pnpm the repo pins, so the image can never disagree with CI.
-RUN corepack enable && corepack prepare pnpm@11.15.0 --activate
+# Use exactly the pnpm the repo pins (packageManager in package.json), so the
+# image can never disagree with CI (pnpm/action-setup resolves the same pin).
+RUN corepack enable && corepack prepare pnpm@12.11.2 --activate
 
 # Manifests first: this layer stays cached until dependencies actually change.
 # Every workspace manifest the lockfile references must be present, even the
@@ -58,7 +59,7 @@ COPY --from=build /repo /repo
 # /app directory: pnpm's node_modules are symlinks into the workspace store, so
 # copying just `dist/` elsewhere leaves every runtime import unresolvable.
 # `--prod` keeps the image to production dependencies only.
-RUN corepack enable && corepack prepare pnpm@11.15.0 --activate && \
+RUN corepack enable && corepack prepare pnpm@12.11.2 --activate && \
     pnpm config set store-dir /pnpm/store && \
     CI=true pnpm install --prod --frozen-lockfile \
       --config.confirmModulesPurge=false \

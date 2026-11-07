@@ -83,7 +83,7 @@ export const TOOL_LIMIT_NOTES: Record<string, string> = {
   'split-by-bookmarks': `Up to ${tool.maxBookmarkParts} parts from an outline of at most ${tool.maxOutlineEntries.toLocaleString()} bookmarks.`,
   'create-forms': `Up to ${tool.maxFormFields} new fields per run, with names up to ${tool.maxFormFieldNameChars} characters.`,
   'create-bookmarks': `Up to ${tool.maxOutlineEntries.toLocaleString()} bookmarks per run, with titles up to ${tool.maxBookmarkTitleChars} characters.`,
-  'protect-pdf': `AES-256 encryption with an open password of ${PROTECT_LIMITS.minPasswordLength}–${PROTECT_LIMITS.maxPasswordLength} characters. There is no recovery key, so keep the password.`,
+  'protect-pdf': `AES-256 encryption with an open password of ${PROTECT_LIMITS.minPasswordLength}–${PROTECT_LIMITS.maxPasswordLength} characters (${PROTECT_LIMITS.maxPasswordBytes} bytes, since multibyte text counts heavier). There is no recovery key, so keep the password.`,
   'dark-mode-pdf': `Up to ${tool.maxRedactPages} pages per run — every page is rebuilt as an image, which is why the cap is lower than ${pages}.`,
   deskew: `Up to ${tool.maxRedactPages} pages per run. Auto-detection searches −10° to +10°; the manual override accepts up to ±45°. Because pages are rebuilt as images, text stops being selectable.`,
 };

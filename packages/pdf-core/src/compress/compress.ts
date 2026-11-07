@@ -34,6 +34,7 @@ import type { PDFDict, PDFObject } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
 import { classifyImageStream, isImageStream } from '../ops/images.js';
+import { imagePixelSize } from '../ops/edit.js';
 import { loadPdfDocument } from '../ops/pages.js';
 import { applyDocumentDates } from '../ops/dates.js';
 import { addRasterPage } from '../ops/rasterPage.js';
@@ -244,6 +245,32 @@ function declaredPixelCount(dict: PDFDict): number | null {
   return width.asNumber() * height.asNumber();
 }
 
+/**
+ * Whether an image's *decoded* size is within the smart-pass ceiling.
+ *
+ * For a Flate image the declared raster is the real one -- the sample count
+ * has to match `/Width` x `/Height` exactly, or the stream is skipped -- so
+ * the dictionary can be trusted. For a JPEG it cannot: `/Width` and `/Height`
+ * are the attacker's to write, and `createImageBitmap` decodes the *real*
+ * raster before the mismatch is noticed (16000x16000 is 1 GB of RGBA). The
+ * JPEG's own SOF marker carries the true dimensions, so the ceiling is held
+ * against those.
+ *
+ * Exported so the rule is testable without a canvas.
+ */
+export function withinSmartPixelCeiling(info: {
+  isJpeg: boolean;
+  samples: Uint8Array;
+  width: number;
+  height: number;
+}): boolean {
+  if (info.width * info.height > COMPRESS_LIMITS.smartMaxPixels) return false;
+  if (!info.isJpeg) return info.samples.length <= LIMITS.tool.maxImageBytes;
+  const real = imagePixelSize(info.samples, 'image/jpeg');
+  if (!real) return false;
+  return real.width * real.height <= COMPRESS_LIMITS.smartMaxPixels;
+}
+
 function canSmartOptimize(stream: PDFRawStream, info: StreamInfo): boolean {
   const dict = stream.dict;
   // Stencil masks, colour-key masks, explicit decode arrays and external file
@@ -258,8 +285,7 @@ function canSmartOptimize(stream: PDFRawStream, info: StreamInfo): boolean {
   }
 
   if (!info.colorSpace || !SMART_COLOR_SPACES.has(info.colorSpace)) return false;
-  if (info.width * info.height > COMPRESS_LIMITS.smartMaxPixels) return false;
-  if (!info.isJpeg && info.samples.length > LIMITS.tool.maxImageBytes) return false;
+  if (!withinSmartPixelCeiling(info)) return false;
   return true;
 }
 

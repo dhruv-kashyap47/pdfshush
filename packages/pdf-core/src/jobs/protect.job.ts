@@ -11,6 +11,7 @@ import { protectDocument } from '../ops/protect.js';
 import {
   PROTECT_DEFAULT_PERMISSIONS,
   PROTECT_LIMITS,
+  passwordByteLength,
   type ProtectPermissions,
 } from '../ops/protectConfig.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
@@ -68,6 +69,13 @@ export const protectJob: JobDefinition<ProtectJobInput, ProtectJobOutput> = {
       issues.push({
         message: `Keep the password under ${PROTECT_LIMITS.maxPasswordLength} characters`,
       });
+    } else if (passwordByteLength(userPassword) > PROTECT_LIMITS.maxPasswordBytes) {
+      // ISO 32000-2 truncates the password at 127 *bytes*; a long multibyte
+      // password would be weakened silently, so it is refused like engine-side.
+      issues.push({
+        message: `That password encodes to more than ${PROTECT_LIMITS.maxPasswordBytes} bytes (` +
+          `${passwordByteLength(userPassword)}). Use a shorter password`,
+      });
     }
 
     const ownerPassword = options.ownerPassword;
@@ -84,6 +92,13 @@ export const protectJob: JobDefinition<ProtectJobInput, ProtectJobOutput> = {
       } else if (ownerPassword.length > PROTECT_LIMITS.maxPasswordLength) {
         issues.push({
           message: `Keep the owner password under ${PROTECT_LIMITS.maxPasswordLength} characters`,
+        });
+      } else if (
+        ownerPassword.length > 0 &&
+        passwordByteLength(ownerPassword) > PROTECT_LIMITS.maxPasswordBytes
+      ) {
+        issues.push({
+          message: `That owner password encodes to more than ${PROTECT_LIMITS.maxPasswordBytes} bytes. Use a shorter password`,
         });
       } else if (ownerPassword.length > 0 && ownerPassword === userPassword) {
         issues.push({ message: 'The owner password must be different from the open password' });

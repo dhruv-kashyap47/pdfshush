@@ -87,13 +87,19 @@ export async function renderPageToImage(
   options: RenderPageOptions,
 ): Promise<RenderedImage> {
   const rendered = await renderPageToCanvas(page, options);
-  const mimeType = MIME[options.format];
-  const blob = await rendered.canvas.toBlob(
-    mimeType,
-    options.format === 'jpeg' ? (options.quality ?? 0.92) : undefined,
-  );
-  const data = await blob.arrayBuffer();
-  return { data, width: rendered.width, height: rendered.height, mimeType };
+  try {
+    const mimeType = MIME[options.format];
+    const blob = await rendered.canvas.toBlob(
+      mimeType,
+      options.format === 'jpeg' ? (options.quality ?? 0.92) : undefined,
+    );
+    const data = await blob.arrayBuffer();
+    return { data, width: rendered.width, height: rendered.height, mimeType };
+  } finally {
+    // The context is dead past this point; zero the backing store now instead
+    // of letting a multi-page run hold every rendered bitmap until GC.
+    rendered.canvas.release?.();
+  }
 }
 
 export interface RenderPageRangeOptions extends RenderPageOptions {
@@ -122,18 +128,22 @@ export async function renderPages(
       ctx.throwIfAborted();
       const index = options.pageIndexes[i]!;
       const page = await doc.getPage(index + 1);
-      out.push(
-        await renderPageToImage(page, {
-          targetWidthPx: options.targetWidthPx,
-          format: options.format,
-          ...(options.quality !== undefined ? { quality: options.quality } : {}),
-          ...(options.background !== undefined ? { background: options.background } : {}),
-          ...(options.canvasFactory ? { canvasFactory: options.canvasFactory } : {}),
-        }),
-      );
-      // Release the page's resources immediately -- this is the difference
-      // between a 500-page job and a 500-page tab crash.
-      page.cleanup();
+      try {
+        out.push(
+          await renderPageToImage(page, {
+            targetWidthPx: options.targetWidthPx,
+            format: options.format,
+            ...(options.quality !== undefined ? { quality: options.quality } : {}),
+            ...(options.background !== undefined ? { background: options.background } : {}),
+            ...(options.canvasFactory ? { canvasFactory: options.canvasFactory } : {}),
+          }),
+        );
+      } finally {
+        // Runs even when the render throws: a failed page must not leak its
+        // proxy, which pins the page's operator-list memory for the rest of
+        // the run (and outlives it if the document proxy is still open).
+        page.cleanup();
+      }
       progress.step(i, total, `Rendering page ${index + 1} of ${total}`);
       await Promise.resolve();
     }
@@ -173,15 +183,18 @@ export async function renderThumbnails(
     for (let i = 0; i < indexes.length; i += 1) {
       ctx.throwIfAborted();
       const page = await doc.getPage(indexes[i]! + 1);
-      thumbnails.push(
-        await renderPageToImage(page, {
-          targetWidthPx: width,
-          format: 'jpeg',
-          quality: 0.72,
-          background: options.background ?? '#ffffff',
-        }),
-      );
-      page.cleanup();
+      try {
+        thumbnails.push(
+          await renderPageToImage(page, {
+            targetWidthPx: width,
+            format: 'jpeg',
+            quality: 0.72,
+            background: options.background ?? '#ffffff',
+          }),
+        );
+      } finally {
+        page.cleanup();
+      }
       progress.step(i, indexes.length, 'Preparing previews');
       await Promise.resolve();
     }

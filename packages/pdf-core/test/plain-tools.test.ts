@@ -5,6 +5,15 @@
  */
 
 import { beforeAll, describe, expect, test } from 'vitest';
+// Node's process object for the memory-delta assertions (lib is DOM, no @types/node).
+const processApi = globalThis as typeof globalThis & {
+  process?: { memoryUsage: () => { arrayBuffers: number } };
+};
+function memoryUsage(): { arrayBuffers: number } {
+  const usage = processApi.process?.memoryUsage();
+  if (!usage) throw new Error('process.memoryUsage is unavailable in this environment');
+  return usage;
+}
 import {
   PDFArray,
   PDFDict,
@@ -445,6 +454,51 @@ describe('extract-images job', () => {
     expect(imagesJob.validate({ files: [{ name: 'a.pdf', data: bytes }, { name: 'b.pdf', data: bytes }] })).toMatchObject({
       ok: false,
     });
+  });
+
+  test('a Flate stream cannot make the engine allocate more than the image ceiling', async () => {
+    // A decompression bomb: a small compressed stream that expands to far more
+    // than the image limit. `unzlibSync` without an output buffer materialises
+    // the whole expansion before the caller can compare it against the limit,
+    // so the bomb was fully in memory before it was refused.
+    const bombBytes = 20 * 1024 * 1024;
+    const compressed = zlibSync(new Uint8Array(bombBytes), { level: 9 });
+    expect(compressed.length).toBeLessThan(bombBytes / 100);
+
+    const { context } = await PDFDocument.create();
+    const make = (overrides: Record<string, unknown>): PDFRawStream =>
+      PDFRawStream.of(
+        context.obj({
+          Subtype: 'Image',
+          Width: 2,
+          Height: 2,
+          ColorSpace: 'DeviceRGB',
+          BitsPerComponent: 8,
+          Filter: 'FlateDecode',
+          ...overrides,
+        }),
+        compressed,
+      );
+
+    // The declared raster says 12 bytes; the stream carries 20 MB.
+    const before = memoryUsage().arrayBuffers;
+    const classified = classifyImageStream(make({}).dict, compressed);
+    const grew = memoryUsage().arrayBuffers - before;
+    expect(classified).toBeNull();
+    // The expansion was never materialised: the working set stayed tiny.
+    expect(grew).toBeLessThan(4 * 1024 * 1024);
+
+    // And a raster that declares more than the ceiling is refused at
+    // classification time, not after the whole thing has been decoded.
+    const overCeiling = Math.ceil(
+      Math.sqrt((LIMITS.tool.maxImageBytes + 1) / 3),
+    );
+    expect(
+      classifyImageStream(
+        make({ Width: overCeiling, Height: overCeiling }).dict,
+        compressed,
+      ),
+    ).toBeNull();
   });
 
   test('PNG-predictor streams (Predictor 12) decode through the unfilter path', async () => {

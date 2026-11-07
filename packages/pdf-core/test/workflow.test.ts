@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { validateWorkflow, WORKFLOW_OUTPUT_JOBS } from '../src/workflow.js';
 import { JOB_SLUGS, isKnownJobSlug } from '../src/jobs/slugs.js';
 import { LIMITS } from '../src/limits.js';
-import { JOBS } from '../src/jobs/registry.js';
+import { JOBS, getJob } from '../src/jobs/registry.js';
 
 /** A minimal valid one-step recipe, so each test can vary one thing. */
 function recipe(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -191,5 +191,21 @@ describe('validateWorkflow', () => {
     });
     expect(result.ok).toBe(false);
     expect(issuesOf(result).length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('getJob', () => {
+  it('resolves registered slugs and rejects unknown ones', () => {
+    expect(getJob('merge').slug).toBe('merge');
+    expect(() => getJob('not-a-job')).toThrow(/Unknown job/);
+  });
+
+  it('never resolves inherited Object.prototype keys', () => {
+    // Slugs arrive from URL paths and API payloads. A plain `JOBS[slug]` read
+    // would hand back `Object.prototype` for '__proto__' and skip the error.
+    for (const hostile of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+      expect(() => getJob(hostile)).toThrow(/Unknown job/);
+      expect(() => getJob(hostile)).not.toThrow(/function Object/);
+    }
   });
 });

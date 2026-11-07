@@ -96,7 +96,10 @@ export const JOBS = {
 export type JobSlug = keyof typeof JOBS;
 
 export function getJob(slug: string): AnyJob {
-  const job = JOBS[slug as JobSlug];
+  // Own-property lookup only: slugs come from untrusted input (URL paths, API
+  // payloads), and a plain indexed read would hand back `Object.prototype` for
+  // the slug '__proto__' instead of a job.
+  const job = Object.hasOwn(JOBS, slug) ? JOBS[slug as JobSlug] : undefined;
   if (!job) throw new Error(`Unknown job "${slug}"`);
   return job;
 }
