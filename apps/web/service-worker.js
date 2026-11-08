@@ -91,6 +91,9 @@ function isCacheableAsset(url) {
   return (
     url.pathname.startsWith('/assets/') ||
     url.pathname.startsWith('/icons/') ||
+    // The OCR language model: same-origin, versioned by the dependency, and
+    // ~11 MB, so a reload must not fetch it again.
+    url.pathname.startsWith('/tessdata/') ||
     url.pathname === '/favicon.svg' ||
     url.pathname === '/manifest.webmanifest'
   );

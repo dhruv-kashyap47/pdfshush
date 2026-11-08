@@ -3,12 +3,12 @@
 **Free, private PDF tools that run in your browser.**
 
 PDFShush is an open-source (AGPL-3.0) alternative to online PDF suites: merge, organize,
-convert, edit, sign, secure, automate. The core difference is architectural — light tools
-run **client-side in a Web Worker**, so your files never leave your device. Heavy tools
-(OCR, Office conversion) will run on bounded server workers with anonymous quotas, through
-the exact same job contract.
+convert, edit, sign, secure, automate. The core difference is architectural — every PDF tool,
+including OCR, runs **client-side in a Web Worker**, so your files never leave your device.
+Server workers exist only for the automation surfaces (REST API, MCP, workflows), through the
+exact same job contract.
 
-## Status: Phases 0-6 shipped (50 live tools + the server stack)
+## Status: Phases 0-6 shipped (51 live tools + the server stack)
 
 > **Plan, decisions & progress tracker: [`PLAN.md`](./PLAN.md)** — read this first when
 > resuming work; it is updated at the end of every session.
@@ -22,7 +22,7 @@ the exact same job contract.
 | `apps/web` | ✅ Vite + React 19 + Tailwind v4 + shadcn/ui, full tool catalog, mega-menu, web worker pool, AI workspace |
 | `apps/api` | ✅ Express + Redis + BullMQ sandboxed worker + TTL janitor, public `/api/v1`, optional managed-AI gateway |
 | `apps/mcp` | ✅ `@pdfshush/mcp`: stdio MCP server over the public API, one tool per server-runnable slug |
-| Live tools (50 of 58) | ✅ Merge, Organize, PDF → JPG, Delete/Extract/Rotate/Split, Alternate & Mix, N-up, Page Numbers, Crop, Header & Footer, Edit PDF, **Create Forms**, **Fill & Sign**, Signature, **Redact PDF (verified)**, Watermark, Flip, Grayscale, **Deskew**, Dark Mode PDF, Resize, Edit Metadata, Remove Annotations, PDF → Text, Extract Images, Split by size/text, Flatten, Unlock, JPG → PDF, Rename, Bates Numbering, **Compress (smart image pass)**, **Protect PDF (AES-256)**, **Stamp, Repair PDF, Combine files, Image Editor, Batch run, Create Bookmarks, Split by bookmarks, Workflows**, and Summarize / Chat / Edit with AI. The `api` and `mcp` catalog entries are live docs pages |
+| Live tools (51 of 58) | ✅ Merge, Organize, PDF → JPG, Delete/Extract/Rotate/Split, Alternate & Mix, N-up, Page Numbers, Crop, Header & Footer, Edit PDF, **Create Forms**, **Fill & Sign**, Signature, **Redact PDF (verified)**, Watermark, Flip, Grayscale, **Deskew**, **OCR**, Dark Mode PDF, Resize, Edit Metadata, Remove Annotations, PDF → Text, Extract Images, Split by size/text, Flatten, Unlock, JPG → PDF, Rename, Bates Numbering, **Compress (smart image pass)**, **Protect PDF (AES-256)**, **Stamp, Repair PDF, Combine files, Image Editor, Batch run, Create Bookmarks, Split by bookmarks, Workflows**, and Summarize / Chat / Edit with AI. The `api` and `mcp` catalog entries are live docs pages |
 | Accounts (P4) | ✅ Google sign-in; every tool stays anonymous-only when no Mongo/Google config is present |
 | AI (P5) | ✅ BYOK keys never leave the browser; 21 providers incl. **Groq** (permanently free tier) with a first-run onboarding overlay; the managed trial runs on OpenRouter free models and is off unless `AI_MANAGED_API_KEY` is set (model defaults to the strongest live `:free` id) |
 | E-sign / public API / MCP (P6) | ✅ Fill & Sign with a fail-closed audit sidecar; `/api/v1` with scoped keys; `@pdfshush/mcp` stdio server; P6.4 hardening (rotation drill, multipart sniff, base-URL smuggle class) |
@@ -150,6 +150,6 @@ Key invariants:
 
 - UI foundation: [shadcn dashboard & landing template](https://github.com/shadcnstore/shadcn-dashboard-landing-template) (MIT, full text in `licenses/`) — landing sections, shadcn/ui components, theme system.
 - Product scope modeled on [Sejda.com](https://www.sejda.com/) (not affiliated).
-- Engine: [pdf-lib fork `@cantoo/pdf-lib`](https://github.com/cantoo-pdf-lib/pdf-lib), [pdf.js](https://mozilla.github.io/pdf.js/), [PDFium WASM `@embedpdf/pdfium`](https://github.com/embedpdf/embed-pdf-viewer) (in-place text editing), [fflate](https://github.com/101arrowz/fflate). Licences for the redistributed PDFium WASM are in `licenses/` (MIT wrapper + BSD-3-Clause PDFium).
+- Engine: [pdf-lib fork `@cantoo/pdf-lib`](https://github.com/cantoo-pdf-lib/pdf-lib), [pdf.js](https://mozilla.github.io/pdf.js/), [PDFium WASM `@embedpdf/pdfium`](https://github.com/embedpdf/embed-pdf-viewer) (in-place text editing), [Tesseract.js](https://github.com/naptha/tesseract.js) (OCR), [fflate](https://github.com/101arrowz/fflate). Licences for the redistributed PDFium WASM and the OCR engine/model are in `licenses/` (MIT wrapper + BSD-3-Clause PDFium; Apache-2.0 Tesseract; MIT English data).
 
 Code from the template retains its MIT license; the rest is **AGPL-3.0-or-later** (see `LICENSE`).

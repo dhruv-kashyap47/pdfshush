@@ -22,6 +22,7 @@ import {
   BATES_LIMITS,
   IMAGE_LIMITS,
   LIMITS,
+  OCR_LIMITS,
   PROTECT_LIMITS,
   RENAME_LIMITS,
   formatBytes,
@@ -86,6 +87,7 @@ export const TOOL_LIMIT_NOTES: Record<string, string> = {
   'protect-pdf': `AES-256 encryption with an open password of ${PROTECT_LIMITS.minPasswordLength}–${PROTECT_LIMITS.maxPasswordLength} characters (${PROTECT_LIMITS.maxPasswordBytes} bytes, since multibyte text counts heavier). There is no recovery key, so keep the password.`,
   'dark-mode-pdf': `Up to ${tool.maxRedactPages} pages per run — every page is rebuilt as an image, which is why the cap is lower than ${pages}.`,
   deskew: `Up to ${tool.maxRedactPages} pages per run. Auto-detection searches −10° to +10°; the manual override accepts up to ±45°. Because pages are rebuilt as images, text stops being selectable.`,
+  'ocr-pdf': `Up to ${OCR_LIMITS.maxPages} pages per run. The first run downloads about 15 MB of recognizer and English language data once, then works offline; recognition is English-only and probabilistic. Pages that already have a text layer are kept untouched.`,
 };
 
 /** Falls back to the global client ceiling for a slug we forgot to describe. */

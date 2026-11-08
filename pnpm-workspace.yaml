@@ -23,6 +23,9 @@ allowBuilds:
   # Not needed: msgpackr-extract is an optional native accelerator inside
   # bullmq. The pure-JS path is used instead; one less native build to trust.
   msgpackr-extract: false
+  # Not needed: tesseract.js' only install script prints an OpenCollective
+  # donation notice. The package runs unmodified from `dist/`.
+  tesseract.js: false
 
 minimumReleaseAgeExclude:
   - vite@8.3.3

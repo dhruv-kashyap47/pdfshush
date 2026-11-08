@@ -35,7 +35,7 @@ import { getServiceWorkerStatus, type ServiceWorkerStatus } from '@/lib/service-
 
 const DATA_PATHS = [
   {
-    title: 'The 49 client tools',
+    title: 'The 48 client tools',
     body: 'The file is read into this tab, parsed by a worker, and written back by the same tab. There is no upload endpoint to call, and the policy below forbids one.',
     tone: 'local' as const,
   },

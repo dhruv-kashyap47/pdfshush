@@ -40,6 +40,7 @@ const ROUTES = [
   '/tools/summarize-pdf',
   '/tools/chat-with-pdf',
   '/tools/deskew',
+  '/tools/ocr-pdf',
   '/workflows',
 ];
 

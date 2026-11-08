@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
@@ -70,6 +71,62 @@ function serviceWorkerPlugin(): Plugin {
 }
 
 /**
+ * Serves the English OCR model at a stable, same-origin path.
+ *
+ * Tesseract asks for `<langPath>/eng.traineddata.gz`. Emitting the gzip under a
+ * content-hashed asset name would make `langPath` change with every build and
+ * force a fresh ~11 MB download, so this emits a fixed path instead. The file
+ * comes from `@tesseract.js-data/eng`, a devDependency: it is build input, not
+ * runtime code, and the shipped artifact is the emitted asset.
+ *
+ * The response deliberately has no `Content-Encoding: gzip` header. Tesseract
+ * gunzips the bytes itself; letting the browser decompress them first would
+ * make the model look corrupt.
+ */
+function ocrTrainedDataPlugin(): Plugin {
+  const assetName = 'tessdata/eng.traineddata.gz';
+  let sourcePath: string | null = null;
+
+  const resolveSource = (): string => {
+    if (sourcePath) return sourcePath;
+    const require = createRequire(import.meta.url);
+    const packageJson = require.resolve('@tesseract.js-data/eng/package.json');
+    sourcePath = path.join(path.dirname(packageJson), '4.0.0', 'eng.traineddata.gz');
+    return sourcePath;
+  };
+
+  return {
+    name: 'pdfshush-ocr-traineddata',
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (request.method !== 'GET' || !request.url) return next();
+        let pathname: string;
+        try {
+          pathname = new URL(request.url, 'http://localhost').pathname;
+        } catch {
+          return next();
+        }
+        if (pathname !== `/${assetName}`) return next();
+        const file = readFileSync(resolveSource());
+        response.setHeader('Content-Type', 'application/gzip');
+        response.setHeader('Content-Length', String(file.byteLength));
+        // The model is versioned by the dependency, not by the build; a long
+        // cache is correct and saves the download on a reload.
+        response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        response.end(file);
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: assetName,
+        source: readFileSync(resolveSource()),
+      });
+    },
+  };
+}
+
+/**
  * Preview only: a missing `/assets/*` file must be a 404, not the SPA shell.
  *
  * Vite preview's history fallback returns index.html for every unknown path. A
@@ -121,6 +178,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       cspPlugin(extraCspOrigins),
       serviceWorkerPlugin(),
+      ocrTrainedDataPlugin(),
       previewAsset404Plugin(),
       prerenderPlugin({
         rootDir,

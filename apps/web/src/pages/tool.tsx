@@ -10,6 +10,7 @@ import { DeletePagesTool } from '@/components/tools/delete-pages-tool';
 import { ExtractPagesTool } from '@/components/tools/extract-pages-tool';
 import { MergeTool } from '@/components/tools/merge-tool';
 import { NUpTool } from '@/components/tools/n-up-tool';
+import { OcrTool } from '@/components/tools/ocr-tool';
 import { ProtectPdfTool } from '@/components/tools/protect-pdf-tool';
 import { PdfToImagesTool } from '@/components/tools/pdf-to-images-tool';
 import { RotateTool } from '@/components/tools/rotate-tool';
@@ -173,6 +174,8 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'dark-mode-pdf': DarkModePdfTool,
   // Scans batch (2026-11-05).
   deskew: DeskewTool,
+  // Scans batch (2026-11-08).
+  'ocr-pdf': OcrTool,
 };
 
 export function ToolPage() {

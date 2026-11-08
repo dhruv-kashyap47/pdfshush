@@ -47,10 +47,13 @@
     "react-router-dom": "^7.18.0",
     "signature_pad": "5.1.4",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "tesseract.js": "7.0.0",
+    "tesseract.js-core": "7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@tesseract.js-data/eng": "1.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

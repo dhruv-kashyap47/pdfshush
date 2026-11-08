@@ -12,6 +12,7 @@ import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url';
 import {
   JobAbortedError,
   JobValidationError,
+  configureOcrRuntime,
   configurePdfiumRuntime,
   configurePdfjsRuntime,
   getJob,
@@ -20,6 +21,7 @@ import {
   type JobInputBase,
   type JobProgress,
 } from '@pdfshush/pdf-core';
+import { createTesseractOcrEngine } from './ocr-engine';
 
 // Resolve static PDF.js assets from the Vite base path. Using only the origin
 // works at `/`, but breaks when the app is deployed under a sub-path and makes
@@ -51,6 +53,11 @@ configurePdfjsRuntime({
 // with a URL rather than imported, so the asset is fetched only when the first
 // text-edit job actually needs it, never at worker startup.
 configurePdfiumRuntime({ wasmUrl: pdfiumWasmUrl });
+
+// OCR is lazy on purpose: the engine script and its ~15 MB of core + language
+// data are fetched only when a scanned page actually needs recognition, never
+// when this worker starts.
+configureOcrRuntime({ createEngine: createTesseractOcrEngine });
 
 interface JobRequest {
   type: 'job';

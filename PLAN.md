@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-11-05
+**Last updated:** 2026-11-08
 
 ---
 
@@ -45,7 +45,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Deploy recovery** | Stale hashed CSS/JS can no longer strand an open tab: empty stylesheet/SPA-fallback detection, one guarded fresh-shell reload, hard-reset reload, service-worker navigation cache bypass, critical fallback CSS | ? **done 2026-11-05** - see section 34.7; stale-build E2E 8/8 |
 | **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
-| **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 top entry; 50 of 58 live, 8 declined, 1 354 unit tests |
+| **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
+| **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 407 unit tests |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -68,15 +69,14 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-05 for the **scans batch**, the reliability pass and the
-responsive product shell and stale-build recovery (`pnpm -r typecheck`, `pnpm test` - **1 356/1 356 unit** - `pnpm build`,
-`pnpm test:bundle` green; main chunk 152.7 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
+**Current gate:** re-measured 2026-11-08 for the **OCR batch** (`pnpm -r typecheck`, `pnpm test` - **1 407/1 407 unit** - `pnpm build`,
+`pnpm test:bundle` green; main chunk 172.9 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
 worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
 document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
-fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21) and the
-2026-11-05 passes are recorded in §8. Browser suites re-run green against the responsive commit:
-smoke, deskew, dark-mode, plain-tools, next-tools, a11y, keyboard, offline, reach and verify; the
-responsive sweep is clean across 6 breakpoints × 2 themes × 6 routes. The containerised
+fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21); the
+2026-11-05 passes and the 2026-11-08 OCR batch are recorded in §8. Browser suites re-run green
+against this commit: the new OCR E2E, smoke, deskew, dark-mode, plain-tools, next-tools, a11y
+(now 17 routes), keyboard, offline, reach (51 live, 55 sitemap URLs) and verify. The containerised
 `test:api`/`test:hardening` gates were **not** re-run; Docker is not available in this environment,
 so those checks stay unclaimed (§31.21).
 The 2026-10-21 next-tools batch (§8, 2026-10-21
@@ -84,20 +84,21 @@ entry) sits on top of **P6.4 hardening over the new surface** plus the **landing
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
 hardening (§24), the P6.9 hardening interlude (§24.2), P6.1 Fill & Sign (§25.2), P6.2 REST API
 (§25.3) and P6.3 MCP server (§25.4) all still hold.
-**50 of 58 catalog entries live** (8 declined with a documented reason, §31.20; ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
+**51 of 58 catalog entries live** (7 declined with a documented reason, §31.20; ten plain tools shipped 2026-10-20: `flip-pdf`, `watermark`,
 `edit-metadata`, `remove-annotations`, `pdf-to-text`, `grayscale-pdf`, `resize-pdf`,
 `extract-images`, `split-by-size`, `flatten-pdf`; six more on 2026-10-21: `unlock-pdf`,
 `jpg-to-pdf`, `rename-pdf`, `bates-numbering`, `split-by-text`, `compress-pdf`; seven on
 2026-10-25: `stamp`, `repair-pdf`, `combine-pdf`, `image-editor`, `batch-run`,
 `split-by-bookmarks`, `workflows`; three on 2026-10-26/27: `create-forms`, `create-bookmarks`,
-`protect-pdf`; one on 2026-10-28: `dark-mode-pdf`; one on 2026-11-05: `deskew`; `redact-pdf` in
+`protect-pdf`; one on 2026-10-28: `dark-mode-pdf`; one on 2026-11-05: `deskew`; one on
+2026-11-08: `ocr-pdf`; `redact-pdf` in
 Security; `summarize-pdf` +
 `chat-with-pdf` +
 `edit-pdf-with-ai` under the **AI** category; `fill-sign` + `signature` under Edit & Sign from P6.1;
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1 356/1 356 unit** (**455 engine** · **214 API** · 370 provider · 152 agent · **146 web** ·
+**1 407/1 407 unit** (**486 engine** · **214 API** · 375 provider · 152 agent · **161 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
 export/pixel verification), Phase 2.5 added 27 more (adversarial corpus + verification/
 robustness gates), and Phase 3 added 38 (held-out synthetic benchmark, real-PDF gate,
@@ -150,9 +151,10 @@ mode with per-subject budgets on the server (off unless a key is set), the P5 le
 key in IndexedDB behind `sanitizeAiSettings` with a one-click delete (§23)** · **P6.1 Fill & Sign
 shipped (§25.2): drawn/typed capture, device-only signature assets, editor placement, `edit`-job
 export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
-0 pdf.js / 0 pdfium / 0 `signature_pad` / 0 Caveat, enforced by the extended `pnpm test:bundle`
-(PDFium is a lazy 4.6 MB asset fetched on first text edit; `signature_pad` + the bundled Caveat
-faces ride the 33 kB lazy signature-pad dialog chunk).
+0 pdf.js / 0 pdfium / 0 tesseract / 0 `signature_pad` / 0 Caveat, enforced by the extended `pnpm test:bundle`
+(PDFium is a lazy 4.6 MB asset fetched on first text edit; Tesseract's worker, core and English
+model are lazy assets fetched only when a scanned page needs recognition; `signature_pad` + the
+bundled Caveat faces ride the 33 kB lazy signature-pad dialog chunk).
 **Next: M6.1 — deploy to a real origin** (§33.4), which is blocked on the owner supplying a domain,
 VPS/Cloudflare access and the AGPL/CLA stance; **M6.3's global budget breaker** is the one M6 item
 that protects the free tier and can start before deployment. P7 is closed except for P7.1's remaining
@@ -178,7 +180,7 @@ Do not relitigate these without a strong reason; each was researched and chosen.
 - **Reverse-engineering target:** Sejda ≈ ~40 tools across Merge / Split / Edit&Sign /
   Compress / Security / Convert / Other / Scans / Workflows. Free tier: 3 tasks/hr,
   200 pages, 50 MB. We mirror the catalog, URLs, and IA — but **no task quotas** for
-  in-browser work (limits instead, §4). Our own catalog is **58 entries** (50 live, 8 declined):
+  in-browser work (limits instead, §4). Our own catalog is **58 entries** (51 live, 7 declined):
   Sejda's set plus the disruption extras (AI, e-sign, API/MCP, workflows); every slug has a
   permanent page from day one, so a declined tool renders an honest "not built" decision page
   with the real blocker and the closest live alternative (§31.20).
@@ -256,9 +258,9 @@ pdfshush/
 │   ├── src/lib/job-pool.ts         bounded pool · timeout → terminate · zero-copy transfer
 │   ├── src/lib/client-capacity.ts  refuse-before-crash capacity checks
 │   ├── src/lib/editor-state.ts     editor document + snapshot undo/redo (P2)
-│   ├── src/tools/registry.ts       catalog: 58 entries (**50 live**, 8 declined), permanent /tools/:slug pages
+│   ├── src/tools/registry.ts       catalog: 58 entries (**51 live**, 7 declined), permanent /tools/:slug pages
 │   ├── src/components/editor/*     editor-toolbar · editor-page · editor-inspector (P2)
-│   └── src/components/tools/*      45 tool-body files
+│   └── src/components/tools/*      50 tool-body files
 │                                    + shared dropzone · job-progress · result-panel · tool-frame
 ├── packages/pdf-core               engine — same code path in worker and Node
 │   ├── src/node.ts                  Node-safe barrel: only the isomorphic surface (P3)
@@ -713,6 +715,57 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-08 - The OCR batch: scanned documents become searchable without leaving the tab.**
+
+  The second of the nine declined tools is now live. **OCR** renders each page, recognizes it with
+  Tesseract inside the existing job worker, and writes an **invisible text layer** over the original
+  scan. Search and copy-and-paste work; the page still looks exactly like the scan the user
+  supplied. The UI says that before the run, along with the two real costs: the first run downloads
+  about 15 MB of recognizer and English language data (then it works offline), and recognition is
+  English-only and probabilistic, not a proofread transcript.
+
+  **The engine stayed out of the engine package.** `packages/pdf-core` owns the pipeline (render,
+  sanitize, place, rebuild) but takes an injected `OcrEngine`; the Tesseract adapter lives in
+  `apps/web/src/workers/ocr-engine.ts`. Node and the server never import WebAssembly, and the 14
+  new engine tests cover sanitization, pixel-to-point placement, invisible-text extraction through
+  pdf.js and the job envelope without loading a recognizer.
+
+  **Every byte is same-origin.** The nested worker script, the LSTM core and
+  `/tessdata/eng.traineddata.gz` are emitted by the build and served by Vite dev; the service worker
+  caches `/tessdata/` so a second run is offline. No CDN origin was added to the CSP. The OCR E2E
+  records every request and fails if anything leaves the origin; it observed only
+  `http://localhost:5173/tessdata/eng.traineddata.gz`.
+
+  **Text quality decisions.** Words are placed individually at their recognized boxes with a
+  reserved 0.2 em gap after each run, so extraction keeps spaces instead of gluing `INVOICE2026`
+  together; each line gets one font size from its box height. Tesseract output is mapped to
+  WinAnsi-safe characters (curly quotes, dashes and ligatures become ASCII) because one unsupported
+  code point would fail the whole page. Pages that already carry a text layer (>= 16 non-whitespace
+  characters) are copied untouched rather than re-recognized, and the result reports recognized and
+  kept pages separately.
+
+  **Limits are explicit.** A run caps at 100 pages, the timeout scales at 5 minutes + 5 seconds per
+  page up to the global 15-minute job ceiling, and the per-tool trust card names the page cap, the
+  first-run download and the English-only/accuracy caveats. Cancelling aborts the outer job and
+  terminates the nested Tesseract worker, since recognition is synchronous inside it.
+
+  **The download is gated on a re-parse.** Before the result panel enables Download, the engine
+  reopens the serialized bytes, confirms the page count, and checks that every recognized page
+  still yields extractable non-whitespace text; a blank page with no placements is allowed, a page
+  that lost its claimed layer fails the job. The deskew result copy stopped claiming a re-parse it
+  never performed.
+
+  **Verification.** `pnpm -r typecheck`; `pnpm test` **1 407/1 407** (pdf-core 486, API 214,
+  provider 375, agent 152, web 161, MCP 19); `pnpm build` (main chunk 172.9 kB, model emitted at
+  `dist/tessdata/eng.traineddata.gz`); `pnpm test:bundle` green with the boundary regex extended to
+  `tesseract` (main 0 engines, 17 lazy chunks 0 engines). The new `test:e2e:ocr` passed every check:
+  a genuinely text-free JPEG scan recognized at **96 %** confidence (10 words / 43 characters), the
+  model fetched only from this origin, zero external requests, a `%PDF-` download still carrying
+  `DCTDecode`, and the hidden words read back out by the separate **PDF to Text** tool
+  (`INVOICE 2026 ACME SUPPLIES LTD PAID IN FULL TOTAL 42`). A second fixture proved an
+  already-searchable page is kept untouched. Catalogue: **58 entries, 51 live, 7 declined**.
+  `test:api`/`test:hardening` remain unrun because Docker is unavailable here; they are not claimed.
 
 - **2026-11-05 - Stale-build recovery: an old tab can no longer strand users on an unstyled shell.**
 
@@ -2731,7 +2784,7 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all seven workspace projects
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 354 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 407 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)

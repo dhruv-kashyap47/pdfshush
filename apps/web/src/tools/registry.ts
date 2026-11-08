@@ -160,6 +160,8 @@ const LIVE = new Set([
   'dark-mode-pdf',
   // Scans batch (2026-11-05): projection-profile skew detection, raster rebuild.
   'deskew',
+  // Scans batch (2026-11-08): Tesseract in the job worker, invisible text layer.
+  'ocr-pdf',
 ]);
 
 /**
@@ -220,6 +222,8 @@ const TOOL_NEXT: Record<string, string[]> = {
   'dark-mode-pdf': ['compress-pdf', 'resize-pdf'],
   // Scans batch (2026-11-05).
   deskew: ['rotate-pdf', 'pdf-to-jpg'],
+  // Scans batch (2026-11-08).
+  'ocr-pdf': ['pdf-to-text', 'compress-pdf'],
 };
 
 const tool = (
@@ -337,7 +341,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     label: 'Scans',
     tools: [
       tool('deskew', 'Deskew', 'Straighten crooked scans so text lines up with the page.', 'scans', RotateCcw, 'orange'),
-      tool('ocr-pdf', 'OCR', 'Make scanned documents searchable and selectable with OCRmyPDF.', 'scans', ScanText, 'green'),
+      tool('ocr-pdf', 'OCR', 'Add a searchable, selectable text layer to scanned pages, in the browser.', 'scans', ScanText, 'green'),
     ],
   },
   {

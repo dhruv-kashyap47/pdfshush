@@ -24,6 +24,7 @@ import { jpgToPdfJob } from './jpgToPdf.job.js';
 import { mergeJob } from './merge.job.js';
 import { metadataJob } from './metadata.job.js';
 import { nUpJob } from './nUp.job.js';
+import { ocrJob } from './ocr.job.js';
 import { organizeJob } from './organize.job.js';
 import { pdfToImagesJob } from './pdfToImages.job.js';
 import { protectJob } from './protect.job.js';
@@ -91,6 +92,8 @@ export const JOBS = {
   [darkModeJob.slug]: darkModeJob as AnyJob,
   // Scans batch (2026-11-05): skew estimated per page, then rasterized rebuilt.
   [deskewJob.slug]: deskewJob as AnyJob,
+  // Scans batch (2026-11-08): recognize each raster and add a hidden text layer.
+  [ocrJob.slug]: ocrJob as AnyJob,
 } satisfies Record<string, AnyJob>;
 
 export type JobSlug = keyof typeof JOBS;

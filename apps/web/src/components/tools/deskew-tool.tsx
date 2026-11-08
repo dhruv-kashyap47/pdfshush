@@ -125,7 +125,7 @@ export function DeskewTool() {
           setInspect(null);
           setOverride('');
         }}
-        footerNote="Every page was rebuilt as a straightened image and re-parsed before this download was enabled. Keep the original if you need selectable text."
+        footerNote="Every page was rebuilt as a straightened image. Keep the original if you need selectable text."
       >
         <p className="text-sm text-muted-foreground" data-testid="deskew-angles">
           {`Angle applied: ${shown}${suffix}.`}

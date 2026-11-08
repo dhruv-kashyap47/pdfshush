@@ -167,6 +167,47 @@ export const LIMITS = {
 
 export type Limits = typeof LIMITS;
 
+/**
+ * OCR limits.
+ *
+ * OCR is the most expensive browser tool: every scanned page is rendered to a
+ * bitmap, a WebAssembly recognizer runs over it, and the result is re-encoded
+ * as JPEG plus an invisible text layer. The page cap is deliberately lower
+ * than the raster-rebuild ceiling because a recognition pass costs far more
+ * than a pixel remap. A page with an existing text layer is copied, not
+ * recognized, so a scanned document layered with OCR running over again only
+ * pays for the pages that actually need it.
+ */
+export const OCR_LIMITS = {
+  /** Pages one OCR run may contain. */
+  maxPages: 100,
+  /**
+   * Non-whitespace characters that prove a page already carries a text layer.
+   * A page with only a stamp ("CONFIDENTIAL") or a page number still gets OCR;
+   * a page with a real paragraph does not.
+   */
+  minTextLayerChars: 16,
+  /** Render width for recognition; ~2200 px is roughly 250 dpi at A4. */
+  defaultWidthPx: 2200,
+  minWidthPx: 1200,
+  maxWidthPx: 4000,
+  /** Recognition is slow on a cold engine; the base allows for the download. */
+  timeoutBaseMs: 5 * 60_000,
+  timeoutPerPageMs: 5_000,
+} as const;
+
+/**
+ * OCR-specific timeout. The generic per-page allowance is tuned for pdf-lib
+ * page operations (750 ms/page); recognition needs seconds per page and the
+ * first page also loads the engine and language data.
+ */
+export function ocrTimeoutForPageCount(pageCount: number): number {
+  const raw =
+    OCR_LIMITS.timeoutBaseMs +
+    Math.max(0, pageCount - 1) * OCR_LIMITS.timeoutPerPageMs;
+  return Math.min(LIMITS.job.maxTimeoutMs, Math.max(LIMITS.job.minTimeoutMs, raw));
+}
+
 /** Bytes of RAM we assume a job needs, on top of the file bytes themselves. */
 export function estimateWorkingSetBytes(inputBytes: number, pageCount = 1): number {
   return inputBytes + pageCount * LIMITS.client.bytesPerRenderedPage;

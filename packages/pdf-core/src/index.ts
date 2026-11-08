@@ -32,8 +32,10 @@ export {
   LIMITS,
   MB,
   IMAGE_LIMITS,
+  OCR_LIMITS,
   estimateWorkingSetBytes,
   formatBytes,
+  ocrTimeoutForPageCount,
   timeoutForPageCount,
 } from './limits.js';
 
@@ -150,6 +152,27 @@ export type { SkewEstimateOptions } from './deskew/skew.js';
 export { deskewDocument } from './deskew/deskew.js';
 export type { DeskewOptions, DeskewResult } from './deskew/deskew.js';
 
+// OCR (2026-11-08): the engine is injected by the browser worker; sanitization
+// and pixel-to-point placement are pure so they run and are tested in Node.
+export { sanitizeOcrText, buildOcrPlacements } from './ocr/layout.js';
+export type { OcrPageMapping, OcrPlacement } from './ocr/layout.js';
+export { drawOcrTextLayer } from './ocr/draw.js';
+export { configureOcrRuntime, createOcrEngine, hasOcrRuntime } from './ocr/runtime.js';
+export type { OcrRuntimeConfig } from './ocr/runtime.js';
+export { ocrDocument } from './ocr/ocr.js';
+export type { OcrOptions, OcrResult } from './ocr/ocr.js';
+export { OcrUnavailableError } from './ocr/types.js';
+export type {
+  OcrBox,
+  OcrEngine,
+  OcrEngineFactory,
+  OcrEngineProgress,
+  OcrLine,
+  OcrPage,
+  OcrRecognizeOptions,
+  OcrWord,
+} from './ocr/types.js';
+
 // Rendering
 export { configurePdfjsRuntime, loadPdfForRender } from './render/pdfjsRuntime.js';
 export type { PdfjsRuntimeConfig, LoadedPdf } from './render/pdfjsRuntime.js';
@@ -244,6 +267,8 @@ export { darkModeJob } from './jobs/darkMode.job.js';
 export type { DarkModeJobInput, DarkModeJobOutput, DarkModeJobOptions } from './jobs/darkMode.job.js';
 export { deskewJob } from './jobs/deskew.job.js';
 export type { DeskewJobInput, DeskewJobOutput, DeskewJobOptions } from './jobs/deskew.job.js';
+export { ocrJob } from './jobs/ocr.job.js';
+export type { OcrJobInput, OcrJobOutput, OcrJobOptions } from './jobs/ocr.job.js';
 export { resizeJob } from './jobs/resize.job.js';
 export type { ResizeJobInput, ResizeJobOutput, ResizeJobOptions } from './jobs/resize.job.js';
 export { imagesJob } from './jobs/images.job.js';

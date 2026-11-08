@@ -21,7 +21,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'apps', 'web', 'dist');
 
 /** Module paths that mean "an engine is in this chunk". */
-const ENGINE = /pdf-lib|pdfjs|pdfium/i;
+const ENGINE = /pdf-lib|pdfjs|pdfium|tesseract/i;
 
 let failures = 0;
 
