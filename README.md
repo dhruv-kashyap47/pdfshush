@@ -39,7 +39,7 @@ Every tool has a permanent page from day one (`/tools/:slug`); unshipped tools s
 pnpm install
 pnpm dev              # web app: http://localhost:5173 (every client-side tool + BYOK AI)
 pnpm typecheck        # tsc across all workspace projects
-pnpm test             # vitest unit suites (1 354 tests across six packages)
+pnpm test             # vitest unit suites (1 409 tests across six packages)
 pnpm build            # production web bundle
 ```
 
@@ -87,6 +87,7 @@ pnpm test:e2e:bookmark-batch # stamp, repair, combine, bookmarks, batch ZIP, ima
 pnpm test:e2e:forms-bookmarks # Create Forms + Create Bookmarks, downloaded bytes (49 checks)
 pnpm test:e2e:dark-mode    # Dark Mode PDF: live preview pixels, download (8 checks)
 pnpm test:e2e:deskew       # Deskew: detect a +4° scan, then re-detect the output as straight
+pnpm test:e2e:ocr          # OCR: real scan recognized on this origin, text read back (incl. encrypted inputs)
 pnpm test:e2e:offline      # production preview: manifest, CSP, service worker, offline merge (26 checks)
 pnpm test:e2e:reach        # prerendered content, sitemap, robots, OG cards (production preview)
 pnpm test:e2e:a11y         # axe WCAG 2.2 AA on the shell + tool routes (zero serious)

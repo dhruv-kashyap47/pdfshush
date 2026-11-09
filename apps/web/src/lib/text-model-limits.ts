@@ -43,6 +43,6 @@ export const TEXT_MODEL_LIMITS: readonly TextModelLimit[] = [
   },
   {
     id: 'scanned-pages',
-    text: 'Scanned pages have no text layer until OCR: they can be marked, but not rewritten. There is no OCR in this build.',
+    text: 'Scanned pages have no text layer to rewrite: they can be marked, or run through the OCR tool first and then reopened here.',
   },
 ];

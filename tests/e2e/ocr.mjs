@@ -29,6 +29,7 @@ const ROOT = path.resolve(HERE, '..', '..');
 const ARTIFACTS = path.join(HERE, 'artifacts');
 const FIXTURES = path.join(HERE, 'fixtures');
 const require = createRequire(path.join(ROOT, 'packages', 'pdf-core', 'package.json'));
+const { PDFDocument } = require('@cantoo/pdf-lib');
 
 /* ---------------------------------------------------------------- fixture */
 
@@ -93,6 +94,13 @@ function buildScanImage() {
   ctx.fillText('TOTAL 42', 150, 560);
 
   return { jpeg: canvas.toBuffer('image/jpeg', 92), width, height };
+}
+
+/** Applies AES-256 protection; an empty user password means permissions only. */
+async function protectPdf(bytes, userPassword) {
+  const doc = await PDFDocument.load(bytes, { updateMetadata: false });
+  doc.encrypt({ userPassword, ownerPassword: 'owner-secret', algorithm: 'AES-256' });
+  return Buffer.from(await doc.save({ useObjectStreams: false }));
 }
 
 /** A plain text PDF, used to prove already-searchable pages are not re-OCR'd. */
@@ -175,10 +183,15 @@ async function main() {
   await mkdir(FIXTURES, { recursive: true });
 
   const scan = buildScanImage();
+  const scanBytes = buildScannedPdf(scan.jpeg, scan.width, scan.height);
   const scanPath = path.join(FIXTURES, 'ocr-scan.pdf');
-  await writeFile(scanPath, buildScannedPdf(scan.jpeg, scan.width, scan.height));
+  await writeFile(scanPath, scanBytes);
   const textPath = path.join(FIXTURES, 'ocr-text.pdf');
   await writeFile(textPath, buildTextPdf());
+  const restrictedPath = path.join(FIXTURES, 'ocr-owner-restricted.pdf');
+  await writeFile(restrictedPath, await protectPdf(scanBytes, ''));
+  const passwordPath = path.join(FIXTURES, 'ocr-password.pdf');
+  await writeFile(passwordPath, await protectPdf(scanBytes, 'secret-password'));
 
   const browser = await chromium.launch({ channel: 'msedge' });
   const context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
@@ -267,6 +280,37 @@ async function main() {
     const keptDownload = await download(page);
     check('the kept page keeps its original text objects', !keptDownload.bytes.includes('DCTDecode'));
 
+    console.log('\n4. An owner-restricted scan is OCR-ed and written unencrypted');
+    await open(page, '/tools/ocr-pdf');
+    await page.locator('input[type="file"]').setInputFiles([restrictedPath]);
+    const restrictionNotice = page.getByText(/This PDF carries permission restrictions/i);
+    await restrictionNotice.waitFor({ timeout: 60_000 });
+    check('the owner-restricted input is disclosed before the run', true);
+
+    const restrictedRun = page.getByRole('button', { name: 'Make searchable' });
+    await waitFor(async () => restrictedRun.isEnabled(), 60_000, 'restricted OCR run button');
+    await restrictedRun.click();
+    const restrictedSummary = page.locator('[data-testid="ocr-summary"]');
+    await restrictedSummary.waitFor({ timeout: 300_000 });
+    const restrictedText = (await restrictedSummary.textContent()) ?? '';
+    check('the owner-restricted page was recognized', /Recognized 1 page/i.test(restrictedText), restrictedText);
+
+    const restrictedDownload = await download(page);
+    check('the restricted output is a PDF', restrictedDownload.bytes.subarray(0, 5).toString('latin1') === '%PDF-');
+    const reopened = await PDFDocument.load(restrictedDownload.bytes);
+    check('the output opens without a password and is not encrypted', reopened.isEncrypted === false);
+
+    console.log('\n5. A real open password is refused, not silently stripped');
+    await open(page, '/tools/ocr-pdf');
+    await page.locator('input[type="file"]').setInputFiles([passwordPath]);
+    const refusal = page.locator('[data-sonner-toast]').filter({ hasText: /password protected/i });
+    await refusal.waitFor({ timeout: 60_000 });
+    check('the password-protected input is refused with an unlock hint', /unlock/i.test((await refusal.textContent()) ?? ''));
+    check(
+      'no OCR run is offered for a locked file',
+      (await page.getByRole('button', { name: 'Make searchable' }).count()) === 0,
+    );
+
     check(
       'still no request left this origin after the whole flow',
       externalRequests.length === 0,
@@ -274,7 +318,14 @@ async function main() {
     );
   } finally {
     const errors = consoleErrors.filter(
-      (text) => !text.includes('favicon') && !text.includes('Failed to load resource'),
+      (text) =>
+        !text.includes('favicon') &&
+        !text.includes('Failed to load resource') &&
+        // Expected while probing an encrypted upload: inspect refuses it
+        // once without a password, then the OCR tool retries with the empty
+        // user password. A real open password is refused on purpose, and the
+        // checks above pin both outcomes.
+        !text.includes('[job:inspect] encrypted failed:'),
     );
     if (errors.length > 0) {
       console.log('\nBrowser console errors:');

@@ -46,7 +46,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
-| **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 407 unit tests |
+| **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -69,7 +69,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-08 for the **OCR batch** (`pnpm -r typecheck`, `pnpm test` - **1 407/1 407 unit** - `pnpm build`,
+**Current gate:** re-measured 2026-11-08 for the **OCR batch** (`pnpm -r typecheck`, `pnpm test` - **1 409/1 409 unit** - `pnpm build`,
 `pnpm test:bundle` green; main chunk 172.9 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
 worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
 document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
@@ -98,7 +98,7 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1 407/1 407 unit** (**486 engine** · **214 API** · 375 provider · 152 agent · **161 web** ·
+**1 409/1 409 unit** (**488 engine** · **214 API** · 375 provider · 152 agent · **161 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
 export/pixel verification), Phase 2.5 added 27 more (adversarial corpus + verification/
 robustness gates), and Phase 3 added 38 (held-out synthetic benchmark, real-PDF gate,
@@ -750,13 +750,19 @@ never actually wired, and a stream with no error listener.*
   first-run download and the English-only/accuracy caveats. Cancelling aborts the outer job and
   terminates the nested Tesseract worker, since recognition is synchronous inside it.
 
+  **Encrypted sources are handled honestly.** An owner-restricted PDF (permissions set, empty user
+  password) is opened with that empty password, recognized, and written back **without** its
+  restrictions — the tool says so before the run and points at Protect PDF. A file with a real open
+  password is still refused with an Unlock hint, because guessing it would be a lie. This also
+  fixed a truthiness bug in `inspect`/OCR that made permission-only files unreadable to every tool.
+
   **The download is gated on a re-parse.** Before the result panel enables Download, the engine
   reopens the serialized bytes, confirms the page count, and checks that every recognized page
   still yields extractable non-whitespace text; a blank page with no placements is allowed, a page
   that lost its claimed layer fails the job. The deskew result copy stopped claiming a re-parse it
   never performed.
 
-  **Verification.** `pnpm -r typecheck`; `pnpm test` **1 407/1 407** (pdf-core 486, API 214,
+  **Verification.** `pnpm -r typecheck`; `pnpm test` **1 409/1 409** (pdf-core 488, API 214,
   provider 375, agent 152, web 161, MCP 19); `pnpm build` (main chunk 172.9 kB, model emitted at
   `dist/tessdata/eng.traineddata.gz`); `pnpm test:bundle` green with the boundary regex extended to
   `tesseract` (main 0 engines, 17 lazy chunks 0 engines). The new `test:e2e:ocr` passed every check:
@@ -764,7 +770,9 @@ never actually wired, and a stream with no error listener.*
   model fetched only from this origin, zero external requests, a `%PDF-` download still carrying
   `DCTDecode`, and the hidden words read back out by the separate **PDF to Text** tool
   (`INVOICE 2026 ACME SUPPLIES LTD PAID IN FULL TOTAL 42`). A second fixture proved an
-  already-searchable page is kept untouched. Catalogue: **58 entries, 51 live, 7 declined**.
+  already-searchable page is kept untouched; a third (owner-restricted) proved the disclosure, a
+  successful recognition and an unencrypted output; a fourth (real password) was refused with no
+  run offered. Catalogue: **58 entries, 51 live, 7 declined**.
   `test:api`/`test:hardening` remain unrun because Docker is unavailable here; they are not claimed.
 
 - **2026-11-05 - Stale-build recovery: an old tab can no longer strand users on an unstyled shell.**
@@ -2784,12 +2792,13 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all seven workspace projects
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 407 tests)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 409 tests)
 pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:e2e:dark-mode   # Dark Mode PDF: preview pixels exact, download checks (8 checks)
 pnpm test:e2e:deskew      # Deskew: +4° detection, output reopened and re-detected as straight
+pnpm test:e2e:ocr         # OCR: real scan recognized on this origin, text read back, encrypted inputs
 pnpm test:e2e:sign    # Fill & Sign flow end to end (17 checks)
 pnpm test:e2e:text-edit  # the in-place text-edit flow (8 checks)
 pnpm test:e2e:ai      # AI chat + highlight apply + in-place replacement + key handling (22 checks: 17 seeded + 5 keyless overlay)
@@ -4911,6 +4920,11 @@ render mode 3 preserved. For an image-only page, the capability is manual review
 there is no text object to rewrite. The repository has no OCRmyPDF/Tesseract
 runtime, so full image-to-text OCR is **not** claimed here.
 
+> **Superseded 2026-11-08.** An in-browser Tesseract runtime now exists as the
+> separate `ocr-pdf` tool (§8); this section describes the editor's text model,
+> which still does not recognize scans in place. Run OCR first, then reopen the
+> result here.
+
 ### 28.4 Content-stream safety rules
 
 `textedit/contentStream.ts` deliberately supports a narrow, provable subset:
@@ -5525,8 +5539,9 @@ and no verification gate was changed in this phase.
 - **Medium** — all carried over and documented, none regressed by this phase:
   mixed-alignment tables are still refused rather than guessed; the IRS 1040 form still reads
   as four columns (confidence ≈0.74); cross-page paragraphs are not joined; a footnote tail
-  above the margin band can still split; scanned documents are not OCR'd (a capability
-  boundary, disclosed in the editor).
+  above the margin band can still split; the editor does not OCR a scan in place (run the
+  separate `ocr-pdf` tool first — shipped 2026-11-08 — then reopen the result), which is the
+  capability boundary disclosed in the editor.
 - **Low:** drop caps can detach their first letter (arXiv 1409.0473 `T`); vector figures are
   not reported as regions (BERT p.2 gains heading labels from Figure 1 text); `rowSpan` /
   `colSpan` remain 1; confidence AUROC is `n/a` on a 100%-correct synthetic corpus.
@@ -5651,6 +5666,10 @@ No page promises a date, captures an email or shows "in development". The reason
 `apps/web/src/tools/declined.ts` and are pinned by `declined.test.ts`; the catalog status is
 `'declined'`, so `planned` no longer exists as a state. The largest honest gap is OCR: scans still
 have no text layer, and `pdf-to-text` returns empty on them rather than inventing text.
+
+> **Superseded in part (2026-11-05 and 2026-11-08).** `deskew` and `ocr-pdf` were later shipped
+> client-side (see §8); the other seven remain declined. Everything above is the 2026-11-04
+> decision as recorded, not today's catalog state.
 
 Declining is an acceptable, documented outcome. A ship-or-decline decision with a reason is
 excellence; an indefinite "coming soon" is not.
@@ -6321,6 +6340,10 @@ Each declined page keeps its URL, says **"Not built — and here is exactly why"
 and links the closest live path. It is `noindex` and absent from the sitemap. There is no
 "Tell me when it ships", no "in development" fallback and no email capture. The reasons are data
 (`apps/web/src/tools/declined.ts`) rather than prose scattered through JSX.
+
+> **Superseded in part (2026-11-05 and 2026-11-08).** `deskew` and `ocr-pdf` have since shipped
+> client-side (see §8), so today the catalog is 58 entries: **51 live, 7 declined**. The table and
+> counts above are the 2026-11-04 record.
 
 **Evidence.**
 

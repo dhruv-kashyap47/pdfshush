@@ -13,7 +13,7 @@
  */
 
 import { useState } from 'react';
-import { Loader2, ScanText } from 'lucide-react';
+import { Loader2, ScanText, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   OCR_LIMITS,
@@ -63,6 +63,12 @@ export function OcrTool() {
   const [file, setFile] = useState<File | null>(null);
   const [inspect, setInspect] = useState<InspectOutput['documents'][number] | null>(null);
   const [presetId, setPresetId] = useState<PresetId>('balanced');
+  /**
+   * Owner-restricted PDFs (permissions set, empty user password) are opened
+   * with an empty password. The rebuild drops those restrictions, so the UI
+   * has to say so before the run.
+   */
+  const [ownerRestricted, setOwnerRestricted] = useState(false);
 
   const inspectRunner = useJobRunner<InspectOutput>('inspect');
   const runner = useJobRunner<OcrJobOutput>('ocr');
@@ -76,6 +82,7 @@ export function OcrTool() {
       inspectRunner.cancel();
       setFile(null);
       setInspect(null);
+      setOwnerRestricted(false);
       return;
     }
     const candidate = incoming[0]!;
@@ -91,20 +98,49 @@ export function OcrTool() {
     announceCapacityWarning(verdict);
     setFile(candidate);
     setInspect(null);
+    setOwnerRestricted(false);
+
     const inspected = await inspectRunner.run(await readAsInputFiles([candidate]));
-    if (!inspected.ok) {
-      if (!inspected.aborted) toast.error(inspected.message);
+    const inspectionFailure = inspected.ok ? null : inspected;
+    let accepted = inspected;
+    if (inspectionFailure && !inspectionFailure.aborted && inspectionFailure.code === 'encrypted') {
+      // pdf-lib only takes its decrypt path when a password is defined, and
+      // an owner-restricted file has an empty user password. A real open
+      // password still fails here, so only permission-only files get through.
+      const retry = await inspectRunner.run(
+        (await readAsInputFiles([candidate])).map((input) => ({ ...input, password: '' })),
+      );
+      if (retry.ok) {
+        accepted = retry;
+        setOwnerRestricted(true);
+      } else if (retry.aborted) {
+        // A newer file selection superseded this one; do not clear its state.
+        return;
+      }
+    }
+    if (!accepted.ok && accepted.aborted) return;
+    if (!accepted.ok) {
+      // Report the first inspection failure: the empty-password retry's
+      // "incorrect password" would blame the user for a password they never
+      // entered.
+      if (inspectionFailure && !inspectionFailure.aborted) {
+        toast.error(inspectionFailure.message);
+      }
       setFile(null);
       return;
     }
-    const doc = inspected.result.documents[0];
+    const doc = accepted.result.documents[0];
     if (doc) setInspect(doc);
   };
 
   const run = async () => {
     if (!file || running || overCap) return;
+    const inputs = await readAsInputFiles([file]);
+    if (ownerRestricted) {
+      for (const input of inputs) input.password = '';
+    }
     const outcome = await runner.run(
-      await readAsInputFiles([file]),
+      inputs,
       { targetWidthPx: preset.targetWidthPx, quality: preset.quality },
       { timeoutMs: ocrTimeoutForPageCount(inspect?.pageCount ?? 1) },
     );
@@ -113,7 +149,7 @@ export function OcrTool() {
       return;
     }
     void recordRecent({
-      toolSlug: 'ocr',
+      toolSlug: 'ocr-pdf',
       toolName: 'OCR',
       fileName: outcome.result.fileName,
       pageCount: outcome.result.pageCount,
@@ -135,9 +171,14 @@ export function OcrTool() {
           runner.reset();
           setFile(null);
           setInspect(null);
+          setOwnerRestricted(false);
           setPresetId('balanced');
         }}
-        footerNote="Every reported page was re-parsed before this download was enabled. The visible page is still the original scan; the text is an invisible layer, so proofread anything you quote."
+        footerNote={
+          recognized > 0
+            ? 'Every recognized page was re-parsed and checked for selectable text before this download was enabled. The visible page is still the original scan; the text is an invisible layer, so proofread anything you quote.'
+            : 'No page needed recognition, so the output was re-opened and its page count verified before this download was enabled.'
+        }
       >
         <div className="space-y-1 text-sm text-muted-foreground" data-testid="ocr-summary">
           <p>
@@ -220,6 +261,18 @@ export function OcrTool() {
             English-only, and the first run downloads about 15 MB of engine and language data once —
             then it works offline.
           </p>
+
+          {ownerRestricted && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="text-muted-foreground">
+                <strong className="text-foreground">This PDF carries permission restrictions.</strong>{' '}
+                OCR opens it with its empty user password and rebuilds it, so the result is written{' '}
+                <strong className="text-foreground">without those restrictions</strong>. Use Protect
+                PDF on the result if that protection still matters.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-4 rounded-xl border border-border p-4">
             <div className="min-w-0">

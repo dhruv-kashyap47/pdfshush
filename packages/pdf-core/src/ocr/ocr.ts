@@ -71,7 +71,10 @@ export async function ocrDocument(
   );
   const quality = Math.min(1, Math.max(0.3, options.quality ?? 0.9));
 
-  const loaded = await loadPdfForRender(data, { ...(password ? { password } : {}) });
+  // An empty password is meaningful: it is how pdf-lib and pdf.js open
+  // owner-restricted documents. Truthiness would silently drop it.
+  const passwordOptions = password !== undefined ? { password } : {};
+  const loaded = await loadPdfForRender(data, passwordOptions);
   const progress = createProgressReporter(ctx);
 
   /** Created lazily: a fully searchable document pays nothing for OCR. */
@@ -85,9 +88,7 @@ export async function ocrDocument(
       // OCR-ing; copying is an optimization, not a requirement. Encrypted
       // sources land here when they cannot be opened with the supplied
       // password, and the fallback recognizes every page.
-      sourcePromise = loadPdfDocument(data, { ...(password ? { password } : {}) }).catch(
-        () => null,
-      );
+      sourcePromise = loadPdfDocument(data, passwordOptions).catch(() => null);
     }
     return sourcePromise;
   };

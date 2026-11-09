@@ -17,7 +17,7 @@ const REQUIRED: TextModelLimitId[] = [
   'drop-caps', // 29.6: a drop cap can detach its first letter
   'vector-figures', // 29.6: vector figures are not regions
   'tables', // 31.16: a non-repeating grid is refused + rowSpan/colSpan stay 1
-  'scanned-pages', // 29.6/30.10: scanned pages are not OCR'd
+  'scanned-pages', // 29.6/30.10: the editor cannot rewrite a scan without an OCR pass first
 ];
 
 describe('text-model limitations disclosure', () => {
@@ -44,6 +44,9 @@ describe('text-model limitations disclosure', () => {
   it('states the OCR boundary plainly, since that is the boundary users hit first', () => {
     const scanned = TEXT_MODEL_LIMITS.find((limit) => limit.id === 'scanned-pages');
     expect(scanned?.text).toMatch(/no text layer/i);
-    expect(scanned?.text).toMatch(/no ocr|until ocr/i);
+    // OCR now exists as a separate tool, so the disclosure must point at it
+    // instead of claiming the build cannot OCR at all.
+    expect(scanned?.text).toMatch(/OCR tool/i);
+    expect(scanned?.text).not.toMatch(/no OCR in this build/i);
   });
 });

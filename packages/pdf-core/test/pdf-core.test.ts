@@ -20,6 +20,7 @@ import { formatBytes, timeoutForPageCount, LIMITS } from '../src/limits.js';
 import { withJobLimits, JobAbortedError } from '../src/job.js';
 import { makeFixturePdf, testContext } from './fixtures.js';
 import { pdfContainsText } from './helpers.js';
+import { ENCRYPTED_OWNER_ONLY_BASE64, decodeBase64 } from './encryptedFixtures.js';
 
 describe('inspectPdf', () => {
   it('reports page count, sizes and rotations', async () => {
@@ -231,6 +232,25 @@ describe('jobs (registry layer)', () => {
     expect(output.documents[0]?.pageCount).toBe(2);
     expect(output.documents[1]?.pageCount).toBe(3);
     expect(output.documents[1]?.pages[0]?.widthPt).toBe(200);
+  });
+
+  it('inspect job forwards an empty password, which opens owner-restricted files', async () => {
+    const ownerOnly = decodeBase64(ENCRYPTED_OWNER_ONLY_BASE64);
+
+    // Without a password the encryption gate still refuses it.
+    await expect(
+      inspectJob.run({ files: [{ name: 'locked.pdf', data: ownerOnly }] }, testContext()),
+    ).rejects.toThrow(/password protected/i);
+
+    // An empty string is meaningful: pdf-lib decrypts with the empty user
+    // password, so a truthiness check would silently drop the retry and make
+    // permission-only PDFs unreadable to every tool.
+    const output = await inspectJob.run(
+      { files: [{ name: 'owner-only.pdf', data: ownerOnly, password: '' }] },
+      testContext(),
+    );
+    expect(output.documents[0]?.pageCount).toBe(1);
+    expect(output.documents[0]?.encrypted).toBe(false);
   });
 
   it('validates inputs before doing work', () => {

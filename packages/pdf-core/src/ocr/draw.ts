@@ -31,13 +31,20 @@ export function drawOcrTextLayer(
     // reserved in `buildOcrPlacements`, that makes the next word's start
     // unambiguously a space to pdf.js.
     const target = placement.width * 0.92;
-    if (natural > target && placement.text.length > 1) {
-      const needed = (target - natural) / (placement.text.length - 1);
-      // More than 12% of an em of negative tracking collapses glyphs into each
-      // other; at that point shrinking the type is the less broken option.
-      if (needed >= -size * 0.12) {
-        characterSpacing = needed;
+    if (natural > target) {
+      if (placement.text.length > 1) {
+        const needed = (target - natural) / (placement.text.length - 1);
+        // More than 12% of an em of negative tracking collapses glyphs into
+        // each other; at that point shrinking the type is the less broken
+        // option.
+        if (needed >= -size * 0.12) {
+          characterSpacing = needed;
+        } else {
+          size = Math.max(1, size * (target / natural));
+        }
       } else {
+        // A single glyph has no inter-character gap to compress, so shrinking
+        // the type is the only way to keep it inside its box.
         size = Math.max(1, size * (target / natural));
       }
     }

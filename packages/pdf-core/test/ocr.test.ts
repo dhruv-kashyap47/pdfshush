@@ -162,6 +162,23 @@ describe('invisible OCR text layer', () => {
     expect(run).toBeDefined();
     expect(run.x + run.width).toBeLessThanOrEqual(10 + 40 + 1);
   });
+
+  test('a single glyph wider than its box shrinks instead of overflowing', async () => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([300, 100]);
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    // One character has no inter-glyph gap to compress, so character spacing
+    // cannot save it; the draw step must reduce the type size.
+    drawOcrTextLayer(page, font, [
+      { text: 'W', x: 10, y: 40, width: 2, fontSize: 20 },
+    ]);
+
+    const bytes = await doc.save({ useObjectStreams: false });
+    const runs = (await extractTextRuns(bytes, [0], testContext()))[0]!;
+    const run = runs.find((entry) => entry.text.includes('W'))!;
+    expect(run).toBeDefined();
+    expect(run.x + run.width).toBeLessThanOrEqual(10 + 2 + 1);
+  });
 });
 
 describe('OCR job', () => {

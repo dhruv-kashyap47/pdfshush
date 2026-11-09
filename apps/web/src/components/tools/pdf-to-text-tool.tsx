@@ -78,7 +78,7 @@ export function PdfToTextTool() {
             setFiles([]);
             setReady(false);
           }}
-          footerNote={`${result.charCount.toLocaleString()} characters from ${result.pageCount} page${result.pageCount === 1 ? '' : 's'}. Scanned pages come out empty: there is no OCR layer.`}
+          footerNote={`${result.charCount.toLocaleString()} characters from ${result.pageCount} page${result.pageCount === 1 ? '' : 's'}. Scanned pages come out empty unless the PDF already carries a text layer.`}
         >
           {result.text.trim().length > 0 ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-4 text-sm leading-relaxed">

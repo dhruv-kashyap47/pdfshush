@@ -63,7 +63,7 @@ export const DECLINED_COPY: Record<string, DeclinedCopy> = {
   },
   'convert-batch': {
     what: 'would convert many files at once with shared settings.',
-    why: 'A batch is only useful once the converters exist; the missing ones are exactly the Word, Excel, PowerPoint, HTML and OCR conversions above.',
+    why: 'A batch is only useful once the conversions exist; the missing ones are exactly the Word, Excel, PowerPoint and HTML conversions above.',
     alternative: {
       slug: 'batch-run',
       note: 'applies a live tool — compress, grayscale, flatten, repair and more — to a whole folder today.',

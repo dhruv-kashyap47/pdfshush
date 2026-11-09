@@ -45,7 +45,8 @@ export const inspectJob: JobDefinition<InspectInput, InspectOutput> = {
       ctx.throwIfAborted();
       progress.step(index, input.files.length, 'Reading documents');
       const info = await inspectPdf(file.data, {
-        ...(file.password ? { password: file.password } : {}),
+        // An empty password is meaningful: it opens owner-restricted files.
+        ...(file.password !== undefined ? { password: file.password } : {}),
       });
       documents.push({
         name: file.name,
