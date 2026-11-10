@@ -1,7 +1,22 @@
+import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { POPULAR_SLUGS, getTool } from '@/tools/registry';
+
+/* The oversized close spells the name letter by letter so the hover wave can
+   travel through it. Weights mirror the logo mark: "pdf" Light, "shush"
+   ExtraBold. */
+const WORDMARK_LETTERS: Array<{ ch: string; bold?: boolean }> = [
+  { ch: 'p' },
+  { ch: 'd' },
+  { ch: 'f' },
+  { ch: 's', bold: true },
+  { ch: 'h', bold: true },
+  { ch: 'u', bold: true },
+  { ch: 's', bold: true },
+  { ch: 'h', bold: true },
+];
 
 const SOURCE_URL = 'https://github.com/dhruv-kashyap47/pdfshush';
 
@@ -93,15 +108,7 @@ export function SiteFooter() {
           ))}
         </div>
 
-        {/* Oversized brand close: the wordmark fades into the page, so the
-            footer ends on the identity rather than a line of small print. */}
-        <div className="footer-wordmark mt-12 select-none overflow-hidden" aria-hidden="true" data-reveal>
-          <span className="block whitespace-nowrap bg-gradient-to-b from-foreground/80 via-foreground/40 to-transparent bg-clip-text text-center text-[clamp(3.5rem,16vw,14rem)] font-light leading-[0.8] tracking-[-0.06em] text-transparent">
-            pdf<span className="font-bold">shush</span>
-          </span>
-        </div>
-
-        <div className="mt-10 flex flex-col gap-3 border-t border-border/60 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col gap-3 border-t border-border/60 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} PDFShush</p>
           <p className="flex items-center gap-4">
             <Link to="/trust" className="transition-colors hover:text-foreground">
@@ -117,6 +124,35 @@ export function SiteFooter() {
               Source
             </a>
           </p>
+        </div>
+
+        {/* Oversized brand close: the name returns at the full content width,
+            set in the full ink — no fade — with the logo's four-point sparkle
+            in the brand green as the single accent. The size is set in
+            container units, so the word spans edge to edge at every viewport.
+            Hovering sends a quiet wave through the letters (see index.css);
+            under reduced motion the name simply sits still. */}
+        <div className="footer-wordmark @container mt-14 select-none sm:mt-20" aria-hidden="true" data-reveal>
+          <div className="flex items-start justify-center text-[24.5cqw] leading-none tracking-[-0.045em] text-foreground">
+            <span className="fw-letters whitespace-nowrap">
+              {WORDMARK_LETTERS.map((letter, i) => (
+                <span
+                  key={`${letter.ch}-${i}`}
+                  className={`fw-letter inline-block ${letter.bold ? 'font-bold' : 'font-light'}`}
+                  style={{ '--i': i } as CSSProperties}
+                >
+                  {letter.ch}
+                </span>
+              ))}
+            </span>
+            <svg
+              className="fw-spark mt-[0.02em] ml-[0.03em] w-[0.28em] shrink-0 text-primary"
+              viewBox="715 76 60 60"
+              fill="currentColor"
+            >
+              <path d="M745 76 C750 94 757 101 775 106 C757 111 750 118 745 136 C740 118 733 111 715 106 C733 101 740 94 745 76 Z" />
+            </svg>
+          </div>
         </div>
       </div>
     </footer>

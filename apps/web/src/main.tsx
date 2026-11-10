@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import '@fontsource/instrument-serif'; /* Hero display face, self-hosted. */
+import '@fontsource/instrument-serif/400-italic.css'; /* Caption voice. */
 import { installBuildRecovery } from './lib/build-recovery';
 import { mark, observeFirstInteraction } from './lib/marks';
 import { registerServiceWorker } from './lib/service-worker';

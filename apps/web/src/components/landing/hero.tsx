@@ -252,7 +252,7 @@ export function HeroSection() {
                   chips). Chips are opacity-only in anime so the CSS hover lift
                   owns their transform after the intro. */}
               <div data-motion="tools" className={`mt-10 ${gate}`}>
-                <p className="hero-rail-label text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <p className="hero-rail-label text-[13px] font-medium text-muted-foreground">
                   Jump straight to a tool
                 </p>
                 <div className="hero-rail mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -472,13 +472,15 @@ export function HeroSection() {
                 key={item.label}
                 data-reveal
                 data-reveal-delay={i * 80}
-                className="hero-proof-item space-y-1"
+                className="hero-proof-item space-y-2"
               >
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                  <Icon className="h-4 w-4 text-primary" />
+                <p className="flex items-center gap-2.5 text-[15px] font-semibold text-foreground">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </span>
                   <span>{item.label}</span>
                 </p>
-                <p className="text-sm leading-relaxed text-foreground/80 dark:text-muted-foreground">{item.desc}</p>
+                <p className="pl-[calc(1.75rem+0.625rem)] text-sm leading-relaxed text-foreground/80 dark:text-muted-foreground">{item.desc}</p>
               </div>
             );
           })}

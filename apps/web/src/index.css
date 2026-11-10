@@ -6,6 +6,11 @@
 @theme inline {
   --font-sans: var(--font-inter);
   --font-serif: var(--font-doc);
+  /* Display face for hero-grade moments: a high-contrast classical serif that
+     carries the Greek plate's mood. Self-hosted via @fontsource (no external
+     request — the privacy promise covers the page's own bytes too). */
+  --font-display: "Instrument Serif", "Iowan Old Style", "Palatino Linotype",
+    Palatino, Georgia, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -79,27 +84,33 @@
      The dark counterparts live in `.dark` below. Components and the hero
      section consume these names instead of hard-coded colours, so the two
      themes share one DOM and one layout and differ only in token values. */
-  --surface: rgb(255 255 255 / 0.9);
-  --surface-raised: rgb(255 255 255 / 0.92);
-  --surface-muted: rgb(248 250 252 / 0.88);
-  --surface-border: rgb(15 23 42 / 0.08);
-  --surface-border-strong: rgb(15 23 42 / 0.14);
-  --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 18px 40px -28px rgb(15 23 42 / 0.28);
-  --surface-shadow-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 10px 24px -18px rgb(15 23 42 / 0.18);
+  --surface: rgb(255 252 244 / 0.9);
+  --surface-raised: rgb(255 252 244 / 0.93);
+  --surface-muted: rgb(250 244 231 / 0.88);
+  --surface-border: rgb(88 60 34 / 0.1);
+  --surface-border-strong: rgb(88 60 34 / 0.17);
+  --surface-shadow: 0 1px 2px rgb(88 60 34 / 0.05), 0 18px 40px -28px rgb(88 60 34 / 0.3);
+  --surface-shadow-soft: 0 1px 2px rgb(88 60 34 / 0.05), 0 10px 24px -18px rgb(88 60 34 / 0.2);
   --accent-line: oklch(0.495 0.118 162 / 0.55);
   --accent-ring-soft: oklch(0.495 0.118 162 / 0.22);
   /* The wash lives behind the copy, not over the whole photograph. The right
      side keeps its colour; the near-opaque cards and hairlines handle the
-     rest of the contrast. */
-  --hero-wash-strong: rgb(219 234 254 / 0.42);
-  --hero-wash-soft: rgb(226 232 240 / 0.2);
-  --hero-wash-mid: rgb(241 245 249 / 0.08);
-  --hero-wash-clear: rgb(248 250 252 / 0);
-  --hero-proof-wash: rgb(203 222 241 / 0.3);
-  --hero-proof-wash-soft: rgb(226 236 248 / 0.2);
-  --hero-ink: #020617;
-  --hero-body: #0f172a;
-  --hero-muted: #0f172a;
+     rest of the contrast. Tones are warm marble — sampled from the Greek
+     plate's own ivory so the veil reads as part of the scene, not a stain. */
+  --hero-wash-strong: rgb(247 236 213 / 0.52);
+  --hero-wash-soft: rgb(248 240 224 / 0.26);
+  --hero-wash-mid: rgb(250 244 232 / 0.1);
+  --hero-wash-clear: rgb(252 248 240 / 0);
+  --hero-proof-wash: rgb(246 234 210 / 0.36);
+  --hero-proof-wash-soft: rgb(248 240 226 / 0.24);
+  /* Hero ink: bronze-black drawn from the temple's shadowed stone, not the
+     slate the UI chrome uses — a blue-black over this warm scene reads as a
+     pasted-on label, where a warm ink reads as printed into it. Values sit a
+     step darker than the minimum needed for contrast: the copy must win
+     against the plate, not negotiate with it. */
+  --hero-ink: oklch(0.215 0.034 55);
+  --hero-body: oklch(0.285 0.032 55);
+  --hero-muted: oklch(0.375 0.032 55);
   --destructive: oklch(0.558 0.205 27);
   --border: oklch(0.898 0.008 85);
   --input: oklch(0.885 0.009 85);
@@ -172,9 +183,13 @@
   --hero-wash-clear: oklch(0.06 0.012 255 / 0%);
   --hero-proof-wash: oklch(0.13 0.02 255 / 58%);
   --hero-proof-wash-soft: oklch(0.1 0.018 255 / 48%);
-  --hero-ink: oklch(0.97 0 0);
-  --hero-body: oklch(0.97 0 0);
-  --hero-muted: oklch(0.67 0 0);
+  /* Dark ink: moonlit ivory, not screen-white. Pure #fff over the night plate
+     reads as a lightbox; ivory with the same warm hue the light mode's bronze
+     ink carries makes both themes read as one poster, photographed day and
+     night. Hues mirror the light tokens; only lightness inverts. */
+  --hero-ink: oklch(0.955 0.014 85);
+  --hero-body: oklch(0.885 0.018 82);
+  --hero-muted: oklch(0.74 0.024 78);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -338,11 +353,11 @@
     ),
     linear-gradient(
       to bottom,
-      rgb(248 250 252 / 0) 0%,
-      rgb(248 250 252 / 0) 56%,
+      rgb(252 246 234 / 0) 0%,
+      rgb(252 246 234 / 0) 56%,
       var(--hero-proof-wash) 84%,
       var(--hero-proof-wash-soft) 94%,
-      rgb(248 250 252 / 0) 100%
+      rgb(252 246 234 / 0) 100%
     );
   -webkit-mask-image: none;
   mask-image: none;
@@ -372,25 +387,64 @@
 /* Ink: full slate for the headline, a softer slate for running copy. The
    type scale, weight, tracking and line-height all come from the shared
    Tailwind classes, so they are identical in both themes. */
-:root:not(.dark) .hero-copy-field {
+/* The display headline — both themes. Instrument Serif (self-hosted) is a
+   single-cut 400 face, so the shared font-bold utility is overridden here and
+   never synthesized. Sizing runs larger than the sans headline: a high
+   contrast serif carries display sizes the UI face cannot. Light and dark are
+   the same poster under different light — the face, size and voice are one
+   system; only the ink token changes per theme. */
+.hero-headline {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  font-size: clamp(3.25rem, 4.75vw, 5.75rem);
+  line-height: 0.94;
+}
+.hero-copy-field {
   color: var(--hero-ink);
+}
+.hero-copy > p.hero-copy-field {
+  color: var(--hero-body);
+  /* A step under the shared scale's eye-line but above the old size: the
+     paragraph must hold its own under a 92px headline. */
+  font-size: 1.1875rem;
+}
+@media (min-width: 640px) {
+  .hero-copy > p.hero-copy-field {
+    font-size: 1.3125rem;
+  }
+}
+.hero-rail-label {
+  /* The rail caption speaks in the display face's italic — an etched gallery
+     label under the poster headline, not a UI hint. */
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.25rem;
+  letter-spacing: 0.005em;
+  color: var(--hero-body);
+}
+/* Halos are light-only: ivory lifting warm ink off marble. On the night plate
+   the wash already darkens the copy column, and an ivory halo there would
+   read as a glow. */
+:root:not(.dark) .hero-copy-field {
   /* A close, low-opacity halo lifts the dark ink off the photograph without
      turning the hero into a white panel. */
   text-shadow:
-    0 1px 1px rgb(255 255 255 / 0.55),
-    0 2px 18px rgb(255 255 255 / 0.55);
+    0 1px 1px rgb(255 251 241 / 0.55),
+    0 2px 18px rgb(255 251 241 / 0.55);
 }
 :root:not(.dark) .hero-copy > p.hero-copy-field {
-  color: var(--hero-body);
+  /* The halo is a touch firmer than the headline's — running copy over marble
+     needs it. */
   text-shadow:
-    0 1px 1px rgb(255 255 255 / 0.62),
-    0 1px 12px rgb(255 255 255 / 0.5);
+    0 1px 1px rgb(255 251 241 / 0.72),
+    0 1px 14px rgb(255 251 241 / 0.6);
 }
 :root:not(.dark) .hero-rail-label {
-  color: var(--hero-muted);
   text-shadow:
-    0 1px 1px rgb(255 255 255 / 0.55),
-    0 1px 10px rgb(255 255 255 / 0.45);
+    0 1px 1px rgb(255 251 241 / 0.65),
+    0 1px 12px rgb(255 251 241 / 0.55);
 }
 
 /* Tool chips and the secondary hero actions: white paper surfaces with one
@@ -423,17 +477,21 @@
 :root:not(.dark) .hero-proof {
   color: var(--hero-body);
 }
-:root:not(.dark) .hero-proof-item > p:first-child {
+.hero-proof-item > p:first-child {
   color: var(--hero-ink);
+}
+.hero-proof-item > p:last-child {
+  color: var(--hero-body);
+}
+:root:not(.dark) .hero-proof-item > p:first-child {
   text-shadow:
-    0 1px 1px rgb(255 255 255 / 0.58),
-    0 1px 12px rgb(255 255 255 / 0.48);
+    0 1px 1px rgb(255 251 241 / 0.7),
+    0 1px 14px rgb(255 251 241 / 0.58);
 }
 :root:not(.dark) .hero-proof-item > p:last-child {
-  color: var(--hero-body);
   text-shadow:
-    0 1px 1px rgb(255 255 255 / 0.62),
-    0 1px 12px rgb(255 255 255 / 0.5);
+    0 1px 1px rgb(255 251 241 / 0.72),
+    0 1px 12px rgb(255 251 241 / 0.6);
 }
 :root:not(.dark) .hero-proof-item svg {
   color: var(--primary);
@@ -656,6 +714,31 @@ html {
   transform: scale(1);
 }
 
+/* ── 1b. Footer wordmark close ────────────────────────────────────────────
+   The giant name is set in the full ink at full content width. Its only
+   movement is a hover wave: each letter rises a little, staggered left to
+   right by its --i index, and the sparkle gives a quarter turn. Leaving
+   reverses the wave. Pure CSS; reduced motion pins everything in place. */
+.fw-letter {
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i) * 26ms);
+}
+.footer-wordmark:hover .fw-letter {
+  transform: translateY(-0.045em);
+}
+.fw-spark {
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.footer-wordmark:hover .fw-spark {
+  transform: rotate(90deg) scale(1.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .footer-wordmark:hover .fw-letter,
+  .footer-wordmark:hover .fw-spark {
+    transform: none;
+  }
+}
+
 /* ── 2. Hero + interactive-demo movement ──────────────────────────────────
    The choreography itself is driven by anime.js (see lib/motion.ts); CSS
    owns only the pre-paint hidden state so the first frame after render is
@@ -749,13 +832,13 @@ html {
   inset: 0;
   background-image: linear-gradient(
     100deg,
-    oklch(1 0 0 / 71%) 0%,
-    oklch(1 0 0 / 63%) 26%,
-    oklch(1 0 0 / 50%) 44%,
-    oklch(1 0 0 / 31%) 57%,
-    oklch(1 0 0 / 13%) 69%,
-    oklch(1 0 0 / 6%) 81%,
-    oklch(1 0 0 / 0%) 93%
+    oklch(0.97 0.02 85 / 71%) 0%,
+    oklch(0.97 0.02 85 / 63%) 26%,
+    oklch(0.97 0.02 85 / 50%) 44%,
+    oklch(0.97 0.02 85 / 31%) 57%,
+    oklch(0.97 0.02 85 / 13%) 69%,
+    oklch(0.97 0.02 85 / 6%) 81%,
+    oklch(0.97 0.02 85 / 0%) 93%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -791,18 +874,18 @@ html {
   background-image:
     linear-gradient(
       to bottom,
-      oklch(0.99 0.006 90 / 22%) 0%,
-      oklch(0.99 0.006 90 / 7%) 14%,
-      oklch(0.995 0.005 90 / 0%) 42%,
-      oklch(0.99 0.006 90 / 12%) 58%,
-      oklch(0.99 0.006 90 / 42%) 74%,
-      oklch(0.99 0.006 90 / 74%) 89%,
+      oklch(0.975 0.018 82 / 26%) 0%,
+      oklch(0.975 0.018 82 / 8%) 14%,
+      oklch(0.98 0.014 82 / 0%) 42%,
+      oklch(0.975 0.018 82 / 14%) 58%,
+      oklch(0.972 0.02 80 / 46%) 74%,
+      oklch(0.968 0.024 78 / 78%) 89%,
       var(--background) 100%
     ),
     radial-gradient(
       120% 80% at 78% 34%,
-      oklch(0.97 0.05 85 / 22%) 0%,
-      oklch(0.97 0.05 85 / 0%) 58%
+      oklch(0.93 0.06 78 / 26%) 0%,
+      oklch(0.93 0.06 78 / 0%) 58%
     );
 }
 .dark .hero-backdrop-scrim {
@@ -865,18 +948,18 @@ html {
     background-image:
       linear-gradient(
         to bottom,
-        oklch(0.99 0.006 90 / 22%) 0%,
-        oklch(0.99 0.006 90 / 7%) 14%,
-        oklch(0.995 0.005 90 / 0%) 48%,
-        oklch(0.99 0.006 90 / 10%) 62%,
-        oklch(0.99 0.006 90 / 42%) 77%,
-        oklch(0.99 0.006 90 / 74%) 91%,
+        oklch(0.975 0.018 82 / 26%) 0%,
+        oklch(0.975 0.018 82 / 8%) 14%,
+        oklch(0.98 0.014 82 / 0%) 48%,
+        oklch(0.975 0.018 82 / 12%) 62%,
+        oklch(0.972 0.02 80 / 46%) 77%,
+        oklch(0.968 0.024 78 / 78%) 91%,
         var(--background) 100%
       ),
       radial-gradient(
         120% 80% at 78% 34%,
-        oklch(0.97 0.05 85 / 22%) 0%,
-        oklch(0.97 0.05 85 / 0%) 58%
+        oklch(0.93 0.06 78 / 26%) 0%,
+        oklch(0.93 0.06 78 / 0%) 58%
       );
   }
   .dark .hero-backdrop-scrim {
@@ -1393,9 +1476,10 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   :root:not(.dark) .hero-headline {
     max-width: none !important;
     font-size: clamp(1.875rem, 8.8vw, 2.35rem) !important;
-    line-height: 1.08 !important;
-    font-weight: 650 !important;
-    letter-spacing: -0.03em !important;
+    line-height: 1.05 !important;
+    /* Instrument Serif ships a single 400 cut — never synthesize a bold. */
+    font-weight: 400 !important;
+    letter-spacing: -0.01em !important;
   }
   .hero-copy > p.hero-copy-field {
     margin-top: 0.875rem !important;
