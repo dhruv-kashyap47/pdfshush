@@ -285,6 +285,29 @@ describe('POST /api/jobs', () => {
     expect(created.files.map((file) => file.name)).toEqual(['dup.pdf', 'dup-2.pdf']);
   });
 
+  it('keeps every upload when a suffixed duplicate name hits the length cap', async () => {
+    const { url } = await harness();
+    const pdf = await samplePdf();
+    // 92 + ".pdf" is exactly the 96-character sanitised limit. The `-2` suffix
+    // pushed the name over it, and the second sanitisation inside writeInput
+    // truncated the suffix back off -- returning both parts to one path.
+    const long = `${'a'.repeat(92)}.pdf`;
+    const { body, contentType } = multipart({ slug: 'merge' }, [
+      { name: long, data: pdf },
+      { name: long, data: pdf },
+    ]);
+
+    const response = await fetch(url('/api/jobs'), {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    expect(response.status).toBe(202);
+    const created = (await response.json()) as { jobId: string; files: { name: string }[] };
+    expect(created.files).toHaveLength(2);
+    expect(new Set(created.files.map((file) => file.name)).size).toBe(2);
+  });
+
   it('refuses a non-multipart body', async () => {
     const { url } = await harness();
     const response = await fetch(url('/api/jobs'), {

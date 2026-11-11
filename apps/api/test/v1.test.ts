@@ -7,7 +7,7 @@
  */
 
 import type { Server } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { AddressInfo } from 'node:net';
 import path from 'node:path';
@@ -328,10 +328,10 @@ async function harness(options: HarnessOptions = {}) {
   return { url, context, store, queue, db, account, createKey, callDashboard, callOtherDashboard, v1 };
 }
 
-async function samplePdf(): Promise<Buffer> {
+async function samplePdf(text = 'hello'): Promise<Buffer> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
-  doc.addPage([300, 300]).drawText('hello', { x: 40, y: 240, size: 14, font, color: rgb(0, 0, 0) });
+  doc.addPage([300, 300]).drawText(text, { x: 40, y: 240, size: 14, font, color: rgb(0, 0, 0) });
   return Buffer.from(await doc.save({ useObjectStreams: false }));
 }
 
@@ -657,6 +657,40 @@ describe('inline JSON submissions', () => {
     const submitted = h.queue.payloads[0]!;
     expect(submitted.files).toHaveLength(2);
     expect(submitted.files[0]).not.toBe(submitted.files[1]);
+  });
+
+  // Regression: names were reserved before `safeFileName` ran, so two distinct
+  // names that sanitise to one basename ("a b.pdf" and "a_b.pdf") shared a path.
+  // The second write truncated the first and the job received the same document
+  // twice with one upload silently missing.
+  it('keeps distinct inline uploads whose names sanitise identically', async () => {
+    const h = await harness();
+    const key = await body<{ token: string }>(await h.createKey());
+    const first = (await samplePdf('first')).toString('base64');
+    const second = (await samplePdf('a much longer second document')).toString('base64');
+    const response = await h.v1('/jobs', {
+      method: 'POST',
+      apiKey: key.token,
+      body: JSON.stringify({
+        slug: 'merge',
+        files: [
+          { name: 'a b.pdf', data: first },
+          { name: 'a_b.pdf', data: second },
+        ],
+      }),
+    });
+    expect(response.status).toBe(202);
+    const submitted = h.queue.payloads[0]!;
+    expect(submitted.files).toHaveLength(2);
+    expect(new Set(submitted.files).size).toBe(2);
+
+    const stored = await readdir(h.store.inputDir(submitted.jobId));
+    expect(stored).toHaveLength(2);
+    const bytes = await Promise.all(
+      stored.map((name) => readFile(path.join(h.store.inputDir(submitted.jobId), name))),
+    );
+    for (const file of bytes) expect(file.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(new Set(bytes.map((file) => file.byteLength)).size).toBe(2);
   });
 });
 

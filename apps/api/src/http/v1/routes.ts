@@ -22,7 +22,7 @@ import {
   SERVER_SLUGS,
   type JobPayload,
 } from '../../jobs/payload.js';
-import { UnsafePathError, safeJobId } from '../../files/paths.js';
+import { UnsafePathError, safeFileName, safeJobId, uniqueFileName } from '../../files/paths.js';
 import { receiveUpload, PDF_SIGNATURE } from '../uploads.js';
 import { QuotaService, subjectId, tokensMatch, type QuotaCounter } from '../../quota/quota.js';
 import type { ApiKeyStore, ApiKeyDoc } from '../../keys/store.js';
@@ -634,17 +634,12 @@ function collectInline(
 
   // Two part names that sanitise to the same basename would truncate each
   // other -- the multipart path guards this in `receiveUpload`; the inline
-  // path guards it here, before anything is written.
+  // path must use the same rule, and must compute it on the sanitised name
+  // (`a b.pdf` and `a_b.pdf` are two different strings with one basename).
   const reserved = new Set<string>();
   for (const file of files) {
-    let name = file.name;
-    for (let suffix = 2; reserved.has(name); suffix += 1) {
-      const dot = file.name.lastIndexOf('.');
-      name =
-        dot > 0
-          ? `${file.name.slice(0, dot)}-${suffix}${file.name.slice(dot)}`
-          : `${file.name}-${suffix}`;
-    }
+    const sanitised = safeFileName(file.name);
+    const name = uniqueFileName(sanitised, reserved);
     reserved.add(name);
     file.name = name;
   }

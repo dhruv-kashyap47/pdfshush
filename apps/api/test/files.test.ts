@@ -11,6 +11,7 @@ import {
   safeFileName,
   safeJobId,
   resolveWithin,
+  uniqueFileName,
   withExtension,
   UnsafePathError,
 } from '../src/files/paths.js';
@@ -59,6 +60,25 @@ describe('safeFileName', () => {
   it('forces a required extension exactly once', () => {
     expect(withExtension('report.PDF', '.pdf')).toBe('report.PDF');
     expect(withExtension('report', '.pdf')).toBe('report.pdf');
+  });
+});
+
+describe('uniqueFileName', () => {
+  it('leaves a free name alone and suffixes a taken one', () => {
+    expect(uniqueFileName('doc.pdf', new Set())).toBe('doc.pdf');
+    expect(uniqueFileName('doc.pdf', new Set(['doc.pdf']))).toBe('doc-2.pdf');
+    // A generated suffix must not collide with a name that already exists.
+    expect(uniqueFileName('doc.pdf', new Set(['doc.pdf', 'doc-2.pdf']))).toBe('doc-3.pdf');
+  });
+
+  it('keeps the suffix through the final sanitisation at the length cap', () => {
+    const long = `${'a'.repeat(92)}.pdf`;
+    expect(long).toHaveLength(96);
+    const unique = uniqueFileName(long, new Set([long]));
+    expect(unique).not.toBe(long);
+    expect(unique).toHaveLength(96);
+    // The store sanitises again before writing; the name must survive it.
+    expect(safeFileName(unique)).toBe(unique);
   });
 });
 

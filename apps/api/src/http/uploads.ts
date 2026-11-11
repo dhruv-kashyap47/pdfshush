@@ -11,7 +11,7 @@ import busboy from 'busboy';
 import type { Request } from 'express';
 import type { WorkDirStore, StoredFile } from '../files/store.js';
 import { UploadTooLargeError } from '../files/store.js';
-import { safeFileName } from '../files/paths.js';
+import { safeFileName, uniqueFileName } from '../files/paths.js';
 
 export interface UploadResult {
   files: StoredFile[];
@@ -179,15 +179,9 @@ export function receiveUpload(
       }
       // Two parts whose names sanitise to the same basename would resolve to one
       // path and the second write would truncate the first -- merge then silently
-      // returned the same document twice with one upload missing.
-      let name = sanitised;
-      for (let suffix = 2; reservedNames.has(name); suffix += 1) {
-        const dot = sanitised.lastIndexOf('.');
-        name =
-          dot > 0
-            ? `${sanitised.slice(0, dot)}-${suffix}${sanitised.slice(dot)}`
-            : `${sanitised}-${suffix}`;
-      }
+      // returned the same document twice with one upload missing. Uniqueness is
+      // computed on the sanitised name and survives the store's own sanitisation.
+      const name = uniqueFileName(sanitised, reservedNames);
       reservedNames.add(name);
 
       stream.on('limit', () => {

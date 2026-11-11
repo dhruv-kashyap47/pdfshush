@@ -46,6 +46,35 @@ export function withExtension(name: string, extension: string): string {
   return safe.toLowerCase().endsWith(extension.toLowerCase()) ? safe : `${safe}${extension}`;
 }
 
+/**
+ * A name that is both safe and unused, computed from the *final* sanitised form.
+ *
+ * Upload parts are written concurrently, so two parts must never resolve to the
+ * same path. Sanitising after choosing a suffix is not enough: `a b.pdf` and
+ * `a_b.pdf` sanitise to one name, and a `-2` suffix appended to a maximum-length
+ * name is truncated straight back off by `safeFileName`. Both cases overwrote an
+ * earlier upload, and the job then ran with one document twice.
+ *
+ * The candidate is verified through `safeFileName` so a second sanitisation
+ * (the store's own defence) cannot change it back into a collision.
+ */
+export function uniqueFileName(sanitised: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(sanitised)) return sanitised;
+
+  const dot = sanitised.lastIndexOf('.');
+  // `safeFileName` only preserves 12 extension characters when it truncates.
+  const extension = dot > 0 ? sanitised.slice(dot).slice(0, 12) : '';
+  const stem = dot > 0 ? sanitised.slice(0, dot) : sanitised;
+
+  for (let suffix = 2; suffix <= MAX_BASE_LENGTH + 2; suffix += 1) {
+    const tail = `-${suffix}`;
+    const room = Math.max(1, MAX_BASE_LENGTH - extension.length - tail.length);
+    const candidate = `${stem.slice(0, room)}${tail}${extension}`;
+    if (!taken.has(candidate) && safeFileName(candidate) === candidate) return candidate;
+  }
+  throw new UnsafePathError(`${sanitised} (no unique name available)`);
+}
+
 /** Job ids come from URL params; keep them to a safe alphabet and length. */
 export function safeJobId(input: string): string {
   const cleaned = input.replace(UNSAFE_CHARS, '');
