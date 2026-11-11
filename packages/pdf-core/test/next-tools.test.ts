@@ -33,7 +33,7 @@ import {
   ENCRYPTED_OWNER_ONLY_BASE64,
 } from './encryptedFixtures.js';
 import { configurePdfjsRuntime } from '../src/render/pdfjsRuntime.js';
-
+import { LIMITS } from '../src/limits.js';
 beforeAll(() => {
   configurePdfjsRuntime({
     workerSrc: new URL('../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url).href,
@@ -183,6 +183,17 @@ describe('jpg to pdf', () => {
     expect(jpgToPdfJob.validate(inputFor(TINY_JPEG, { orientation: 'diagonal' as never }))).toMatchObject({
       ok: false,
     });
+  });
+
+  // Regression: `embedPng` decodes the whole raster before anyone compares it
+  // with a limit, so a small, valid PNG declaring an enormous bitmap is a
+  // decompression bomb. The declared size must be checked before decoding.
+  test('refuses an image whose declared raster exceeds the pixel ceiling', async () => {
+    const wide = encodePng(LIMITS.tool.maxImagePixels + 1, 1, []);
+    expect(jpgToPdfJob.validate(inputFor(wide))).toMatchObject({ ok: false });
+    await expect(
+      jpgToPdfJob.run({ files: [{ name: 'wide.png', data: wide }] }, testContext()),
+    ).rejects.toThrow(/px/);
   });
 });
 

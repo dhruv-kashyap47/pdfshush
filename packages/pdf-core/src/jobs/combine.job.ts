@@ -8,7 +8,7 @@
 
 import type { JobDefinition } from '../job.js';
 import { combineToPdf, isPdfBytes, type CombinePart } from '../ops/combine.js';
-import { detectImageKind, type ImageOrientation, type ImagePageSize } from '../ops/imageDocs.js';
+import { detectImageKind, imageLimitIssue, type ImageOrientation, type ImagePageSize } from '../ops/imageDocs.js';
 import { IMAGE_LIMITS, LIMITS } from '../limits.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
@@ -53,12 +53,17 @@ export const combineJob: JobDefinition<CombineJobInput, CombineJobOutput> = {
       issues.push({ message: `At most ${LIMITS.tool.maxCombineFiles} files fit in one run` });
     } else {
       for (const file of input.files) {
-        if (!isPdfBytes(file.data) && !detectImageKind(file.data)) {
+        if (isPdfBytes(file.data)) continue;
+        const kind = detectImageKind(file.data);
+        if (!kind) {
           issues.push({
             field: file.name,
             message: `"${file.name}" is not a PDF or a JPEG/PNG image`,
           });
+          continue;
         }
+        const limitIssue = imageLimitIssue(file.name, file.data, kind);
+        if (limitIssue) issues.push({ field: file.name, message: limitIssue });
       }
     }
 

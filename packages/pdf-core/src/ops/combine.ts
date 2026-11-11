@@ -17,6 +17,7 @@ import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
 import {
   detectImageKind,
+  imageLimitIssue,
   planImagePlacement,
   type ImagesToPdfOptions,
 } from './imageDocs.js';
@@ -110,6 +111,9 @@ export async function combineToPdf(
     if (pageCount + 1 > LIMITS.client.maxPages) {
       throw new Error(`That would produce more than ${LIMITS.client.maxPages} pages`);
     }
+
+    const limitIssue = imageLimitIssue(source.name, source.data, kind);
+    if (limitIssue) throw new Error(limitIssue);
 
     let embedded;
     try {

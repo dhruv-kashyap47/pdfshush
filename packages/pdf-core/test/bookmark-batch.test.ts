@@ -22,6 +22,7 @@ import { configurePdfjsRuntime } from '../src/render/pdfjsRuntime.js';
 import { makeFixturePdf, testContext } from './fixtures.js';
 import { pdfContainsText } from './helpers.js';
 import { encodePng } from './png.js';
+import { LIMITS } from '../src/limits.js';
 
 beforeAll(() => {
   configurePdfjsRuntime({
@@ -250,6 +251,19 @@ describe('combine pdfs and images', () => {
         testContext(),
       ),
     ).rejects.toThrow(/fake\.png/);
+  });
+
+  // Regression: the combine path embedded the image before any limit was
+  // applied, so a tiny PNG declaring a huge raster was decoded in full -- the
+  // decompression-bomb case `LIMITS.tool.maxImagePixels` exists to stop.
+  test('refuses an image whose declared raster exceeds the pixel ceiling', async () => {
+    const bomb = makePng(LIMITS.tool.maxImagePixels + 1, 1);
+    expect(combineJob.validate({ files: [{ name: 'bomb.png', data: bomb }] })).toMatchObject({
+      ok: false,
+    });
+    await expect(
+      combineToPdf([{ name: 'bomb.png', data: bomb }], {}, testContext()),
+    ).rejects.toThrow(/px/);
   });
 });
 

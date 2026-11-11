@@ -11,7 +11,8 @@
  */
 
 import { PDFDocument, type PDFImage } from '@cantoo/pdf-lib';
-import { IMAGE_LIMITS } from '../limits.js';
+import { IMAGE_LIMITS, LIMITS } from '../limits.js';
+import { imagePixelSize } from './edit.js';
 
 export { IMAGE_LIMITS } from '../limits.js';
 import { createProgressReporter, type JobContext } from '../job.js';
@@ -65,6 +66,35 @@ export function detectImageKind(data: Uint8Array): ImageKind | null {
   }
   return null;
 }
+
+/**
+ * The pixel ceiling, checked before the image is decoded.
+ *
+ * `embedPng` inflates the declared raster before anyone gets a chance to look
+ * at it, so a few-kilobyte PNG can make the worker allocate gigabytes. The
+ * declared dimensions sit in IHDR (PNG) or the SOF marker (JPEG), which are
+ * both plain bytes, so the check costs a scan and bounds the allocation.
+ *
+ * Returns a user-facing sentence, or `undefined` when the image is fine. A
+ * header the probe cannot read is left to the decoder, which already reports a
+ * corrupt file with the file's name.
+ */
+export function imageLimitIssue(
+  name: string,
+  data: Uint8Array,
+  kind: ImageKind,
+): string | undefined {
+  const size = imagePixelSize(data, kind === 'png' ? 'image/png' : 'image/jpeg');
+  if (!size) return undefined;
+  if (Math.max(size.width, size.height) > LIMITS.tool.maxImagePixels) {
+    return (
+      `"${name}" is ${size.width}x${size.height} px; the limit is ` +
+      `${LIMITS.tool.maxImagePixels} px on the longest side`
+    );
+  }
+  return undefined;
+}
+
 
 /**
  * Where one image lands on its page. Uses the page's own pixel size at 72 dpi
@@ -141,6 +171,8 @@ export async function imagesToPdf(
     if (!kind) {
       throw new Error(`"${image.name}" is not a JPEG or PNG image`);
     }
+    const limitIssue = imageLimitIssue(image.name, image.data, kind);
+    if (limitIssue) throw new Error(limitIssue);
 
     let embedded: PDFImage;
     try {

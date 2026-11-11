@@ -7,6 +7,7 @@
 import type { JobDefinition } from '../job.js';
 import {
   detectImageKind,
+  imageLimitIssue,
   imagesToPdf,
   type ImageOrientation,
   type ImagePageSize,
@@ -53,12 +54,16 @@ export const jpgToPdfJob: JobDefinition<JpgToPdfJobInput, JpgToPdfJobOutput> = {
       issues.push({ message: `At most ${IMAGE_LIMITS.maxImages} images fit in one PDF` });
     } else {
       for (const file of input.files) {
-        if (!detectImageKind(file.data)) {
+        const kind = detectImageKind(file.data);
+        if (!kind) {
           issues.push({
             field: file.name,
             message: `"${file.name}" is not a JPEG or PNG image`,
           });
+          continue;
         }
+        const limitIssue = imageLimitIssue(file.name, file.data, kind);
+        if (limitIssue) issues.push({ field: file.name, message: limitIssue });
       }
     }
 
