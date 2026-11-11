@@ -128,6 +128,33 @@ describe('in-place text editing', () => {
     expect(await pageText(result.bytes, 1)).toContain('Page Two Text');
   });
 
+  it('applies form values even when the text edit succeeds natively', async () => {
+    // The overlay pass used to run only when an overlay object existed, so this
+    // combination silently saved the rewritten text and dropped the form value.
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([400, 300]);
+    page.drawText('Hello World', { x: 40, y: 240, size: 18, font, color: rgb(0, 0, 0) });
+    const field = doc.getForm().createTextField('person.name');
+    field.setText('Ada Lovelace');
+    field.addToPage(page, { x: 40, y: 120, width: 160, height: 20 });
+    const source = await doc.save({ useObjectStreams: false });
+
+    const result = await editPdfText(
+      source,
+      {
+        edits: [{ id: 'e1', pageIndex: 0, find: 'Hello World', replace: 'Jello Wurld' }],
+        formValues: { 'person.name': 'Grace Hopper' },
+      },
+      testContext(),
+    );
+
+    expect(result.outcomes[0]!.mode).toBe('in-place');
+    expect(await pageText(result.bytes, 0)).toContain('Jello Wurld');
+    const reloaded = await PDFDocument.load(result.bytes);
+    expect(reloaded.getForm().getTextField('person.name').getText()).toBe('Grace Hopper');
+  });
+
   it('deletes a run in place (never covers it cosmetically)', async () => {
     const source = await makeTextFixture();
     const result = await editPdfText(

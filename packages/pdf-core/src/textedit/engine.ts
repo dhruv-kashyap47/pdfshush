@@ -25,7 +25,7 @@ import type { WrappedPdfiumModule } from '@embedpdf/pdfium';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
 import { applyEdits, validateExport, type EditorObject } from '../ops/edit.js';
-import { applyFormValues } from '../ops/forms.js';
+import { applyFormValues, extractFormWidgets } from '../ops/forms.js';
 import { loadPdfDocument } from '../ops/pages.js';
 import { wrapText } from '../document/reflow.js';
 import type { BBox } from '../document/types.js';
@@ -1055,7 +1055,12 @@ export async function editPdfText(
   const fallbackObjects = fallbackEdits.flatMap(
     (outcome) => edits.find((edit) => edit.id === outcome.id)?.fallback ?? [],
   );
-  const hasOverlay = fallbackObjects.length > 0 || overlayObjects.length > 0;
+  // Form values are part of the save request just like an overlay object. They
+  // used to be applied only when some overlay happened to exist, so filling a
+  // field while a text edit succeeded natively silently dropped the form value.
+  const formValues = options.formValues ?? {};
+  const hasFormValues = Object.keys(formValues).length > 0;
+  const hasOverlay = fallbackObjects.length > 0 || overlayObjects.length > 0 || hasFormValues;
   const finalBytes = hasOverlay
     ? await applyOverlayPass(
         workingBytes,
@@ -1133,6 +1138,17 @@ export async function editPdfText(
         pageIndex: edit.pageIndex,
         box: { x, y, width: right - x, height: bottom - y },
       });
+    }
+  }
+  // Filling a field legitimately repaints its widget appearance. The visual gate
+  // compares the whole page outside the text-edit regions, so the widgets whose
+  // values changed have to be declared as expected changes too -- otherwise a
+  // mixed text + form save would be refused for doing exactly what was asked.
+  if (hasFormValues) {
+    const originalDoc = await loadPdfDocument(data, { ...(password ? { password } : {}) });
+    for (const widget of extractFormWidgets(originalDoc)) {
+      if (!Object.prototype.hasOwnProperty.call(formValues, widget.name)) continue;
+      editedRegions.push({ pageIndex: widget.pageIndex, box: widget.rect });
     }
   }
   const verification = await verifyExportArtifact({
