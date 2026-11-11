@@ -23,6 +23,15 @@ export jobs. It added a fixture-wide round-trip harness, closed `ENGINE-004`
 and seven EDITOR findings, fixed one image-export decoder defect, and parked
 two export policy decisions.
 
+Session 5 (branch `pdf/s5-share`, cut from `pdf/s4-editor`) was scoped to
+SHARE. SHARE does not exist in `apps/` or `packages/` (see `PDF-SHARE-000`), so
+the session audited the only second-party access surface that does: the per-job
+`jobId` + `x-job-token` capability and the result download streamer. It fixed
+two defects there (`PDF-SHARE-001`, `003`), fixed one redaction-gate defect
+found while proving byte-level removal (`PDF-REDACT-001`), parked the inability
+to revoke a finished result (`PDF-SHARE-002`), and wrote the design-only
+`SHARE-SPEC.md`.
+
 Evidence conventions:
 
 - `file:line` points at the root cause in the tree at `c8f2208` (session-1
@@ -103,6 +112,45 @@ state-tracking defects; two export policy questions are parked.
 "Fix size" is S (a few lines in one file), M (one module plus tests), L (new
 mechanism across several ops plus regression coverage). "Risk" is the chance a
 naive fix silently changes user-visible output in another tool.
+
+### Session 5 — SHARE and the second-party surface (`pdf/s5-share`)
+
+SHARE is not implemented, so there are no SHARE defects to inherit and no
+issued links to protect. The session audited the capability that *does* let a
+second party reach a document — the per-job `jobId` + `x-job-token` — and the
+result download streamer behind it. Two defects were found and fixed; the one
+product decision they exposed is parked.
+
+The redaction check the scope also asked for ("is the content removed from the
+bytes?") found no security hole, but driving it end to end exposed a
+false-refusal in the verification gate, fixed as `PDF-REDACT-001`.
+
+| Rank | ID | Area | Symptom | Root cause | Severity | Fix size | Risk | Status | Repro |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 24 | `PDF-SHARE-001` | SHARE | A completed result is cached by any intermediary that stores it: the URL (`/api/jobs/<id>/files/<name>`) contains no secret (the capability travels in `x-job-token`), and the response carried no `Cache-Control` at all. A shared cache can replay the document to a caller that never had the token, and keeps replaying it after expiry or revocation. Job state JSON and 404/403 bodies were cacheable too. | `apps/api/src/http/result-stream.ts:47-51` set only Content-Type/Length/Disposition; `apps/api/src/http/app.ts:375-412` and `v1/routes.ts:472-535` set no cache headers on state or errors. | MEDIUM | S | LOW | **Fixed** (`2cba94c`) | `apps/api/test/share-boundary.test.ts` ("tells every cache not to store…"), `tests/e2e/share-boundary.mjs` |
+| 25 | `PDF-SHARE-002` | SHARE | A finished result cannot be revoked before the one-hour TTL. `DELETE /api/jobs/:id` answers 409 `not_cancellable`, removes nothing, and the same token keeps downloading the file. There is no other revoke route. | `apps/api/src/jobs/queue.ts:148` classifies completed/failed as `'finished'`; `apps/api/src/http/app.ts:430-438` maps that to 409 without touching the work directory. | MEDIUM | M | HIGH | **Needs decision** | `apps/api/test/share-boundary.test.ts` (`it.fails`, "blocks access immediately when a completed job is revoked") |
+| 26 | `PDF-SHARE-003` | SHARE | The download filename is written into `Content-Disposition` from the queue-reported value without re-sanitising it, although the route's own contract says the name is safe. A quote produces a malformed RFC 6266 quoted-string; a CR/LF makes `setHeader` throw after the stat, i.e. a 500 instead of a download. | `apps/api/src/http/result-stream.ts:51` (before `8e2fd65`) trusted the invariant enforced only by `files/store.ts:117` when the result was written. | LOW | S | LOW | **Fixed** (`8e2fd65`) | `apps/api/test/share-boundary.test.ts` ("sanitises the download filename reported by the queue") |
+| 27 | `PDF-REDACT-001` | REDACT | Redacting a page completely is refused with "page-not-blank: a page lost its content — contrast spread only -255". The user asked for exactly that result; the error is indistinguishable from a failed render. | `packages/pdf-core/src/redact/verify.ts:430-455` (before `f922d62`) computed min/max luminance over samples outside the marks and asserted when there were none, instead of skipping the vacuous comparison. | LOW | S | LOW | **Fixed** (`f922d62`) | `packages/pdf-core/test/redact.test.ts` ("accepts a page that is entirely covered by its marks"), `test/pdf-audit/redaction-output.test.ts` |
+
+#### `PDF-SHARE-000` — SHARE is not implemented (scope record, not a defect)
+
+Verified four ways before any code was touched:
+
+- `docs/pdf-audit/ARCHITECTURE-PDF.md:233-248` states SHARE is not implemented
+  and that the audit makes no claim about link semantics.
+- Route inventory of `apps/api/src` (`http/app.ts`, `http/v1/routes.ts`,
+  `account/routes.ts`, `auth/routes.ts`, `ai/routes.ts`) contains no share
+  route. `apps/web/src/pages/` contains only `account, home, not-found, tool,
+  trust, verify, workflows`.
+- `rg -i "shareLink|shareToken|createShare|/share|/:token" apps packages`
+  returns nothing.
+- `git log --all -S "shareToken"` / `-S "shareLink" -- apps packages` returns
+  no commit that ever added one.
+
+Consequence: there is no link format to preserve and no issued link that could
+break. Implementing one requires public-API, schema and link-format decisions,
+so the session produced `SHARE-SPEC.md` (design only, no code) and the user
+chose option 2: audit the existing surface, do not build the feature.
 
 ---
 
@@ -482,6 +530,137 @@ unsupported encodings. The test accepts `[0 1]` and refuses `[1 0]`.
 
 ---
 
+## Session 5 evidence (SHARE / second-party access)
+
+### PDF-SHARE-001 — token-protected responses were cacheable
+
+A probe against the real `createApp` (`apps/api/test/share-boundary.test.ts`,
+before `2cba94c`) recorded a completed download as:
+
+```text
+GET /api/jobs/<id>/files/out.pdf   (x-job-token: <valid>)
+200  content-disposition: attachment; filename="out.pdf"
+     content-type: application/pdf
+     content-length: 21
+     referrer-policy: no-referrer
+     <no cache-control>
+     <no vary>
+```
+
+The same absence held for `GET /api/jobs/<id>` (200 JSON) and for the refusal
+bodies. The URL contains no secret, so a shared cache keys on the URL alone: the
+first authenticated fetch populates it, and a later request without the header
+can be answered from the cache. `no-store` is the directive that forbids both
+storage and reuse; `Vary: x-job-token` is the backstop for a cache that ignores
+it. The middleware is registered on `/api/jobs` before the routes and on
+`/api/v1/jobs` before `authenticate`, so 400/403/404/503 answers are covered too.
+The `pdf-lib`-free probe above was turned into the regression test; the e2e
+walkthrough asserts the header on a real download.
+
+The same check found no other second-party leak in the file route: the token is
+never accepted from the query string, is never echoed in a header, and a foreign
+`Origin` gets no `Access-Control-Allow-Origin`.
+
+### PDF-SHARE-002 — a finished result cannot be revoked
+
+Probe on a completed job (before any change):
+
+```text
+DELETE /api/jobs/<id>              (x-job-token: <valid>) -> 409 {"code":"not_cancellable"}
+GET    /api/jobs/<id>/files/out.pdf (x-job-token: <valid>) -> 200  %PDF-1.7 result-bytes
+```
+
+`BullJobQueue.cancel` returns `'finished'` for `completed`/`failed`
+(`jobs/queue.ts:148`), and the route deliberately does not delete the work
+directory in that case (`http/app.ts:430-438`). The result stays reachable for
+the full retention window (`FILE_TTL_MS`, one hour by default) and there is no
+other delete route. A queued job *is* revoked immediately: `cancel` removes the
+job and `store.removeJob` (`queue.ts:158`), and the test asserts the next read is
+404.
+
+Why this is parked: making `DELETE` remove a finished result changes the public
+semantics of an already-shipped route (today 409 means "nothing to cancel"), and
+choosing between (a) 200 + delete, (b) a separate revoke endpoint and (c) a
+signed short-lived URL is a product/API decision. The existing
+`http.test.ts` case pins the current 409 contract; the session added the
+desired-behaviour repro as `it.fails` so the suite stays green and turns red the
+day the decision lands. `SHARE-SPEC.md` §5.1/§9 (D8) records the options.
+
+### PDF-SHARE-003 — the header trusted a queue-supplied name
+
+Before `8e2fd65`, `sendResultFile` wrote `args.name` into
+`Content-Disposition` while `statResult` beside it re-sanitised the same value.
+With a queue snapshot of `report".pdf` the probe received:
+
+```text
+content-disposition: attachment; filename="report".pdf"
+```
+
+which is not a valid quoted-string. The regression test writes the file under
+the sanitised name (`report_.pdf`) and poisons the queue snapshot with the raw
+one; `safeFileName` at the header boundary produces
+`attachment; filename="report_.pdf"`. The function is idempotent for names the
+store already sanitised, so ordinary downloads are unchanged.
+
+### PDF-REDACT-001 — a fully marked page was refused
+
+The end-to-end redaction run (`test/pdf-audit/redaction-output.test.ts`) first
+used a whole-page region and failed inside the shipped gate:
+
+```text
+RedactionVerificationError: Redaction verification failed — no output is offered.
+- page-not-blank: a page lost its content — p1: contrast spread only -255
+```
+
+`verifyRedaction` scans samples *outside* the marks; with a full-page mark there
+are none, so `darkest`/`lightest` kept their sentinels and the difference became
+negative. Fixed in `f922d62` by counting the samples and skipping the comparison
+when the set is empty; a page covered entirely by its marks now reports
+`every page is covered entirely by its marks`. The safety property is not
+weakened: `marks-burned-in` still fails a blank rebuild, because a white page
+cannot be dark inside its own marks. The test asserts both the new acceptance
+and the unchanged blank-page rejection.
+
+### Redaction: removal, not covering (verified, no defect)
+
+`redactPdf` rebuilds every page from an image and verifies the serialized bytes
+before returning them (`redact/redact.ts:227-232`). Session 5 re-verified this
+from the outside, on the shipped output of a committed fixture
+(`test/pdf-audit/redaction-output.test.ts`):
+
+- pdf.js extracts **no** text from the output, while the control run extracts
+  the fixture's text from the source;
+- the gate's decompressing scan finds no text-showing operator and no
+  forbidden string in the same bytes (re-run independently of the pipeline);
+- the object graph contains no `/AcroForm`, `/EmbeddedFiles`, `/Metadata`,
+  `/Info`, and no font object (`/BaseFont`, `/Type /Font`, Type0/TrueType/Type1);
+  an empty `/Font << >>` written by pdf-lib for a fresh page is present and
+  carries no font;
+- every page is exactly one full-size image, and the mark is opaque in the
+  pixels (`marks-burned-in`).
+
+The existing browser e2e performs the same structural checks on a real redaction
+(`tests/e2e/smoke.mjs` §19b: no font object, no annotation/attachment tree,
+every page replaced by an image). No defect was found in removal.
+
+### Checked, no defect
+
+| Check | Evidence |
+| --- | --- |
+| Token entropy / CSPRNG | 32 CSPRNG bytes for the pepper (`context.ts:newPepper`), persisted `0600` (`resolvePepper`); token is 64 hex chars and changes with pepper or job (`share-boundary.test.ts`); `PEPPER` is validated at 16 characters minimum (`config.ts:40`). |
+| Constant-time comparison | `tokensMatch` uses `timingSafeEqual` with an explicit length guard (`quota/quota.ts:44-49`); equal-length mismatch and different-length inputs both reject without throwing (test). |
+| Tokens in logs | No request logger; every log call passes an explicit shape (`job queued` logs id/slug/count/bytes only, `app.ts:362-365`); pino redacts `token`, `*.token`, `x-job-token`, `cookie` and the auth headers (`logger.ts:17-39`). |
+| Tokens in referrers / URLs | The token is header-only and a query-string token is refused (403, test); the e2e asserts a download URL contains no token; helmet sets `Referrer-Policy: no-referrer` on every response (observed in the probe and asserted in the test). |
+| Expiry enforced server-side | Authorisation precedes state; a result whose files the janitor removed answers 404 `result_not_found` (`store.statResult` → `sendResultFile`); the queue entry alone never grants bytes. Tested. |
+| IDOR | The token is bound to the id used to derive it; a token from job A on job B is 403 for state and file; a file name that exists only under another job is 404. Tested + e2e. |
+| Path traversal | `safeJobId` rejects a malformed id with 400; `safeFileName` + `resolveWithin` contain every name; `../`, encoded `%2F` and backslash variants all 404. Tested + e2e. |
+| Content-Type / Disposition | Closed allowlist (`contentTypeFor`), `attachment` with a sanitised filename, `X-Content-Type-Options: nosniff` (helmet). Tested; the `.json` case is pre-existing coverage. |
+| CORS | No CORS middleware; a foreign `Origin` receives no `Access-Control-Allow-Origin` and no allow-credentials. Tested. |
+| Status codes | 400 malformed id, 403 missing/wrong token (foreign and unknown indistinguishable), 404 unknown/expired/removed result, 200/206 not implemented. Tested + e2e. |
+| Range requests | **Not supported, and not a defect on a download-only route.** A probe with `Range: bytes=0-4` returned 200 and the complete 21-byte body with `Content-Length: 21` and no `Accept-Ranges`; RFC 9110 §14.2 permits ignoring `Range`. Large downloads therefore cannot resume — recorded as a requirement for the future share route (`SHARE-SPEC.md` §5.3), not fixed here, because adding partial-content semantics changes the shipped response contract for every result kind. |
+
+---
+
 ## Counts
 
 By area:
@@ -492,23 +671,26 @@ By area:
 | EXPORT | 4 (`ENGINE-004`, `EXPORT-001`, `EXPORT-002`, `EXPORT-003`) |
 | RENDER | 6 (`001`–`006`) |
 | EDITOR | 7 (`001`–`007`) |
-| SHARE | 0 (not implemented — see `ARCHITECTURE-PDF.md` §5) |
+| SHARE | 3 (`001`–`003`); the area itself is not implemented — `PDF-SHARE-000` in the session-5 section |
 | SEC-UPLOAD | 1 (`001`) |
+| REDACT | 1 (`001`) |
 
 By severity:
 
 | Severity | Findings |
 | --- | --- |
 | HIGH | 6 (`ENGINE-001`, `ENGINE-003`, `ENGINE-006`, `RENDER-001`, `RENDER-003`, `EDITOR-002`) |
-| MEDIUM | 9 (`ENGINE-002`, `ENGINE-007`, `ENGINE-008`, `SEC-UPLOAD-001`, `RENDER-004`, `EDITOR-001`, `EDITOR-003`, `EDITOR-005`, `EDITOR-006`) |
-| LOW | 10 (`ENGINE-004`, `ENGINE-005`, `RENDER-002`, `RENDER-005`, `RENDER-006`, `EDITOR-004`, `EDITOR-007`, `EXPORT-001`, `EXPORT-002`, `EXPORT-003`) |
+| MEDIUM | 11 (`ENGINE-002`, `ENGINE-007`, `ENGINE-008`, `SEC-UPLOAD-001`, `RENDER-004`, `EDITOR-001`, `EDITOR-003`, `EDITOR-005`, `EDITOR-006`, `SHARE-001`, `SHARE-002`) |
+| LOW | 12 (`ENGINE-004`, `ENGINE-005`, `RENDER-002`, `RENDER-005`, `RENDER-006`, `EDITOR-004`, `EDITOR-007`, `EXPORT-001`, `EXPORT-002`, `EXPORT-003`, `SHARE-003`, `REDACT-001`) |
 
 Session 2 closed 5 of the 8 in-scope findings; the 3 open ones are all
 needs-decision (form, metadata and annotation policy, below). Session 3 closed
 2 of the 6 RENDER findings, parked 3 decisions and deferred 1 harness. Session 4
 closed `ENGINE-004` and all seven EDITOR findings, fixed the `/Decode` image
 export defect, and parked two export policy decisions (transparent images and
-output page names, below).
+output page names, below). Session 5 closed `SHARE-001`, `SHARE-003` and
+`REDACT-001`; `SHARE-002` is a needs-decision item, and SHARE itself remains
+unimplemented by decision.
 
 ---
 
@@ -575,6 +757,20 @@ parked here rather than "fixed".
    (`page-01.jpg`, `pdfToImages.job.ts:93`) and the preview alt text says
    "Page 1..N", not the source page number. Renaming would make downloads
    self-identifying but is a user-visible naming change, so it needs a decision.
+10. **Revoking a finished result (`PDF-SHARE-002`).** `DELETE /api/jobs/:id`
+   answers 409 for a completed or failed job and leaves the result readable
+   until the retention TTL. Options: (a) treat a finished job's DELETE as
+   "delete the result" (200 + remove the directory, and update the existing
+   test), (b) add a separate revoke/delete route, (c) keep the one-hour TTL as
+   the only revocation. (a) is the smallest change but alters a shipped status
+   code; (c) is the status quo. `SHARE-SPEC.md` §9 D8 covers the cascade
+   question for real share links.
+11. **Share feature design (`SHARE-SPEC.md`).** Twelve decisions (storage
+   lifetime, view/download semantics, edit permission, expiry defaults,
+   status-code policy, password policy, backend, cascade, origin, audit,
+   anonymous owners, embedding) are listed there with recommendations. No code
+   exists until they are answered; issued links cannot be migrated cheaply,
+   which is why they were not guessed.
 
 ---
 
@@ -687,8 +883,27 @@ pnpm --filter @pdfshush/web test  # 172 passed
 node tests/support/preflight.mjs   # exit 1: web at :5173 and API at :8080 are down
 ```
 
-The gated e2e/sweep suites remain blocked by the same missing stack as
-`BASELINE.md` (preflight exits 1); no stand-in was substituted. Lint still has
-no configured workspace script.
+Session-5 commands (logs in `docs/pdf-audit/.baseline/*-s5.log`):
 
-Lint has no configured script in this workspace (same as `BASELINE.md`).
+```powershell
+pnpm typecheck            # pass
+pnpm test                 # 1496 passed, 0 failed, 8 expected fail (117 files)
+pnpm build                # pass, 63 routes prerendered
+pnpm test:bundle          # pass, 0 engines in app chunks
+node tests/support/preflight.mjs   # exit 0: web + API reachable, compose ok
+pnpm test:e2e             # ALL CHECKS PASSED (14 tools + editor + redact)
+pnpm test:sweep           # 61 groups vs 60 at baseline (see FINAL-REPORT.md §4)
+node tests/e2e/share-boundary.mjs  # 17/17: upload -> process -> token download -> denied
+pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit/roundtrip.test.ts  # 15 passed
+pnpm --filter @pdfshush/pdf-core exec vitest run test/render-regression.test.ts    # 10 passed, 1 expected fail
+```
+
+The gated suites ran for the first time in this audit: Docker, Redis, the API
+and the web dev server were all available in this session. Lint is still not
+configured (`pnpm lint` → `Command "lint" not found`), same as `BASELINE.md`.
+
+The gated e2e/sweep suites were blocked in sessions 1–4 by a missing stack
+(preflight exit 1). Session 5 was able to start Docker, Redis, the API and the
+web dev server, so `pnpm test:e2e` and `pnpm test:sweep` ran for real; the
+results are above and in `METRICS.md`. Lint still has no configured workspace
+script (same as `BASELINE.md`).

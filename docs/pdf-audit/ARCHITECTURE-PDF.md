@@ -247,6 +247,12 @@ If SHARE is added later, it needs its own boundary section: who can mint a link,
 how a link is revoked, whether it outlives the one-hour file TTL, and what the
 server must never log.
 
+Session 5 audited the capability above as the only second-party access surface
+that exists, fixed two defects in it (`PDF-SHARE-001`, `003`), and wrote the
+design-only `SHARE-SPEC.md` (link format, storage schema, routes, permissions,
+password gate, range support and threat model). It did not implement SHARE; the
+twelve open decisions in that document are the blocking input.
+
 ---
 
 ## 6. Security and upload boundary (SEC-UPLOAD)
@@ -293,5 +299,5 @@ paths both call. The rest of this section documents the boundary as audited.
 | `RENDER` | `packages/pdf-core/src/render/*` (canvas budget, page render, text runs/layout), `src/document/glyphs.ts`, `apps/web/src/workers/job-worker.ts` |
 | `EDITOR` | `packages/pdf-core/src/ops/edit.ts`, `src/textedit/*`, `src/ops/geometry.ts` |
 | `EXPORT` | `src/jobs/text.job.ts`, `images.job.ts`, `pdfToImages.job.ts`, `zip.job.ts` |
-| `SHARE` | none — not implemented |
+| `SHARE` | none — not implemented; design in `SHARE-SPEC.md`. Session-5 fixes touch `apps/api/src/http/result-stream.ts`, the `/api/jobs` mounts and `apps/api/src/http/v1/routes.ts`. |
 | `SEC-UPLOAD` | `apps/api/src/http/uploads.ts`, `apps/api/src/files/*` |

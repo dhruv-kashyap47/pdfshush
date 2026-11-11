@@ -188,3 +188,84 @@ Interpretation:
 corpus, overlay alignment, and the display-space rotation test) plus one new
 expected-fail repro (the CJK `.notdef` case). Logs: `.baseline/test-s3.log`,
 `build-s3.log`, `bundle-s3.log`, `preflight-s3.log`.
+
+---
+
+## Session 5 — SHARE boundary (no engine change)
+
+Session 5 changed no parsing, rendering or composition code. The probes below
+were re-run on `pdf/s5-share` for the audit's before/after record, with the dev
+servers **stopped** so the numbers are not measuring the app.
+
+Probe commands and raw results:
+
+```powershell
+pnpm --filter @pdfshush/pdf-core exec tsx --expose-gc `
+  ../../docs/pdf-audit/.baseline/measure-doc-lifecycle.ts   # .baseline/metrics-s5-lifecycle.json
+pnpm --filter @pdfshush/pdf-core exec tsx `
+  ../../docs/pdf-audit/.baseline/measure-render.ts          # .baseline/metrics-s5-render.jsonl
+```
+
+### Lifecycle (120-page fixture, 20 open/read/close cycles)
+
+| Metric | Session 2 | Session 5 | Δ |
+| --- | --- | --- | --- |
+| `cached` peak RSS | 124.8 MB | 126.4 MB | +1.6 MB |
+| `cached` peak live heap | 60.1 MB | 60.1 MB | 0 |
+| `cached` live documents after 20 cycles | 1 | 1 | 0 |
+| `cold` peak RSS | 374.6 MB | 375.9 MB | +1.3 MB |
+| `cold` peak live heap | 59.8 MB | 59.8 MB | 0 |
+| `cold` live documents after 20 cycles | 0 | 0 | 0 |
+
+No growth with cycle count: `cached` keeps exactly the LRU entry, `cold` keeps
+none. The ~1.5 MB RSS difference is run-to-run noise on the same machine.
+
+### Render (120-page fixture, real pdf.js + `@napi-rs/canvas`)
+
+The render path is unchanged since `6d49d7d`
+(`git diff 6d49d7d HEAD -- packages/pdf-core/src/render` is empty; only
+`document/glyphs.ts` and `document/hitTest.ts` changed, and the probe does not
+extract text).
+
+| Metric | Session 3 (`6d49d7d`) | Session 5 | Ratio |
+| --- | --- | --- | --- |
+| First page at 1600 px, median of 3 | 122.03 ms | 301.59 ms | 2.47× |
+| First page at 2560 px, median of 3 | 298.55 ms | 737.22 ms | 2.47× |
+| Editor window, 20 pages at 1339 px: mean | 26.64 ms | 58.40 ms | 2.19× |
+| … median / p95 | 26.48 / 27.37 ms | 57.82 / 65.23 ms | 2.18× / 2.38× |
+| Editor window peak RSS / heap | 436.7 / 199.1 MB | 417.5 / 198.2 MB | — |
+| Thumbnails, 120 pages at 160 px: mean | 1.85 ms | 4.71 ms | 2.55× |
+| … median / p95 / max | 1.66 / 2.24 / 13.27 ms | 4.22 / 5.99 / 25.06 ms | 2.54× / 2.67× / 1.89× |
+| Thumbnail peak RSS / heap | 461.1 / 215.6 MB | 441.8 / 214.6 MB | — |
+
+The slowdown is **uniform across parse, paint and encode**, is stable across two
+consecutive session-5 runs (58.4 and 67.1 ms/page; the second was taken with the
+dev servers still running), and comes with *lower* peak memory. A code
+regression would not scale every stage by the same ~2.4× while freeing memory,
+and the render sources are byte-identical to session 3's measured tree. It is
+recorded as machine-state (host/CPU frequency) rather than a regression; the
+absolute number should not be compared across sessions on this machine, while
+the before/after *shape* (flat memory, bounded thumbnails) still holds.
+
+### Gate numbers (session 5)
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Typecheck | `pnpm typecheck` | pass, exit 0 (`.baseline/typecheck-s5.log`) |
+| Unit tests | `pnpm test` | **1496 passed, 0 failed, 8 expected fail, 117 files** (`.baseline/test-s5.log`) |
+| Build | `pnpm build` | pass, 63 routes prerendered (`.baseline/build-s5.log`) |
+| Bundle boundary | `pnpm test:bundle` | pass, 0 engines in app chunks (`.baseline/bundle-s5.log`) |
+| Lint | `pnpm lint` | **not configured** (`Command "lint" not found`, same as baseline) |
+| E2E / sweep preflight | `node tests/support/preflight.mjs` | **exit 0** — web, API and compose reachable (first session where the stack could start) |
+| Browser E2E smoke | `pnpm test:e2e` | **ALL CHECKS PASSED** (`.baseline/e2e-s5.log`) |
+| Share walkthrough | `node tests/e2e/share-boundary.mjs` | 17/17 checks pass (upload → process → token download → denied paths) |
+| Sweep | `pnpm test:sweep` | 61 problem groups vs 60 at baseline; the only new group is `/` at light 1920, a pre-existing reveal race (see `FINAL-REPORT.md` §4) |
+| Round-trip harness | `vitest run test/pdf-audit/roundtrip.test.ts` | 15 passed |
+| Render regression | `vitest run test/render-regression.test.ts` | 10 passed, 1 expected fail (`PDF-RENDER-003`, unchanged) |
+
+Suite deltas: `apps/api` 218 → 238 passing plus 1 expected fail (the revocation
+repro); `pdf-core` 535 → 540 passing (+5: the full-page redaction case and the
+four redaction-output checks) and the same 7 expected fails; total files
+115 → 117 (+2 test files).
+
+

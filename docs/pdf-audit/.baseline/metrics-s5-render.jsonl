@@ -1,0 +1,13 @@
+Warning: Please use the `legacy` build in Node.js environments.
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+{"metric":"first-page","label":"pdf-to-images default","targetWidthPx":1600,"runsMs":[290.43,301.59,1371.57],"medianMs":301.59}
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+{"metric":"first-page","label":"pdf-to-images print","targetWidthPx":2560,"runsMs":[724.46,737.22,738.78],"medianMs":737.22}
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+{"metric":"sweep","label":"editor window (20 pages, fit-width ~1339px)","targetWidthPx":1339,"format":"jpeg","pages":20,"totalMs":1167.93,"meanPageMs":58.4,"medianPageMs":57.82,"p95PageMs":65.23,"maxPageMs":65.23,"peakRssMb":417.52,"peakHeapMb":198.23}
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+{"metric":"sweep","label":"thumbnail grid (120 pages, 160px)","targetWidthPx":160,"format":"jpeg","pages":120,"totalMs":565.45,"meanPageMs":4.71,"medianPageMs":4.22,"p95PageMs":5.99,"maxPageMs":25.06,"peakRssMb":441.78,"peakHeapMb":214.62}

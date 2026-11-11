@@ -1,0 +1,107 @@
+{
+  "fixture": "long-120page.pdf",
+  "fixtureBytes": 63114,
+  "cycles": 20,
+  "results": [
+    {
+      "mode": "cold",
+      "before": {
+        "heapUsedMb": 21.1,
+        "rssMb": 149,
+        "workerPorts": 0,
+        "liveDocuments": 0
+      },
+      "after": {
+        "heapUsedMb": 59.6,
+        "rssMb": 125.1,
+        "workerPorts": 0,
+        "liveDocuments": 0
+      },
+      "peakRssMb": 375.9,
+      "peakHeapUsedMb": 195.8,
+      "peakLiveHeapMb": 59.8,
+      "checkpoints": [
+        {
+          "cycle": 1,
+          "heapUsedMb": 59,
+          "rssMb": 330.6,
+          "liveDocuments": 0
+        },
+        {
+          "cycle": 5,
+          "heapUsedMb": 59.1,
+          "rssMb": 127,
+          "liveDocuments": 0
+        },
+        {
+          "cycle": 10,
+          "heapUsedMb": 59.7,
+          "rssMb": 127.2,
+          "liveDocuments": 0
+        },
+        {
+          "cycle": 15,
+          "heapUsedMb": 59.7,
+          "rssMb": 127.2,
+          "liveDocuments": 0
+        },
+        {
+          "cycle": 20,
+          "heapUsedMb": 59.8,
+          "rssMb": 128.2,
+          "liveDocuments": 0
+        }
+      ]
+    },
+    {
+      "mode": "cached",
+      "before": {
+        "heapUsedMb": 59.6,
+        "rssMb": 124.7,
+        "workerPorts": 0,
+        "liveDocuments": 0
+      },
+      "after": {
+        "heapUsedMb": 60,
+        "rssMb": 125.3,
+        "workerPorts": 0,
+        "liveDocuments": 1
+      },
+      "peakRssMb": 126.4,
+      "peakHeapUsedMb": 60.6,
+      "peakLiveHeapMb": 60.1,
+      "checkpoints": [
+        {
+          "cycle": 1,
+          "heapUsedMb": 60.1,
+          "rssMb": 126.2,
+          "liveDocuments": 1
+        },
+        {
+          "cycle": 5,
+          "heapUsedMb": 60.1,
+          "rssMb": 126.2,
+          "liveDocuments": 1
+        },
+        {
+          "cycle": 10,
+          "heapUsedMb": 60.1,
+          "rssMb": 126.4,
+          "liveDocuments": 1
+        },
+        {
+          "cycle": 15,
+          "heapUsedMb": 60.1,
+          "rssMb": 126.2,
+          "liveDocuments": 1
+        },
+        {
+          "cycle": 20,
+          "heapUsedMb": 60.1,
+          "rssMb": 126.4,
+          "liveDocuments": 1
+        }
+      ]
+    }
+  ]
+}

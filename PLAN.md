@@ -6946,3 +6946,80 @@ a usable file input and no route boundary after the chunk retry.
 including the new recovery-guard tests); `pnpm build`; `pnpm test:bundle` green; `a11y` green; the
 new `stale-build` E2E green. An already-open tab from a previous build still needs one manual
 refresh to pick up this recovery code; every later stale state is handled automatically.
+
+## 35. PDF audit — session 5: the share boundary (2026-11-11)
+
+Branch `pdf/s5-share`, cut from `pdf/s4-editor` at `20280e5`. Documents:
+`docs/pdf-audit/FINDINGS.md` (session 5), `SHARE-SPEC.md`, `FINAL-REPORT.md`,
+`METRICS.md` (session 5).
+
+### 35.1 SHARE is not implemented
+
+The session was scoped to sharing. There is no share route, token, link format
+or viewer page in `apps/` or `packages/`, and no commit in `git log --all` ever
+added one (`FINDINGS.md`, `PDF-SHARE-000`). Building it means choosing a public
+API, a storage schema and a link format, so it was not guessed. The session
+instead audited the capability that does let a second party reach a document —
+the per-job `jobId` + `x-job-token` — and wrote `SHARE-SPEC.md` (32-byte CSPRNG
+token, base64url path `/s/<token>`, SHA-256 at rest, TTL + revoke, scrypt
+password, `no-referrer`, range support, view/download permissions, storage
+schema, routes and threat model) as a decision document only.
+
+### 35.2 Fixed
+
+- `PDF-SHARE-001` (MEDIUM, `2cba94c`) — job state and results carried no
+  `Cache-Control`, while the URL carries no secret (the token is a header). A
+  shared cache could replay a document to a caller without the token and keep
+  replaying it after expiry/revocation. `Cache-Control: private, no-store` and
+  `Vary: x-job-token` now apply to `/api/jobs` and `/api/v1/jobs`, ahead of
+  auth, so 400/403/404/503 answers are covered too.
+- `PDF-SHARE-003` (LOW, `8e2fd65`) — the download's `Content-Disposition`
+  trusted the queue's file name instead of re-sanitising it at the header; a
+  quote produced a malformed quoted-string.
+- `PDF-REDACT-001` (LOW, `f922d62`) — a page fully covered by its marks was
+  refused ("contrast spread only -255") because the blank-page scan asserted
+  over an empty sample set. It now skips the vacuous comparison; blankness is
+  still caught by `marks-burned-in`.
+
+### 35.3 Needs decision
+
+- `PDF-SHARE-002` (MEDIUM) — a finished result cannot be revoked: `DELETE
+  /api/jobs/:id` answers 409 and the same token keeps downloading until the
+  one-hour TTL. Making DELETE remove a finished result changes a shipped status
+  code and public contract, so it is parked with an `it.fails` repro.
+- `SHARE-SPEC.md` §9 lists twelve share-design decisions (storage lifetime,
+  view/download semantics, edit permission, expiry, status codes, password
+  policy, backend, cascade, origin, audit, anonymous owners, embedding).
+
+### 35.4 Verification (live, this session)
+
+The stack could start for the first time in this audit (Docker 29.8.2 + Redis
+container + API + web), so the gated suites ran for real:
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Typecheck | `pnpm typecheck` | pass |
+| Unit | `pnpm test` | 1496 passed, 0 failed, 8 expected fail, 117 files |
+| Build | `pnpm build` | pass, 63 routes prerendered |
+| Bundle | `pnpm test:bundle` | pass, 0 engines in app chunks |
+| Preflight | `node tests/support/preflight.mjs` | exit 0 |
+| Browser E2E | `pnpm test:e2e` | ALL CHECKS PASSED |
+| Share walkthrough | `node tests/e2e/share-boundary.mjs` | 17/17 |
+| Sweep | `pnpm test:sweep` | 61 groups vs 60 at baseline; new group is a pre-existing `/` reveal race (`FINAL-REPORT.md` §4) |
+| Round-trip | `vitest run test/pdf-audit/roundtrip.test.ts` | 15 passed |
+| Render regression | `vitest run test/render-regression.test.ts` | 10 passed, 1 expected fail |
+| Lint | `pnpm lint` | not configured |
+
+Performance on the 120-page fixture was re-measured (`METRICS.md` session 5):
+lifecycle memory is flat and unchanged; render timings are ~2.4× slower than
+session 3 across every stage on an unchanged render path, recorded as machine
+state rather than a code regression.
+
+### 35.5 Boundaries
+
+- No share feature was built and no dependency was added.
+- The sweep's 60 footer-reveal groups and the new `/` group are web-chrome
+  issues, explicitly outside the PDF engine audit (`BASELINE.md`).
+- Redaction removal was verified from the output bytes (pdf.js extraction,
+  decompressing text-operator scan, object-graph scan) on a real fixture; no
+  defect was found in removal.

@@ -1,0 +1,150 @@
+$ node tests/support/preflight.mjs && node tests/e2e/smoke.mjs
+preflight: web + api reachable, compose status ok
+
+1. Homepage
+  [PASS] title contains PDFShush
+  [PASS] hero renders ΓÇö Every PDF tool,
+in one browser tab.
+  [PASS] mega menu opens with full catalog ΓÇö 98 tool links
+
+2. Merge tool
+  [PASS] page counts shown (3p + 2p) ΓÇö 1 row(s) showing "2 pages"
+  [PASS] result panel shows merged.pdf ΓÇö merged.pdf
+  [PASS] downloaded file is a valid PDF ΓÇö merged.pdf 2251B
+
+3. Organize tool
+  [PASS] thumbnails rendered in worker (3 pages) ΓÇö 3 thumbnails
+  [PASS] thumbnails are real images
+  [PASS] delete page works (3 ΓåÆ 2) ΓÇö 2 thumbnails
+  [PASS] organized output is a valid PDF ΓÇö alpha-organized.pdf 1323B
+  [PASS] organize output is named -organized.pdf ΓÇö alpha-organized.pdf
+
+4. PDF to JPG tool
+  [PASS] inspect shows 3 pages / 3 images ΓÇö 3 pages ┬╖ will produce 3 images
+  [PASS] image previews rendered (3 pages) ΓÇö 3 previews
+  [PASS] JPG format actually produces .jpg files ΓÇö caption check
+  [PASS] ZIP download valid (PK header) ΓÇö alpha-images.zip 28579B
+
+5. Delete Pages tool
+  [PASS] marking a page shows remain count ΓÇö 1 page marked for deletion ┬╖ 2 will remain
+  [PASS] delete selected removes marked page (3 ΓåÆ 2) ΓÇö 2 thumbnails
+  [PASS] delete output is a valid PDF ΓÇö alpha-deleted.pdf 1323B
+  [PASS] delete output is named -deleted.pdf ΓÇö alpha-deleted.pdf
+
+6. Extract Pages tool
+  [PASS] inspect shows extract-all by default ΓÇö 3 pages ┬╖ will extract 3 pages
+  [PASS] range 1-2 recounts output (3 ΓåÆ 2) ΓÇö 3 pages ┬╖ will extract 2 pages
+  [PASS] extracted output is a valid PDF ΓÇö alpha-extracted.pdf 1323B
+
+7. Rotate tool
+  [PASS] per-page rotation tracked (1 rotated) ΓÇö 3 pages ┬╖ 1 rotated : use the arrows on each page, or rotate everything at once.
+  [PASS] rotate-all turns remaining pages too ΓÇö 3 pages ┬╖ 3 rotated : use the arrows on each page, or rotate everything at once.
+  [PASS] rotated output is a valid PDF ΓÇö alpha-rotated.pdf 1635B
+  [PASS] rotate output is named -rotated.pdf ΓÇö alpha-rotated.pdf
+
+8. Split by pages tool
+  [PASS] chunk=1 estimates 3 parts ΓÇö 3 pages ┬╖ will produce 3 files
+  [PASS] split ZIP names parts
+  [PASS] split download is a valid ZIP ΓÇö alpha-split.zip 1678B
+
+9. Alternate & Mix tool
+  [PASS] interleave pattern preview shown ΓÇö A1, B1, A2, B2, A3, ΓÇª
+  [PASS] mixed output is a valid PDF ΓÇö alpha-mixed.pdf 2251B
+
+10. Split in half tool
+  [PASS] halves ZIP lists left/right parts
+  [PASS] halves download is a valid ZIP ΓÇö alpha-halves.zip 1318B
+
+11. Page Numbers tool
+  [PASS] numbered output is a valid PDF ΓÇö alpha-numbered.pdf 2827B
+
+12. Crop tool
+  [PASS] cropped output is a valid PDF ΓÇö alpha-cropped.pdf 1679B
+
+13. Header & Footer tool
+  [PASS] header/footer output is a valid PDF ΓÇö alpha-header-footer.pdf 2839B
+
+14. N-up tool
+  [PASS] 2-up estimate shown (3 pages ΓåÆ 2 sheets) ΓÇö 3 pages ┬╖ 2 sheets at 2-up
+  [PASS] 4-up recount (3 pages ΓåÆ 1 sheet) ΓÇö 3 pages ┬╖ 1 sheet at 4-up
+  [PASS] N-up output is a valid PDF ΓÇö alpha-4up.pdf 2959B
+
+15. Edit PDF tool
+  [PASS] editor mounts with toolbar
+  [PASS] page rasters rendered (3 pages) ΓÇö 3 rasters
+  [PASS] text box created and typed into ΓÇö Edited in the browser
+  [PASS] Ctrl+Z while typing does not delete the text box
+  [PASS] text box height matches its content ΓÇö 26.88px
+  [PASS] zoom steps down from the fit-width default ΓÇö 140% ΓåÆ 125%
+  [PASS] highlight created by dragging ΓÇö 1 highlights
+  [PASS] undo removes the highlight ΓÇö 0 highlights left
+  [PASS] redo restores the highlight ΓÇö 1 highlights
+  [PASS] delete removes the selected object ΓÇö 0 text objects
+  [PASS] undo restores the deleted object ΓÇö 1 text object
+  [PASS] arrow keys nudge the selection ΓÇö 85.7143 -> 87.2143
+  [PASS] a burst of arrow nudges collapses into one undo step ΓÇö 87.2143 -> 96.2143 -> undo -> 87.2143
+  [PASS] Ctrl+D duplicates the object ΓÇö 2 text objects
+  [PASS] undo removes the duplicate ΓÇö 1 text object
+  [PASS] image object inserted from a PNG
+  [PASS] inserted image actually decodes
+  [PASS] image blob URL survives an unrelated re-render
+  [PASS] bring-forward is available on selection
+  [PASS] bring forward reorders the stack
+  [PASS] result panel shows alpha-edited.pdf ΓÇö alpha-edited.pdf
+  [PASS] edited output is a valid PDF ΓÇö alpha-edited.pdf 1694B
+  [PASS] cross-pollination chips shown
+  [PASS] continue editing keeps the objects
+  [PASS] start over opens a clean document ΓÇö 0 objects carried over
+  [PASS] changing the file re-renders every page (no stale rasters) ΓÇö 2 pages re-rendered
+
+15b. Raster quality + embedded-image rendering
+  [PASS] imaged.pdf: every page renders (the image path no longer throws) ΓÇö widths 1249, 1249, 1249
+  [PASS] imaged.pdf: no page is stuck on its loading placeholder ΓÇö 0 still loading
+  [PASS] imaged.pdf: rasters are page-sized, not ~29px stretched ΓÇö min 1249px
+  [PASS] imaged.pdf: A4 renders wider than its 595pt page box ΓÇö 1249, 1249, 1249px
+  [PASS] imaged.pdf: bitmaps contain real detail, not a flat placeholder ΓÇö luma sd 38, 27, 12
+  [PASS] imaged.pdf: no "could not render page" toast ΓÇö none
+  [PASS] text-only PDF still renders page-sized (common case not regressed) ΓÇö widths 1249, 1249, 1249px
+
+16. Client page cap
+  [PASS] split-in-half refuses a 501-page document ΓÇö That document has 501 pages; the in-browser limit is 500. Split it first, or wait for serv
+  [PASS] no files accepted after the page cap refused it
+  [PASS] extract-pages refuses a 501-page document ΓÇö That document has 501 pages; the in-browser limit is 500. Split it first, or wait for serv
+  [PASS] page-cap message names the real count and limit
+  [PASS] documents under the cap are still accepted ΓÇö 3 pages ┬╖ will extract 3 pages
+
+17. Routing
+  [PASS] not-built tool page renders
+  [PASS] 404 page renders
+
+18. Recent history
+  [PASS] recent history from this session shows without a reload ΓÇö 5 entries
+  [PASS] recent history lists several tools run earlier in this session ΓÇö Edit PDFjust now | Edit PDFjust now | N-upjust now | Header & Footerjust now | Crop PDFjus
+  [PASS] a history write survives navigating away immediately ΓÇö Merge PDF filesjust now
+
+19. Accounts & workflows
+  [PASS] workflows page loads
+  [PASS] workflows page works signed out (local storage, not a sign-in wall)
+  [PASS] two steps added to the recipe ΓÇö 2 steps
+  [PASS] reordering swaps the two steps ΓÇö Merge PDFs | Organize pages -> Organize pages | Merge PDFs
+  [PASS] workflow runs end to end and downloads a PDF ΓÇö alpha-organized-merged.pdf - 1601 bytes
+  [PASS] a reordered recipe still validates and saves ΓÇö engine accepted the re-linked chain
+  [PASS] recipe can be deleted
+  [PASS] accounts-off page says so instead of offering a dead sign-in
+  [PASS] accounts-off page still explains local history
+  [PASS] header hides sign-in when the deployment has no accounts
+
+19b. Redact PDF
+  [PASS] redact tool renders a review surface ΓÇö page 1 shown
+  [PASS] dragging creates a redaction mark ΓÇö 1 mark(s)
+  [PASS] confirmation discloses the loss before it runs
+  [PASS] redacted PDF downloads as a valid PDF ΓÇö 28114 bytes
+  [PASS] page count preserved ΓÇö 3 pages
+  [PASS] no font object remains (no text layer to extract) ΓÇö none
+  [PASS] no annotation or attachment tree remains ΓÇö none
+  [PASS] every page was replaced by an image ΓÇö 3 image XObject(s)
+
+20. Console health
+  [PASS] no console/page errors
+
+ALL CHECKS PASSED
