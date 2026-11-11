@@ -170,17 +170,23 @@ async function main() {
   });
   check('a missing result is 404 result_not_found', missing.status === 404, `status ${missing.status}`);
 
-  // The result exists until its TTL, and a finished job cannot be revoked
-  // through DELETE: recorded as PDF-SHARE-002 (needs decision), so the
-  // walkthrough pins the current contract instead of pretending otherwise.
+  // PDF-SHARE-002 (decided in session 6): DELETE on a finished job revokes the
+  // result immediately. The directory is removed, so the same capability can
+  // no longer download it, without waiting for the one-hour retention TTL.
   const revoke = await fetch(`${BASE}/api/jobs/${created.jobId}`, {
     method: 'DELETE',
     headers: { 'x-job-token': created.token },
   });
   check(
-    'revoking a finished result is still refused (PDF-SHARE-002 open)',
-    revoke.status === 409,
+    'revoking a finished result succeeds (2xx)',
+    revoke.status >= 200 && revoke.status < 300,
     `status ${revoke.status}`,
+  );
+  const afterRevoke = await fetch(url, { headers: { 'x-job-token': created.token } });
+  check(
+    'the revoked result is no longer downloadable',
+    afterRevoke.status === 404 || afterRevoke.status === 410,
+    `status ${afterRevoke.status}`,
   );
 
   console.log(failures === 0 ? '\n=== share boundary: ok ===' : `\n=== share boundary: ${failures} failure(s) ===`);

@@ -277,11 +277,11 @@ describe('second-party access to a result', () => {
     ).toBe(404);
   });
 
-  // Desired behaviour, not shipped behaviour: a finished job's result stays
-  // downloadable until the retention janitor runs, because DELETE answers 409
-  // "already finished" and never removes the directory. Fixing it changes the
-  // public DELETE contract, so it is a decision (FINDINGS.md, PDF-SHARE-002).
-  it.fails('blocks access immediately when a completed job is revoked', async () => {
+  // PDF-SHARE-002: a finished job stays downloadable until the retention
+  // janitor runs unless DELETE removes the result. The owner decided that
+  // DELETE revokes a completed/failed result immediately (2xx + directory
+  // removal); a running job keeps its cancellation contract.
+  it('blocks access immediately when a completed job is revoked', async () => {
     const h = await harness();
     const job = await completedJob(h);
 
@@ -293,6 +293,28 @@ describe('second-party access to a result', () => {
 
     const after = await fetch(h.url(`/api/jobs/${job.jobId}/files/out.pdf`), {
       headers: { 'x-job-token': job.token },
+    });
+    // 404 result_not_found, not a cached or still-streamed copy.
+    expect(after.status).toBe(404);
+    expect(((await after.json()) as { code: string }).code).toBe('result_not_found');
+  });
+
+  it('revokes a failed job result too', async () => {
+    const h = await harness();
+    const jobId = 'd'.repeat(32);
+    await h.store.prepareJob(jobId);
+    await h.store.writeResult(jobId, 'partial.pdf', Buffer.from('%PDF-1.7 partial'));
+    h.queue.complete(jobId, { status: 'failed', files: [{ name: 'partial.pdf', bytes: 17 }] });
+    const token = jobToken(h.context.pepper, jobId);
+
+    const revoked = await fetch(h.url(`/api/jobs/${jobId}`), {
+      method: 'DELETE',
+      headers: { 'x-job-token': token },
+    });
+    expect(revoked.status).toBe(200);
+
+    const after = await fetch(h.url(`/api/jobs/${jobId}/files/partial.pdf`), {
+      headers: { 'x-job-token': token },
     });
     expect(after.status).toBe(404);
   });
@@ -330,6 +352,19 @@ describe('response contract for a second party', () => {
       // document to anyone -- and keep replaying it after expiry or revocation.
       expect(response.headers.get('cache-control'), suffix).toContain('no-store');
       expect(response.headers.get('vary'), suffix).toContain('x-job-token');
+    }
+  });
+
+  it('tells every cache not to store account or session responses', async () => {
+    const h = await harness();
+    // Accounts are disabled in this harness, so these answer 503/204. The
+    // no-store middleware must run before either route: an account response is
+    // keyed by a cookie, and a cached copy would leak one user's data to the
+    // next request that shares a URL.
+    for (const suffix of ['/api/account', '/api/account/history', '/api/auth/me']) {
+      const response = await fetch(h.url(suffix));
+      expect(response.headers.get('cache-control'), suffix).toContain('no-store');
+      expect(response.headers.get('vary')?.toLowerCase(), suffix).toContain('cookie');
     }
   });
 

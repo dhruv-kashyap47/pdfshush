@@ -623,18 +623,24 @@ describe('DELETE /api/jobs/:id', () => {
   });
 
   // Regression: a finished job used to answer 202 "cancelling" and leave a
-  // cancel marker behind that no worker would ever read or clear.
-  it('refuses a job that has already finished (409) and writes no marker', async () => {
+  // cancel marker behind that no worker would ever read or clear. The owner
+  // later decided that DELETE on a finished job revokes its result: the
+  // directory is removed so the result cannot be downloaded until the TTL, and
+  // the answer is a 2xx rather than 409 not_cancellable (PDF-SHARE-002).
+  it('revokes a job that has already finished (200) and writes no marker', async () => {
     for (const status of ['completed', 'failed'] as const) {
       const h = await harness();
       const jobId = 'c'.repeat(32);
       h.queue.complete(jobId, { status });
+      await h.store.prepareJob(jobId);
+      await h.store.writeResult(jobId, 'out.pdf', Buffer.from('%PDF-1.7'));
 
       const response = await cancel(h.url, h.context.pepper, jobId);
-      expect(response.status).toBe(409);
-      const payload = (await response.json()) as { code: string };
-      expect(payload.code).toBe('not_cancellable');
+      expect(response.status).toBe(200);
+      expect((await response.json()) as { status: string }).toEqual({ status: 'deleted' });
       expect(await isCancelRequested(h.store, jobId)).toBe(false);
+      // The bytes are gone, so the next download is a 404 rather than a stream.
+      expect(await h.store.statResult(jobId, 'out.pdf')).toBeUndefined();
     }
   });
 

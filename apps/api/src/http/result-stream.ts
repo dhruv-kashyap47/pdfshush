@@ -38,6 +38,21 @@ export function noStoreResponses(
   next();
 }
 
+/**
+ * Account and session responses are keyed by a cookie rather than the job
+ * token. `no-store` is still the directive that matters (the URL alone must
+ * never identify a cached private answer); `Vary: cookie` is the backstop.
+ */
+export function noStoreAccountResponses(
+  _request: Request,
+  response: Response,
+  next: NextFunction,
+): void {
+  response.setHeader('Cache-Control', NO_STORE);
+  response.setHeader('Vary', 'cookie');
+  next();
+}
+
 const CONTENT_TYPES: Record<string, string> = {
   '.pdf': 'application/pdf',
   '.json': 'application/json; charset=utf-8',

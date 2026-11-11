@@ -38,7 +38,7 @@ import {
 } from '../jobs/payload.js';
 import { receiveUpload, InvalidUploadError, BadMultipartError, PDF_SIGNATURE } from './uploads.js';
 import { parseOptionsField } from './options.js';
-import { sendResultFile, noStoreResponses } from './result-stream.js';
+import { sendResultFile, noStoreResponses, noStoreAccountResponses } from './result-stream.js';
 import { registerV1Routes } from './v1/routes.js';
 import { registerApiKeyRoutes } from '../account/api-keys.js';
 
@@ -109,6 +109,12 @@ export function createApp(context: ApiContext): Express {
     next();
   };
   app.use(['/api/auth/google/start', '/api/auth/callback'], limitSignIn);
+
+  // A session answer is private to one cookie and must not be replayed from a
+  // shared cache. `/api/auth/me` is the one route the SPA reads to decide who
+  // is signed in; `/api/account*` is the dashboard data behind it.
+  app.use('/api/auth/me', noStoreAccountResponses);
+  app.use('/api/account', noStoreAccountResponses);
 
   registerAuthRoutes(app, {
     enabled: Boolean(context.auth),
@@ -432,10 +438,18 @@ export function createApp(context: ApiContext): Express {
       case 'unknown':
         response.status(404).json({ error: 'Unknown job', code: JOB_ERROR_CODES.unknownJob });
         return;
+      case 'finished':
+        // PDF-SHARE-002: a finished job's result is revoked on request. The
+        // queue keeps no secret of its own -- the bytes are the capability --
+        // so removing the work directory makes the token answer 404 at once
+        // instead of staying valid until the retention janitor runs.
+        await context.store.removeJob(auth.jobId);
+        response.status(200).json({ status: 'deleted' });
+        return;
       default:
-        // Already finished. Reporting "cancelling" here told the caller to keep
-        // polling for a change that could never come, and used to write a cancel
-        // marker that nothing would ever clear.
+        // A queued/unknown state that did not fit the cases above is still not
+        // something we can cancel. Reporting "cancelling" told the caller to
+        // keep polling for a change that could never come.
         response.status(409).json({
           error: 'Job has already finished',
           code: JOB_ERROR_CODES.notCancellable,
