@@ -8,9 +8,34 @@
  * instead of answering a clean 404.
  */
 
-import type { Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import type { WorkDirStore } from '../files/store.js';
 import type { Logger } from '../logger.js';
+
+/**
+ * A job's data is reachable only through a capability sent as a request header,
+ * so the URL itself carries no secret. That is exactly why a response must not
+ * be storable: a shared cache keyed on the URL would replay the document to a
+ * caller that never presented the token, and would keep replaying it after the
+ * job expired or was revoked. `Vary` is the second line of defence for any
+ * cache that ignores `no-store` but honours the key.
+ */
+export const NO_STORE = 'private, no-store';
+
+function markPrivate(response: Response): void {
+  response.setHeader('Cache-Control', NO_STORE);
+  response.setHeader('Vary', 'x-job-token');
+}
+
+/** Mounted on every job route, so refusals and 404s are uncacheable too. */
+export function noStoreResponses(
+  _request: Request,
+  response: Response,
+  next: NextFunction,
+): void {
+  markPrivate(response);
+  next();
+}
 
 const CONTENT_TYPES: Record<string, string> = {
   '.pdf': 'application/pdf',
@@ -44,6 +69,7 @@ export function sendResultFile(args: {
   name: string;
   bytes: number;
 }): void {
+  markPrivate(args.response);
   args.response.setHeader('Content-Type', contentTypeFor(args.name));
   args.response.setHeader('Content-Length', String(args.bytes));
   // RFC 6266: the name goes in a quoted-string, and a safe basename cannot

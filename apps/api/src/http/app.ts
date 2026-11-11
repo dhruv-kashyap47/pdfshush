@@ -38,7 +38,7 @@ import {
 } from '../jobs/payload.js';
 import { receiveUpload, InvalidUploadError, BadMultipartError, PDF_SIGNATURE } from './uploads.js';
 import { parseOptionsField } from './options.js';
-import { sendResultFile } from './result-stream.js';
+import { sendResultFile, noStoreResponses } from './result-stream.js';
 import { registerV1Routes } from './v1/routes.js';
 import { registerApiKeyRoutes } from '../account/api-keys.js';
 
@@ -257,6 +257,11 @@ export function createApp(context: ApiContext): Express {
     isAuthenticated: async (request) => Boolean(await currentAccount(request, context)),
     logger: context.logger,
   });
+
+  // A job's result is protected by a header, so its URL is not a secret and a
+  // cached copy would outlive the capability. Nothing under this prefix is
+  // cacheable, refusals included.
+  app.use('/api/jobs', noStoreResponses);
 
   app.post('/api/jobs', async (request: Request, response: Response) => {
     const subject = subjectFor(request, context);

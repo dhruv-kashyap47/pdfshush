@@ -29,7 +29,7 @@ import type { ApiKeyStore, ApiKeyDoc } from '../../keys/store.js';
 import type { AccountStore } from '../../account/store.js';
 import { NODE_JOBS, type JobDefinition } from '@pdfshush/pdf-core/node';
 import { parseOptionsField } from '../options.js';
-import { sendResultFile } from '../result-stream.js';
+import { sendResultFile, noStoreResponses } from '../result-stream.js';
 import { buildOpenApiDocument } from './openapi.js';
 import { apiCreateJobSchema, V1_ERROR_CODES } from './schemas.js';
 
@@ -241,8 +241,14 @@ export function registerV1Routes(app: Express, deps: V1RoutesDeps): void {
   // fully inline request can legally occupy without tripping any other cap.
   app.use('/api/v1', express.json({ limit: '16mb' }));
 
+  // The result URL carries no capability, so no job response may be stored by
+  // a shared cache. Registered ahead of authentication, so a 401/403/404 (and
+  // the 503 of a deployment with accounts disabled) is uncacheable too.
+  app.use('/api/v1/jobs', noStoreResponses);
+
   app.use('/api/v1', authenticate);
 
+  
   /* -------------------------------------------------------------- catalog */
 
   app.get('/api/v1/tools', (_request: Request, response: Response) => {
