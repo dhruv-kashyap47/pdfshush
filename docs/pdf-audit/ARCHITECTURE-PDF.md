@@ -162,18 +162,21 @@ Rotate, Crop, Stamp, Watermark, Flip and Resize:
 machinery. Split-in-half builds two fresh documents (`ops/split.ts:52-53`) and
 copies pages (`:86-87`). N-up rebuilds onto new sheets (`ops/nup.ts:87`).
 
-Two document-level structures do not travel with a copied page:
+Two document-level structures do not travel with a copied page, so
+`composeDocument`, `mergePdfs` and `combineToPdf` explicitly carry them:
 
 - `/AcroForm` lives in the **catalog**, not on the page. `copyPages` carries the
   page's `/Annots` array (so widget annotations survive as objects) but the new
-  catalog has no `/AcroForm`, so the fields are unregistered orphans.
-- Semantic Info entries (`/Title`, `/Author`, `/Subject`, `/Keywords`) are not
-  copied; `applyDocumentDates` deliberately touches only the two date keys
-  (`dates.ts:20-21`, `:91`).
-
-Findings PDF-ENGINE-001 and PDF-ENGINE-002 are these two facts, evidenced by
-`packages/pdf-core/test/pdf-audit/page-pipelines.test.ts` and the observations
-in `docs/pdf-audit/.baseline/probe-observations.log`.
+  catalog has no `/AcroForm`. `ops/formCopy.ts` clones the field tree, rewires
+  each widget's `/P` to the destination page, and points the page `/Annots` at
+  the cloned field widgets. Single-source copies keep the form; merge/combine
+  append field trees and suffix colliding fully-qualified names (`_2`, `_3`);
+  duplicated pages get renamed field copies (`PDF-ENGINE-001`).
+- Semantic Info entries (`/Title`, `/Author`, `/Subject`, `/Keywords`) are
+  copied by `ops/metadata.ts`: compose/N-up/split inherit their single source,
+  merge/combine use the first PDF. Dates still follow the deterministic
+  earliest-creation/latest-modification policy (`dates.ts:20-21`, `:91`)
+  (`PDF-ENGINE-002`).
 
 ### 3.2 Rebuild pages in place
 
@@ -187,9 +190,12 @@ then rebuild every page:
   `:162`, `:174-176`.
 
 `embedPage` embeds **content streams**. `/Annots` is a page-dictionary entry,
-not page content, so annotations and widget appearances are not carried to the
-replacement page. This is finding PDF-ENGINE-003, evidenced by
-`packages/pdf-core/test/pdf-audit/transform-annotations.test.ts`.
+not page content, so the transform would lose annotations and widget
+appearances. Session 6 decided to flatten them: `transform.ts` paints stored
+`/AP /N` appearances as Form XObjects, synthesises an appearance for the simple
+annotation types that carry none, emits a `warnings[]` notice, removes the
+AcroForm registration when widgets were flattened, and refuses a document with
+a `/FT /Sig` field (`PDF-ENGINE-003`).
 
 ---
 
@@ -210,8 +216,9 @@ replacement page. This is finding PDF-ENGINE-003, evidenced by
   "Setting up fake worker." is expected. Consequence: a Type0 font with no
   `FontFile` (e.g. `STSong-Light`) has no glyph program and paints `.notdef`
   boxes; ICC profiles are also inactive because `wasmUrl`/`iccUrl` are not
-  configured. Both are recorded as decisions in `FINDINGS.md`
-  (`PDF-RENDER-003`, `PDF-RENDER-004`), not as accepted behaviour.
+  configured. Session 6 chose **not to bundle a CJK font**: render jobs now add
+  a `warnings[]` notice naming the non-embedded font while the glyph repro stays
+  `it.fails` (`PDF-RENDER-003`). ICC/wasm remains deferred (`PDF-RENDER-004`).
 - Text typography crosses the job boundary in display space:
   `TextTypography.rotationDeg` folds in the page's `/Rotate`
   (`document/glyphs.ts`), matching the glyph boxes and `Line.rotationDeg` that
@@ -225,8 +232,9 @@ replacement page. This is finding PDF-ENGINE-003, evidenced by
   excluded from `src/node.ts:11-13`.
 - Text extraction for the `.txt` export runs on the pdf.js run clusterer
   (`jobs/text.job.ts:79`, `render/textRuns.ts`) and joins runs into lines
-  (`text.job.ts:39`). `charCount` is derived as `line.length + 1` per page
-  (`text.job.ts:94`) — finding PDF-ENGINE-004.
+  (`text.job.ts:39`). `charCount` is the length of the text actually written,
+  including only separators between pages (`text.job.ts:97`); the session-2
+  `PDF-ENGINE-004` defect is fixed.
 
 ---
 
@@ -250,8 +258,11 @@ server must never log.
 Session 5 audited the capability above as the only second-party access surface
 that exists, fixed two defects in it (`PDF-SHARE-001`, `003`), and wrote the
 design-only `SHARE-SPEC.md` (link format, storage schema, routes, permissions,
-password gate, range support and threat model). It did not implement SHARE; the
-twelve open decisions in that document are the blocking input.
+password gate, range support and threat model). Session 6 made a finished job's
+result revocable: `DELETE /api/jobs/:id` removes the work directory and the next
+token download is 404 (`PDF-SHARE-002`), and it cache-proofed the adjacent
+`/api/account*` and `/api/auth/me` responses. SHARE itself is still not
+implemented; the twelve open decisions in the spec are the blocking input.
 
 ---
 
@@ -299,5 +310,5 @@ paths both call. The rest of this section documents the boundary as audited.
 | `RENDER` | `packages/pdf-core/src/render/*` (canvas budget, page render, text runs/layout), `src/document/glyphs.ts`, `apps/web/src/workers/job-worker.ts` |
 | `EDITOR` | `packages/pdf-core/src/ops/edit.ts`, `src/textedit/*`, `src/ops/geometry.ts` |
 | `EXPORT` | `src/jobs/text.job.ts`, `images.job.ts`, `pdfToImages.job.ts`, `zip.job.ts` |
-| `SHARE` | none — not implemented; design in `SHARE-SPEC.md`. Session-5 fixes touch `apps/api/src/http/result-stream.ts`, the `/api/jobs` mounts and `apps/api/src/http/v1/routes.ts`. |
+| `SHARE` | none — not implemented; design in `SHARE-SPEC.md`. Session-5 fixes touch `apps/api/src/http/result-stream.ts` and the `/api/jobs` mounts; session 6 adds revocation in `apps/api/src/http/app.ts` and account/auth cache headers. |
 | `SEC-UPLOAD` | `apps/api/src/http/uploads.ts`, `apps/api/src/files/*` |

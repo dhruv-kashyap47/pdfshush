@@ -2,7 +2,10 @@
 
 Status: **deferred**. SHARE is not implemented in `apps/` or `packages/`; this
 document is the decision record for building it, written by session 5 of the
-PDF audit (`pdf/s5-share`). No code accompanies it.
+PDF audit (`pdf/s5-share`). No code accompanies it. Session 6 implemented the
+one boundary decision that was blocking the existing capability -- a finished
+job's result is now revocable through `DELETE /api/jobs/:id` -- but the share
+feature itself is still design-only.
 
 The session was scoped to audit and fix sharing. The audit found no sharing
 surface to audit (`FINDINGS.md`, `PDF-SHARE-000`), so the same security
@@ -28,7 +31,7 @@ Read with `ARCHITECTURE-PDF.md` §5 (what exists today) and `FINDINGS.md`
 | --- | --- | --- |
 | Sendable to a second party | No — a header, not a URL | Yes, a URL |
 | Token source | Derived from the server pepper | CSPRNG per share |
-| Revocable | Only by deleting the whole job (and a finished job refuses DELETE — `PDF-SHARE-002`) | Immediately, per link |
+| Revocable | Yes: DELETE a finished job removes its result (session 6, `PDF-SHARE-002`); the queue entry can remain until its retention window | Immediately, per link |
 | Lifetime | The work-directory TTL (1 h) | Owner-chosen, independent |
 | Permissions | Full owner access | view / download |
 | Extra protection | None | Optional password |
@@ -297,9 +300,10 @@ share implementation must keep all of them:
   (`PDF-SHARE-001`);
 - a cancelled (queued) job denies access immediately.
 
-Known gaps carried into the decisions: a **finished** job cannot be revoked
-before its TTL (`PDF-SHARE-002`), and the download stream does not advertise or
-honour ranges (today's endpoint is download-only; the share route must, per §5.3).
+Known gaps carried into the decisions: a finished job's result is now
+revocable (session 6 removed the old 409), and the download stream does not
+advertise or honour ranges (today's endpoint is download-only; the share route
+must, per §5.3).
 
 ---
 

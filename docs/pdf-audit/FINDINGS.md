@@ -8,7 +8,8 @@ known-failing repro tests.
 Session 2 (branch `pdf/s2-engine`, cut from `pdf/s1-audit`) audits the ENGINE
 and SEC-UPLOAD focus areas and fixes every unambiguous defect found there.
 Per-fix commits and verification are recorded in the status column; decisions
-that change product policy stay in "Needs decision" rather than being guessed.
+that change product policy were parked until session 6, when the owner answered
+them and they were implemented.
 
 Session 3 (branch `pdf/s3-render`, cut from `pdf/s2-engine`) audits the RENDER
 focus area: page rasterisation and its canvas budget, rotation/CropBox frames,
@@ -31,6 +32,15 @@ two defects there (`PDF-SHARE-001`, `003`), fixed one redaction-gate defect
 found while proving byte-level removal (`PDF-REDACT-001`), parked the inability
 to revoke a finished result (`PDF-SHARE-002`), and wrote the design-only
 `SHARE-SPEC.md`.
+
+Session 6 (branch `pdf/s6-decisions`, cut from `pdf/s5-share`) implemented the
+owner's decisions rather than re-auditing: a finished job can now be revoked,
+page-copy tools keep their AcroForm and semantic metadata, Flip/Resize flatten
+annotations instead of deleting them, the four lossy/limited surfaces report a
+non-blocking `warnings[]` notice, and `PDF-RENDER-003` warns instead of staying
+silent (the glyph fix itself remains deferred by the no-bundled-font decision).
+The `it.fails` repros that had become ordinary pass/fail cases were promoted to
+normal tests; only the CJK glyph repro remains expected-fail.
 
 Evidence conventions:
 
@@ -55,10 +65,10 @@ presentation only and are ordered by severity.
 
 | Rank | ID | Area | Symptom | Root cause | Severity | Fix size | Risk | Status | Repro |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `PDF-ENGINE-001` | ENGINE | Every page-copy/rebuild tool returns a PDF with no `/AcroForm`. Widget annotations remain on the page as unregistered orphans, so `inspect` reports 0 fields and no viewer can fill the form. Affects Organize, Delete Pages, Extract, every Split, Rotate/Crop, Merge, Combine, N-up, Stamp, Watermark, and the compose step of Flip/Resize. Silent. | `packages/pdf-core/src/ops/compose.ts:71` (`PDFDocument.create()`), `:95` (`copyPages`), `:133` (`addPage`) never carry the catalog-level form. Same shape: `ops/merge.ts:31,45`, `ops/combine.ts:71,96`, `ops/nup.ts:87`, `ops/split.ts:52-53`. | HIGH | L | HIGH | **Needs decision** (`7845dca`) | `packages/pdf-core/test/pdf-audit/page-pipelines.test.ts` |
-| 2 | `PDF-ENGINE-003` | ENGINE | Flip and Resize silently delete every page annotation and form widget: highlights, comments, links, stamps, signatures and form fields disappear. Page content itself is preserved. | `packages/pdf-core/src/ops/transform.ts:85-106` (`addPage` + `embedPage` + `removePage`) and `:152-176`. `embedPage` copies content streams only; `/Annots` is a page-dictionary entry, not content, so it is never re-attached. | HIGH | L | HIGH | **Needs decision** (`7845dca`) | `packages/pdf-core/test/pdf-audit/transform-annotations.test.ts` |
+| 1 | `PDF-ENGINE-001` | ENGINE | Every page-copy/rebuild tool returns a PDF with no `/AcroForm`. Widget annotations remain on the page as unregistered orphans, so `inspect` reports 0 fields and no viewer can fill the form. Affects Organize, Delete Pages, Extract, every Split, Rotate/Crop, Merge, Combine, Stamp, Watermark, and the compose step of Flip/Resize. Silent. | `packages/pdf-core/src/ops/compose.ts:71` (`PDFDocument.create()`), `:95` (`copyPages`), `:133` (`addPage`) never carry the catalog-level form. Same shape: `ops/merge.ts:31,45`, `ops/combine.ts:71,96`, `ops/nup.ts:87`, `ops/split.ts:52-53`. | HIGH | L | HIGH | **Fixed** for page-copy tools (`b721487`); N-up imposes onto new sheets and is outside the copy policy | `packages/pdf-core/test/pdf-audit/page-pipelines.test.ts` |
+| 2 | `PDF-ENGINE-003` | ENGINE | Flip and Resize silently delete every page annotation and form widget: highlights, comments, links, stamps, signatures and form fields disappear. Page content itself is preserved. | `packages/pdf-core/src/ops/transform.ts:85-106` (`addPage` + `embedPage` + `removePage`) and `:152-176`. `embedPage` copies content streams only; `/Annots` is a page-dictionary entry, not content, so it is never re-attached. | HIGH | L | HIGH | **Fixed** (`2160778`) — flattened into content, warning emitted, signatures refused | `packages/pdf-core/test/pdf-audit/transform-annotations.test.ts` |
 | 3 | `PDF-ENGINE-006` | ENGINE | A small, valid PNG (or JPEG) declaring an enormous raster is handed to `embedPng`/`embedJpg` before any limit is applied, so the worker inflates the full bitmap. A 63 KB PNG declaring 9000×1 px was accepted; an attacker-sized IHDR is a decompression bomb that dies as an OOM/tab crash instead of a refusal. | `packages/pdf-core/src/ops/imageDocs.ts:145-147` (`imagesToPdf` embeds first, checks later — it never checked at all) and `ops/combine.ts:114-116`. `LIMITS.tool.maxImagePixels` was only applied by the editor path (`ops/edit.ts:350-355`). | HIGH | S | LOW | **Fixed** (`9382d1d`) | `packages/pdf-core/test/next-tools.test.ts`, `packages/pdf-core/test/bookmark-batch.test.ts` |
-| 4 | `PDF-ENGINE-002` | ENGINE | `/Title`, `/Author`, `/Subject` and `/Keywords` disappear from the output of the compose/merge/combine family. `/CreationDate` and `/ModDate` survive. | `packages/pdf-core/src/ops/compose.ts:71-72`, `ops/merge.ts:34`, `ops/combine.ts:138`; `ops/dates.ts:91-99` deliberately sets/removes only the two date keys. | MEDIUM | S–M | LOW | **Needs decision** (`7845dca`) | `packages/pdf-core/test/pdf-audit/page-pipelines.test.ts` |
+| 4 | `PDF-ENGINE-002` | ENGINE | `/Title`, `/Author`, `/Subject` and `/Keywords` disappear from the output of the compose/merge/combine family. `/CreationDate` and `/ModDate` survive. | `packages/pdf-core/src/ops/compose.ts:71-72`, `ops/merge.ts:34`, `ops/combine.ts:138`; `ops/dates.ts:91-99` deliberately sets/removes only the two date keys. | MEDIUM | S–M | LOW | **Fixed** (`0d7dda8`) | `packages/pdf-core/test/pdf-audit/page-pipelines.test.ts` |
 | 5 | `PDF-ENGINE-008` | ENGINE | A worker that crashes while it is *between* jobs stays in the pool. The next job is posted into a dead worker global that can never answer, so it hangs until its full timeout (up to 120 s by default) and then reports a timeout instead of a crash. | `apps/web/src/lib/job-pool.ts:155-161`: `worker.onerror` only finished/respawned when `slot.job` was set. An idle worker has no job, so nothing recycled it. | MEDIUM | S | LOW | **Fixed** (`85a5d68`) | `apps/web/src/lib/job-pool.test.ts` |
 | 6 | `PDF-SEC-UPLOAD-001` | SEC-UPLOAD | Two uploaded files that sanitise to the same basename resolve to one path and the second write truncates the first. The job then runs with one document twice and one upload silently missing. Reproduced with `a b.pdf` + `a_b.pdf` (inline JSON) and with two maximum-length duplicate multipart names, where the `-2` suffix was truncated straight back off. | `apps/api/src/http/v1/routes.ts` deduped the *unsanitised* names; `apps/api/src/http/uploads.ts:183-191` appended the suffix before `store.writeInput` (`files/store.ts:77-78`) applied `safeFileName` again and truncated it. | MEDIUM | S | LOW | **Fixed** (`d3d0dde`) | `apps/api/test/v1.test.ts`, `apps/api/test/http.test.ts`, `apps/api/test/files.test.ts` |
 | 7 | `PDF-ENGINE-007` | ENGINE | When a pdf.js render task rejects (bad content stream, GPU context loss, cancelled page), the page-sized canvas allocated just before the await is never released. A page that fails mid-run pins its bitmap until GC. | `packages/pdf-core/src/render/renderPage.ts:71-80` awaited `task.promise` with no `catch`; `renderPageToImage`'s `finally` only covers a successful `renderPageToCanvas` return. The `null`-context path also threw after allocation. | MEDIUM | S | LOW | **Fixed** (`fa07fc2`) | `packages/pdf-core/test/renderPage-cleanliness.test.ts` |
@@ -80,9 +90,9 @@ for lack of a harness.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 10 | `PDF-RENDER-001` | RENDER | A tall page can never be rendered: a 600x6000 pt page is refused at 1600 and 2560 px with "Rendered page would be 1600x16000 px; the limit is 8192 px on the longest side", so its preview/export stays blank. A 5000x5000 pt page passes that check and allocates a 64 MP canvas, which iOS/Safari caps at ~16.7 MP and paints blank. A 250 pt wide page at the 2560 px preset is silently capped at 8x and returns 2000 px. | `packages/pdf-core/src/render/renderPage.ts:51-62` chose the scale from the requested width (via `scaleForWidth`'s hard 8x cap), then validated only the longest side and threw instead of fitting the budget. | HIGH | M | LOW | **Fixed** (`6d49d7d`) | `packages/pdf-core/test/render-budget.test.ts`, `packages/pdf-core/test/render-regression.test.ts` |
 | 11 | `PDF-RENDER-002` | RENDER | On a `/Rotate 90` page a horizontal line is reported as `rotationDeg: 0`, `direction: 'ltr'` while its glyph boxes are vertical and its `Line` says 90°/`ttb`. The two halves of the text model disagree, and the paragraph orientation key groups rotated text as horizontal. | `packages/pdf-core/src/document/glyphs.ts:259` computed `TextTypography.rotationDeg` from the raw PDF text matrix only. The page's `/Rotate` is applied later by the viewport. | LOW | S | LOW | **Fixed** (`b5cfcfa`) | `packages/pdf-core/test/textModel.test.ts` |
-| 12 | `PDF-RENDER-003` | RENDER | Non-embedded CJK text (Type0/CIDFontType0 with no `FontFile`, e.g. `STSong-Light`) extracts as `你好，世界` but every raster paints five `.notdef` boxes. Affects the editor preview, PDF-to-images, Grayscale, Dark mode and OCR output for those files. | `packages/pdf-core/src/render/pdfjsRuntime.ts:156-164` forces `disableFontFace: true` and `useSystemFonts: false`; a dedicated worker has no `FontFaceSet` (`apps/web/src/workers/job-worker.ts:33-41`), so pdf.js has neither a glyph program nor a system font to substitute. | HIGH | L | HIGH | **Needs decision** | `packages/pdf-core/test/render-regression.test.ts` (`it.fails`, `PDF-RENDER-003`) |
-| 13 | `PDF-RENDER-004` | RENDER | ICC color management is disabled. pdf.js warns `No ICC color space support due to missing 'wasmUrl' API option`; an ICCBased color space is treated as its component-count default (the profile is ignored), so ICC/CMYK-derived colors can be wrong. JPEG2000/JBIG2 decode through the slower no-wasm fallback. | `packages/pdf-core/src/render/pdfjsRuntime.ts:13-29`, `:190-195` never pass `wasmUrl`, `iccUrl` or `useWasm`; `apps/web/src/workers/job-worker.ts:44-50` configures cmaps and standard fonts only. | MEDIUM | M | MEDIUM | **Needs decision** | pdf.js source (`.pnpm/pdfjs-dist@6.4.299/.../pdf.worker.mjs:2784`, `:2807`) |
-| 14 | `PDF-RENDER-005` | RENDER | Inline text editing on a rotated page is drawn horizontally: the paragraph box is 18x289 pt (vertical) but the textarea and the text-object preview have no rotation transform, so the editor shows short horizontal lines over vertical text. | `apps/web/src/components/editor/text-layer.tsx:542-566` (`editorStyle` has no `transform`), `apps/web/src/components/editor/editor-page.tsx:996-1012` (text preview). | LOW | M | MEDIUM | **Needs decision** | `docs/pdf-audit/.baseline/probe-observations.log`-style probe: rotated fixture paragraph bbox 18x289 at `pkgs/pdf-core` probe; code path above |
+| 12 | `PDF-RENDER-003` | RENDER | Non-embedded CJK text (Type0/CIDFontType0 with no `FontFile`, e.g. `STSong-Light`) extracts as `你好，世界` but every raster paints five `.notdef` boxes. Affects the editor preview, PDF-to-images, Grayscale, Dark mode and OCR output for those files. | `packages/pdf-core/src/render/pdfjsRuntime.ts:156-164` forces `disableFontFace: true` and `useSystemFonts: false`; a dedicated worker has no `FontFaceSet` (`apps/web/src/workers/job-worker.ts:33-41`), so pdf.js has neither a glyph program nor a system font to substitute. | HIGH | L | HIGH | **Warning fixed** (`6d499f0`); glyph fix deferred by the no-bundled-font decision | `packages/pdf-core/test/render-regression.test.ts` (`it.fails`, `PDF-RENDER-003`), `test/pdf-audit/font-warnings.test.ts` |
+| 13 | `PDF-RENDER-004` | RENDER | ICC color management is disabled. pdf.js warns `No ICC color space support due to missing 'wasmUrl' API option`; an ICCBased color space is treated as its component-count default (the profile is ignored), so ICC/CMYK-derived colors can be wrong. JPEG2000/JBIG2 decode through the slower no-wasm fallback. | `packages/pdf-core/src/render/pdfjsRuntime.ts:13-29`, `:190-195` never pass `wasmUrl`, `iccUrl` or `useWasm`; `apps/web/src/workers/job-worker.ts:44-50` configures cmaps and standard fonts only. | MEDIUM | M | MEDIUM | **Deferred** — ships reviewed binary assets and changes colors | pdf.js source (`.pnpm/pdfjs-dist@6.4.299/.../pdf.worker.mjs:2784`, `:2807`) |
+| 14 | `PDF-RENDER-005` | RENDER | Inline text editing on a rotated page is drawn horizontally: the paragraph box is 18x289 pt (vertical) but the textarea and the text-object preview have no rotation transform, so the editor shows short horizontal lines over vertical text. | `apps/web/src/components/editor/text-layer.tsx:542-566` (`editorStyle` has no `transform`), `apps/web/src/components/editor/editor-page.tsx:996-1012` (text preview). | LOW | M | MEDIUM | **Deferred** — changes interaction design | `docs/pdf-audit/.baseline/probe-observations.log`-style probe: rotated fixture paragraph bbox 18x289 at `pkgs/pdf-core` probe; code path above |
 | 15 | `PDF-RENDER-006` | RENDER | Swapping documents while page rasters are in flight bypasses the two-render concurrency cap: `invalidateDocumentCaches` zeroes the counter and queue, then each old `ensureRaster` `finally` decrements the fresh counter and dequeues a page of the *new* document. Up to four full file reads run at once instead of two. | `apps/web/src/components/tools/edit-pdf-tool.tsx:805-809` (reset) vs `:638-659` (old callbacks mutate the new state). | LOW | S | LOW | **Deferred** — needs a browser/React harness; the fix is a generation guard in `finally` | `apps/web/src/components/tools/edit-pdf-tool.tsx:594-659` |
 
 ### Session 4 — EDITOR / EXPORT (`pdf/s4-editor`)
@@ -128,7 +138,7 @@ false-refusal in the verification gate, fixed as `PDF-REDACT-001`.
 | Rank | ID | Area | Symptom | Root cause | Severity | Fix size | Risk | Status | Repro |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 24 | `PDF-SHARE-001` | SHARE | A completed result is cached by any intermediary that stores it: the URL (`/api/jobs/<id>/files/<name>`) contains no secret (the capability travels in `x-job-token`), and the response carried no `Cache-Control` at all. A shared cache can replay the document to a caller that never had the token, and keeps replaying it after expiry or revocation. Job state JSON and 404/403 bodies were cacheable too. | `apps/api/src/http/result-stream.ts:47-51` set only Content-Type/Length/Disposition; `apps/api/src/http/app.ts:375-412` and `v1/routes.ts:472-535` set no cache headers on state or errors. | MEDIUM | S | LOW | **Fixed** (`2cba94c`) | `apps/api/test/share-boundary.test.ts` ("tells every cache not to store…"), `tests/e2e/share-boundary.mjs` |
-| 25 | `PDF-SHARE-002` | SHARE | A finished result cannot be revoked before the one-hour TTL. `DELETE /api/jobs/:id` answers 409 `not_cancellable`, removes nothing, and the same token keeps downloading the file. There is no other revoke route. | `apps/api/src/jobs/queue.ts:148` classifies completed/failed as `'finished'`; `apps/api/src/http/app.ts:430-438` maps that to 409 without touching the work directory. | MEDIUM | M | HIGH | **Needs decision** | `apps/api/test/share-boundary.test.ts` (`it.fails`, "blocks access immediately when a completed job is revoked") |
+| 25 | `PDF-SHARE-002` | SHARE | A finished result cannot be revoked before the one-hour TTL. `DELETE /api/jobs/:id` answers 409 `not_cancellable`, removes nothing, and the same token keeps downloading the file. There is no other revoke route. | `apps/api/src/jobs/queue.ts:148` classifies completed/failed as `'finished'`; `apps/api/src/http/app.ts:430-438` maps that to 409 without touching the work directory. | MEDIUM | M | HIGH | **Fixed** (`9263c69`) — DELETE removes the result, 2xx, next read is 404 | `apps/api/test/share-boundary.test.ts` ("blocks access immediately when a completed job is revoked") |
 | 26 | `PDF-SHARE-003` | SHARE | The download filename is written into `Content-Disposition` from the queue-reported value without re-sanitising it, although the route's own contract says the name is safe. A quote produces a malformed RFC 6266 quoted-string; a CR/LF makes `setHeader` throw after the stat, i.e. a 500 instead of a download. | `apps/api/src/http/result-stream.ts:51` (before `8e2fd65`) trusted the invariant enforced only by `files/store.ts:117` when the result was written. | LOW | S | LOW | **Fixed** (`8e2fd65`) | `apps/api/test/share-boundary.test.ts` ("sanitises the download filename reported by the queue") |
 | 27 | `PDF-REDACT-001` | REDACT | Redacting a page completely is refused with "page-not-blank: a page lost its content — contrast spread only -255". The user asked for exactly that result; the error is indistinguishable from a failed render. | `packages/pdf-core/src/redact/verify.ts:430-455` (before `f922d62`) computed min/max luminance over samples outside the marks and asserted when there were none, instead of skipping the vacuous comparison. | LOW | S | LOW | **Fixed** (`f922d62`) | `packages/pdf-core/test/redact.test.ts` ("accepts a page that is entirely covered by its marks"), `test/pdf-audit/redaction-output.test.ts` |
 
@@ -381,7 +391,8 @@ path-only rendering inside a worker), and pdf.js can only fall back to a system
 font through a `document.fonts` FontFaceSet, which a dedicated worker does not
 have (`job-worker.ts:33-41`). The fix is a bundle decision (an embeddable CJK
 fallback, e.g. a subsetted Noto/Adobe Song, or an explicit "this document uses
-a non-embedded CJK font" warning), so it is parked in Needs decision.
+a non-embedded CJK font" warning), so it was parked in Needs decision. Session
+6 chose the warning only and left the glyph fix `it.fails`.
 
 ### PDF-RENDER-004 — ICC profiles and wasm decoders are not configured
 
@@ -578,13 +589,16 @@ other delete route. A queued job *is* revoked immediately: `cancel` removes the
 job and `store.removeJob` (`queue.ts:158`), and the test asserts the next read is
 404.
 
-Why this is parked: making `DELETE` remove a finished result changes the public
+Why this was parked: making `DELETE` remove a finished result changes the public
 semantics of an already-shipped route (today 409 means "nothing to cancel"), and
 choosing between (a) 200 + delete, (b) a separate revoke endpoint and (c) a
 signed short-lived URL is a product/API decision. The existing
 `http.test.ts` case pins the current 409 contract; the session added the
 desired-behaviour repro as `it.fails` so the suite stays green and turns red the
 day the decision lands. `SHARE-SPEC.md` §5.1/§9 (D8) records the options.
+
+Superseded in session 6: the owner chose (a). See "Session 6 evidence -
+PDF-SHARE-002".
 
 ### PDF-SHARE-003 — the header trusted a queue-supplied name
 
@@ -659,6 +673,111 @@ every page replaced by an image). No defect was found in removal.
 | Status codes | 400 malformed id, 403 missing/wrong token (foreign and unknown indistinguishable), 404 unknown/expired/removed result, 200/206 not implemented. Tested + e2e. |
 | Range requests | **Not supported, and not a defect on a download-only route.** A probe with `Range: bytes=0-4` returned 200 and the complete 21-byte body with `Content-Length: 21` and no `Accept-Ranges`; RFC 9110 §14.2 permits ignoring `Range`. Large downloads therefore cannot resume — recorded as a requirement for the future share route (`SHARE-SPEC.md` §5.3), not fixed here, because adding partial-content semantics changes the shipped response contract for every result kind. |
 
+## Session 6 evidence (owner decisions)
+
+Session 6 did not re-audit. It implemented the decisions the owner made for the
+parked items, one root cause per commit, and converted every `it.fails` repro
+whose bug is now fixed into an ordinary test. The four affected surfaces share
+one new contract: an optional `warnings?: string[]` on a successful job result,
+rendered by `ResultPanel` as a non-blocking notice. Older clients ignore it, and
+a job with nothing to report omits the key entirely.
+
+### PDF-SHARE-002 — revoking a finished result
+
+`DELETE /api/jobs/:id` now handles the queue's `finished` outcome by removing
+the job's work directory and answering `200 {"status":"deleted"}`. The queue
+entry itself is untouched (the route owns the bytes), so a poll may still show
+the completed state, but every download is a 404 `result_not_found` immediately
+rather than after the retention janitor runs. Queued jobs keep `200 cancelled`,
+and running jobs keep their cooperative `202 cancelling` contract.
+
+Evidence: the former `it.fails` in `apps/api/test/share-boundary.test.ts` is a
+normal test, a failed-job variant was added, `apps/api/test/http.test.ts` now
+pins the 2xx/`deleted` contract, and `tests/e2e/share-boundary.mjs` performs the
+real revocation and re-download. The same commit mounted the existing no-store
+middleware on `/api/account*` and `/api/auth/me` with `Vary: cookie`, closing the
+adjacent cache class recorded as risk 5 in the session-5 report.
+
+### PDF-ENGINE-001 — AcroForm across page copies
+
+`ops/formCopy.ts` clones the field tree node by node. It maps each widget's `/P`
+to the destination page instead of letting a generic object copier follow `/P`
+into the source page tree, and rewrites the page's `/Annots` to reference the
+copied field widgets, so the form tree and the page share one widget object.
+Single-source composes keep the form; merge/combine append each source's field
+tree and rename colliding fully-qualified names (`person.name` -> `person.name_2`,
+then `_3`); a duplicated page gets its own renamed field copies. The `/XFA`
+mirror is dropped, leaving one authoritative AcroForm tree.
+
+Evidence: `page-pipelines.test.ts` opens the fixture, copies, fills, saves and
+reopens: `person.name`, `person.country` and `person.tags` keep their values and
+the catalog registers `/AcroForm`. Merge of two forms exposes both `person.name`
+and `person.name_2`; the duplicate-page case asserts every widget `/P` points at
+one of the two real output pages (no page-tree duplication). The round-trip
+harness gained a "merged form" case that fills both renamed fields. N-up is not
+a page copy -- it imposes source pages onto new sheets -- so it stays outside
+this policy rather than pretending a widget rectangle survived the imposition.
+
+### PDF-ENGINE-002 — semantic metadata
+
+`readDocumentMetadata`/`applyDocumentMetadata` copy Title, Author, Subject and
+Keywords. Compose, N-up and split-in-half inherit their single source; merge and
+combine use the first PDF (or first document) by explicit policy. The date
+policy is unchanged: earliest creation / latest modification, written only by
+`applyDocumentDates`.
+
+Evidence: `page-pipelines.test.ts` pins all four fields on organize, merge and
+combine, and asserts the inherited creation date is unchanged.
+
+### PDF-ENGINE-003 — Flip/Resize annotation policy
+
+The owner chose flattening. `ops/transform.ts` detects `/FT /Sig` fields and
+refuses with a clear error before touching the page, then paints every
+annotation into the page content before the page is embedded: a stored `/AP /N`
+stream is invoked as a Form XObject with its `/BBox` mapped to the `/Rect`;
+annotations without an appearance (the audit fixture's highlight, square and
+free text) are synthesised from `/QuadPoints`/`/Rect`/`/C`/`/Contents`. Widgets
+are included, so the output is deliberately no longer fillable and the AcroForm
+registration is removed. The result carries a `warnings[]` notice naming the
+count and the form loss.
+
+Evidence: `transform-annotations.test.ts` asserts both tools emit the warning,
+leave zero live annotations, and that a document with a signature field is
+refused. `roundtrip.test.ts` adds a flip-with-annotation case and the render
+corpus gained `flip-annotations.p1.s1.png`, a committed golden of the flattened
+yellow highlight and blue square after the mirror. The image was inspected
+before committing; the highlight box also passes an ink check.
+
+### PDF-RENDER-003 — warning only, no bundled font
+
+**Decision: do not bundle a CJK fallback font.** Size, licensing and the
+deterministic path-only font strategy outweigh a glyph fix in this audit line.
+`render/fontWarnings.ts` reads every page's font resources, finds Type0/CID
+fonts with no `/FontFile`, `/FontFile2` or `/FontFile3`, and returns a warning
+naming the font. PDF-to-images, Grayscale, Dark mode and OCR attach it to their
+results, so the user sees the limitation instead of silent `.notdef` boxes.
+The glyph repro stays `it.fails` in `render-regression.test.ts`; when a fallback
+is chosen, that test is the acceptance criterion. Detection is best-effort: an
+unreadable document returns no warning rather than failing the render.
+
+### PDF-EXPORT-002/003 — alpha and source-page names
+
+Extract Images now summarises `alphaDropped` into a warning (the files are still
+opaque RGB; writing RGBA remains a future encoder change). PDF-to-images names
+each output from its **source page number** (`pageIndexes[i] + 1`), so selecting
+pages 3 and 5 produces `...-3.jpg` / `...-5.jpg`; the all-pages names and their
+zero padding are unchanged. No contract change beyond `warnings[]` was needed.
+
+### Deferred by decision (PDF-RENDER-004/005/006)
+
+- `PDF-RENDER-004` (ICC/wasm assets) stays deferred: enabling it ships ~480 KB
+  of reviewed binary assets and changes rendered colors for ICC/CMYK documents.
+- `PDF-RENDER-005` (rotated inline editing) stays deferred: rotating the editor
+  surface changes interaction design and needs a UI decision.
+- `PDF-RENDER-006` (raster-cap race on document swap) stays deferred: the
+  editor raster queue still has no deterministic Node harness, and the fix is a
+  generation guard that should be proven in that harness.
+
 ---
 
 ## Counts
@@ -683,94 +802,54 @@ By severity:
 | MEDIUM | 11 (`ENGINE-002`, `ENGINE-007`, `ENGINE-008`, `SEC-UPLOAD-001`, `RENDER-004`, `EDITOR-001`, `EDITOR-003`, `EDITOR-005`, `EDITOR-006`, `SHARE-001`, `SHARE-002`) |
 | LOW | 12 (`ENGINE-004`, `ENGINE-005`, `RENDER-002`, `RENDER-005`, `RENDER-006`, `EDITOR-004`, `EDITOR-007`, `EXPORT-001`, `EXPORT-002`, `EXPORT-003`, `SHARE-003`, `REDACT-001`) |
 
-Session 2 closed 5 of the 8 in-scope findings; the 3 open ones are all
-needs-decision (form, metadata and annotation policy, below). Session 3 closed
-2 of the 6 RENDER findings, parked 3 decisions and deferred 1 harness. Session 4
-closed `ENGINE-004` and all seven EDITOR findings, fixed the `/Decode` image
-export defect, and parked two export policy decisions (transparent images and
-output page names, below). Session 5 closed `SHARE-001`, `SHARE-003` and
-`REDACT-001`; `SHARE-002` is a needs-decision item, and SHARE itself remains
-unimplemented by decision.
+Session 2 closed 5 of the 8 in-scope findings; the 3 open ones were the form,
+metadata and annotation policy decisions. Session 3 closed 2 of the 6 RENDER
+findings, parked 3 decisions and deferred 1 harness. Session 4 closed
+`ENGINE-004` and all seven EDITOR findings, fixed the `/Decode` image export
+defect, and parked two export policy decisions (transparent images and output
+page names). Session 5 closed `SHARE-001`, `SHARE-003` and `REDACT-001`.
+Session 6 implemented every remaining engine/export/share-boundary decision:
+`ENGINE-001`, `ENGINE-002`, `ENGINE-003`, `SHARE-002`, the warning surface
+(`ENGINE-004` follow-up), `RENDER-003` (warning only), and `EXPORT-002`/`003`.
+`RENDER-004`/`005`/`006` remain deferred with the reasons above; SHARE itself
+and its twelve design decisions remain unimplemented by decision. Only the CJK
+glyph repro (`RENDER-003`) is still `it.fails`; the other session-1 repros are
+ordinary passing tests.
 
 ---
 
-## Needs decision
+## Open decisions
 
-These are product/contract decisions, not implementation details. A fix that
-guesses one of them can break issued documents or surprise users, so they are
-parked here rather than "fixed".
+The session-2/3/4/5 decisions were answered by the owner and implemented in
+session 6 (see "Session 6 evidence"): form policy, metadata precedence,
+annotation semantics on Flip/Resize, the warnings contract, the CJK choice
+(warn, do not bundle a font), the two export options and revoking a finished
+job are no longer parked. No ENGINE, EXPORT or SHARE-boundary decision remains
+open.
 
-1. **Form policy across document boundaries (`PDF-ENGINE-001`).**
-   Single-source compose can copy the field tree and remap widget `/P` refs.
-   Multi-source merge/combine has no obvious answer: keep only the first
-   document's form, rename colliding field names, or flatten every form and
-   carry appearances only. Also decide whether a copied page's widgets should
-   stay live, become static, or be dropped with a warning. Session 2 did not
-   guess: the naive fix (copy the catalog `/AcroForm` with a fresh copier)
-   either duplicates the page tree through every widget `/P` or leaves the
-   field widgets disjoint from the page annotations, so it needs the policy
-   above. Duplicated pages in Organize add a second sub-question (one field
-   tree, several widget copies).
-2. **Metadata precedence (`PDF-ENGINE-002`).**
-   Single-source compose should inherit Title/Author/Subject/Keywords, but
-   Merge/Combine need a rule: first document wins, last wins, union of keywords,
-   or no semantic metadata by design. The current date policy ("earliest
-   creation, latest modification") suggests source-derived values are wanted;
-   the tool copy does not say.
-3. **Annotation semantics on Flip/Resize (`PDF-ENGINE-003`).**
-   Carrying a live annotation through a geometry rebuild is not just a copy:
-   rectangles, quad points and link destinations must be transformed, and a
-   digital signature would be invalidated by the rewrite. The alternatives are
-   (a) transform and re-create live annotations, (b) flatten their appearances
-   into page content, or (c) refuse/warn when annotations exist. Pick one before
-   implementing.
-4. **Warning surface for lossy tools.** Today all of the above are silent. If
-   the chosen policy keeps any loss, the tool result should say what was
-   dropped; that is a UI/contract change, not an engine detail.
-5. **Non-embedded CJK fallback (`PDF-RENDER-003`).** A worker has no
-   `FontFaceSet`, so the current deterministic path-only font strategy renders
-   `.notdef` boxes for Type0 fonts without a `FontFile` (the common
-   `STSong-Light` case) even though the text extracts correctly. Options:
-   bundle a subsetted CJK fallback font and wire it into pdf.js's substitution
-   map (size/licensing), render those documents in a context with a font stack,
-   or accept the boxes and warn the user before exporting. This changes visible
-   output and ships a font, so it is not guessed here.
-6. **ICC/wasm rendering assets (`PDF-RENDER-004`).** Enabling ICC conversion
-   means shipping pdf.js's `wasm/` and `iccs/` files (~480 KB) and passing
-   `wasmUrl`/`iccUrl` from `job-worker.ts`, plus a build rule that keeps them in
-   sync with the pdf.js version. It changes colors for ICC/CMYK documents and
-   adds reviewed binary assets, so the packaging decision goes here.
-7. **Rotated-text inline editing (`PDF-RENDER-005`).** The paragraph editor and
-   text-object preview do not rotate with the page. Rotating the editing
-   surface or replacing it with a vertical editor changes interaction design,
-   so it needs a decision.
-8. **Transparent images in Extract Images (`PDF-EXPORT-002`).** A Flate image
-   with an `/SMask` is exported as opaque RGB; `alphaDropped` is computed per
-   file (`packages/pdf-core/src/ops/images.ts`) but the result UI never reads it
-   (`apps/web/src/components/tools/extract-images-tool.tsx`), so the gallery and
-   footer still imply a lossless export. Options: write RGBA PNGs (new encoder
-   path), warn per affected image, or count them as skipped. The first changes
-   an output format, the latter two change the reported result, so this is
-   parked rather than guessed.
-9. **PDF-to-images output names (`PDF-EXPORT-003`).** When a subset is
-   selected, images are named by their position in the selection
-   (`page-01.jpg`, `pdfToImages.job.ts:93`) and the preview alt text says
-   "Page 1..N", not the source page number. Renaming would make downloads
-   self-identifying but is a user-visible naming change, so it needs a decision.
-10. **Revoking a finished result (`PDF-SHARE-002`).** `DELETE /api/jobs/:id`
-   answers 409 for a completed or failed job and leaves the result readable
-   until the retention TTL. Options: (a) treat a finished job's DELETE as
-   "delete the result" (200 + remove the directory, and update the existing
-   test), (b) add a separate revoke/delete route, (c) keep the one-hour TTL as
-   the only revocation. (a) is the smallest change but alters a shipped status
-   code; (c) is the status quo. `SHARE-SPEC.md` §9 D8 covers the cascade
-   question for real share links.
-11. **Share feature design (`SHARE-SPEC.md`).** Twelve decisions (storage
+1. **Share feature design (`SHARE-SPEC.md`).** Twelve decisions (storage
    lifetime, view/download semantics, edit permission, expiry defaults,
    status-code policy, password policy, backend, cascade, origin, audit,
    anonymous owners, embedding) are listed there with recommendations. No code
    exists until they are answered; issued links cannot be migrated cheaply,
    which is why they were not guessed.
+2. **`PDF-RENDER-004` — ICC/wasm assets (deferred).** Enabling ICC conversion
+   means shipping pdf.js's `wasm/` and `iccs/` files (~480 KB), passing
+   `wasmUrl`/`iccUrl` from `job-worker.ts`, and adding a build rule that keeps
+   them in sync with the pdf.js version. It changes colors for ICC/CMYK
+   documents and adds reviewed binary assets.
+3. **`PDF-RENDER-005` — rotated inline editing (deferred).** Rotating the
+   paragraph editor or replacing it with a vertical editor changes interaction
+   design; it should be decided with the editor UX, not in the engine audit.
+4. **`PDF-RENDER-006` — raster-cap race on document swap (deferred).** The
+   editor raster queue still has no deterministic Node harness, and the fix is
+   a generation guard that should be proven there rather than merged on a
+   browser probe alone.
+5. **Future follow-ups, not findings.** Writing RGBA PNGs in Extract Images
+   (the alpha loss is now warned), bundling a CJK fallback font (the glyph repro
+   remains `it.fails`), and range support on the existing job download route
+   (required for the future share route, not for the current download-only
+   contract).
 
 ---
 
@@ -820,20 +899,19 @@ tests:
   (`apps/web/src/workers/job-worker.ts:33-41`).
 - Arabic text appearing reordered after extraction is pdf.js visual-order output,
   not corruption (`packages/pdf-core/src/jobs/text.job.ts:39-44`).
-- Gated e2e/sweep suites could not run because Docker, Redis and Memurai were
-  unavailable in this environment; the gap and the failed preflight are recorded
-  in `BASELINE.md`. No result here depends on those suites.
+- Gated e2e/sweep suites could not run in sessions 1-4 because Docker, Redis and
+  Memurai were unavailable; the gap and the failed preflight are recorded in
+  `BASELINE.md`. Sessions 5 and 6 ran them live (see Verification). No result
+  here depends on the blocked runs.
 
 ---
 
 ## Verification
 
 ```powershell
-# Repros: 7 known-failing cases, suite stays green while the bugs exist.
+# The audit repro suite now has one expected-fail case (the CJK glyph render);
+# every other decision repro is an ordinary test.
 pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit
-
-# Watch a repro actually fail: remove `.fails` from one `it.fails` case.
-# On a correct fix, the case must be promoted to `it` (delete `.fails`).
 ```
 
 Session-1 repro commit: `7845dca` (docs, fixtures and known-failing tests only;
@@ -841,8 +919,12 @@ no source change). Session-2 fixes: `550f545`, `9382d1d`, `fa07fc2`, `85a5d68`,
 `d3d0dde` (one root cause each). Session-3 fixes: `6d49d7d`, `b5cfcfa`; the
 render-regression corpus and overlay coverage are `160fdf4`. Session-4 harness:
 `900d452`; fixes: `ed9d2d3`, `a5bffdd`, `2967699`, `32708be`, `d1b78d9`,
-`a642124`, `03cbf25`, `5acf1be`, `55f2321` (one root cause each). Lifecycle and
-render numbers: `METRICS.md`.
+`a642124`, `03cbf25`, `5acf1be`, `55f2321` (one root cause each). Session-5
+fixes: `2cba94c`, `8e2fd65`, `f922d62`; evidence `f94ebda`. Session-6 fixes:
+`9263c69` (SHARE-002 + account/auth cache), `7d0f75d` (warnings contract),
+`b721487` (ENGINE-001), `0d7dda8` (ENGINE-002), `2160778` (ENGINE-003),
+`6d499f0` (RENDER-003 warning), `7bd3051` (EXPORT-002/003). Lifecycle and render
+numbers: `METRICS.md`.
 
 Session-2 commands:
 
@@ -897,6 +979,24 @@ node tests/e2e/share-boundary.mjs  # 17/17: upload -> process -> token download 
 pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit/roundtrip.test.ts  # 15 passed
 pnpm --filter @pdfshush/pdf-core exec vitest run test/render-regression.test.ts    # 10 passed, 1 expected fail
 ```
+
+Session-6 commands (live, stack up):
+
+```powershell
+pnpm typecheck            # pass (all 7 packages)
+pnpm test                 # 1523 passed, 0 failed, 1 expected fail (119 files)
+pnpm build                # pass, 63 routes prerendered
+pnpm test:bundle          # pass, 0 engines in app chunks
+node tests/support/preflight.mjs   # exit 0: web + API reachable, compose ok
+pnpm test:e2e             # ALL CHECKS PASSED (14 tools + editor + redact)
+node tests/e2e/share-boundary.mjs  # 18/18 incl. finished-result revocation
+pnpm test:sweep           # 60 groups vs 60 at baseline; no new group
+pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit/roundtrip.test.ts  # 17 passed
+pnpm --filter @pdfshush/pdf-core exec vitest run test/render-regression.test.ts    # 11 passed, 1 expected fail
+```
+
+The CJK glyph repro is the single expected fail. `RENDER-004`/`005`/`006` are
+deferred with the reasons in "Open decisions"; nothing was added to the bundle.
 
 The gated suites ran for the first time in this audit: Docker, Redis, the API
 and the web dev server were all available in this session. Lint is still not

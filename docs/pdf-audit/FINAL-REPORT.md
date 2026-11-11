@@ -1,4 +1,4 @@
-# PDF audit — final report, session 5 (share boundary)
+# PDF audit - final report (sessions 1-5, with session 6 addendum)
 
 Branch `pdf/s5-share`, cut from `pdf/s4-editor` at `20280e5`.
 Date 2026-11-11. Windows 11, Node v24.21.0, pnpm 12.11.2.
@@ -330,3 +330,133 @@ pnpm --filter @pdfshush/pdf-core exec vitest run test/render-regression.test.ts
 The API and web dev servers were stopped before the performance probes were
 taken and are not left running. The `pdfshush-redis-1` container was stopped
 after the gate (`docker compose stop redis`); the stack is not left up.
+
+---
+
+# Session 6 addendum - owner decisions implemented (2026-11-11)
+
+Branch `pdf/s6-decisions`, cut from `pdf/s5-share` at `012c82c`. Date
+2026-11-11. Windows 11, Node v24.21.0, pnpm 12.11.2. Companion documents:
+`FINDINGS.md` (status per finding), `PLAN.md` §36, `ARCHITECTURE-PDF.md`,
+`BASELINE.md` (session 1), `METRICS.md` (sessions 2-5).
+
+## 1. Outcome
+
+Every parked engine/export/share-boundary decision is implemented, one root
+cause per commit, with the former `it.fails` repros promoted to ordinary tests.
+The one remaining expected fail is the actual CJK glyph render, kept because the
+owner chose to warn rather than bundle a fallback font.
+
+| Commit | Subject | Finding |
+| --- | --- | --- |
+| `9263c69` | `fix(pdf-share): revoke finished results and cache-proof account responses` | PDF-SHARE-002 |
+| `7d0f75d` | `feat(pdf-core): add optional warnings to the job result contract` | warnings surface |
+| `b721487` | `fix(pdf-core): preserve AcroForm across page-copy tools` | PDF-ENGINE-001 |
+| `0d7dda8` | `fix(pdf-core): preserve semantic document metadata` | PDF-ENGINE-002 |
+| `2160778` | `fix(pdf-core): flatten annotations on flip and resize` | PDF-ENGINE-003 |
+| `6d499f0` | `fix(pdf-render): warn about non-embedded CJK fonts` | PDF-RENDER-003 |
+| `7bd3051` | `fix(pdf-export): surface dropped alpha and name images by source page` | PDF-EXPORT-002/003 |
+
+## 2. What changed
+
+- **Revocation.** `DELETE /api/jobs/:id` on a completed/failed job removes the
+  result directory and answers `200 {"status":"deleted"}`; the same token then
+  gets `404 result_not_found`. Running jobs keep the cooperative `202`
+  cancellation contract; queued jobs keep `200 cancelled`. The same commit put
+  `Cache-Control: private, no-store` + `Vary: cookie` on `/api/account*` and
+  `/api/auth/me`, closing the adjacent cache class from the session-5 report.
+- **Warning contract.** Successful job results may carry an optional
+  `warnings?: string[]`. `ResultPanel` renders it as a non-blocking "Worth
+  knowing" notice; the server runner, BullMQ return value and state snapshot
+  carry the same field, and an older client sees no key when there is nothing to
+  report.
+- **AcroForm.** `ops/formCopy.ts` clones the field tree without following `/P`
+  into the page tree, rewires each widget to its destination page, and makes the
+  page `/Annots` reference the cloned field widgets. Single-source copies keep
+  the form; merge/combine append field trees with `_2`, `_3` collisions; a
+  duplicated page gets renamed field copies. `/XFA` is dropped in favour of one
+  AcroForm tree.
+- **Metadata.** Compose/N-up/split inherit Title/Author/Subject/Keywords from
+  their single source; merge/combine use the first PDF. Dates are unchanged
+  (earliest creation, latest modification).
+- **Flip/Resize annotations.** Stored `/AP /N` appearances are painted as Form
+  XObjects; annotations without an appearance are synthesised from
+  rect/quad/colour/contents. Widgets are flattened, the AcroForm registration is
+  removed and the result warning says the output is no longer fillable. A
+  document with a `/FT /Sig` field is refused with a clear error before any
+  rewrite.
+- **CJK.** No font is bundled. `render/fontWarnings.ts` detects Type0/CID fonts
+  with no `/FontFile*` and names them in PDF-to-images, Grayscale, Dark-mode and
+  OCR results. The glyph repro remains `it.fails`.
+- **Export.** Extract Images warns when an `/SMask` was dropped. PDF-to-images
+  names files by source page number; all-pages names are unchanged.
+
+## 3. Integration gate (live, this session)
+
+| Step | Command | Result | Session 5 | Baseline |
+| --- | --- | --- | --- | --- |
+| Typecheck | `pnpm typecheck` | pass | pass | pass |
+| Unit | `pnpm test` | **1523 passed, 0 failed, 1 expected fail, 119 files** | 1496 / 0 / 8 / 117 | 1409 / 7 |
+| Build | `pnpm build` | pass, 63 routes prerendered | pass, 63 | pass |
+| Bundle | `pnpm test:bundle` | pass, 0 engines in app chunks | pass | pass |
+| Preflight | `node tests/support/preflight.mjs` | exit 0 | exit 0 | exit 1 |
+| Browser E2E | `pnpm test:e2e` | ALL CHECKS PASSED | ALL CHECKS PASSED | blocked |
+| Share walkthrough | `node tests/e2e/share-boundary.mjs` | **18/18** | 17/17 | n/a |
+| Sweep | `pnpm test:sweep` | **60 groups**, same as baseline | 61 groups | 60 |
+| Round-trip | `vitest run test/pdf-audit/roundtrip.test.ts` | **17 passed** | 15 passed | n/a |
+| Render regression | `vitest run test/render-regression.test.ts` | **11 passed, 1 expected fail** | 10 / 1 | n/a |
+| Lint | `pnpm lint` | not configured | not configured | not configured |
+
+No number regressed. The sweep is back to the baseline's 60 known footer-reveal
+groups (the session-5 extra `/` race did not reproduce). Bundle sizes are
+unchanged apart from content hashes; the new font detector adds no asset and no
+dependency.
+
+## 4. Focused evidence added
+
+- `packages/pdf-core/test/pdf-audit/page-pipelines.test.ts` - form and metadata
+  promotion, field fill/save/reopen, `_2` collisions, duplicate-page `/P` refs.
+- `packages/pdf-core/test/pdf-audit/transform-annotations.test.ts` - flatten
+  warnings, zero live annotations, widget flattening, signature refusal.
+- `packages/pdf-core/test/pdf-audit/roundtrip.test.ts` - merged-form case and
+  flip-with-annotation case added to the fixture harness (17 total).
+- `packages/pdf-core/test/render-regression.test.ts` + committed
+  `flip-annotations.p1.s1.png` - the flattened highlight/square after a mirror.
+- `packages/pdf-core/test/pdf-audit/font-warnings.test.ts` - CJK font named,
+  ordinary fixture silent.
+- `packages/pdf-core/test/pdf-audit/export-warnings.test.ts` - alpha warning and
+  source-page names.
+- `apps/api/test/share-boundary.test.ts` (23 cases) and
+  `apps/api/test/http.test.ts` - revocation, failed-job revocation, account/auth
+  cache headers.
+
+## 5. Remaining / deferred
+
+- `PDF-RENDER-004` (ICC/wasm assets), `PDF-RENDER-005` (rotated inline editing)
+  and `PDF-RENDER-006` (raster-cap swap race) are deferred with the reasons in
+  `FINDINGS.md`.
+- The CJK glyph fix is the single expected fail; it is deferred by the explicit
+  no-bundled-font decision.
+- Share itself remains unimplemented; `SHARE-SPEC.md` still holds its twelve
+  design decisions. Revocation of an existing job result is now available.
+- Extract Images still writes opaque RGB; only the warning changed.
+
+## 6. Reproduction
+
+```powershell
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:bundle
+
+pnpm dev                                  # redis + api :8080 + web :5173
+node tests/support/preflight.mjs          # exit 0
+pnpm test:e2e                             # ALL CHECKS PASSED
+node tests/e2e/share-boundary.mjs         # 18/18
+pnpm test:sweep                           # 60 groups
+
+pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit/roundtrip.test.ts
+pnpm --filter @pdfshush/pdf-core exec vitest run test/render-regression.test.ts
+pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit/page-pipelines.test.ts
+pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit/transform-annotations.test.ts
+```

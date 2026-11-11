@@ -7023,3 +7023,57 @@ state rather than a code regression.
 - Redaction removal was verified from the output bytes (pdf.js extraction,
   decompressing text-operator scan, object-graph scan) on a real fixture; no
   defect was found in removal.
+
+## 36. PDF audit - session 6: decisions implemented (2026-11-11)
+
+Branch `pdf/s6-decisions`, cut from `pdf/s5-share` at `012c82c`. This session
+did not re-audit: it implemented the owner's decisions for the parked items, one
+root cause per commit, converting the former `it.fails` repros into ordinary
+passing tests. The single remaining expected fail is the actual CJK glyph render
+(`PDF-RENDER-003`), kept because the owner chose to warn rather than bundle a
+fallback font.
+
+### 36.1 Implemented
+
+- `PDF-SHARE-002` (`9263c69`): DELETE on a finished job removes the result
+  directory and answers 2xx; the token then gets 404 on download. Running jobs
+  keep cooperative cancellation; queued jobs keep `200 cancelled`. The same
+  commit added `Cache-Control: private, no-store` + `Vary: cookie` to
+  `/api/account*` and `/api/auth/me`.
+- Warning contract (`7d0f75d`): optional `warnings?: string[]` on successful job
+  results, carried through the server runner/BullMQ state and rendered by
+  `ResultPanel` as a non-blocking notice.
+- `PDF-ENGINE-001` (`b721487`): AcroForm preserved across page-copy tools;
+  merged field trees, `_2`/`_3` collision suffixes, duplicated-page field copies,
+  widget `/P` rewired to real output pages with no page-tree duplication.
+- `PDF-ENGINE-002` (`0d7dda8`): Title/Author/Subject/Keywords preserved;
+  merge/combine use the first document; date policy unchanged.
+- `PDF-ENGINE-003` (`2160778`): Flip/Resize flatten annotation and widget
+  appearances into page content, emit a warning, and refuse a document with a
+  signature field.
+- `PDF-RENDER-003` (`6d499f0`): detect non-embedded CJK fonts and warn in the
+  render jobs; **no font is bundled** and the glyph repro stays `it.fails`.
+- `PDF-EXPORT-002/003` (`7bd3051`): surface `alphaDropped` through
+  `warnings[]`; name PDF-to-images outputs by source page number.
+
+`PDF-RENDER-004/005/006` are deferred with reasons in `FINDINGS.md`.
+
+### 36.2 Verification (live, stack up)
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Typecheck | `pnpm typecheck` | pass |
+| Unit | `pnpm test` | 1523 passed, 0 failed, 1 expected fail, 119 files |
+| Build | `pnpm build` | pass, 63 routes prerendered |
+| Bundle | `pnpm test:bundle` | pass, 0 engines in app chunks |
+| Preflight | `node tests/support/preflight.mjs` | exit 0 |
+| Browser E2E | `pnpm test:e2e` | ALL CHECKS PASSED |
+| Share walkthrough | `node tests/e2e/share-boundary.mjs` | 18/18 (revocation included) |
+| Sweep | `pnpm test:sweep` | 60 groups, same as baseline |
+| Round-trip | `vitest run test/pdf-audit/roundtrip.test.ts` | 17 passed |
+| Render regression | `vitest run test/render-regression.test.ts` | 11 passed, 1 expected fail |
+
+Session-5 comparison: 1496/0/8/117 -> 1523/0/1/119; round-trip 15 -> 17;
+render 10/1 -> 11/1; share walkthrough 17 -> 18; sweep 61 -> 60 (baseline).
+Nothing regressed. Details: `FINDINGS.md` "Session 6 evidence",
+`FINAL-REPORT.md` session-6 addendum.
