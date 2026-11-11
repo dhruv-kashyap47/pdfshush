@@ -36,6 +36,7 @@ export interface ImagesJobOutput {
   extracted: number;
   skipped: number;
   pageCount: number;
+  warnings?: string[];
 }
 
 export const imagesJob: JobDefinition<ImagesJobInput, ImagesJobOutput> = {
@@ -96,6 +97,7 @@ export const imagesJob: JobDefinition<ImagesJobInput, ImagesJobOutput> = {
         data: images[i]!.data,
       })),
     );
+    const alphaCount = files.filter((file) => file.alphaDropped).length;
 
     return {
       zip: toArrayBuffer(zip),
@@ -104,6 +106,13 @@ export const imagesJob: JobDefinition<ImagesJobInput, ImagesJobOutput> = {
       extracted: images.length,
       skipped,
       pageCount,
+      ...(alphaCount > 0
+        ? {
+            warnings: [
+              `${alphaCount} image${alphaCount === 1 ? '' : 's'} had transparency; the exported file${alphaCount === 1 ? '' : 's'} keep${alphaCount === 1 ? 's' : ''} no alpha channel.`,
+            ],
+          }
+        : {}),
     };
   },
 };

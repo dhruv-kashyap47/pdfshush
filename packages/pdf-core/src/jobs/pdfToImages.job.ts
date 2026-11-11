@@ -32,6 +32,22 @@ export interface PdfToImagesOutput {
   warnings?: string[];
 }
 
+/**
+ * Output names follow the source page number, so a subset like pages 3 and 5
+ * is `...-003.jpg` / `...-005.jpg` rather than looking like a complete run.
+ * Padding follows the document's page count, keeping the all-pages names
+ * identical to the pre-decision output.
+ */
+export function pdfToImagesFileNames(
+  stem: string,
+  pageIndexes: number[],
+  pageCount: number,
+  format: ImageFormat,
+): string[] {
+  const ext = format === 'jpeg' ? 'jpg' : 'png';
+  return dedupeNames(pageIndexes.map((index) => pageFileName(stem, index + 1, pageCount, ext)));
+}
+
 export const pdfToImagesJob: JobDefinition<PdfToImagesInput, PdfToImagesOutput> = {
   slug: 'pdf-to-images',
   label: 'PDF to images',
@@ -93,7 +109,7 @@ export const pdfToImagesJob: JobDefinition<PdfToImagesInput, PdfToImagesOutput> 
 
     const stem = baseName(file.name);
     const ext = format === 'jpeg' ? 'jpg' : 'png';
-    const names = dedupeNames(pageIndexes.map((_, i) => pageFileName(stem, i + 1, pageIndexes.length, ext)));
+    const names = pdfToImagesFileNames(stem, pageIndexes, pageCount, format);
     const images = rendered.map((image, i) => ({
       name: names[i] ?? `page-${i + 1}.${ext}`,
       data: image.data,

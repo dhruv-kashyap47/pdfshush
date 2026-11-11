@@ -109,6 +109,7 @@ export function ExtractImagesTool() {
           fileName={result.zipName}
           pageCount={result.pageCount}
           sizeBytes={result.zip.byteLength}
+          warnings={result.warnings}
           downloadLabel="Download all (ZIP)"
           onDownload={() => downloadBytes(result.zip, result.zipName, 'application/zip')}
           onReset={() => {
