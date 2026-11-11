@@ -1656,8 +1656,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           editor.live(move);
         } else {
           nudgeTxOpen.current = true;
+          // `beginTx` already snapshots the pre-gesture document; using `apply`
+          // here would push a second checkpoint and make one undo a no-op.
           editor.beginTx();
-          editor.apply(move);
+          editor.live(move);
         }
         // Close the transaction once the burst stops, so the next burst (and
         // anything else that changes the document) starts a fresh one.
