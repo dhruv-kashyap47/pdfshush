@@ -322,12 +322,15 @@ export class PageInteractionModel {
     }
     const prefix = this.prefixForSpan(paragraph, span);
     const lineOffset = prefix + clamp(clamped - span.start, 0, Math.max(0, span.end - span.start));
+    const caret = this.caretRect(paragraphId, clamped);
     return {
       paragraphId,
       lineId: span.lineId,
       paragraphOffset: clamped,
       lineOffset,
-      point: { x: paragraph.bbox.x, y: paragraph.bbox.y },
+      point: caret
+        ? { x: caret.x + caret.width / 2, y: caret.y + caret.height / 2 }
+        : { x: paragraph.bbox.x, y: paragraph.bbox.y },
     };
   }
 
@@ -507,18 +510,42 @@ export class PageInteractionModel {
     const segments = this.segmentsForLine(line.id);
     if (segments.length === 0) return { ...line.bbox, width: 1 };
 
-    let x = line.bbox.x + line.bbox.width;
+    // Follow the line's actual display-space direction: on a /Rotate 90 or 270
+    // page text advances down/up, not right, and reversed (180°) text advances
+    // left. A caret that always moved along +x sat across the top of a vertical
+    // line and moved the wrong way on mirrored text.
+    const radians = (line.rotationDeg * Math.PI) / 180;
+    const dirX = Math.cos(radians);
+    const dirY = Math.sin(radians);
+    const vertical = Math.abs(dirY) > Math.abs(dirX);
+    let x = dirX >= 0 ? line.bbox.x + line.bbox.width : line.bbox.x;
+    let y = dirY >= 0 ? line.bbox.y + line.bbox.height : line.bbox.y;
     for (const segment of segments) {
       if (lineOffset < segment.start) break;
       if (lineOffset <= segment.end) {
         const length = Math.max(1, segment.end - segment.start);
         const ratio = clamp((lineOffset - segment.start) / length, 0, 1);
-        x = segment.word.bbox.x + segment.word.bbox.width * ratio;
+        const box = segment.word.bbox;
+        if (vertical) {
+          const along = dirY >= 0 ? ratio : 1 - ratio;
+          y = box.y + box.height * along;
+          x = line.bbox.x;
+        } else {
+          const along = dirX >= 0 ? ratio : 1 - ratio;
+          x = box.x + box.width * along;
+          y = line.bbox.y;
+        }
         break;
       }
-      x = segment.word.bbox.x + segment.word.bbox.width;
+      if (vertical) {
+        y = dirY >= 0 ? segment.word.bbox.y + segment.word.bbox.height : segment.word.bbox.y;
+      } else {
+        x = dirX >= 0 ? segment.word.bbox.x + segment.word.bbox.width : segment.word.bbox.x;
+      }
     }
-    return { x, y: line.bbox.y, width: 1, height: line.bbox.height };
+    return vertical
+      ? { x: line.bbox.x, y, width: line.bbox.width, height: 1 }
+      : { x, y: line.bbox.y, width: 1, height: line.bbox.height };
   }
 
   paragraphByIdOrNull(id: string): Paragraph | null {

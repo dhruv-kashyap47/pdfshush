@@ -275,6 +275,27 @@ describe('structured page model', () => {
     expect(rect.height).toBeLessThan(word.bbox.height * 0.75);
   });
 
+  it('places a caret along the text axis on a rotated page', () => {
+    const page = syntheticPage({
+      rotation: 90,
+      items: [{ text: 'Rotated text', x: 72, y: 120, size: 12 }],
+    });
+    const paragraph = page.paragraphs.find((entry) => entry.text.includes('Rotated'))!;
+    const model = new PageInteractionModel(page);
+    const start = model.caretRect(paragraph.id, 0)!;
+    const end = model.caretRect(paragraph.id, paragraph.text.length)!;
+    // The line advances downward in display space, so the caret keeps one x and
+    // moves from the top to the bottom of the line. A caret that only moved on
+    // x described horizontal text and sat across the top of the column.
+    expect(Math.abs(start.x - end.x)).toBeLessThanOrEqual(1);
+    expect(end.y).toBeGreaterThan(start.y + paragraph.bbox.height * 0.4);
+
+    // The serializable caret position must use the same geometry as the box.
+    const startCaret = model.caretAtParagraphOffset(paragraph.id, 0)!;
+    const endCaret = model.caretAtParagraphOffset(paragraph.id, paragraph.text.length)!;
+    expect(endCaret.point.y).toBeGreaterThan(startCaret.point.y + paragraph.bbox.height * 0.4);
+  });
+
   it('produces identical ids for repeated extraction of the same page', () => {
     const make = () =>
       syntheticPage({
