@@ -10,6 +10,7 @@
 
 import type { NextFunction, Request, Response } from 'express';
 import type { WorkDirStore } from '../files/store.js';
+import { safeFileName } from '../files/paths.js';
 import type { Logger } from '../logger.js';
 
 /**
@@ -69,13 +70,18 @@ export function sendResultFile(args: {
   name: string;
   bytes: number;
 }): void {
+  // The name crosses a process boundary (the queue reported it), so the header
+  // boundary re-applies the basename rule instead of trusting that invariant:
+  // a `"` would break the RFC 6266 quoted-string, and a CR/LF would make
+  // `setHeader` throw after the stat had already succeeded.
+  const name = safeFileName(args.name);
   markPrivate(args.response);
-  args.response.setHeader('Content-Type', contentTypeFor(args.name));
+  args.response.setHeader('Content-Type', contentTypeFor(name));
   args.response.setHeader('Content-Length', String(args.bytes));
   // RFC 6266: the name goes in a quoted-string, and a safe basename cannot
   // contain the characters that would need escaping.
-  args.response.setHeader('Content-Disposition', `attachment; filename="${args.name}"`);
-  const stream = args.store.openResult(args.jobId, args.name);
+  args.response.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+  const stream = args.store.openResult(args.jobId, name);
   stream.on('error', (error: unknown) => {
     if (!args.response.headersSent) {
       args.response.status(500).json({ error: 'Result could not be read', code: 'internal_error' });

@@ -371,6 +371,24 @@ describe('response contract for a second party', () => {
     }
   });
 
+  it('sanitises the download filename reported by the queue', async () => {
+    const h = await harness();
+    const unsafe = 'report".pdf';
+    // The queue snapshot is the only place a result file name is carried; the
+    // header must not trust it. A `"` would break the RFC 6266 quoted-string,
+    // and a CR/LF would make the header write throw (500 after the stat).
+    const jobId = 'e'.repeat(32);
+    h.queue.complete(jobId, { status: 'completed', files: [{ name: unsafe, bytes: 8 }] });
+    await h.store.prepareJob(jobId);
+    await h.store.writeResult(jobId, 'report_.pdf', Buffer.from('%PDF-1.7'));
+
+    const response = await fetch(h.url(`/api/jobs/${jobId}/files/${encodeURIComponent(unsafe)}`), {
+      headers: { 'x-job-token': jobToken(h.context.pepper, jobId) },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-disposition')).toBe('attachment; filename="report_.pdf"');
+  });
+
   it('answers HEAD with the download headers and no body', async () => {
     const h = await harness();
     const job = await completedJob(h);
