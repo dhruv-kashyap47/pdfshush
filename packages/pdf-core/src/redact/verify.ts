@@ -381,6 +381,7 @@ export async function verifyRedaction(
   // pipeline that stopped burning marks would fail here rather than ship.
   let marksOk = true;
   let contentOk = true;
+  let whollyMarked = 0;
   const markProblems: string[] = [];
   const contentProblems: string[] = [];
 
@@ -429,6 +430,7 @@ export async function verifyRedaction(
     // would report a legitimate page as blank.
     let darkest = 255;
     let lightest = 0;
+    let sampled = 0;
     const stride = CONTRAST_STRIDE;
     const gridWidth = Math.ceil(decoded.width / stride);
     const gridHeight = Math.ceil(decoded.height / stride);
@@ -445,12 +447,19 @@ export async function verifyRedaction(
       const row = gy * gridWidth;
       for (let gx = 0; gx < gridWidth; gx += 1) {
         if (markMask[row + gx]) continue;
+        sampled += 1;
         const luma = luminanceAt(decoded, gx * stride, y);
         if (luma < darkest) darkest = luma;
         if (luma > lightest) lightest = luma;
       }
     }
-    if (lightest - darkest < MIN_CONTENT_SPREAD) {
+    // A page the user covered entirely has no unmarked sample to compare, and
+    // asserting over an empty set reported "contrast spread only -255" as if
+    // the render had failed. Blankness is still caught for those pages by
+    // `marks-burned-in`: a blank rebuild cannot be dark inside its own marks.
+    if (sampled === 0) {
+      whollyMarked += 1;
+    } else if (lightest - darkest < MIN_CONTENT_SPREAD) {
       contentOk = false;
       contentProblems.push(`p${index + 1}: contrast spread only ${lightest - darkest}`);
     }
@@ -467,7 +476,9 @@ export async function verifyRedaction(
     'page-not-blank',
     contentOk,
     contentOk
-      ? 'pages retain visible content outside the marks'
+      ? whollyMarked === pageCount
+        ? 'every page is covered entirely by its marks; there is no unmarked content to compare'
+        : 'pages retain visible content outside the marks'
       : `a page lost its content — ${contentProblems.slice(0, 3).join('; ')}`,
   );
 

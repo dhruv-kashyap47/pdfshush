@@ -159,6 +159,24 @@ describe('redaction rebuilds the document', () => {
     const result = await redactPdf(source, { regions: [REGION] }, testContext(), env());
     expect(result.report.verification.ok).toBe(true);
   });
+
+  // Regression: a page the user covered completely has no unmarked sample for
+  // the blank-page scan to compare, and the scan asserted over the empty set:
+  // "contrast spread only -255". A legitimate full-page redaction was refused.
+  // Blankness on such a page is still caught by `marks-burned-in`, because a
+  // blank rebuild is not dark inside its own marks.
+  it('accepts a page that is entirely covered by its marks', async () => {
+    const full = { pageIndex: 0, x: 0, y: 0, width: A4.width, height: A4.height };
+    const result = await redactPdf(await sourcePdf(), { regions: [full] }, testContext(), env());
+
+    expect(result.report.verification.ok).toBe(true);
+    const blank = result.report.verification.checks.find((c) => c.name === 'page-not-blank');
+    expect(blank?.ok).toBe(true);
+    expect(blank?.detail).toMatch(/covered entirely/);
+    expect(result.report.verification.checks.find((c) => c.name === 'marks-burned-in')?.ok).toBe(
+      true,
+    );
+  });
 });
 
 /* ------------------------------------------------------------- fail closed -- */
