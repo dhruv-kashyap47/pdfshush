@@ -62,23 +62,34 @@ export async function renderPageToCanvas(
   }
   const canvas = factory(width, height);
   const context = canvas.context as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-  if (!context) throw new Error('Could not acquire a 2D canvas context');
+  if (!context) {
+    canvas.release?.();
+    throw new Error('Could not acquire a 2D canvas context');
+  }
 
   const background = options.background ?? '#ffffff';
   context.fillStyle = background;
   context.fillRect(0, 0, width, height);
 
-  const task = page.render({
-    // v6 made `canvas` required; null means "derive it from the context", which
-    // is how OffscreenCanvas contexts (worker rendering) are supported. pdf.js
-    // only calls 2D-context methods, shared by DOM and offscreen variants.
-    canvas: null,
-    canvasContext: context as CanvasRenderingContext2D,
-    viewport,
-    background,
-  });
-  await task.promise;
-
+  // A render task can reject (bad content stream, GPU context loss, a page
+  // cancelled mid-paint). The canvas already holds a page-sized bitmap, so it
+  // is released here as well; the success path is released by the caller.
+  let task: ReturnType<PDFPageProxy['render']>;
+  try {
+    task = page.render({
+      // v6 made `canvas` required; null means "derive it from the context", which
+      // is how OffscreenCanvas contexts (worker rendering) are supported. pdf.js
+      // only calls 2D-context methods, shared by DOM and offscreen variants.
+      canvas: null,
+      canvasContext: context as CanvasRenderingContext2D,
+      viewport,
+      background,
+    });
+    await task.promise;
+  } catch (error) {
+    canvas.release?.();
+    throw error;
+  }
   return { canvas, context, width, height };
 }
 

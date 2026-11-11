@@ -105,6 +105,27 @@ describe('renderPageToImage', () => {
     // The fix: a failed encode must not leave the bitmap alive until GC.
     expect(releases.length).toBe(1);
   });
+
+  // Regression: the render task itself can reject (a malformed content stream,
+  // a GPU context loss, a cancelled page). The canvas was allocated before the
+  // await, so it was never released on that path and stayed page-sized for the
+  // rest of the run.
+  it('releases the canvas when the page render itself fails', async () => {
+    const { factory, releases } = makeFactory();
+    const failingPage = {
+      getViewport: ({ scale }: { scale: number }) => ({ width: 595 * scale, height: 842 * scale }),
+      render: () => ({ promise: Promise.reject(new Error('render boom')) }),
+      cleanup: () => undefined,
+    };
+    await expect(
+      renderPageToImage(failingPage as never, {
+        targetWidthPx: 200,
+        format: 'jpeg',
+        canvasFactory: factory,
+      }),
+    ).rejects.toThrow(/render boom/);
+    expect(releases.length).toBe(1);
+  });
 });
 
 describe('renderPages', () => {
