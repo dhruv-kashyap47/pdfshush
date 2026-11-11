@@ -205,6 +205,7 @@ async function readState(job: Job<JobPayload>): Promise<JobStateSnapshot> {
     if (outputs) {
       base.files = outputs.files;
       if (outputs.pageCount !== undefined) base.pageCount = outputs.pageCount;
+      if (outputs.warnings) base.warnings = outputs.warnings;
     }
   }
   return base;
@@ -224,6 +225,7 @@ function normalizeProgress(value: unknown) {
 interface JobOutputs {
   files: { name: string; bytes: number }[];
   pageCount?: number;
+  warnings?: string[];
 }
 
 /** The runner returns a serialisable summary; this is its shape. */
@@ -232,6 +234,7 @@ export function normalizeReturnValue(value: unknown): JobOutputs | undefined {
   const record = value as {
     files?: unknown;
     pageCount?: unknown;
+    warnings?: unknown;
   };
   if (!Array.isArray(record.files)) return undefined;
   const files = record.files.filter(
@@ -240,8 +243,16 @@ export function normalizeReturnValue(value: unknown): JobOutputs | undefined {
       typeof (file as { name?: unknown }).name === 'string' &&
       typeof (file as { bytes?: unknown }).bytes === 'number',
   );
+  const warnings = Array.isArray(record.warnings)
+    ? record.warnings
+        .filter((warning): warning is string => typeof warning === 'string')
+        .map((warning) => warning.trim())
+        .filter((warning) => warning.length > 0)
+        .slice(0, 20)
+    : [];
   return {
     files,
     ...(typeof record.pageCount === 'number' ? { pageCount: record.pageCount } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }

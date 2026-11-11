@@ -150,6 +150,8 @@ export interface JobStateSnapshot {
   /** Output files, relative names inside the job's output directory. */
   files?: JobResultFile[];
   pageCount?: number;
+  /** Non-blocking notices from the engine, optional for older workers. */
+  warnings?: string[];
   error?: { message: string; code?: string };
 }
 

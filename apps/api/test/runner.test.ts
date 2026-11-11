@@ -247,6 +247,22 @@ describe('queue return values', () => {
     expect(normalizeReturnValue({ nothing: true })).toBeUndefined();
     expect(normalizeReturnValue(undefined)).toBeUndefined();
   });
+
+  it('carries optional warnings without changing the older result shape', () => {
+    expect(
+      normalizeReturnValue({
+        files: [{ name: 'out.pdf', bytes: 10 }],
+        pageCount: 1,
+        warnings: ['  flattened 3 annotations  ', '', 42],
+      }),
+    ).toEqual({
+      files: [{ name: 'out.pdf', bytes: 10 }],
+      pageCount: 1,
+      warnings: ['flattened 3 annotations'],
+    });
+    // No warnings means no key, so an older client sees the exact same JSON.
+    expect(normalizeReturnValue({ files: [] })).toEqual({ files: [] });
+  });
 });
 
 // Regression: BullMQ carries a failure as one plain string. The worker used to

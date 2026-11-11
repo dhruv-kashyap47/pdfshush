@@ -57,6 +57,7 @@ export async function processJob(job: ProcessorJob): Promise<unknown> {
     return {
       files: result.files,
       ...(result.pageCount !== undefined ? { pageCount: result.pageCount } : {}),
+      ...(result.warnings ? { warnings: result.warnings } : {}),
       ...(result.diagnostics ? { diagnostics: result.diagnostics } : {}),
     };
   } catch (error) {

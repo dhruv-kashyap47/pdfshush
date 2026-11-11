@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Download, Pencil, RotateCcw, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, Pencil, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/format';
 import { announceLocalProcessing } from '@/lib/privacy';
@@ -17,6 +17,8 @@ interface ResultPanelProps {
   /** Optional third action: the editor keeps the document open after a save. */
   onContinue?: () => void;
   continueLabel?: string;
+  /** Non-blocking notices from the engine; the download is still usable. */
+  warnings?: string[];
   children?: ReactNode;
   footerNote?: ReactNode;
 }
@@ -35,11 +37,13 @@ export function ResultPanel({
   downloadLabel = 'Download',
   onContinue,
   continueLabel = 'Continue',
+  warnings,
   children,
   footerNote,
 }: ResultPanelProps) {
   const slug = useToolSlug();
   const next = slug ? nextFor(slug) : [];
+  const notices = (warnings ?? []).filter((warning) => warning.trim().length > 0);
 
   useEffect(() => {
     announceLocalProcessing(pageCount);
@@ -76,6 +80,24 @@ export function ResultPanel({
         </div>
       </div>
       {children && <div className="mt-4">{children}</div>}
+      {notices.length > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="result-warnings"
+          className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm"
+        >
+          <p className="flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Worth knowing
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+            {notices.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {next.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="next-tools">
           <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">

@@ -46,6 +46,8 @@ export interface RunResult {
   /** Output files written under the job's output directory. */
   files: { name: string; bytes: number }[];
   pageCount?: number;
+  /** Non-blocking notices the job attached to its result. */
+  warnings?: string[];
   /** Content-free operational summary. Safe to log; never contains document text. */
   diagnostics?: JobDiagnostics;
 }
@@ -191,7 +193,25 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
   const durationMs = Math.round(performance.now() - started);
 
   const outputs = await writeOutputs(payload.jobId, result, store, payload.slug);
-  return { ...outputs, diagnostics: summariseDiagnostics(result, durationMs, outputs) };
+  const warnings = readWarnings(result);
+  return {
+    ...outputs,
+    ...(warnings ? { warnings } : {}),
+    diagnostics: summariseDiagnostics(result, durationMs, outputs),
+  };
+}
+
+/** Top-level `warnings: string[]` from a job result, validated and bounded. */
+function readWarnings(result: unknown): string[] | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const raw = (result as { warnings?: unknown }).warnings;
+  if (!Array.isArray(raw)) return undefined;
+  const warnings = raw
+    .filter((warning): warning is string => typeof warning === 'string')
+    .map((warning) => warning.trim())
+    .filter((warning) => warning.length > 0)
+    .slice(0, 20);
+  return warnings.length > 0 ? warnings : undefined;
 }
 
 /**

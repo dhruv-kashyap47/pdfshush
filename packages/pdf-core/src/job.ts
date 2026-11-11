@@ -57,6 +57,18 @@ export interface JobCost {
   timeoutMs?: number;
 }
 
+/**
+ * Optional, non-blocking notices a job can attach to a successful result.
+ *
+ * Backward compatible by design: a job that has nothing to say omits the
+ * field, and an older client ignores it. Warnings describe a loss the user
+ * should know about (a flattened annotation, a substituted font, a dropped
+ * alpha channel) without turning a usable output into an error.
+ */
+export interface JobWarnings {
+  warnings?: string[];
+}
+
 export interface JobDefinition<I extends JobInputBase = JobInputBase, O = unknown> {
   readonly slug: string;
   readonly label: string;
