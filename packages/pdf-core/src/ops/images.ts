@@ -72,8 +72,7 @@ function numberOfComponents(colorSpace: string | undefined): 1 | 3 | undefined {
 }
 
 /** `DecodeParms` may be a dict or an array with one entry per component. */
-function predictorOf(dict: PDFDict): number | undefined {
-  const value = dict.get(PDFName.of('DecodeParms')) ?? dict.get(PDFName.of('DP'));
+function predictorOf(dict: PDFDict): number | undefined {  const value = dict.get(PDFName.of('DecodeParms')) ?? dict.get(PDFName.of('DP'));
   if (!value) return undefined;
   if (value instanceof PDFDict) return numberValue(value, 'Predictor');
   if (value instanceof PDFArray) {
@@ -89,6 +88,30 @@ function predictorOf(dict: PDFDict): number | undefined {
 }
 
 const SUPPORTED_FILTERS = new Set(['FlateDecode', 'DCTDecode']);
+
+/**
+ * A `/Decode` array remaps sample values (most commonly `[1 0]`, an inverted
+ * image). This exporter copies/re-encodes samples verbatim, so honouring an
+ * arbitrary decode map would need per-component inversion/clamping. Silently
+ * emitting the raw samples produces the wrong colours, so anything other than
+ * the identity map is skipped and counted -- the same contract the rest of
+ * `classifyImageStream` follows. A `Decode` written as an indirect reference is
+ * also skipped rather than guessed at.
+ */
+function isIdentityDecode(value: PDFObject | undefined, components: 1 | 3 | undefined): boolean {
+  if (value === undefined) return true;
+  if (!(value instanceof PDFArray)) return false;
+  const expected =
+    components === 1 ? [0, 1] : components === 3 ? [0, 1, 0, 1, 0, 1] : undefined;
+  if (!expected || value.size() !== expected.length) return false;
+  for (let i = 0; i < expected.length; i += 1) {
+    const entry = value.get(i);
+    if (!(entry instanceof PDFNumber) || Math.abs(entry.asNumber() - expected[i]!) > 1e-6) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * Inflates a Flate image stream into a buffer that cannot grow.
@@ -131,8 +154,8 @@ function inflateBounded(raw: Uint8Array, expectedBytes: number): Uint8Array | nu
 /**
  * Classifies one image stream. Returns the workable case or `null` (skip).
  * Honestly skips: any other filter, CMYK/indexed/ICC/16-bit components,
- * unsupported predictors, and streams whose sample count disagrees with
- * their declared dimensions.
+ * unsupported predictors, a non-identity `/Decode` sample map, and streams
+ * whose sample count disagrees with their declared dimensions.
  */
 export function classifyImageStream(dict: PDFDict, raw: Uint8Array): RawImageInfo | null {
   const width = numberValue(dict, 'Width');
@@ -155,6 +178,11 @@ export function classifyImageStream(dict: PDFDict, raw: Uint8Array): RawImageInf
 
   if (width === undefined || height === undefined || width < 1 || height < 1) return null;
   if (bits !== 8) return null;
+
+  // A non-identity `/Decode` remaps every sample; copying the stream would
+  // export those samples unchanged, i.e. wrong colours, with no warning.
+  const decodeComponents = components ?? (supportedFilter === 'DCTDecode' ? 3 : undefined);
+  if (!isIdentityDecode(dict.get(PDFName.of('Decode')), decodeComponents)) return null;
 
   const hasSMask = dict.get(PDFName.of('SMask')) !== undefined;
 

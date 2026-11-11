@@ -458,6 +458,29 @@ describe('extract-images job', () => {
     // ... but PNG predictors (12) pass AND decode below.
   });
 
+  test('honestly skips a non-identity Decode array instead of exporting wrong colours', async () => {
+    const { context } = await PDFDocument.create();
+    const image = (decode: number[]): PDFRawStream =>
+      PDFRawStream.of(
+        context.obj({
+          Subtype: 'Image',
+          Width: 2,
+          Height: 2,
+          ColorSpace: 'DeviceGray',
+          BitsPerComponent: 8,
+          Filter: 'FlateDecode',
+          Decode: decode,
+        }),
+        zlibSync(new Uint8Array(4)),
+      );
+
+    // The identity map changes nothing and must still be extractable.
+    expect(classifyImageStream(image([0, 1]).dict, image([0, 1]).contents)).not.toBeNull();
+    // `[1 0]` inverts every sample. Re-emitting the raw samples would turn a
+    // white image black with no warning, so it is skipped and counted.
+    expect(classifyImageStream(image([1, 0]).dict, image([1, 0]).contents)).toBeNull();
+  });
+
   test('validation is single-file only', async () => {
     const bytes = await makeFixturePdf({ pages: 1 });
     expect(imagesJob.validate(inputFor(bytes))).toMatchObject({ ok: true });
