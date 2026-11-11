@@ -91,7 +91,10 @@ export const textJob: JobDefinition<TextJobInput, TextJobOutput> = {
     );
 
     const body = texts.join('\n\n');
-    const charCount = [...texts].reduce((sum, line) => sum + line.length + 1, 0);
+    // charCount is the character count of the text the user downloads. The old
+    // formula added one per page for a separator that only exists between pages,
+    // so an image-only page reported 1 character while its body was empty.
+    const charCount = body.length;
     const bytes = new TextEncoder().encode(body);
     const stem = stripExtension(file.name.split(/[\\/]/).pop() ?? '');
 

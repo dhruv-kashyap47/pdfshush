@@ -20,7 +20,7 @@ beforeAll(() => {
 });
 
 describe('text extraction counts', () => {
-  it.fails('PDF-ENGINE-004: a scan with no text layer reports charCount 0', async () => {
+  it('PDF-ENGINE-004: a scan with no text layer reports charCount 0', async () => {
     const out = await textJob.run(
       {
         files: [{ name: 'image-only.pdf', data: readAuditFixture('image-only.pdf') }],

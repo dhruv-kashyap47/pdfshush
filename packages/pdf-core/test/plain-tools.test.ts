@@ -394,6 +394,16 @@ describe('pdf-to-text job', () => {
     expect(text).not.toContain('page 1');
     expect(text).not.toContain('page 3');
   });
+
+  test('charCount is the length of the text actually downloaded', async () => {
+    // The page separator only exists between pages; counting one per page made
+    // an empty document report a character that was never written.
+    const source = await makeFixturePdf({ pages: 2, label: 'Count' });
+    const result = await textJob.run(inputFor(source), testContext());
+    const text = new TextDecoder().decode(result.data);
+    expect(result.charCount).toBe(text.length);
+    expect(result.text).toBe(text);
+  });
 });
 
 describe('extract-images job', () => {
