@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TextLayer } from '@/components/editor/text-layer';
 import type { EditorTool } from '@/lib/editor-tools';
 import type { EditorProposalMarker } from '@/lib/editor-tools';
+import { isFormWidgetChecked } from '@/lib/form-widgets';
 import type { ParagraphEditState, TextSelectionState } from '@/lib/text-editing';
 import { cn } from '@/lib/utils';
 
@@ -1206,7 +1207,7 @@ function FormWidget({
           type={widget.type}
           name={widget.type === 'radio' ? widget.name : undefined}
           disabled={!interactive}
-          checked={widget.type === 'radio' ? value === widget.option : Boolean(value)}
+          checked={isFormWidgetChecked(widget, value)}
           aria-label={
             widget.type === 'radio' && widget.option
               ? `${widget.label ?? widget.name}: ${widget.option}`
