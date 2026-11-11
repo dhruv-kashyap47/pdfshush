@@ -256,7 +256,12 @@ export function glyphsFromTextItems(
     const fontSize = upLength;
     const width = Number.isFinite(item.width) ? Math.max(0, item.width ?? 0) : 0;
     const style = item.fontName ? content.styles?.[item.fontName] : undefined;
-    const rotationDeg = matrixRotation([a, b, c, d, e, f]);
+    // pdf.js reports the text matrix in PDF user space; the page's /Rotate is
+    // applied afterwards by the viewport. `TextTypography.rotationDeg` is a
+    // display-space angle, so the page rotation has to be folded in here (a
+    // horizontal line on a /Rotate 90 page is painted top-to-bottom).
+    const matrixDeg = matrixRotation([a, b, c, d, e, f]);
+    const rotationDeg = normalizeAngle(geometry.rotation - matrixDeg);
     const typography = typographyFromStyle(style, item.fontName, fontSize, rotationDeg, item.dir);
 
     const chars = Array.from(item.str);

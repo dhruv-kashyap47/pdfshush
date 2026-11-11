@@ -237,6 +237,27 @@ describe('structured page model', () => {
     expect(horizontal?.text).toBe('Horizontal body text');
   });
 
+  it('reports typography rotation in display space on a rotated page', () => {
+    const page = syntheticPage({
+      rotation: 90,
+      items: [{ text: 'Rotated text', x: 72, y: 120, size: 12 }],
+    });
+    const paragraph = page.paragraphs.find((entry) => entry.text.includes('Rotated'))!;
+    // `TextTypography.rotationDeg` is documented as the display-space baseline
+    // angle. On a /Rotate 90 page the glyph boxes are vertical, but the raw
+    // text matrix is still horizontal, so the extractor used to report 0 and
+    // "ltr" for text that is painted top-to-bottom.
+    expect(paragraph.typography.rotationDeg).toBeCloseTo(90, 0);
+    expect(paragraph.typography.direction).toBe('ttb');
+    expect(page.lines.find((line) => line.text.includes('Rotated'))?.direction).toBe('ttb');
+
+    // An unrotated page keeps the horizontal meaning.
+    const upright = syntheticPage({ items: [{ text: 'Upright text', x: 72, y: 120, size: 12 }] });
+    const uprightParagraph = upright.paragraphs.find((entry) => entry.text.includes('Upright'))!;
+    expect(uprightParagraph.typography.rotationDeg).toBeCloseTo(0, 0);
+    expect(uprightParagraph.typography.direction).toBe('ltr');
+  });
+
   it('projects selection along the display axis on a rotated page', () => {
     const page = syntheticPage({
       rotation: 90,
