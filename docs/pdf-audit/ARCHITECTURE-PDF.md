@@ -74,6 +74,9 @@ Agents
 - Cancellation aborts the in-flight `AbortController`
   (`job-worker.ts:90`); a synchronous pdf-lib loop cannot observe an abort, so
   the pool can also terminate the worker (`job-pool.ts` header, rules 2–3).
+- A worker that crashes is removed from the pool even when it is idle, so the
+  next dispatch starts a live one instead of posting into a dead global
+  (`job-pool.ts`, finding `PDF-ENGINE-008`).
 
 ### 2.2 Worker ↔ pdf.js / PDFium / OCR
 
@@ -232,8 +235,12 @@ server must never log.
 
 ## 6. Security and upload boundary (SEC-UPLOAD)
 
-The audit found no SEC-UPLOAD defect, so this section documents the boundary
-rather than a finding:
+Session 1 found no SEC-UPLOAD defect. Session 2 found one (`PDF-SEC-UPLOAD-001`,
+fixed in `d3d0dde`): upload-name uniqueness was computed before sanitisation, so
+two names that collapse to one basename shared a path and one upload was
+truncated. Names are now sanitised first and uniqued with
+`uniqueFileName` (`apps/api/src/files/paths.ts`), which the multipart and inline
+paths both call. The rest of this section documents the boundary as audited.
 
 - Upload type/size checks: `apps/api/src/http/uploads.ts` (PDF signature,
   multipart handling), byte cap `apps/api/src/files/store.ts:26`.
@@ -246,6 +253,8 @@ rather than a finding:
 - Queue payloads carry paths, not document bytes
   (`packages/api-contracts/src/jobs.ts:1-9`), so document data never enters
   Redis.
+- Embedded images are bounded before decoding (`imageLimitIssue`,
+  `packages/pdf-core/src/ops/imageDocs.ts`; finding `PDF-ENGINE-006`).
 
 ---
 
