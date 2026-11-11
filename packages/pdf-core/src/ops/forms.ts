@@ -49,7 +49,7 @@ export function extractFormWidgets(doc: PDFDocument): FormWidgetInfo[] {
   pages.forEach((page, index) => {
     pageByRef.set(`${page.ref.objectNumber} ${page.ref.generationNumber}`, index);
   });
-  const pageByRect = buildRectPageMap(doc);
+  const widgetsByPage = buildWidgetPageMap(doc);
   let fields: AnyField[];
   try {
     fields = doc.getForm().getFields();
@@ -76,7 +76,7 @@ export function extractFormWidgets(doc: PDFDocument): FormWidgetInfo[] {
 
     widgets.forEach((widget, widgetIndex) => {
       const box = widget.getRectangle();
-      const pageIndex = pageIndexForWidget(widget, pageByRef, pageByRect, box);
+      const pageIndex = pageIndexForWidget(widget, pageByRef, widgetsByPage, box);
       // A widget we cannot place on a page is still fillable via the field's
       // value, but we never invent a position for it.
       if (pageIndex === undefined) return;
@@ -100,14 +100,16 @@ export function extractFormWidgets(doc: PDFDocument): FormWidgetInfo[] {
 /**
  * Which page a widget belongs to.
  *
- * The widget's own `/P` entry is authoritative. The rectangle index is only a
- * fallback, because cloned form pages repeat identical rectangles -- matching on
- * those alone drops every widget but the first onto one page.
+ * The widget's own `/P` entry is authoritative. Without it, the page whose
+ * `/Annots` array actually owns the widget dictionary is authoritative too --
+ * the rectangle is only a last resort, because form templates repeat identical
+ * rectangles across pages (and a rect-only map drops every widget but the first
+ * onto one page).
  */
 function pageIndexForWidget(
   widget: unknown,
   pageByRef: Map<string, number>,
-  pageByRect: Map<string, number>,
+  widgetsByPage: WidgetPageMap,
   box: { x: number; y: number; width: number; height: number },
 ): number | undefined {
   try {
@@ -117,9 +119,18 @@ function pageIndexForWidget(
       if (direct !== undefined) return direct;
     }
   } catch {
+    /* fall through to ownership */
+  }
+  try {
+    const dict = (widget as { getDictionary?: () => PDFDict }).getDictionary?.();
+    if (dict) {
+      const direct = widgetsByPage.byDict.get(dict);
+      if (direct !== undefined) return direct;
+    }
+  } catch {
     /* fall through to geometry */
   }
-  return pageByRect.get(rectKey(box));
+  return widgetsByPage.byRect.get(rectKey(box));
 }
 
 /** Longest single value we will write into a field (hostile-input guard). */
@@ -212,12 +223,24 @@ function currentValueOf(field: AnyField, type: FormFieldType): string | boolean 
   return undefined;
 }
 
-/** `rect → pageIndex` for every widget annotation, keyed by normalized corners. */
-function buildRectPageMap(doc: PDFDocument): Map<string, number> {
-  const map = new Map<string, number>();
+interface WidgetPageMap {
+  /** `rect → pageIndex`, the last-resort geometry fallback. */
+  byRect: Map<string, number>;
+  /** The exact widget dictionary → the page whose `/Annots` owns it. */
+  byDict: Map<PDFDict, number>;
+}
+
+/** Maps every widget dictionary (and its rectangle) to its owning page. */
+function buildWidgetPageMap(doc: PDFDocument): WidgetPageMap {
+  const byRect = new Map<string, number>();
+  const byDict = new Map<PDFDict, number>();
   const pages = doc.getPages();
   pages.forEach((page, index) => {
     for (const dict of widgetDicts(page, doc)) {
+      // Duplicated pages can share an annotation object: keep the first
+      // occurrence, which is where the overlay should appear (values still
+      // apply to the whole field).
+      if (!byDict.has(dict)) byDict.set(dict, index);
       const numbers = readRect(dict.get(PDFName.of('Rect')) as PDFArray | undefined);
       if (!numbers) continue;
       const key = rectKey({
@@ -226,12 +249,10 @@ function buildRectPageMap(doc: PDFDocument): Map<string, number> {
         width: numbers[2] - numbers[0],
         height: numbers[3] - numbers[1],
       });
-      // Duplicated pages share annotations: keep the first occurrence, which is
-      // where the overlay should appear (values still apply to the whole field).
-      if (!map.has(key)) map.set(key, index);
+      if (!byRect.has(key)) byRect.set(key, index);
     }
   });
-  return map;
+  return { byRect, byDict };
 }
 
 function widgetDicts(page: PDFPage, doc: PDFDocument): PDFDict[] {

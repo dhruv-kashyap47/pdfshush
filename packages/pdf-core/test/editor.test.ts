@@ -797,6 +797,28 @@ describe('form fixes', () => {
     expect(widgets.find((w) => w.name === 'first')?.pageIndex).toBe(0);
     expect(widgets.find((w) => w.name === 'second')?.pageIndex).toBe(1);
   });
+
+  it('falls back to /Annots ownership when /P is missing, even at identical rects', async () => {
+    const doc = await PDFDocument.create();
+    const first = doc.addPage([300, 300]);
+    const second = doc.addPage([300, 300]);
+    const form = doc.getForm();
+    const rect = { x: 40, y: 100, width: 120, height: 20 };
+
+    const one = form.createTextField('first');
+    one.addToPage(first, rect);
+    const two = form.createTextField('second');
+    two.addToPage(second, rect);
+    // /P is optional, and templates repeat identical rectangles on every page.
+    // A rect-only fallback put both widgets on page 1, leaving page 2's field
+    // without an overlay.
+    clearPageRef(one.acroField.getWidgets()[0]);
+    clearPageRef(two.acroField.getWidgets()[0]);
+
+    const widgets = extractFormWidgets(doc);
+    expect(widgets.find((w) => w.name === 'first')?.pageIndex).toBe(0);
+    expect(widgets.find((w) => w.name === 'second')?.pageIndex).toBe(1);
+  });
 });
 
 describe('text-run clustering edge cases', () => {
@@ -886,4 +908,11 @@ function stampPageRef(
   const dict = (widget as { getDictionary?: () => { set: (key: unknown, value: unknown) => void } })
     .getDictionary?.();
   dict?.set(PDFName.of('P'), ref);
+}
+
+/** Removes `/P`, as writers that omit the optional owning-page entry do. */
+function clearPageRef(widget: unknown): void {
+  const dict = (widget as { getDictionary?: () => { delete: (key: unknown) => void } })
+    .getDictionary?.();
+  dict?.delete(PDFName.of('P'));
 }
