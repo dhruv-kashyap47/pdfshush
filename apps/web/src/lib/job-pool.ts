@@ -154,10 +154,12 @@ export class JobPool {
     worker.onmessage = (event: MessageEvent<WorkerMessage>) => this.onMessage(slot, event.data);
     worker.onerror = (event) => {
       const job = slot.job;
-      if (job) {
-        this.finish(job, 'reject', new Error(event.message || 'Worker crashed'));
-        this.respawn(slot);
-      }
+      if (job) this.finish(job, 'reject', new Error(event.message || 'Worker crashed'));
+      // Recycle on every crash, not only while a job is running. A worker that
+      // dies between jobs is still dead: leaving it in the pool made the next
+      // dispatch post into a global that could never answer, so the job sat
+      // until its full timeout. `pump()` spawns a replacement when work waits.
+      this.respawn(slot);
     };
     this.slots.push(slot);
     return slot;
