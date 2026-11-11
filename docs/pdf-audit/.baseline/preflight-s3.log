@@ -1,0 +1,3 @@
+note: docker-compose.yml exists but no compose containers exist -- compose checks skipped
+[preflight] the web app at http://localhost:5173 is down -- start the stack first:  pnpm dev
+[preflight] the api at http://localhost:8080 is down (also see above) -- start the stack first:  pnpm dev   (or for the full server stack:  pnpm stack:up)

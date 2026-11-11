@@ -15,6 +15,16 @@ Regenerate the generated set:
 node tests/fixtures/pdf-audit/generate.mjs
 ```
 
+Rendering references used by `packages/pdf-core/test/render-regression.test.ts`
+live in `packages/pdf-core/test/pdf-audit/render/`. They are PNG renders of the
+fixtures at fixed scales (1x, and 2x where the orientation/crop is the point):
+`tiny-1page`, `rotated-90` pages 1–2, `cropbox-offset`, `nonembedded-rtl-arabic`,
+`image-only` and `acroform`. `nonembedded-cjk` deliberately has **no** reference:
+it currently renders `.notdef` boxes (finding `PDF-RENDER-003`, needs decision),
+so the suite carries a known-failing repro instead of enshrining the wrong
+pixels. Regenerate references only for a deliberate rendering change, look at
+them first, and commit them in the same change that proves the new output.
+
 Validation facts were observed with
 `node docs/pdf-audit/.baseline/validate-fixtures.mjs`, which loads every fixture
 through both `@cantoo/pdf-lib` and `pdfjs-dist` (legacy build, the same

@@ -1,0 +1,84 @@
+$ pnpm -r --if-present test
+Scope: 7 of 8 workspace projects
+packages/pdf-core test$ vitest run
+packages/ai-agent test$ vitest run
+apps/mcp test$ pnpm build && vitest run
+apps/mcp test: $ esbuild src/bin.ts --bundle --platform=node --target=node24 --format=esm --banner:js="#!/usr/bin/env node" --outfile=dist/bin.js
+apps/mcp test: 
+apps/mcp test:   dist\bin.js  1.3mb ΓÜá∩╕Å
+apps/mcp test: 
+apps/mcp test: ΓÜí Done in 91ms
+packages/pdf-core test: 
+packages/pdf-core test:  RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/packages/pdf-core
+packages/pdf-core test: 
+packages/ai-agent test: 
+packages/ai-agent test:  RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/packages/ai-agent
+packages/ai-agent test: 
+apps/mcp test: 
+apps/mcp test:  RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/apps/mcp
+apps/mcp test: 
+apps/mcp test: 
+apps/mcp test:  Test Files  3 passed (3)
+apps/mcp test:       Tests  19 passed (19)
+apps/mcp test:    Start at  13:12:48
+apps/mcp test:    Duration  2.46s (tests 76%, import 12%, transform 10%, worker 2%)
+apps/mcp test: 
+apps/mcp test: Done
+packages/ai-agent test: 
+packages/ai-agent test:  Test Files  8 passed (8)
+packages/ai-agent test:       Tests  152 passed (152)
+packages/ai-agent test:    Start at  13:12:47
+packages/ai-agent test:    Duration  4.80s (tests 66%, transform 26%, import 6%, worker 2%)
+packages/ai-agent test: 
+packages/ai-agent test: Done
+packages/ai-provider test$ vitest run
+packages/ai-provider test: 
+packages/ai-provider test:  RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/packages/ai-provider
+packages/ai-provider test: 
+packages/ai-provider test: 
+packages/ai-provider test:  Test Files  31 passed (31)
+packages/ai-provider test:       Tests  375 passed (375)
+packages/ai-provider test:    Start at  13:12:53
+packages/ai-provider test:    Duration  3.26s (tests 42%, transform 36%, import 18%, worker 4%)
+packages/ai-provider test: 
+packages/ai-provider test:   Transform  transforming modules took 3.99s ┬╖ 36% of tracked time, re-done on every run
+packages/ai-provider test:              persist transforms across runs with fsModuleCache: true
+packages/ai-provider test:              learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+packages/ai-provider test: 
+packages/ai-provider test: Done
+packages/pdf-core test: 
+packages/pdf-core test:  Test Files  33 passed (33)
+packages/pdf-core test:       Tests  513 passed | 8 expected fail (521)
+packages/pdf-core test:    Start at  13:12:47
+packages/pdf-core test:    Duration  12.31s (import 57%, tests 37%, transform 6%)
+packages/pdf-core test: 
+packages/pdf-core test:     Isolate  33 workers spawned ┬╖ ~423ms startup each (spawn + environment, per file)
+packages/pdf-core test:              at least ~846ms faster with isolate: false ΓÇö reuses workers across files instead of one per file
+packages/pdf-core test: 
+packages/pdf-core test: Done
+apps/api test$ vitest run
+apps/web test$ vitest run
+apps/api test: 
+apps/web test: 
+apps/api test:  RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/apps/api
+apps/api test: 
+apps/web test:  RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/apps/web
+apps/web test: 
+apps/web test: 
+apps/web test:  Test Files  22 passed (22)
+apps/web test:       Tests  162 passed (162)
+apps/web test:    Start at  13:13:00
+apps/web test:    Duration  4.11s (import 52%, transform 40%, tests 7%, worker 1%)
+apps/web test: 
+apps/web test:   Transform  transforming modules took 7.78s ┬╖ 40% of tracked time, re-done on every run
+apps/web test:              persist transforms across runs with fsModuleCache: true
+apps/web test:              learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+apps/web test: 
+apps/web test: Done
+apps/api test: 
+apps/api test:  Test Files  14 passed (14)
+apps/api test:       Tests  218 passed (218)
+apps/api test:    Start at  13:13:00
+apps/api test:    Duration  10.43s (import 55%, tests 33%, transform 11%)
+apps/api test: 
+apps/api test: Done

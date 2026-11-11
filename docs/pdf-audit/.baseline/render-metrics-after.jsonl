@@ -1,0 +1,4 @@
+{"metric":"first-page","label":"pdf-to-images default","targetWidthPx":1600,"runsMs":[120.37,122.03,543.27],"medianMs":122.03}
+{"metric":"first-page","label":"pdf-to-images print","targetWidthPx":2560,"runsMs":[296.08,298.55,300.75],"medianMs":298.55}
+{"metric":"sweep","label":"editor window (20 pages, fit-width ~1339px)","targetWidthPx":1339,"format":"jpeg","pages":20,"totalMs":532.8,"meanPageMs":26.64,"medianPageMs":26.48,"p95PageMs":27.37,"maxPageMs":27.37,"peakRssMb":436.72,"peakHeapMb":199.08}
+{"metric":"sweep","label":"thumbnail grid (120 pages, 160px)","targetWidthPx":160,"format":"jpeg","pages":120,"totalMs":221.85,"meanPageMs":1.85,"medianPageMs":1.66,"p95PageMs":2.24,"maxPageMs":13.27,"peakRssMb":461.09,"peakHeapMb":215.62}

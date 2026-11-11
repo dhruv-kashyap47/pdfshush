@@ -200,6 +200,22 @@ replacement page. This is finding PDF-ENGINE-003, evidenced by
   `pdfRectToView`), consumed by `ops/edit.ts` and `ops/forms.ts`. Rotated and
   cropped pages are handled by the same mapping; see the `rotated-90.pdf` and
   `cropbox-offset.pdf` fixtures.
+- Rasterisation: `render/renderPage.ts` asks for a target pixel width and
+  `render/canvas.ts`'s `fitScaleToBudget` clamps the scale to both
+  `LIMITS.tool.maxRenderEdgePx` (8192) and `maxRenderAreaPx` (16,777,216, the
+  WebKit canvas ceiling). It fits the page instead of refusing it; the old
+  edge-only check blanked tall pages and let square pages exceed iOS limits.
+- Fonts are intentionally path-only in the worker: `loadPdfForRender` sets
+  `disableFontFace: true` and `useSystemFonts: false`, which is why
+  "Setting up fake worker." is expected. Consequence: a Type0 font with no
+  `FontFile` (e.g. `STSong-Light`) has no glyph program and paints `.notdef`
+  boxes; ICC profiles are also inactive because `wasmUrl`/`iccUrl` are not
+  configured. Both are recorded as decisions in `FINDINGS.md`
+  (`PDF-RENDER-003`, `PDF-RENDER-004`), not as accepted behaviour.
+- Text typography crosses the job boundary in display space:
+  `TextTypography.rotationDeg` folds in the page's `/Rotate`
+  (`document/glyphs.ts`), matching the glyph boxes and `Line.rotationDeg` that
+  the text layer hit-tests against.
 - Form authoring/filling: `ops/formFields.ts` and `ops/forms.ts`; flattening is
   the one operation that intentionally removes the AcroForm
   (`jobs/flatten.job.ts:66-69`), which is correct.
@@ -274,7 +290,7 @@ paths both call. The rest of this section documents the boundary as audited.
 | Tag | Primary code |
 | --- | --- |
 | `ENGINE` | `packages/pdf-core/src/ops/*`, `src/jobs/*` |
-| `RENDER` | `packages/pdf-core/src/render/*`, `apps/web/src/workers/job-worker.ts` |
+| `RENDER` | `packages/pdf-core/src/render/*` (canvas budget, page render, text runs/layout), `src/document/glyphs.ts`, `apps/web/src/workers/job-worker.ts` |
 | `EDITOR` | `packages/pdf-core/src/ops/edit.ts`, `src/textedit/*`, `src/ops/geometry.ts` |
 | `EXPORT` | `src/jobs/text.job.ts`, `images.job.ts`, `pdfToImages.job.ts`, `zip.job.ts` |
 | `SHARE` | none — not implemented |

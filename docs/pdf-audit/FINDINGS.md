@@ -10,6 +10,12 @@ and SEC-UPLOAD focus areas and fixes every unambiguous defect found there.
 Per-fix commits and verification are recorded in the status column; decisions
 that change product policy stay in "Needs decision" rather than being guessed.
 
+Session 3 (branch `pdf/s3-render`, cut from `pdf/s2-engine`) audits the RENDER
+focus area: page rasterisation and its canvas budget, rotation/CropBox frames,
+font substitution (including CJK/RTL), text-layer/overlay alignment, and the
+editor's raster cache. It fixed two defects and recorded three decisions; the
+render-regression corpus it added is the evidence anchor for the rest.
+
 Evidence conventions:
 
 - `file:line` points at the root cause in the tree at `c8f2208` (session-1
@@ -46,6 +52,22 @@ presentation only and are ordered by severity.
 "Fix size" is S (a few lines in one file), M (one module plus tests), L (new
 mechanism across several ops plus regression coverage). "Risk" is the chance a
 naive fix silently changes user-visible output in another tool.
+
+### Session 3 — RENDER (`pdf/s3-render`)
+
+Session 3 audits the render layer (`packages/pdf-core/src/render/*`, the
+editor's raster pipeline and the text/overlay frames). It found six RENDER
+defects; two are fixed, three are product/build decisions, and one is deferred
+for lack of a harness.
+
+| Rank | ID | Area | Symptom | Root cause | Severity | Fix size | Risk | Status | Repro |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 10 | `PDF-RENDER-001` | RENDER | A tall page can never be rendered: a 600x6000 pt page is refused at 1600 and 2560 px with "Rendered page would be 1600x16000 px; the limit is 8192 px on the longest side", so its preview/export stays blank. A 5000x5000 pt page passes that check and allocates a 64 MP canvas, which iOS/Safari caps at ~16.7 MP and paints blank. A 250 pt wide page at the 2560 px preset is silently capped at 8x and returns 2000 px. | `packages/pdf-core/src/render/renderPage.ts:51-62` chose the scale from the requested width (via `scaleForWidth`'s hard 8x cap), then validated only the longest side and threw instead of fitting the budget. | HIGH | M | LOW | **Fixed** (`6d49d7d`) | `packages/pdf-core/test/render-budget.test.ts`, `packages/pdf-core/test/render-regression.test.ts` |
+| 11 | `PDF-RENDER-002` | RENDER | On a `/Rotate 90` page a horizontal line is reported as `rotationDeg: 0`, `direction: 'ltr'` while its glyph boxes are vertical and its `Line` says 90°/`ttb`. The two halves of the text model disagree, and the paragraph orientation key groups rotated text as horizontal. | `packages/pdf-core/src/document/glyphs.ts:259` computed `TextTypography.rotationDeg` from the raw PDF text matrix only. The page's `/Rotate` is applied later by the viewport. | LOW | S | LOW | **Fixed** (`b5cfcfa`) | `packages/pdf-core/test/textModel.test.ts` |
+| 12 | `PDF-RENDER-003` | RENDER | Non-embedded CJK text (Type0/CIDFontType0 with no `FontFile`, e.g. `STSong-Light`) extracts as `你好，世界` but every raster paints five `.notdef` boxes. Affects the editor preview, PDF-to-images, Grayscale, Dark mode and OCR output for those files. | `packages/pdf-core/src/render/pdfjsRuntime.ts:156-164` forces `disableFontFace: true` and `useSystemFonts: false`; a dedicated worker has no `FontFaceSet` (`apps/web/src/workers/job-worker.ts:33-41`), so pdf.js has neither a glyph program nor a system font to substitute. | HIGH | L | HIGH | **Needs decision** | `packages/pdf-core/test/render-regression.test.ts` (`it.fails`, `PDF-RENDER-003`) |
+| 13 | `PDF-RENDER-004` | RENDER | ICC color management is disabled. pdf.js warns `No ICC color space support due to missing 'wasmUrl' API option`; an ICCBased color space is treated as its component-count default (the profile is ignored), so ICC/CMYK-derived colors can be wrong. JPEG2000/JBIG2 decode through the slower no-wasm fallback. | `packages/pdf-core/src/render/pdfjsRuntime.ts:13-29`, `:190-195` never pass `wasmUrl`, `iccUrl` or `useWasm`; `apps/web/src/workers/job-worker.ts:44-50` configures cmaps and standard fonts only. | MEDIUM | M | MEDIUM | **Needs decision** | pdf.js source (`.pnpm/pdfjs-dist@6.4.299/.../pdf.worker.mjs:2784`, `:2807`) |
+| 14 | `PDF-RENDER-005` | RENDER | Inline text editing on a rotated page is drawn horizontally: the paragraph box is 18x289 pt (vertical) but the textarea and the text-object preview have no rotation transform, so the editor shows short horizontal lines over vertical text. | `apps/web/src/components/editor/text-layer.tsx:542-566` (`editorStyle` has no `transform`), `apps/web/src/components/editor/editor-page.tsx:996-1012` (text preview). | LOW | M | MEDIUM | **Needs decision** | `docs/pdf-audit/.baseline/probe-observations.log`-style probe: rotated fixture paragraph bbox 18x289 at `pkgs/pdf-core` probe; code path above |
+| 15 | `PDF-RENDER-006` | RENDER | Swapping documents while page rasters are in flight bypasses the two-render concurrency cap: `invalidateDocumentCaches` zeroes the counter and queue, then each old `ensureRaster` `finally` decrements the fresh counter and dequeues a page of the *new* document. Up to four full file reads run at once instead of two. | `apps/web/src/components/tools/edit-pdf-tool.tsx:805-809` (reset) vs `:638-659` (old callbacks mutate the new state). | LOW | S | LOW | **Deferred** — needs a browser/React harness; the fix is a generation guard in `finally` | `apps/web/src/components/tools/edit-pdf-tool.tsx:594-659` |
 
 ---
 
@@ -204,6 +226,106 @@ archive silently lost one file. The fix tracks every emitted name and advances
 the suffix until it is unused; `createZip` calls the same helper, so the
 reported entry list and the archive agree. Commit `550f545`.
 
+### PDF-RENDER-001 — render scale was not fitted to the canvas budget
+
+Measured with the real pipeline on synthetic pages (`renderPageToCanvas`, fixed
+widths) before `6d49d7d`:
+
+```text
+tall viewport 600 6000
+tall ok   540   540x5400
+tall ok   775   775x7750
+tall FAIL 1600  Rendered page would be 1600x16000 px; the limit is 8192 px on the longest side. Choose a smaller width.
+tall FAIL 2560  Rendered page would be 2560x25600 px; the limit is 8192 px on the longest side. Choose a smaller width.
+editor budget widths at zoom 0.6/1/1.5/2: 540 / 900 / 1095 / 1095
+```
+
+At the editor's fit-width zoom (1.5 on a ~950 px column, times `RASTER_SCALE`
+1.5) the requested width is 1095 px, i.e. a 10950 px tall bitmap, so the page
+failed on open at every preset. `scaleForWidth` also capped the scale at 8x
+before the budget was consulted: a 250 pt page at a 2560 px request rendered at
+2000 px with no warning, and the 5000x5000 pt case stayed under 8192 per side
+but asked for 64 MP (4 bytes/pixel = 256 MB; WebKit's canvas ceiling is
+16,777,216 px and paints larger ones blank).
+
+Fix: `fitScaleToBudget` (`src/render/canvas.ts`) takes the smallest of the
+requested scale, `maxRenderEdgePx / longestSide` and
+`sqrt(maxRenderAreaPx / area)`, and `renderPageToCanvas` uses it instead of
+rejecting the page. New limits live in `limits.ts` (`maxRenderEdgePx: 8192`,
+`maxRenderAreaPx: 16_777_216`). The regression tests pin the former failures:
+`render-budget.test.ts` (unit arithmetic and `renderPageToCanvas` dimensions)
+and the golden renders of the rotated/cropped fixtures. Commit `6d49d7d`.
+
+### PDF-RENDER-002 — typography rotation was PDF-space, not display-space
+
+Probe of `rotated-90.pdf` page 1 (a `/Rotate 90` page) before `b5cfcfa`:
+
+```text
+run  {"t":"ROTATED-90", "x":47, "y":50, "w":15, "h":74.68, "horiz":false}
+para {"t":"ROTATED-90", "bbox":{"x":47.84,"y":50,"width":12,"height":74.68}, "rot":0}
+```
+
+The line's glyphs and `Line.rotationDeg` are vertical (90°), while the
+paragraph's `typography.rotationDeg` is 0 and `direction` is `ltr`;
+`TextTypography.rotationDeg` is documented as "Baseline angle in display space"
+(`document/types.ts:63`). `glyphs.ts` derived it from `matrixRotation` of the
+raw PDF matrix, which does not include the page's `/Rotate`. The viewport maps
+a text-space angle `θ` to display `pageRotation - θ`, so the fix subtracts the
+matrix angle from `geometry.rotation`. `document/group.ts:2105` keys paragraph
+orientation by this field, so rotated paragraphs were being grouped as
+horizontal. Regression test: `textModel.test.ts` — "reports typography rotation
+in display space on a rotated page" (fails with 0 before the fix). Commit
+`b5cfcfa`.
+
+### PDF-RENDER-003 — non-embedded CJK fonts paint `.notdef` boxes
+
+The CJK fixture is a Type0/CIDFontType0 font (`STSong-Light`) with no
+`FontFile` and a working `ToUnicode` CMap. Text extraction returns
+`你好，世界`; rendering the page at 2x produces five hollow rectangles. The
+reference crop inspected during this session shows the boxes, and the new
+`it.fails` repro in `render-regression.test.ts` asserts that at least three of
+the five glyph cells have ink inside their own ink box (a `.notdef` box has
+none). The cause is the font strategy, not the fixture: `loadPdfForRender`
+sets `disableFontFace: true` and `useSystemFonts: false` (deterministic
+path-only rendering inside a worker), and pdf.js can only fall back to a system
+font through a `document.fonts` FontFaceSet, which a dedicated worker does not
+have (`job-worker.ts:33-41`). The fix is a bundle decision (an embeddable CJK
+fallback, e.g. a subsetted Noto/Adobe Song, or an explicit "this document uses
+a non-embedded CJK font" warning), so it is parked in Needs decision.
+
+### PDF-RENDER-004 — ICC profiles and wasm decoders are not configured
+
+`PdfjsRuntimeConfig` has no `wasmUrl`/`iccUrl`, and `job-worker.ts` passes
+neither. In the installed pdf.js (`6.4.299`), `IccColorSpace.isUsable` warns
+`No ICC color space support due to missing 'wasmUrl' API option` and
+`CmykICCBasedCS.isUsable` warns `No CMYK ICC profile support due to missing
+'iccUrl' API option`; an ICCBased space then falls back to its component-count
+default, i.e. the profile is ignored. Shipping `wasm/{qcms_bg,openjpeg,jbig2}.wasm`
+and `iccs/CGATS001Compat-v2-micro.icc` (~480 KB total) plus the two URLs fixes
+it; that is a build/packaging decision, so it is parked rather than guessed.
+
+### PDF-RENDER-005 — rotated-page inline editing has no rotation transform
+
+On `/Rotate 90`, a paragraph's box is `18 x 289` pt (vertical). The inline
+editor (`text-layer.tsx:542-566`) and the text-object preview
+(`editor-page.tsx:996-1012`) position by that box but never rotate the element,
+so a horizontal textarea is laid into a vertical strip. The text remains
+editable and commits correctly; the presentation is wrong. Fixing it needs a UI
+decision (rotate the editor surface, or switch rotated text to a line-by-line
+editor), so it is parked.
+
+### PDF-RENDER-006 — a document swap bypasses the raster concurrency cap
+
+`invalidateDocumentCaches` zeroes `rasterActive`/`rasterQueue`
+(`edit-pdf-tool.tsx:805-809`) while `ensureRaster` calls from the previous
+document are still awaiting the job pool. Their `finally` (`:638-659`) then
+decrements the *new* counter, deletes a pending marker and dequeues a page of
+the new document, so the intended `MAX_PARALLEL_RASTERS = 2` can be exceeded
+(up to four full `file.arrayBuffer()` reads at once). The fix is a captured
+generation guard before the `finally` side effects. Deferred because the
+editor's raster queue has no test harness in Node; the browser probe used for
+METRICS.md is not a deterministic repro.
+
 ---
 
 ## Counts
@@ -214,7 +336,7 @@ By area:
 | --- | --- |
 | ENGINE | 7 (`001`, `002`, `003`, `005`, `006`, `007`, `008`) |
 | EXPORT | 1 (`004`) |
-| RENDER | 0 |
+| RENDER | 6 (`001`–`006`) |
 | EDITOR | 0 |
 | SHARE | 0 (not implemented — see `ARCHITECTURE-PDF.md` §5) |
 | SEC-UPLOAD | 1 (`001`) |
@@ -223,12 +345,13 @@ By severity:
 
 | Severity | Findings |
 | --- | --- |
-| HIGH | 3 (`ENGINE-001`, `ENGINE-003`, `ENGINE-006`) |
-| MEDIUM | 4 (`ENGINE-002`, `ENGINE-007`, `ENGINE-008`, `SEC-UPLOAD-001`) |
-| LOW | 2 (`ENGINE-004`, `ENGINE-005`) |
+| HIGH | 5 (`ENGINE-001`, `ENGINE-003`, `ENGINE-006`, `RENDER-001`, `RENDER-003`) |
+| MEDIUM | 5 (`ENGINE-002`, `ENGINE-007`, `ENGINE-008`, `SEC-UPLOAD-001`, `RENDER-004`) |
+| LOW | 5 (`ENGINE-004`, `ENGINE-005`, `RENDER-002`, `RENDER-005`, `RENDER-006`) |
 
 Session 2 closed 5 of the 8 in-scope findings; the 3 open ones are all
-needs-decision (form, metadata and annotation policy, below).
+needs-decision (form, metadata and annotation policy, below). Session 3 closed
+2 of the 6 RENDER findings, parked 3 decisions and deferred 1 harness.
 
 ---
 
@@ -265,6 +388,59 @@ parked here rather than "fixed".
 4. **Warning surface for lossy tools.** Today all of the above are silent. If
    the chosen policy keeps any loss, the tool result should say what was
    dropped; that is a UI/contract change, not an engine detail.
+5. **Non-embedded CJK fallback (`PDF-RENDER-003`).** A worker has no
+   `FontFaceSet`, so the current deterministic path-only font strategy renders
+   `.notdef` boxes for Type0 fonts without a `FontFile` (the common
+   `STSong-Light` case) even though the text extracts correctly. Options:
+   bundle a subsetted CJK fallback font and wire it into pdf.js's substitution
+   map (size/licensing), render those documents in a context with a font stack,
+   or accept the boxes and warn the user before exporting. This changes visible
+   output and ships a font, so it is not guessed here.
+6. **ICC/wasm rendering assets (`PDF-RENDER-004`).** Enabling ICC conversion
+   means shipping pdf.js's `wasm/` and `iccs/` files (~480 KB) and passing
+   `wasmUrl`/`iccUrl` from `job-worker.ts`, plus a build rule that keeps them in
+   sync with the pdf.js version. It changes colors for ICC/CMYK documents and
+   adds reviewed binary assets, so the packaging decision goes here.
+7. **Rotated-text inline editing (`PDF-RENDER-005`).** The paragraph editor and
+   text-object preview do not rotate with the page. Rotating the editing
+   surface or replacing it with a vertical editor changes interaction design,
+   so it needs a decision.
+
+---
+
+## RENDER coverage checked, no defect found
+
+These were checked numerically rather than by eye, and are now guarded by
+tests:
+
+- **DPR / scale.** `renderPageToCanvas` asks for the requested width and lets
+  the budget clamp it; ordinary pages are unchanged at every preset
+  (`render-budget.test.ts`: A4 at 1190 px -> 1190x1684, US Letter at 1600 ->
+  1600x2070). The editor's `RASTER_SCALE` and `rasterWidthWithinBudget`
+  arithmetic was already correct (session-1 fix); the regression suite renders
+  the rotated fixture at 1x and 2x.
+- **Rotation / CropBox.** `getViewport` and `pageGeom` agree for all four
+  rotations with and without a non-zero CropBox; `rotated-90.pdf` and
+  `cropbox-offset.pdf` are golden references at 1x (and rotated at 2x).
+- **Overlay alignment.** `extractFormWidgets` (pdf-lib) and
+  `page.getAnnotations()` (pdf.js) agree to 0.1 px for a widget on all four
+  rotations, cropped and uncropped (`editor.test.ts`). Text-layer paragraph
+  boxes contain the rendered ink (>= 80% coverage of a 2 px halo) and the
+  click-to-replace run boxes land within 0.3 em of the paragraph box on every
+  fixture page (`render-regression.test.ts`).
+- **Blank/partial pages.** Every golden render must contain ink; the image-only
+  page covers 19% of its pixels. No page in the corpus renders blank except the
+  CJK `.notdef` case above.
+- **RTL.** The Arabic fixture paints glyphs (not tofu); its reversed logical
+  order is pdf.js's documented visual-order output, not corruption.
+- **Flicker / cache.** Blob-URL replacement keeps the previous `<img>` content
+  until the new decode commits; the raster cache is bounded to 12 resident
+  pages with a 4-page retain margin. No defect was observed in the browser
+  scroll probe (`METRICS.md`). The swap-time concurrency issue is
+  `PDF-RENDER-006` (deferred).
+- **Virtualized page list.** There is no windowing library: the editor renders
+  every `EditorPage` and lazy-loads its raster, so there is no virtualized list
+  to mis-index.
 
 ---
 
@@ -296,7 +472,9 @@ pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit
 
 Session-1 repro commit: `7845dca` (docs, fixtures and known-failing tests only;
 no source change). Session-2 fixes: `550f545`, `9382d1d`, `fa07fc2`, `85a5d68`,
-`d3d0dde` (one root cause each). Lifecycle numbers: `METRICS.md`.
+`d3d0dde` (one root cause each). Session-3 fixes: `6d49d7d`, `b5cfcfa`; the
+render-regression corpus and overlay coverage are `160fdf4`. Lifecycle and
+render numbers: `METRICS.md`.
 
 Session-2 commands:
 
@@ -306,6 +484,23 @@ pnpm test                 # 1418 passed, 0 failed, 7 expected fail
 pnpm build
 pnpm test:bundle
 node tests/support/preflight.mjs   # exit 1: Docker/Redis/API unavailable
+```
+
+Session-3 commands (results in `METRICS.md`):
+
+```powershell
+pnpm typecheck            # pass
+pnpm test                 # 1439 passed, 0 failed, 8 expected fail
+pnpm build                # pass, 63 routes prerendered
+pnpm test:bundle          # pass, 0 engines in app chunks
+node tests/support/preflight.mjs   # exit 1: web/API/Docker unavailable
+node tests/sweep.mjs      # ungated diagnostic: exit 1, same 60 footer-reveal groups
+node tests/fixtures/pdf-audit/generate.mjs   # fixtures unchanged (byte-identical)
+
+# Regenerate the golden renders only for a deliberate rendering change:
+$env:UPDATE_RENDER_REFS='1'
+pnpm --filter @pdfshush/pdf-core exec vitest run test/render-regression.test.ts
+Remove-Item Env:UPDATE_RENDER_REFS
 ```
 
 Lint has no configured script in this workspace (same as `BASELINE.md`).
