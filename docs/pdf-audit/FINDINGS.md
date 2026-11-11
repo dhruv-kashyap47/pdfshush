@@ -16,6 +16,13 @@ font substitution (including CJK/RTL), text-layer/overlay alignment, and the
 editor's raster cache. It fixed two defects and recorded three decisions; the
 render-regression corpus it added is the evidence anchor for the rest.
 
+Session 4 (branch `pdf/s4-editor`, cut from `pdf/s3-render`) audits the EDITOR
+and EXPORT focus areas: display-space geometry and caret placement, text-edit
+fidelity, form-field editing, annotation persistence, undo/dirty state, and the
+export jobs. It added a fixture-wide round-trip harness, closed `ENGINE-004`
+and seven EDITOR findings, fixed one image-export decoder defect, and parked
+two export policy decisions.
+
 Evidence conventions:
 
 - `file:line` points at the root cause in the tree at `c8f2208` (session-1
@@ -47,7 +54,7 @@ presentation only and are ordered by severity.
 | 6 | `PDF-SEC-UPLOAD-001` | SEC-UPLOAD | Two uploaded files that sanitise to the same basename resolve to one path and the second write truncates the first. The job then runs with one document twice and one upload silently missing. Reproduced with `a b.pdf` + `a_b.pdf` (inline JSON) and with two maximum-length duplicate multipart names, where the `-2` suffix was truncated straight back off. | `apps/api/src/http/v1/routes.ts` deduped the *unsanitised* names; `apps/api/src/http/uploads.ts:183-191` appended the suffix before `store.writeInput` (`files/store.ts:77-78`) applied `safeFileName` again and truncated it. | MEDIUM | S | LOW | **Fixed** (`d3d0dde`) | `apps/api/test/v1.test.ts`, `apps/api/test/http.test.ts`, `apps/api/test/files.test.ts` |
 | 7 | `PDF-ENGINE-007` | ENGINE | When a pdf.js render task rejects (bad content stream, GPU context loss, cancelled page), the page-sized canvas allocated just before the await is never released. A page that fails mid-run pins its bitmap until GC. | `packages/pdf-core/src/render/renderPage.ts:71-80` awaited `task.promise` with no `catch`; `renderPageToImage`'s `finally` only covers a successful `renderPageToCanvas` return. The `null`-context path also threw after allocation. | MEDIUM | S | LOW | **Fixed** (`fa07fc2`) | `packages/pdf-core/test/renderPage-cleanliness.test.ts` |
 | 8 | `PDF-ENGINE-005` | ENGINE | A ZIP can contain two entries with the same path. `fflate` keeps only one of them, so a batch/split archive silently loses a file. Trigger: `['a.png','a.png','a-2.png']` → `['a.png','a-2.png','a-2.png']`. | `packages/pdf-core/src/ops/zip.ts:37-47` counted occurrences of the *original* name; a generated `-N` name was never checked against names that arrive later. | LOW | S | LOW | **Fixed** (`550f545`) | `packages/pdf-core/test/pdf-core.test.ts` |
-| 9 | `PDF-ENGINE-004` | EXPORT | `pdf-to-text` on a page with no extractable text reports `charCount: 1` while the emitted `.txt` body is empty. Cosmetic; the downloaded file is correct. | `packages/pdf-core/src/jobs/text.job.ts:94` adds `line.length + 1` for every page, including an empty joined line. | LOW | S | LOW | **Deferred** — EXPORT area, outside the session-2 ENGINE/SEC-UPLOAD scope (`7845dca`) | `packages/pdf-core/test/pdf-audit/text-extraction.test.ts` |
+| 9 | `PDF-ENGINE-004` | EXPORT | `pdf-to-text` on a page with no extractable text reported `charCount: 1` while the emitted `.txt` body was empty. | `packages/pdf-core/src/jobs/text.job.ts:94` added `line.length + 1` for every page, including an empty joined line. | LOW | S | LOW | **Fixed** (`5acf1be`) | `packages/pdf-core/test/pdf-audit/text-extraction.test.ts`, `packages/pdf-core/test/plain-tools.test.ts` |
 
 "Fix size" is S (a few lines in one file), M (one module plus tests), L (new
 mechanism across several ops plus regression coverage). "Risk" is the chance a
@@ -68,6 +75,34 @@ for lack of a harness.
 | 13 | `PDF-RENDER-004` | RENDER | ICC color management is disabled. pdf.js warns `No ICC color space support due to missing 'wasmUrl' API option`; an ICCBased color space is treated as its component-count default (the profile is ignored), so ICC/CMYK-derived colors can be wrong. JPEG2000/JBIG2 decode through the slower no-wasm fallback. | `packages/pdf-core/src/render/pdfjsRuntime.ts:13-29`, `:190-195` never pass `wasmUrl`, `iccUrl` or `useWasm`; `apps/web/src/workers/job-worker.ts:44-50` configures cmaps and standard fonts only. | MEDIUM | M | MEDIUM | **Needs decision** | pdf.js source (`.pnpm/pdfjs-dist@6.4.299/.../pdf.worker.mjs:2784`, `:2807`) |
 | 14 | `PDF-RENDER-005` | RENDER | Inline text editing on a rotated page is drawn horizontally: the paragraph box is 18x289 pt (vertical) but the textarea and the text-object preview have no rotation transform, so the editor shows short horizontal lines over vertical text. | `apps/web/src/components/editor/text-layer.tsx:542-566` (`editorStyle` has no `transform`), `apps/web/src/components/editor/editor-page.tsx:996-1012` (text preview). | LOW | M | MEDIUM | **Needs decision** | `docs/pdf-audit/.baseline/probe-observations.log`-style probe: rotated fixture paragraph bbox 18x289 at `pkgs/pdf-core` probe; code path above |
 | 15 | `PDF-RENDER-006` | RENDER | Swapping documents while page rasters are in flight bypasses the two-render concurrency cap: `invalidateDocumentCaches` zeroes the counter and queue, then each old `ensureRaster` `finally` decrements the fresh counter and dequeues a page of the *new* document. Up to four full file reads run at once instead of two. | `apps/web/src/components/tools/edit-pdf-tool.tsx:805-809` (reset) vs `:638-659` (old callbacks mutate the new state). | LOW | S | LOW | **Deferred** — needs a browser/React harness; the fix is a generation guard in `finally` | `apps/web/src/components/tools/edit-pdf-tool.tsx:594-659` |
+
+### Session 4 — EDITOR / EXPORT (`pdf/s4-editor`)
+
+Session 4 cut from `pdf/s3-render` and audited the editor save path and the
+export jobs. It added a fixture-wide round-trip harness
+(`packages/pdf-core/test/pdf-audit/roundtrip.test.ts`, commit `900d452`) that
+opens every fixture, applies a representative edit, saves, reopens and compares
+page count, text, annotations, forms, metadata, rendered pixels outside the edit
+box and file size. The harness and the focused repros below are green.
+
+The highest-severity defect is data loss: a save that rewrote text in place
+silently discarded form values. The remaining fixes are editor-fidelity and
+state-tracking defects; two export policy questions are parked.
+
+| Rank | ID | Area | Symptom | Root cause | Severity | Fix size | Risk | Status | Repro |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 16 | `PDF-EDITOR-002` | EDITOR | Filling a form field and editing text in the same save silently drops the form value whenever the text rewrite succeeds natively. The output text is correct, so nothing warns the user. | `packages/pdf-core/src/textedit/engine.ts:1058` made the overlay pass conditional on overlay/fallback objects only; `applyFormValues` runs inside that pass (`:1197`), so `formValues` never reached the document. | HIGH | S | LOW | **Fixed** (`a5bffdd`) | `packages/pdf-core/test/textEdit.test.ts` ("applies form values even when the text edit succeeds natively"), `test/pdf-audit/roundtrip.test.ts` |
+| 17 | `PDF-EDITOR-003` | EDITOR | Two form widgets at the same rectangle on different pages are both reported on page 1 when `/P` is absent, so page 2's field has no editable overlay. | `packages/pdf-core/src/ops/forms.ts:222` built a rect→page map only; identical template rectangles collided and first-page won. `/Annots` ownership was never consulted. | MEDIUM | S | LOW | **Fixed** (`2967699`) | `packages/pdf-core/test/editor.test.ts` ("falls back to /Annots ownership when /P is missing") |
+| 18 | `PDF-EDITOR-005` | EDITOR | The selected radio option renders unchecked until the user clicks a radio; all dots in a group start blank. | `apps/web/src/components/editor/editor-page.tsx:1209` compared the document's boolean selection to the option string, so `true === 'red'` was always false. | MEDIUM | S | LOW | **Fixed** (`d1b78d9`) | `apps/web/src/lib/form-widgets.test.ts` |
+| 19 | `PDF-EDITOR-006` | EDITOR | After saving filled form values the header still says "Unsaved changes" and Back warns forever; conversely, typing in an inline paragraph editor is not dirty, so Back can close and lose the text. | `apps/web/src/components/tools/edit-pdf-tool.tsx:2778-2782` treated *any* form value as unsaved and omitted `paragraphEdit`; `requestExit` also used `hasEdits`, which stays true after a successful save. | MEDIUM | S | LOW | **Fixed** (`a642124`) | `apps/web/src/lib/editor-dirty.test.ts` |
+| 20 | `PDF-EDITOR-001` | EDITOR | A two-line text box cannot be saved: validation reports the newline as a character the standard font cannot encode. | `packages/pdf-core/src/ops/edit.ts:418` passed structural control characters to the WinAnsi probe, although `wrapTextToWidth`/`drawText` already split on `\n`. | MEDIUM | S | LOW | **Fixed** (`ed9d2d3`) | `packages/pdf-core/test/editor.test.ts` ("accepts line breaks in a multi-line text box") |
+| 21 | `PDF-EDITOR-007` | EDITOR | One nudge needs two undos: the first appears to do nothing because the pre-gesture snapshot was pushed twice. | `apps/web/src/components/tools/edit-pdf-tool.tsx:1658-1662` opened a transaction, then used `apply()` (which pushes a checkpoint) instead of `live()`; `endTx()` pushed the same snapshot again. | LOW | S | LOW | **Fixed** (`03cbf25`) | `apps/web/src/lib/editor-state.test.ts` (transaction contract) |
+| 22 | `PDF-EDITOR-004` | EDITOR | The caret box on vertical (`/Rotate 90/270`) text is a one-pixel-wide bar across the top of the column and does not move with the offset; `caretAtParagraphOffset` returns the paragraph corner for every offset. | `packages/pdf-core/src/document/hitTest.ts:510` always advanced along +x and returned `{width:1,height:line.height}`. | LOW | S | LOW | **Fixed** (`32708be`) | `packages/pdf-core/test/textModel.test.ts` ("places a caret along the text axis on a rotated page") |
+| 23 | `PDF-EXPORT-001` | EXPORT | Extract Images exports an image with remapped (`/Decode`, commonly `[1 0]` inverted) samples as its raw values, so a white image becomes black with no warning. | `packages/pdf-core/src/ops/images.ts:185` never inspected `/Decode`; the Flate re-encode and DCT pass-through both copy samples verbatim. | LOW | S | LOW | **Fixed** (`55f2321`) | `packages/pdf-core/test/plain-tools.test.ts` ("honestly skips a non-identity Decode array") |
+
+"Fix size" is S (a few lines in one file), M (one module plus tests), L (new
+mechanism across several ops plus regression coverage). "Risk" is the chance a
+naive fix silently changes user-visible output in another tool.
 
 ---
 
@@ -124,9 +159,16 @@ metadata is discarded, not inherited.
 
 ### PDF-ENGINE-004 — charCount of an empty page
 
-`probe-observations.log` lines 363-367: `pdf-to-text image-only.pdf` returns
-`charCount: 1` and `text: ""`. For comparison, `tiny-1page.pdf` returns 37 and
-the CJK fixture returns 6 (`text.job.ts:94` is the formula).
+`probe-observations.log` lines 363-367: `pdf-to-text image-only.pdf` returned
+`charCount: 1` and `text: ""`. For comparison, `tiny-1page.pdf` returned 37 and
+the CJK fixture returned 6 (`text.job.ts:94` was the formula).
+
+Fixed in `5acf1be`: `charCount` is now the length of the body that is written
+(`text.job.ts:97`), not `line.length + 1` per page. The single page separator
+only exists *between* pages, so an empty document now reports 0 and a
+multi-page export reports exactly the downloaded text length. The `it.fails`
+repro was promoted to a normal test; `plain-tools.test.ts` also pins the
+body/count equality.
 
 ### PDF-ENGINE-006 — image raster limit checked after (never before) the decode
 
@@ -328,6 +370,118 @@ METRICS.md is not a deterministic repro.
 
 ---
 
+## Session 4 evidence (EDITOR / EXPORT)
+
+### PDF-EDITOR-002 — form values dropped by a native text save
+
+`editPdfText` had two save paths. When every edit rewrote its own text object,
+the function returned the PDFium bytes directly:
+
+```ts
+const hasOverlay = fallbackObjects.length > 0 || overlayObjects.length > 0;
+const finalBytes = hasOverlay ? await applyOverlayPass(...) : workingBytes;
+```
+
+`applyFormValues` is called only inside `applyOverlayPass`
+(`textedit/engine.ts:1197`). With no overlay and no fallback, a non-empty
+`options.formValues` was never read. Reproduced on `acroform.pdf` with one
+in-place edit (`ACROFORM FIXTURE` -> `ACROFORM EDITED`) and
+`{ 'person.name': 'Grace Hopper', 'person.country': 'India' }`: the text
+changed, the report said `in-place`, and both captured values stayed `Ada
+Lovelace` / `Japan`.
+
+Fixed in `a5bffdd`: form values force the overlay pass, and the rectangles of
+the widgets whose values were supplied are appended to the visual-edit regions
+(`engine.ts:1147-1152`). Otherwise the final visual gate would correctly see the
+widget appearance change as an unexpected pixel change outside the text-edit
+box and refuse a save the user asked for. Regression coverage:
+`textEdit.test.ts` and the harness's mixed save case.
+
+### PDF-EDITOR-003 — /Annots ownership for widgets without /P
+
+`extractFormWidgets` used `/P` first, then a rectangle→page map. `/P` is
+optional, and form templates repeat the same widget rectangle on every page;
+with no `/P`, the map kept the first page for every occurrence. The failing
+repro creates two text fields at the same rect on pages 1 and 2, deletes `/P`
+from both, and asserts each field is reported on its own page. Fixed in
+`2967699` by mapping the exact widget dictionary from each page's `/Annots` to
+that page (`forms.ts:234`); the rectangle remains the last resort.
+
+### PDF-EDITOR-005 — the selected radio is invisible until clicked
+
+`extractFormWidgets` returns one widget per radio option with
+`value: selected === option`, i.e. a boolean. The overlay did:
+
+```tsx
+checked={widget.type === 'radio' ? value === widget.option : Boolean(value)}
+```
+
+so the initial `true === 'red'` comparison was false for every dot. The helper
+`isFormWidgetChecked` (`apps/web/src/lib/form-widgets.ts`) accepts the
+document's boolean and the overlay's option-string form; the component now uses
+it. The pure helper is covered by `form-widgets.test.ts`.
+
+### PDF-EDITOR-006 — dirty state was not the saved state
+
+Two independent shapes in `edit-pdf-tool.tsx:2778-2782`:
+
+- `Object.keys(formValues).length > 0` kept the document dirty after a
+  successful save and after every value was reset.
+- `paragraphEdit` was omitted, although an inline paragraph edit deliberately
+  lives only in its textarea until commit. With no other edits the document was
+  "clean", so Back called `resetAll()` without the unsaved-changes gate.
+
+`requestExit` also used `hasEdits`, which is still true after a successful save.
+Fixed in `a642124` with the pure `editorIsDirty` helper: the current
+`EditorDoc` snapshot is compared with the one actually saved, and an active
+paragraph edit / pending page or redaction work counts as dirty. Tests:
+`apps/web/src/lib/editor-dirty.test.ts`.
+
+### PDF-EDITOR-001 — newlines rejected by text-object validation
+
+`findUnencodable` (`ops/edit.ts:418`) walked every code point and rejected
+anything WinAnsi does not encode. A newline is structural: `wrapTextToWidth`
+splits paragraphs on it and `drawText` maps each resulting line separately, so
+it never reaches the font as a glyph. Nevertheless a normal two-line textarea
+value failed validation with "cannot be drawn with the standard font". Fixed in
+`ed9d2d3` by skipping `\n`, `\r` and `\t`; the test applies and exports a
+two-line object and checks both lines are present.
+
+### PDF-EDITOR-007 — a nudge pushed the pre-gesture snapshot twice
+
+The nudge branch opened a transaction with `beginTx()` and then called
+`apply(move)`. `apply` already pushes the current document onto the undo stack;
+`endTx()` then pushed the transaction snapshot (the same document) again. One
+undo therefore restored the pre-gesture state and left `canUndo` true with a
+duplicate entry, so a second undo did nothing. Fixed in `03cbf25` by using
+`live()` inside the transaction. `editor-state.test.ts` drives the real
+`useEditorDoc` hook through a synchronous hook runtime and pins the
+begin/live/end contract plus undo/redo snapshot identity.
+
+### PDF-EDITOR-004 — caret geometry ignored the text axis
+
+`caretRect` always returned `{ x: word.x + word.width * ratio, width: 1,
+height: line.height }` with `y = line.bbox.y`. On a `/Rotate 90` page the line
+advances downward, so the caret stayed on the top edge and moved horizontally
+inside the 15 pt-wide column. `caretAtParagraphOffset` returned
+`paragraph.bbox.{x,y}` for every offset. Fixed in `32708be`: the line's
+`rotationDeg` decides whether the caret is a horizontal bar that walks down/up
+or a vertical bar that walks left/right; reversed text walks right-to-left.
+`textModel.test.ts` asserts the caret keeps one x and reaches the bottom of a
+rotated line, and that the serialized caret point agrees.
+
+### PDF-EXPORT-001 — `/Decode` remapping was ignored
+
+`classifyImageStream` copied Flate samples through `encodeFlatPng` and passed
+DCT bytes through untouched without reading `/Decode`. An image with
+`/Decode [1 0]` (inverted grayscale) was therefore exported with its raw
+samples: a white image came out black, uncounted. Fixed in `55f2321`: only the
+identity map (or no `/Decode`) is accepted; any other map, and an indirect
+reference that cannot be read safely, is skipped and counted like the other
+unsupported encodings. The test accepts `[0 1]` and refuses `[1 0]`.
+
+---
+
 ## Counts
 
 By area:
@@ -335,9 +489,9 @@ By area:
 | Area | Findings |
 | --- | --- |
 | ENGINE | 7 (`001`, `002`, `003`, `005`, `006`, `007`, `008`) |
-| EXPORT | 1 (`004`) |
+| EXPORT | 4 (`ENGINE-004`, `EXPORT-001`, `EXPORT-002`, `EXPORT-003`) |
 | RENDER | 6 (`001`–`006`) |
-| EDITOR | 0 |
+| EDITOR | 7 (`001`–`007`) |
 | SHARE | 0 (not implemented — see `ARCHITECTURE-PDF.md` §5) |
 | SEC-UPLOAD | 1 (`001`) |
 
@@ -345,13 +499,16 @@ By severity:
 
 | Severity | Findings |
 | --- | --- |
-| HIGH | 5 (`ENGINE-001`, `ENGINE-003`, `ENGINE-006`, `RENDER-001`, `RENDER-003`) |
-| MEDIUM | 5 (`ENGINE-002`, `ENGINE-007`, `ENGINE-008`, `SEC-UPLOAD-001`, `RENDER-004`) |
-| LOW | 5 (`ENGINE-004`, `ENGINE-005`, `RENDER-002`, `RENDER-005`, `RENDER-006`) |
+| HIGH | 6 (`ENGINE-001`, `ENGINE-003`, `ENGINE-006`, `RENDER-001`, `RENDER-003`, `EDITOR-002`) |
+| MEDIUM | 9 (`ENGINE-002`, `ENGINE-007`, `ENGINE-008`, `SEC-UPLOAD-001`, `RENDER-004`, `EDITOR-001`, `EDITOR-003`, `EDITOR-005`, `EDITOR-006`) |
+| LOW | 10 (`ENGINE-004`, `ENGINE-005`, `RENDER-002`, `RENDER-005`, `RENDER-006`, `EDITOR-004`, `EDITOR-007`, `EXPORT-001`, `EXPORT-002`, `EXPORT-003`) |
 
 Session 2 closed 5 of the 8 in-scope findings; the 3 open ones are all
 needs-decision (form, metadata and annotation policy, below). Session 3 closed
-2 of the 6 RENDER findings, parked 3 decisions and deferred 1 harness.
+2 of the 6 RENDER findings, parked 3 decisions and deferred 1 harness. Session 4
+closed `ENGINE-004` and all seven EDITOR findings, fixed the `/Decode` image
+export defect, and parked two export policy decisions (transparent images and
+output page names, below).
 
 ---
 
@@ -405,6 +562,19 @@ parked here rather than "fixed".
    text-object preview do not rotate with the page. Rotating the editing
    surface or replacing it with a vertical editor changes interaction design,
    so it needs a decision.
+8. **Transparent images in Extract Images (`PDF-EXPORT-002`).** A Flate image
+   with an `/SMask` is exported as opaque RGB; `alphaDropped` is computed per
+   file (`packages/pdf-core/src/ops/images.ts`) but the result UI never reads it
+   (`apps/web/src/components/tools/extract-images-tool.tsx`), so the gallery and
+   footer still imply a lossless export. Options: write RGBA PNGs (new encoder
+   path), warn per affected image, or count them as skipped. The first changes
+   an output format, the latter two change the reported result, so this is
+   parked rather than guessed.
+9. **PDF-to-images output names (`PDF-EXPORT-003`).** When a subset is
+   selected, images are named by their position in the selection
+   (`page-01.jpg`, `pdfToImages.job.ts:93`) and the preview alt text says
+   "Page 1..N", not the source page number. Renaming would make downloads
+   self-identifying but is a user-visible naming change, so it needs a decision.
 
 ---
 
@@ -473,7 +643,9 @@ pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit
 Session-1 repro commit: `7845dca` (docs, fixtures and known-failing tests only;
 no source change). Session-2 fixes: `550f545`, `9382d1d`, `fa07fc2`, `85a5d68`,
 `d3d0dde` (one root cause each). Session-3 fixes: `6d49d7d`, `b5cfcfa`; the
-render-regression corpus and overlay coverage are `160fdf4`. Lifecycle and
+render-regression corpus and overlay coverage are `160fdf4`. Session-4 harness:
+`900d452`; fixes: `ed9d2d3`, `a5bffdd`, `2967699`, `32708be`, `d1b78d9`,
+`a642124`, `03cbf25`, `5acf1be`, `55f2321` (one root cause each). Lifecycle and
 render numbers: `METRICS.md`.
 
 Session-2 commands:
@@ -502,5 +674,21 @@ $env:UPDATE_RENDER_REFS='1'
 pnpm --filter @pdfshush/pdf-core exec vitest run test/render-regression.test.ts
 Remove-Item Env:UPDATE_RENDER_REFS
 ```
+
+Session-4 commands:
+
+```powershell
+pnpm typecheck            # pass
+pnpm test                 # 1471 passed, 0 failed, 7 expected fail (115 files)
+pnpm build                # pass, 63 routes prerendered
+pnpm test:bundle          # pass, 0 engines in app chunks
+pnpm --filter @pdfshush/pdf-core exec vitest run test/pdf-audit/roundtrip.test.ts  # 15 passed
+pnpm --filter @pdfshush/web test  # 172 passed
+node tests/support/preflight.mjs   # exit 1: web at :5173 and API at :8080 are down
+```
+
+The gated e2e/sweep suites remain blocked by the same missing stack as
+`BASELINE.md` (preflight exits 1); no stand-in was substituted. Lint still has
+no configured workspace script.
 
 Lint has no configured script in this workspace (same as `BASELINE.md`).
