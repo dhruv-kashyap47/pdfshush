@@ -501,6 +501,59 @@ describe('form fill', () => {
     expect(info.fields.length).toBe(5); // text + checkbox + dropdown + 2 radio dots
     expect(info.fields.map((f) => f.name)).toContain('applicant.name');
   });
+
+  it('places widget overlays on the rects pdf.js paints, for every rotation and crop', async () => {
+    // The DOM input is laid over the raster, so a rect that disagrees with the
+    // rendered widget is a visibly misplaced field. Compare the pdf-lib
+    // display-space rect with pdf.js's viewport mapping of the same /Rect.
+    for (const rotation of [0, 90, 180, 270]) {
+      for (const cropped of [false, true]) {
+        const doc = await PDFDocument.create();
+        const page = doc.addPage([600, 800]);
+        if (cropped) {
+          page.setMediaBox(0, 0, 620, 820);
+          page.setCropBox(50, 60, 400, 500);
+        }
+        page.setRotation(degrees(rotation));
+        const field = doc.getForm().createTextField('a.b');
+        field.setText('hello');
+        field.addToPage(page, { x: 100, y: 100, width: 200, height: 30 });
+        const bytes = await doc.save();
+
+        const info = await inspectPdf(bytes);
+        const ours = info.fields[0]!;
+
+        const loaded = await loadPdfForRender(bytes);
+        try {
+          const pdfPage = await loaded.doc.getPage(1);
+          try {
+            const viewport = pdfPage.getViewport({ scale: 1 });
+            const annotations = await pdfPage.getAnnotations();
+            const widget = annotations.find((annotation) => annotation.subtype === 'Widget') as
+              | { rect: number[] }
+              | undefined;
+            expect(widget).toBeDefined();
+            const [x0, y0] = viewport.convertToViewportPoint(widget!.rect[0]!, widget!.rect[1]!);
+            const [x1, y1] = viewport.convertToViewportPoint(widget!.rect[2]!, widget!.rect[3]!);
+            const expected = {
+              x: Math.min(x0!, x1!),
+              y: Math.min(y0!, y1!),
+              width: Math.abs(x1! - x0!),
+              height: Math.abs(y1! - y0!),
+            };
+            expect(ours.rect.x, `rotation ${rotation}, crop ${cropped}`).toBeCloseTo(expected.x, 1);
+            expect(ours.rect.y, `rotation ${rotation}, crop ${cropped}`).toBeCloseTo(expected.y, 1);
+            expect(ours.rect.width, `rotation ${rotation}, crop ${cropped}`).toBeCloseTo(expected.width, 1);
+            expect(ours.rect.height, `rotation ${rotation}, crop ${cropped}`).toBeCloseTo(expected.height, 1);
+          } finally {
+            pdfPage.cleanup();
+          }
+        } finally {
+          await loaded.destroy();
+        }
+      }
+    }
+  }, 60_000);
 });
 
 describe('edit job', () => {
