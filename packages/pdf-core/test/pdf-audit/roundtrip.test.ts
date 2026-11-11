@@ -19,6 +19,8 @@ import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 
 import { editJob } from '../../src/jobs/edit.job.js';
 import { textEditJob } from '../../src/jobs/textEdit.job.js';
+import { flipJob } from '../../src/jobs/flip.job.js';
+import { mergePdfs } from '../../src/ops/merge.js';
 import { extractFormWidgets } from '../../src/ops/forms.js';
 import { inspectPdf } from '../../src/ops/pages.js';
 import { extractTextRuns } from '../../src/render/textRuns.js';
@@ -318,6 +320,56 @@ describe('mixed text + form save round trip', () => {
     const widgets = extractFormWidgets(await PDFDocument.load(saved, { updateMetadata: false }));
     expect(widgets.find((widget) => widget.name === 'person.name')?.value).toBe('Grace Hopper');
     expect(widgets.find((widget) => widget.name === 'person.country')?.value).toBe('India');
+  }, 60_000);
+});
+
+describe('merged form round trip', () => {
+  it('fills renamed fields in a merged document and keeps both values', async () => {
+    const source = bytes('acroform.pdf');
+    const merged = await mergePdfs(
+      [
+        { name: 'left.pdf', data: source },
+        { name: 'right.pdf', data: source },
+      ],
+      testContext(),
+    );
+    const doc = await PDFDocument.load(merged.data, { updateMetadata: false });
+    const form = doc.getForm();
+    form.getTextField('person.name').setText('Ada Lovelace');
+    form.getTextField('person.name_2').setText('Grace Hopper');
+    form.getDropdown('person.country_2').select('India');
+    const saved = await doc.save({ useObjectStreams: false });
+
+    const reopened = await PDFDocument.load(saved, { updateMetadata: false });
+    const widgets = extractFormWidgets(reopened);
+    expect(widgets.find((widget) => widget.name === 'person.name')?.value).toBe('Ada Lovelace');
+    expect(widgets.find((widget) => widget.name === 'person.name_2')?.value).toBe('Grace Hopper');
+    expect(widgets.find((widget) => widget.name === 'person.country_2')?.value).toBe('India');
+    expect(reopened.getPageCount()).toBe(2);
+  }, 60_000);
+});
+
+describe('flip with annotations round trip', () => {
+  it('flattens the mark into the rebuilt page and keeps it visible', async () => {
+    const source = bytes('annotations.pdf');
+    const output = await flipJob.run(
+      { files: [{ name: 'annotations.pdf', data: source }], options: { horizontal: true } },
+      testContext(),
+    );
+    const saved = new Uint8Array(output.data);
+    expect(output.warnings?.join(' ')).toMatch(/flattened \d+ annotation/i);
+    expect(await annotationCount(saved)).toBe(0);
+    const raster = await render(saved, 0);
+    // The yellow highlight and blue square remain visible after the mirror;
+    // a dropped annotation would leave only the page text.
+    let coloured = 0;
+    for (let i = 0; i < raster.pixels.length; i += 4) {
+      const r = raster.pixels[i]!;
+      const g = raster.pixels[i + 1]!;
+      const b = raster.pixels[i + 2]!;
+      if (Math.abs(r - g) > 12 || Math.abs(g - b) > 12) coloured += 1;
+    }
+    expect(coloured).toBeGreaterThan(500);
   }, 60_000);
 });
 

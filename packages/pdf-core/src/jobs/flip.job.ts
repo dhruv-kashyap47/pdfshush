@@ -33,6 +33,7 @@ export interface FlipJobOutput {
   pageCount: number;
   fileName: string;
   flipped: number;
+  warnings?: string[];
 }
 
 /** Resolves `true` (all pages) or an explicit list into a per-page axis map. */
@@ -91,6 +92,7 @@ export const flipJob: JobDefinition<FlipJobInput, FlipJobOutput> = {
     for (let i = 0; i < pageCount; i += 1) if (horizontal[i] || vertical[i]) flipped += 1;
     // A both-axes flip (double mirror) is a 180° turn: one pass cannot express
     // it, so those pages run through both passes.
+    const warnings = new Set<string>();
     const both = horizontal.map((h, i) => h && vertical[i]);
     if (both.every((value) => !value)) {
       const axes: (FlipAxis | null)[] = [];
@@ -99,18 +101,22 @@ export const flipJob: JobDefinition<FlipJobInput, FlipJobOutput> = {
         else if (vertical[i]) axes.push('vertical');
         else axes.push(null);
       }
-      await mirrorPages(doc, axes, ctx);
+      for (const warning of await mirrorPages(doc, axes, ctx)) warnings.add(warning);
     } else {
-      await mirrorPages(
+      for (const warning of await mirrorPages(
         doc,
         horizontal.map((h, i) => (h || both[i] ? ('horizontal' as FlipAxis) : null)),
         ctx,
-      );
-      await mirrorPages(
+      )) {
+        warnings.add(warning);
+      }
+      for (const warning of await mirrorPages(
         doc,
         vertical.map((v) => (v ? ('vertical' as FlipAxis) : null)),
         ctx,
-      );
+      )) {
+        warnings.add(warning);
+      }
     }
 
     const bytes = await doc.save({ useObjectStreams: false });
@@ -119,6 +125,7 @@ export const flipJob: JobDefinition<FlipJobInput, FlipJobOutput> = {
       pageCount,
       fileName: safeOutputName(input.options?.outputName, `${baseName(file.name)}-flipped`),
       flipped,
+      ...(warnings.size > 0 ? { warnings: [...warnings] } : {}),
     };
   },
 };

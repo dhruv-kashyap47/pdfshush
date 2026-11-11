@@ -28,6 +28,8 @@ import { extractPageLayouts } from '../src/render/textLayout.js';
 import type { CanvasFactory, RenderCanvas } from '../src/render/canvas.js';
 import type { PageLayout } from '../src/document/types.js';
 import type { TextRun } from '../src/render/textRuns.js';
+import { flipJob } from '../src/jobs/flip.job.js';
+import { testContext } from './fixtures.js';
 
 configurePdfjsRuntime({
   workerSrc: new URL('../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url).href,
@@ -114,11 +116,15 @@ interface Raster extends Decoded {
 
 async function renderCase(entry: Case): Promise<Raster> {
   const data = new Uint8Array(nodeFs().readFileSync(fixture(entry.file)));
+  return renderBytes(data, entry.page, entry.scale);
+}
+
+async function renderBytes(data: Uint8Array, pageNumber: number, scale: number): Promise<Raster> {
   const { doc, destroy } = await loadPdfForRender(data);
   try {
-    const page = await doc.getPage(entry.page);
+    const page = await doc.getPage(pageNumber);
     try {
-      const targetWidthPx = Math.round(page.getViewport({ scale: 1 }).width * entry.scale);
+      const targetWidthPx = Math.round(page.getViewport({ scale: 1 }).width * scale);
       const image = await renderPageToImage(page, {
         targetWidthPx,
         format: 'png',
@@ -257,6 +263,33 @@ describe('render regression', () => {
       expect(mean, `${entry.id}: mean channel difference`).toBeLessThan(1.5);
     });
   }
+
+  it('renders a flipped annotation as page content', async () => {
+    const source = new Uint8Array(nodeFs().readFileSync(fixture('annotations.pdf')));
+    const output = await flipJob.run(
+      { files: [{ name: 'annotations.pdf', data: source }], options: { horizontal: true } },
+      testContext(),
+    );
+    expect(output.warnings?.join(' ')).toMatch(/flattened \d+ annotation/i);
+    const actual = await renderBytes(new Uint8Array(output.data), 1, 1);
+    expect(countInk(actual)).toBeGreaterThan(0);
+
+    const id = 'flip-annotations.p1.s1';
+    if (env('UPDATE_RENDER_REFS') === '1') {
+      nodeFs().writeFileSync(reference(id), actual.data);
+      return;
+    }
+    const expectedPath = reference(id);
+    expect(nodeFs().existsSync(expectedPath), `missing reference ${id}`).toBe(true);
+    const expected = await decode(new Uint8Array(nodeFs().readFileSync(expectedPath)));
+    const { ratio, mean } = compare(actual, expected);
+    expect(ratio, `${id}: ${Math.round(ratio * 1000) / 10}% of pixels changed`).toBeLessThan(0.004);
+    expect(mean, `${id}: mean channel difference`).toBeLessThan(1.5);
+
+    // The highlight was on page 1 around y=700..718 (PDF space -> top of the
+    // raster); the painted copy must leave ink where the live annotation was.
+    expect(inkRatio(actual, { x: 72, y: 842 - 718, width: 240, height: 18 })).toBeGreaterThan(0.05);
+  }, 60_000);
 
   it('keeps the text layer on the glyphs it describes', async () => {
     for (const entry of CASES) {

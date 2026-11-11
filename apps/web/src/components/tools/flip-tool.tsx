@@ -100,6 +100,7 @@ export function FlipTool() {
         fileName={result.fileName}
         pageCount={result.pageCount}
         sizeBytes={result.data.byteLength}
+        warnings={result.warnings}
         onDownload={() => downloadBytes(result.data, result.fileName)}
         onReset={() => {
           runner.reset();

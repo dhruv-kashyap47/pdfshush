@@ -33,6 +33,7 @@ export interface ResizeJobOutput {
   data: ArrayBuffer;
   pageCount: number;
   fileName: string;
+  warnings?: string[];
 }
 
 export const resizeJob: JobDefinition<ResizeJobInput, ResizeJobOutput> = {
@@ -75,13 +76,14 @@ export const resizeJob: JobDefinition<ResizeJobInput, ResizeJobOutput> = {
     const plans: ResizePlan[] = doc
       .getPages()
       .map((page) => planResize({ width: page.getSize().width, height: page.getSize().height }, request));
-    await resizePages(doc, plans, ctx);
+    const warnings = await resizePages(doc, plans, ctx);
 
     const bytes = await doc.save({ useObjectStreams: false });
     return {
       data: toArrayBuffer(bytes),
       pageCount,
       fileName: safeOutputName(input.options?.outputName, `${baseName(file.name)}-resized`),
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   },
 };
