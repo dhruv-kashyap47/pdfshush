@@ -12,6 +12,7 @@ import { createProgressReporter, type JobContext } from '../job.js';
 import { loadPdfDocument } from './pages.js';
 import { applyDocumentDates, combineDocumentDates, readDocumentDates } from './dates.js';
 import { preservePageForms, type FormPlacement } from './formCopy.js';
+import { applyDocumentMetadata, readDocumentMetadata } from './metadata.js';
 
 export interface SourceDocument {
   name: string;
@@ -71,6 +72,9 @@ export async function composeDocument(
 
   const out = await PDFDocument.create();
   applyDocumentDates(out, combineDocumentDates(docs.map(readDocumentDates)));
+  // Semantic metadata follows the first source document (the same precedence
+  // merge/combine use); dates keep their existing deterministic policy.
+  if (docs[0]) applyDocumentMetadata(out, readDocumentMetadata(docs[0]));
 
   // Validate every reference against the real page counts BEFORE copying, so a
   // bad page index fails fast instead of after a full copy.

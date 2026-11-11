@@ -16,6 +16,7 @@ import type { JobContext } from '../job.js';
 import { createProgressReporter } from '../job.js';
 import { loadPdfDocument } from './pages.js';
 import { applyDocumentDates, readDocumentDates } from './dates.js';
+import { applyDocumentMetadata, readDocumentMetadata } from './metadata.js';
 import { preservePageForms, type FormPlacement } from './formCopy.js';
 import { displaySize, pageGeom, viewRectToPdf } from './geometry.js';
 import type { SourceDocument } from './compose.js';
@@ -55,8 +56,11 @@ export async function splitPagesInHalf(
   // Both halves are the same source document cut in two, so both inherit its
   // dates rather than being stamped with the moment of the split.
   const dates = readDocumentDates(src);
+  const metadata = readDocumentMetadata(src);
   applyDocumentDates(firstDoc, dates);
   applyDocumentDates(secondDoc, dates);
+  applyDocumentMetadata(firstDoc, metadata);
+  applyDocumentMetadata(secondDoc, metadata);
 
   const labels =
     orientation === 'vertical'

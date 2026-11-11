@@ -12,6 +12,7 @@ import type { JobContext } from '../job.js';
 import { createProgressReporter } from '../job.js';
 import { loadPdfDocument } from './pages.js';
 import { applyDocumentDates, readDocumentDates } from './dates.js';
+import { applyDocumentMetadata, readDocumentMetadata } from './metadata.js';
 import type { SourceDocument } from './compose.js';
 
 export type NupCount = 2 | 4 | 8;
@@ -86,6 +87,7 @@ export async function imposePages(
 
   const out = await PDFDocument.create();
   applyDocumentDates(out, readDocumentDates(src));
+  applyDocumentMetadata(out, readDocumentMetadata(src));
   const embedded = new Map<number, PDFEmbeddedPage>();
   const sheetCount = Math.ceil(totalPages / options.n);
 

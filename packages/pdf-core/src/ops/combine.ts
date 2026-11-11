@@ -23,6 +23,7 @@ import {
 } from './imageDocs.js';
 import { loadPdfDocument } from './pages.js';
 import { preservePageForms, type FormPlacement } from './formCopy.js';
+import { applyDocumentMetadata, readDocumentMetadata } from './metadata.js';
 import {
   applyDocumentDates,
   combineDocumentDates,
@@ -75,6 +76,7 @@ export async function combineToPdf(
   const pdfDates: DocumentDates[] = [];
   const formDocs: PDFDocument[] = [];
   const placements: FormPlacement[] = [];
+  let firstPdfDoc: PDFDocument | undefined;
   let pageCount = 0;
 
   for (let index = 0; index < sources.length; index += 1) {
@@ -100,6 +102,7 @@ export async function combineToPdf(
       const copied = indexes.length > 0 ? await out.copyPages(doc, indexes) : [];
       const docIndex = formDocs.length;
       formDocs.push(doc);
+      firstPdfDoc ??= doc;
       copied.forEach((page, sourcePageIndex) => {
         out.addPage(page);
         placements.push({ docIndex, sourcePageIndex, page });
@@ -146,8 +149,10 @@ export async function combineToPdf(
 
   if (pageCount === 0) throw new Error('No pages were produced from those files');
 
-  // PDF sources lend their dates; image-only output omits them.
+  // PDF sources lend their dates; image-only output omits them. Semantic
+  // metadata follows the first PDF source (the same rule merge uses).
   applyDocumentDates(out, combineDocumentDates(pdfDates));
+  if (firstPdfDoc) applyDocumentMetadata(out, readDocumentMetadata(firstPdfDoc));
   preservePageForms({ target: out, docs: formDocs, placements });
 
   progress.report('Writing the combined PDF', 0.97);

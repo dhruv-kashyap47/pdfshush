@@ -147,3 +147,47 @@ describe('page-copy pipelines: AcroForm (PDF-ENGINE-001)', () => {
     expect(await fieldNames(out.data)).toEqual(ACROFORM_FIELDS);
   });
 });
+
+describe('page-copy pipelines: metadata (PDF-ENGINE-002)', () => {
+  // `composeDocument` used to apply only /CreationDate and /ModDate to the new
+  // Info dictionary; Title/Author/Subject/Keywords were left behind.
+  it('organizing a page keeps its document metadata', async () => {
+    const meta = source('metadata.pdf');
+    const out = await composePageRefs(
+      [meta],
+      [{ docIndex: 0, pageIndex: 0 }],
+      testContext(),
+    );
+    const info = await inspectPdf(out.data);
+    expect(info.metadata.title).toBe('pdfshush metadata fixture');
+    expect(info.metadata.author).toBe('pdfshush audit');
+    expect(info.metadata.subject).toBe('Metadata preservation probe');
+    expect(info.metadata.keywords).toBe('pdf-audit metadata FIXTURE');
+  });
+
+  it('merge and combine use the first document metadata', async () => {
+    const merged = await mergePdfs(
+      [source('metadata.pdf'), source('tiny-1page.pdf')],
+      testContext(),
+    );
+    expect((await inspectPdf(merged.data)).metadata.title).toBe('pdfshush metadata fixture');
+
+    const combined = await combineToPdf(
+      [source('metadata.pdf'), source('tiny-1page.pdf')],
+      {},
+      testContext(),
+    );
+    expect((await inspectPdf(combined.data)).metadata.title).toBe('pdfshush metadata fixture');
+  });
+
+  it('keeps dates deterministic while adding semantic metadata', async () => {
+    const out = await composePageRefs(
+      [source('metadata.pdf')],
+      [{ docIndex: 0, pageIndex: 0 }],
+      testContext(),
+    );
+    const info = await inspectPdf(out.data);
+    const sourceInfo = await inspectPdf(readAuditFixture('metadata.pdf'));
+    expect(info.metadata.creationDate?.getTime()).toBe(sourceInfo.metadata.creationDate?.getTime());
+  });
+});

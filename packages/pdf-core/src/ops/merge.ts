@@ -3,6 +3,7 @@ import { createProgressReporter, type JobContext } from '../job.js';
 import { loadPdfDocument } from './pages.js';
 import { applyDocumentDates, combineDocumentDates, readDocumentDates } from './dates.js';
 import { preservePageForms, type FormPlacement } from './formCopy.js';
+import { applyDocumentMetadata, readDocumentMetadata } from './metadata.js';
 import type { SourceDocument } from './compose.js';
 
 export interface MergeResult {
@@ -31,8 +32,10 @@ export async function mergePdfs(sources: SourceDocument[], ctx: JobContext): Pro
 
   const out = await PDFDocument.create();
   // The merged file is derived from its sources: keep their earliest creation
-  // date and latest modification date instead of stamping "now".
+  // date and latest modification date instead of stamping "now". Semantic
+  // metadata follows the first document by explicit policy.
   applyDocumentDates(out, combineDocumentDates(docs.map(readDocumentDates)));
+  if (docs[0]) applyDocumentMetadata(out, readDocumentMetadata(docs[0]));
   const totalPages = docs.reduce((sum, doc) => sum + doc.getPageCount(), 0);
   const summary = docs.map((doc, i) => ({
     name: sources[i]?.name ?? `Document ${i + 1}`,
