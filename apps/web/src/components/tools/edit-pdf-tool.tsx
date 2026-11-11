@@ -109,6 +109,7 @@ import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBlob, downloadBytes } from '@/lib/download';
 import { readAsInputFiles, PDF_ACCEPT } from '@/lib/files';
 import { useEditorSession } from '@/lib/editor-session';
+import { editorIsDirty } from '@/lib/editor-dirty';
 import type { EditorDoc } from '@/lib/editor-state';
 import {
   defaultToolForMode,
@@ -2775,11 +2776,13 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     Object.keys(editor.doc.formValues).length > 0 ||
     (isOrganize && pageOrderDirty) ||
     (isRedact && redactMarks.length > 0);
-  const dirty =
-    (objectCount > 0 && editor.doc !== savedDocRef.current) ||
-    Object.keys(editor.doc.formValues).length > 0 ||
-    (isOrganize && pageOrderDirty) ||
-    (isRedact && redactMarks.length > 0);
+  const dirty = editorIsDirty({
+    doc: editor.doc,
+    saved: savedDocRef.current,
+    paragraphEditActive: paragraphEdit !== null,
+    pageOrderDirty: isOrganize && pageOrderDirty,
+    redactMarkCount: isRedact ? redactMarks.length : 0,
+  });
   const assistantActive = mode === 'ai' || tool === 'ai';
   const pageCount = displayPages.length || info?.pageCount || 0;
   const saveLabel = isOrganize
@@ -2843,7 +2846,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
   /** Close the document; unsaved work gets an explicit, reversible gate. */
   const requestExit = () => {
-    if (dirty || hasEdits || aiChangeCount > 0) {
+    if (dirty || aiChangeCount > 0) {
       setConfirmExit(true);
       return;
     }
