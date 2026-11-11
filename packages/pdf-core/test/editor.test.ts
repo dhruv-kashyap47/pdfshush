@@ -337,6 +337,22 @@ describe('edit op', () => {
     }
   });
 
+  it('accepts line breaks in a multi-line text box and exports every line', async () => {
+    // The textarea in the editor is a normal multiline control, and
+    // `wrapTextToWidth` explicitly supports explicit newlines. Validation used
+    // to treat the newline itself as an unencodable glyph, so a two-line text
+    // box could never be saved.
+    const object = textObject({ text: 'First line\nSecond line', x: 40, y: 40 });
+    expect(() => validateEditObjects([object], 1)).not.toThrow();
+
+    const doc = await docWithText(1);
+    await applyEdits(doc, [object], testContext());
+    const saved = await doc.save({ useObjectStreams: false });
+    await expect(validateExport(saved, 1)).resolves.toBeUndefined();
+    expect(pdfContainsText(saved, 'First line')).toBe(true);
+    expect(pdfContainsText(saved, 'Second line')).toBe(true);
+  });
+
   it('draws text, whiteouts and markup, then validates its own export', async () => {
     const doc = await docWithText(2);
     const objects: EditorObject[] = [

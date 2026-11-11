@@ -417,6 +417,10 @@ function assertEncodable(at: string, text: string): void {
 /** First character WinAnsi cannot encode, or undefined when all are fine. */
 function findUnencodable(text: string): string | undefined {
   for (const char of text) {
+    // Line breaks and tabs are structural, not glyphs: `wrapTextToWidth` splits
+    // on them before anything reaches the font. Rejecting them made every
+    // multi-line text box fail validation even though the draw path supports it.
+    if (char === '\n' || char === '\r' || char === '\t') continue;
     const codePoint = char.codePointAt(0)!;
     if (isWinAnsi(codePoint)) continue;
     return char;
