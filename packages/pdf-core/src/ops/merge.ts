@@ -2,6 +2,7 @@ import { PDFDocument } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { loadPdfDocument } from './pages.js';
 import { applyDocumentDates, combineDocumentDates, readDocumentDates } from './dates.js';
+import { preservePageForms, type FormPlacement } from './formCopy.js';
 import type { SourceDocument } from './compose.js';
 
 export interface MergeResult {
@@ -39,16 +40,22 @@ export async function mergePdfs(sources: SourceDocument[], ctx: JobContext): Pro
   }));
 
   let copiedSoFar = 0;
+  const placements: FormPlacement[] = [];
   for (let i = 0; i < docs.length; i += 1) {
     ctx.throwIfAborted();
     const doc = docs[i]!;
     const pages = await out.copyPages(doc, doc.getPageIndices());
-    for (const page of pages) out.addPage(page);
+    pages.forEach((page, sourcePageIndex) => {
+      out.addPage(page);
+      placements.push({ docIndex: i, sourcePageIndex, page });
+    });
     copiedSoFar += pages.length;
     progress.report(`Merging ${summary[i]?.name ?? ''}`.trim(), copiedSoFar / Math.max(1, totalPages));
     // Keep the worker's message loop alive on very large documents.
     await Promise.resolve();
   }
+
+  preservePageForms({ target: out, docs, placements });
 
   progress.report('Writing file', 0.97);
   const data = await out.save({ useObjectStreams: false });

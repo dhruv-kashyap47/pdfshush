@@ -16,6 +16,7 @@ import type { JobContext } from '../job.js';
 import { createProgressReporter } from '../job.js';
 import { loadPdfDocument } from './pages.js';
 import { applyDocumentDates, readDocumentDates } from './dates.js';
+import { preservePageForms, type FormPlacement } from './formCopy.js';
 import { displaySize, pageGeom, viewRectToPdf } from './geometry.js';
 import type { SourceDocument } from './compose.js';
 
@@ -62,6 +63,9 @@ export async function splitPagesInHalf(
       ? { firstLabel: 'left' as const, secondLabel: 'right' as const }
       : { firstLabel: 'top' as const, secondLabel: 'bottom' as const };
 
+  const firstPlacements: FormPlacement[] = [];
+  const secondPlacements: FormPlacement[] = [];
+
   for (let i = 0; i < pageCount; i += 1) {
     ctx.throwIfAborted();
     // Halves are cut in display space -- the visible box with /Rotate applied,
@@ -90,8 +94,13 @@ export async function splitPagesInHalf(
     applyBox(secondCopy, halves.second);
     firstDoc.addPage(firstCopy);
     secondDoc.addPage(secondCopy);
+    firstPlacements.push({ docIndex: 0, sourcePageIndex: i, page: firstCopy });
+    secondPlacements.push({ docIndex: 0, sourcePageIndex: i, page: secondCopy });
     progress.step(i, pageCount, 'Cutting pages');
   }
+
+  preservePageForms({ target: firstDoc, docs: [src], placements: firstPlacements });
+  preservePageForms({ target: secondDoc, docs: [src], placements: secondPlacements });
 
   progress.report('Writing files', 0.97);
   return {

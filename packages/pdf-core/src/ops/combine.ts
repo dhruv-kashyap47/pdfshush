@@ -22,6 +22,7 @@ import {
   type ImagesToPdfOptions,
 } from './imageDocs.js';
 import { loadPdfDocument } from './pages.js';
+import { preservePageForms, type FormPlacement } from './formCopy.js';
 import {
   applyDocumentDates,
   combineDocumentDates,
@@ -72,6 +73,8 @@ export async function combineToPdf(
   const out = await PDFDocument.create();
   const parts: CombinePart[] = [];
   const pdfDates: DocumentDates[] = [];
+  const formDocs: PDFDocument[] = [];
+  const placements: FormPlacement[] = [];
   let pageCount = 0;
 
   for (let index = 0; index < sources.length; index += 1) {
@@ -95,7 +98,12 @@ export async function combineToPdf(
         );
       }
       const copied = indexes.length > 0 ? await out.copyPages(doc, indexes) : [];
-      for (const page of copied) out.addPage(page);
+      const docIndex = formDocs.length;
+      formDocs.push(doc);
+      copied.forEach((page, sourcePageIndex) => {
+        out.addPage(page);
+        placements.push({ docIndex, sourcePageIndex, page });
+      });
       pageCount += copied.length;
       parts.push({ name: source.name, kind: 'pdf', pageCount: copied.length });
       continue;
@@ -140,6 +148,7 @@ export async function combineToPdf(
 
   // PDF sources lend their dates; image-only output omits them.
   applyDocumentDates(out, combineDocumentDates(pdfDates));
+  preservePageForms({ target: out, docs: formDocs, placements });
 
   progress.report('Writing the combined PDF', 0.97);
   const data = await out.save({ useObjectStreams: false });

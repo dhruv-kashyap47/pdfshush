@@ -11,6 +11,7 @@ import { PDFDocument, PDFPage, degrees } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { loadPdfDocument } from './pages.js';
 import { applyDocumentDates, combineDocumentDates, readDocumentDates } from './dates.js';
+import { preservePageForms, type FormPlacement } from './formCopy.js';
 
 export interface SourceDocument {
   name: string;
@@ -106,6 +107,7 @@ export async function composeDocument(
   // share -- and clobber -- the rotation and crop applied to the first. Repeats
   // get their own copy, taken from the untouched source document.
   const placed = new Set<string>();
+  const placements: FormPlacement[] = [];
   for (let i = 0; i < refs.length; i += 1) {
     const ref = refs[i]!;
     ctx.throwIfAborted();
@@ -131,12 +133,15 @@ export async function composeDocument(
     }
 
     out.addPage(page);
+    placements.push({ docIndex: ref.docIndex, sourcePageIndex: ref.pageIndex, page });
     if (i % 8 === 0 || i === refs.length - 1) {
       progress.report('Building document', (i + 1) / refs.length);
       // Yield to the message loop so cancel buttons stay responsive.
       await Promise.resolve();
     }
   }
+
+  preservePageForms({ target: out, docs, placements });
 
   return out;
 }
