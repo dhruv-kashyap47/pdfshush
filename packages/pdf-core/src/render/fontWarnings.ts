@@ -37,7 +37,11 @@ function isEmbedded(doc: PDFDocument, font: PDFDict): boolean {
 function fontName(font: PDFDict): string | undefined {
   const base = font.get(PDFName.of('BaseFont'));
   const decoded = (base as { decodeText?: () => string } | undefined)?.decodeText?.();
-  return decoded && decoded.length > 0 ? decoded : undefined;
+  if (!decoded) return undefined;
+  // A document-controlled name goes into a warning; keep it printable and short.
+  // eslint-disable-next-line no-control-regex
+  const clean = decoded.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 120);
+  return clean.length > 0 ? clean : undefined;
 }
 
 function isCidFont(doc: PDFDocument, font: PDFDict): boolean {

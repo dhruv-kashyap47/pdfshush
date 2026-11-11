@@ -10,6 +10,7 @@
 import { Queue, type Job, type JobsOptions } from 'bullmq';
 import IORedis, { type Redis } from 'ioredis';
 import { QUEUE_PDF, parseFailure, type JobPayload, type JobStateSnapshot } from './payload.js';
+import { sanitiseWarnings } from './warnings.js';
 import { WorkDirStore } from '../files/store.js';
 import type { Logger } from '../logger.js';
 import {
@@ -243,13 +244,7 @@ export function normalizeReturnValue(value: unknown): JobOutputs | undefined {
       typeof (file as { name?: unknown }).name === 'string' &&
       typeof (file as { bytes?: unknown }).bytes === 'number',
   );
-  const warnings = Array.isArray(record.warnings)
-    ? record.warnings
-        .filter((warning): warning is string => typeof warning === 'string')
-        .map((warning) => warning.trim())
-        .filter((warning) => warning.length > 0)
-        .slice(0, 20)
-    : [];
+  const warnings = sanitiseWarnings(record.warnings) ?? [];
   return {
     files,
     ...(typeof record.pageCount === 'number' ? { pageCount: record.pageCount } : {}),

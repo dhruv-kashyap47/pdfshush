@@ -253,12 +253,12 @@ describe('queue return values', () => {
       normalizeReturnValue({
         files: [{ name: 'out.pdf', bytes: 10 }],
         pageCount: 1,
-        warnings: ['  flattened 3 annotations  ', '', 42],
+        warnings: ['  flattened 3 annotations  ', '', 42, `bad\u0000${'x'.repeat(600)}`],
       }),
     ).toEqual({
       files: [{ name: 'out.pdf', bytes: 10 }],
       pageCount: 1,
-      warnings: ['flattened 3 annotations'],
+      warnings: ['flattened 3 annotations', `bad ${'x'.repeat(496)}`],
     });
     // No warnings means no key, so an older client sees the exact same JSON.
     expect(normalizeReturnValue({ files: [] })).toEqual({ files: [] });

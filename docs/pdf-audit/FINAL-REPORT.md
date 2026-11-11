@@ -430,7 +430,27 @@ dependency.
   `apps/api/test/http.test.ts` - revocation, failed-job revocation, account/auth
   cache headers.
 
-## 5. Remaining / deferred
+## 5. Security review of the session-6 diff
+
+No secrets, credentials, tokens or new dependencies were added. The API changes
+were reviewed against the existing job-capability boundary: revocation still
+requires the per-job token (authorisation runs before the `finished` branch),
+and account/auth responses now carry `no-store` + `Vary: cookie`. Three
+hardening changes came out of the review:
+
+- **Bounded warnings.** Job output crosses from untrusted document parsing into
+  API state JSON. `sanitiseWarnings` now caps each warning at 500 characters,
+  the list at 20, and strips control characters, so a hostile font/annotation
+  name cannot grow the payload or plant control bytes in a response.
+- **Form-tree recursion guard.** `formCopy.ts` tracks visited field nodes and
+  caps depth at 64, so a crafted `/Kids` cycle or deep chain cannot recurse
+  without bound. The existing `assertNoSignatureFields` walk gained the same
+  depth cap.
+- **Annotation work bounds.** Flip/Resize process at most 5,000 annotations per
+  page and cap synthesised FreeText contents at 2,000 characters; excess
+  annotations are counted as skipped and surfaced in `warnings[]`.
+
+## 6. Remaining / deferred
 
 - `PDF-RENDER-004` (ICC/wasm assets), `PDF-RENDER-005` (rotated inline editing)
   and `PDF-RENDER-006` (raster-cap swap race) are deferred with the reasons in
@@ -441,7 +461,7 @@ dependency.
   design decisions. Revocation of an existing job result is now available.
 - Extract Images still writes opaque RGB; only the warning changed.
 
-## 6. Reproduction
+## 7. Reproduction
 
 ```powershell
 pnpm typecheck

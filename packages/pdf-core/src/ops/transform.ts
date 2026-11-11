@@ -215,7 +215,9 @@ async function synthesiseAppearance(
   }
   if (subtype === '/FreeText') {
     const contents = dict.get(PDFName.of('Contents'));
-    const text = (contents as { decodeText?: () => string } | undefined)?.decodeText?.();
+    const decoded = (contents as { decodeText?: () => string } | undefined)?.decodeText?.();
+    // Annotation contents are document-controlled; cap before layout/drawing.
+    const text = decoded?.slice(0, 2000);
     if (!text) return false;
     state.font ??= doc.embedFont(StandardFonts.Helvetica);
     const font = await state.font;
@@ -247,7 +249,11 @@ async function flattenPageAnnotations(
 ): Promise<void> {
   const annots = page.node.Annots();
   if (!annots || annots.size() === 0) return;
-  for (let i = 0; i < annots.size(); i += 1) {
+  // A hostile page can declare a huge annotation array; process a bounded
+  // number and report the rest instead of pinning the worker in a loop.
+  const processCount = Math.min(annots.size(), 5000);
+  if (annots.size() > processCount) state.skipped += annots.size() - processCount;
+  for (let i = 0; i < processCount; i += 1) {
     const dict = lookupDict(doc, annots.get(i));
     if (!dict) continue;
     const subtype = dict.get(PDFName.of('Subtype'))?.toString() ?? '';
@@ -279,7 +285,8 @@ async function flattenPageAnnotations(
  */
 export function assertNoSignatureFields(doc: PDFDocument): void {
   const seen = new Set<PDFDict>();
-  const visit = (node: unknown): void => {
+  const visit = (node: unknown, depth = 0): void => {
+    if (depth > 64) return;
     const dict = lookupDict(doc, node);
     if (!dict || seen.has(dict)) return;
     seen.add(dict);
@@ -292,7 +299,7 @@ export function assertNoSignatureFields(doc: PDFDocument): void {
       );
     }
     const kids = doc.context.lookup(dict.get(PDFName.of('Kids')));
-    if (kids instanceof PDFArray) for (const kid of kids.asArray()) visit(kid);
+    if (kids instanceof PDFArray) for (const kid of kids.asArray()) visit(kid, depth + 1);
   };
 
   const form = lookupDict(doc, doc.catalog.get(PDFName.of('AcroForm')));

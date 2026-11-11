@@ -90,6 +90,10 @@ function copyAcroFormForPages(args: CopyArgs): Map<PDFPage, PDFRef[]> {
   });
 
   const copier = PDFObjectCopier.for(source.context, target.context);
+  const visited = new Set<PDFDict>();
+  // Real forms are a handful of levels deep. A crafted /Kids chain (or a
+  // cycle) must not become unbounded recursion in the worker.
+  const MAX_FIELD_DEPTH = 64;
 
   const copyValue = (value: PDFObject): PDFObject => {
     if (value instanceof PDFRef) {
@@ -124,6 +128,8 @@ function copyAcroFormForPages(args: CopyArgs): Map<PDFPage, PDFRef[]> {
     parentRef: PDFRef | undefined,
     pageIndex: number | undefined,
   ): PDFRef | undefined => {
+    if (visited.has(dict)) return undefined;
+    visited.add(dict);
     if (pageIndex === undefined || !allowedPages.has(pageIndex)) return undefined;
     const targetPage = pageMap.get(pageIndex);
     if (!targetPage) return undefined;
@@ -147,13 +153,17 @@ function copyAcroFormForPages(args: CopyArgs): Map<PDFPage, PDFRef[]> {
     node: PDFObject,
     parentRef: PDFRef | undefined,
     parentName: string,
+    depth: number,
   ): PDFRef | undefined => {
+    if (depth > MAX_FIELD_DEPTH) return undefined;
     const dict = source.context.lookup(node);
     if (!(dict instanceof PDFDict)) return undefined;
     const widget = isWidget(dict);
     const hasFieldKey = dict.has(PDFName.of('FT')) || dict.has(PDFName.of('T'));
+    if (widget && !hasFieldKey) return cloneWidget(dict, parentRef, widgetPage(dict));
+    if (visited.has(dict)) return undefined;
+    visited.add(dict);
     const pageIndex = widget ? widgetPage(dict) : undefined;
-    if (widget && !hasFieldKey) return cloneWidget(dict, parentRef, pageIndex);
     if (widget && (pageIndex === undefined || !allowedPages.has(pageIndex))) return undefined;
 
     const cloned = PDFDict.withContext(target.context);
@@ -204,7 +214,7 @@ function copyAcroFormForPages(args: CopyArgs): Map<PDFPage, PDFRef[]> {
     if (kids.length > 0) {
       const childRefs: PDFRef[] = [];
       for (const kid of kids) {
-        const child = cloneField(kid, ref, fieldName);
+        const child = cloneField(kid, ref, fieldName, depth + 1);
         if (child) childRefs.push(child);
       }
       // A non-terminal field whose every child was on an excluded page has no
@@ -219,7 +229,7 @@ function copyAcroFormForPages(args: CopyArgs): Map<PDFPage, PDFRef[]> {
 
   const clonedRoots: PDFRef[] = [];
   for (const root of sourceFields.asArray()) {
-    const ref = cloneField(root, undefined, '');
+    const ref = cloneField(root, undefined, '', 0);
     if (ref) clonedRoots.push(ref);
   }
   if (clonedRoots.length === 0) return widgetsByPage;

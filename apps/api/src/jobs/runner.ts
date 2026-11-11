@@ -31,6 +31,7 @@ import {
 } from '@pdfshush/pdf-core/node';
 import { resolveWithin } from '../files/paths.js';
 import type { WorkDirStore } from '../files/store.js';
+import { sanitiseWarnings } from './warnings.js';
 
 export class JobExecutionError extends Error {
   constructor(
@@ -204,14 +205,7 @@ export async function runJob(options: RunOptions): Promise<RunResult> {
 /** Top-level `warnings: string[]` from a job result, validated and bounded. */
 function readWarnings(result: unknown): string[] | undefined {
   if (!result || typeof result !== 'object') return undefined;
-  const raw = (result as { warnings?: unknown }).warnings;
-  if (!Array.isArray(raw)) return undefined;
-  const warnings = raw
-    .filter((warning): warning is string => typeof warning === 'string')
-    .map((warning) => warning.trim())
-    .filter((warning) => warning.length > 0)
-    .slice(0, 20);
-  return warnings.length > 0 ? warnings : undefined;
+  return sanitiseWarnings((result as { warnings?: unknown }).warnings);
 }
 
 /**
