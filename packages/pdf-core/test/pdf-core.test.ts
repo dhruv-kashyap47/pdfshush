@@ -185,6 +185,15 @@ describe('zip helpers', () => {
     expect(stripExtension('report.final.pdf')).toBe('report.final');
     expect(stripExtension('noext')).toBe('noext');
   });
+
+  // Regression: a generated `-2` name was never checked against names that
+  // arrive later, so `['a.png','a.png','a-2.png']` produced `a-2.png` twice and
+  // the archive silently kept only one of the two files.
+  it('never emits a duplicate name, even when a suffixed name already exists', () => {
+    const names = dedupeNames(['a.png', 'a.png', 'a-2.png']);
+    expect(names).toEqual(['a.png', 'a-2.png', 'a-2-2.png']);
+    expect(new Set(names).size).toBe(names.length);
+  });
 });
 
 describe('jobs (registry layer)', () => {

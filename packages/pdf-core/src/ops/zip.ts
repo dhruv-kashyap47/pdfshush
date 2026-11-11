@@ -35,14 +35,23 @@ export function pageFileName(prefix: string, pageNumber: number, total: number, 
 
 /** Collapses duplicate names so a zip can never contain two identical paths. */
 export function dedupeNames(names: string[]): string[] {
-  const seen = new Map<string, number>();
+  const taken = new Set<string>();
   return names.map((name) => {
-    const count = seen.get(name) ?? 0;
-    seen.set(name, count + 1);
-    if (count === 0) return name;
+    if (!taken.has(name)) {
+      taken.add(name);
+      return name;
+    }
     const dot = name.lastIndexOf('.');
     const stem = dot > 0 ? name.slice(0, dot) : name;
     const ext = dot > 0 ? name.slice(dot) : '';
-    return `${stem}-${count + 1}${ext}`;
+    // Look the candidate up in `taken`, not just in the original list: a
+    // generated `-2` name can itself be a name that arrives later.
+    for (let suffix = 2; ; suffix += 1) {
+      const candidate = `${stem}-${suffix}${ext}`;
+      if (!taken.has(candidate)) {
+        taken.add(candidate);
+        return candidate;
+      }
+    }
   });
 }
