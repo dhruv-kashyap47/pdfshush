@@ -183,6 +183,7 @@ export function PdfToImagesTool() {
           fileName={result.zipName}
           pageCount={result.pageCount}
           sizeBytes={result.zip.byteLength}
+          warnings={result.warnings}
           downloadLabel="Download ZIP"
           onDownload={() => downloadBytes(result.zip, result.zipName, 'application/zip')}
           onReset={() => {

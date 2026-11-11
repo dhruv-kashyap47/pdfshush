@@ -7,6 +7,7 @@
 import type { JobDefinition } from '../job.js';
 import { darkModeDocument } from '../darkmode/dark.js';
 import { isDarkModeThemeId, type DarkModeKind, type DarkModeThemeId } from '../darkmode/darkModes.js';
+import { nonEmbeddedFontWarnings } from '../render/fontWarnings.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -32,6 +33,7 @@ export interface DarkModeJobOutput {
   data: ArrayBuffer;
   pageCount: number;
   fileName: string;
+  warnings?: string[];
 }
 
 const KINDS: ReadonlySet<string> = new Set<DarkModeKind>(['theme', 'smart', 'invert']);
@@ -85,6 +87,7 @@ export const darkModeJob: JobDefinition<DarkModeJobInput, DarkModeJobOutput> = {
       data: toArrayBuffer(result.data),
       pageCount: result.pageCount,
       fileName: safeOutputName(input.options?.outputName, `${baseName(file.name)}-dark`),
+      warnings: await nonEmbeddedFontWarnings(file.data, file.password),
     };
   },
 };

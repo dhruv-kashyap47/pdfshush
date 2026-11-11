@@ -4,6 +4,7 @@ import { probePageCount } from '../ops/pages.js';
 import { createZip, dedupeNames, pageFileName } from '../ops/zip.js';
 import { baseName, toArrayBuffer, totalInputBytes } from './helpers.js';
 import { LIMITS } from '../limits.js';
+import { nonEmbeddedFontWarnings } from '../render/fontWarnings.js';
 
 /** Type alias (not interface) so it keeps an implicit index signature and
  * satisfies the `JobInputBase['options']` constraint. */
@@ -28,6 +29,7 @@ export interface PdfToImagesOutput {
   zipName: string;
   format: ImageFormat;
   pageCount: number;
+  warnings?: string[];
 }
 
 export const pdfToImagesJob: JobDefinition<PdfToImagesInput, PdfToImagesOutput> = {
@@ -87,6 +89,7 @@ export const pdfToImagesJob: JobDefinition<PdfToImagesInput, PdfToImagesOutput> 
       ctx,
       file.password,
     );
+    const warnings = await nonEmbeddedFontWarnings(file.data, file.password);
 
     const stem = baseName(file.name);
     const ext = format === 'jpeg' ? 'jpg' : 'png';
@@ -107,6 +110,7 @@ export const pdfToImagesJob: JobDefinition<PdfToImagesInput, PdfToImagesOutput> 
       zipName: `${stem}-images.zip`,
       format,
       pageCount: pageIndexes.length,
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   },
 };

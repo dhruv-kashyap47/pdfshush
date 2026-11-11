@@ -7,6 +7,7 @@
 import type { JobDefinition } from '../job.js';
 import { LIMITS, OCR_LIMITS, ocrTimeoutForPageCount } from '../limits.js';
 import { ocrDocument } from '../ocr/ocr.js';
+import { nonEmbeddedFontWarnings } from '../render/fontWarnings.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -36,6 +37,7 @@ export interface OcrJobOutput {
   characterCount: number;
   /** Word-weighted recognizer confidence, 0..100. */
   averageConfidence: number;
+  warnings?: string[];
 }
 
 export const ocrJob: JobDefinition<OcrJobInput, OcrJobOutput> = {
@@ -99,6 +101,7 @@ export const ocrJob: JobDefinition<OcrJobInput, OcrJobOutput> = {
       wordCount: result.wordCount,
       characterCount: result.characterCount,
       averageConfidence: result.averageConfidence,
+      warnings: await nonEmbeddedFontWarnings(file.data, file.password),
     };
   },
 };

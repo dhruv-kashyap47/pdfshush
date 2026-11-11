@@ -6,6 +6,7 @@
 
 import type { JobDefinition } from '../job.js';
 import { grayscaleDocument } from '../gray/gray.js';
+import { nonEmbeddedFontWarnings } from '../render/fontWarnings.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index signature constraint. */
@@ -27,6 +28,7 @@ export interface GrayscaleJobOutput {
   data: ArrayBuffer;
   pageCount: number;
   fileName: string;
+  warnings?: string[];
 }
 
 export const grayscaleJob: JobDefinition<GrayscaleJobInput, GrayscaleJobOutput> = {
@@ -68,6 +70,7 @@ export const grayscaleJob: JobDefinition<GrayscaleJobInput, GrayscaleJobOutput> 
       data: toArrayBuffer(result.data),
       pageCount: result.pageCount,
       fileName: safeOutputName(input.options?.outputName, `${baseName(file.name)}-grayscale`),
+      warnings: await nonEmbeddedFontWarnings(file.data, file.password),
     };
   },
 };

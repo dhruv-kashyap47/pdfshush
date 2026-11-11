@@ -176,6 +176,7 @@ export type {
 // Rendering
 export { configurePdfjsRuntime, loadPdfForRender } from './render/pdfjsRuntime.js';
 export type { PdfjsRuntimeConfig, LoadedPdf } from './render/pdfjsRuntime.js';
+export { nonEmbeddedFontWarnings } from './render/fontWarnings.js';
 export {
   defaultCanvasFactory,
   hasOffscreenCanvas,
