@@ -1,0 +1,9 @@
+$ node tests/bundle-boundary.mjs
+main chunk: assets/index-CeahjGMo.js (173.4 kB)
+  [PASS] main chunk carries no PDF engine ΓÇö 59 modules, 0 engines
+  [PASS] main chunk carries no signature pad or Caveat font ΓÇö 0 pad modules
+  [PASS] the signature pad ships in a lazy chunk ΓÇö signature-pad-dialog-mvEduMet.js (3 modules)
+  [PASS] no lazy app chunk carries a PDF engine ΓÇö 17 chunks, 0 engines
+  [PASS] the engines still ship (in the worker chunks) ΓÇö job-worker-BWARsHxR.js, pdf.worker.min-CjEcRF4W.mjs
+
+=== bundle boundary: ok ===

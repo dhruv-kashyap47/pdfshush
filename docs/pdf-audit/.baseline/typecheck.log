@@ -1,0 +1,15 @@
+$ pnpm -r typecheck
+packages/pdf-core typecheck$ tsc --noEmit -p tsconfig.json
+packages/api-contracts typecheck$ tsc --noEmit -p tsconfig.json
+packages/ai-agent typecheck$ tsc --noEmit -p tsconfig.json
+packages/api-contracts typecheck: Done
+apps/mcp typecheck$ tsc --noEmit -p tsconfig.json
+packages/ai-agent typecheck: Done
+packages/ai-provider typecheck$ tsc --noEmit -p tsconfig.json
+apps/mcp typecheck: Done
+packages/ai-provider typecheck: Done
+packages/pdf-core typecheck: Done
+apps/web typecheck$ tsc --noEmit -p tsconfig.json
+apps/api typecheck$ tsc --noEmit -p tsconfig.json
+apps/api typecheck: Done
+apps/web typecheck: Done

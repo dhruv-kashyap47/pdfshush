@@ -1,0 +1,4 @@
+{"step":"typecheck","command":"pnpm typecheck","exit":0,"seconds":16.6,"log":"docs\\pdf-audit\\.baseline\\typecheck.log"}
+{"step":"test","command":"pnpm test","exit":0,"seconds":25.7,"log":"docs\\pdf-audit\\.baseline\\test.log"}
+{"step":"build","command":"pnpm build","exit":0,"seconds":16.6,"log":"docs\\pdf-audit\\.baseline\\build.log"}
+{"step":"bundle","command":"pnpm test:bundle","exit":0,"seconds":0.8,"log":"docs\\pdf-audit\\.baseline\\bundle.log"}

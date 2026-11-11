@@ -1,0 +1,464 @@
+
+ RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/packages/pdf-core
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > page-copy pipelines: organize, merge, combine
+
+@@ source acroform
+[
+  "person.name",
+  "person.agree",
+  "person.color",
+  "person.color",
+  "person.country",
+  "person.tags"
+]
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > page-copy pipelines: organize, merge, combine
+
+@@ source metadata
+{
+  "title": "pdfshush metadata fixture",
+  "author": "pdfshush audit",
+  "subject": "Metadata preservation probe",
+  "keywords": "pdf-audit metadata FIXTURE",
+  "creator": "generate.mjs",
+  "producer": "pdfshush audit fixture generator",
+  "creationDate": "2020-01-01T00:00:00.000Z"
+}
+
+stdout | test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > edit / compress / protect keep forms; resize / flip lose them
+
+@@ source acroform
+{
+  "pages": 1,
+  "acroform": true,
+  "fields": 6,
+  "annots": [
+    6
+  ],
+  "title": null,
+  "rotations": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > page-copy pipelines: organize, merge, combine
+
+@@ organize acroform
+{
+  "pages": 1,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    6
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > page-copy pipelines: organize, merge, combine
+
+@@ organize metadata
+{
+  "pages": 1,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > edit / compress / protect keep forms; resize / flip lose them
+
+@@ edit
+{
+  "pages": 1,
+  "acroform": true,
+  "fields": 6,
+  "annots": [
+    6
+  ],
+  "title": null,
+  "rotations": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > page-copy pipelines: organize, merge, combine
+
+@@ merge acroform+metadata
+{
+  "pages": 2,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    6,
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > page-copy pipelines: organize, merge, combine
+
+@@ combine acroform+metadata
+{
+  "pages": 2,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    6,
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > edit / compress / protect keep forms; resize / flip lose them
+
+@@ compress lossless
+{
+  "pages": 1,
+  "acroform": true,
+  "fields": 6,
+  "annots": [
+    6
+  ],
+  "title": null,
+  "rotations": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > edit / compress / protect keep forms; resize / flip lose them
+
+@@ resize
+{
+  "pages": 1,
+  "acroform": false,
+  "fields": 0,
+  "annots": [
+    0
+  ],
+  "title": null,
+  "rotations": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize
+
+@@ stamp
+{
+  "pages": 1,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    6
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize
+
+@@ watermark
+{
+  "error": "Enter watermark text or choose an image"
+}
+
+stderr | test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+ Γ£ô test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > page-copy pipelines: organize, merge, combine 66ms
+stdout | test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > edit / compress / protect keep forms; resize / flip lose them
+
+@@ flip
+{
+  "pages": 1,
+  "acroform": false,
+  "fields": 0,
+  "annots": [
+    0
+  ],
+  "title": null,
+  "rotations": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize
+
+@@ bates-numbering
+{
+  "pages": 1,
+  "hasAcroForm": true,
+  "fields": [
+    "person.name",
+    "person.agree",
+    "person.color",
+    "person.color",
+    "person.country",
+    "person.tags"
+  ],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    6
+  ]
+}
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl
+
+@@ pdf-to-text tiny-1page.pdf
+{
+  "charCount": 37,
+  "text": "\"pdfshush audit fixture ΓÇö page 1 of 1\""
+}
+
+stdout | test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > edit / compress / protect keep forms; resize / flip lose them
+
+@@ organize rotate
+{
+  "pages": 1,
+  "acroform": false,
+  "fields": 0,
+  "annots": [
+    6
+  ],
+  "title": null,
+  "rotations": [
+    90
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize
+
+@@ n-up
+{
+  "pages": 1,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    0
+  ]
+}
+
+stderr | test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl
+
+@@ pdf-to-text multi-5page.pdf
+{
+  "charCount": 280,
+  "text": "\"pdfshush audit fixture ΓÇö page 1 of 5\\nDistinct marker A1\\n\\npdfshush audit fixture ΓÇö page 2 of 5\\nDistinct marker B2\\n\\npdfshush audit fixture ΓÇö page 3 of 5\\nDistinct marker C3\\n\\npdfshush audit fixt"
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize
+
+@@ flip
+{
+  "pages": 1,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": null,
+  "author": null,
+  "subject": null,
+  "keywords": null,
+  "outlineless": true,
+  "annots": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > stamp on rotated page lands at display bottom
+
+@@ stamp rotated
+{
+  "pages": 2,
+  "acroform": false,
+  "fields": 0,
+  "annots": [
+    0,
+    0
+  ],
+  "title": null,
+  "rotations": [
+    90,
+    0
+  ]
+}
+
+ Γ£ô test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > edit / compress / protect keep forms; resize / flip lose them 126ms
+ Γ£ô test/pdf-audit/probe-preserve2.test.ts > audit probe 5 > stamp on rotated page lands at display bottom 14ms
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize
+
+@@ compress
+{
+  "pages": 1,
+  "hasAcroForm": false,
+  "fields": [],
+  "title": "pdfshush metadata fixture",
+  "author": "pdfshush audit",
+  "subject": "Metadata preservation probe",
+  "keywords": "pdf-audit metadata FIXTURE",
+  "outlineless": true,
+  "annots": [
+    0
+  ]
+}
+
+stdout | test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize
+
+@@ resize
+{
+  "noData": true
+}
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl
+
+@@ pdf-to-text nonembedded-cjk.pdf
+{
+  "charCount": 6,
+  "text": "\"Σ╜áσÑ╜∩╝îΣ╕ûτòî\""
+}
+
+ Γ£ô test/pdf-audit/probe-preserve.test.ts > audit document-level preservation > in-place pipelines: stamp, watermark, bates, n-up, flip, compress, resize 81ms
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl
+
+@@ pdf-to-text nonembedded-rtl-arabic.pdf
+{
+  "charCount": 11,
+  "text": "\"╪º╪¿╪¡╪▒┘à ╪╣┘ä╪º╪¿\""
+}
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl
+
+@@ pdf-to-text image-only.pdf
+{
+  "charCount": 1,
+  "text": "\"\""
+}
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > extract-images on image-only
+
+@@ extract-images image-only
+{
+  "keys": [
+    "zip",
+    "zipName",
+    "files",
+    "extracted",
+    "skipped",
+    "pageCount"
+  ],
+  "extracted": 1,
+  "skipped": 0,
+  "images": [],
+  "zipBytes": 742
+}
+
+stderr | test/pdf-audit/probe-extract.test.ts > audit extraction probe > text-runs on rotated and cjk
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > text-runs on rotated and cjk
+
+@@ text-runs rotated-90.pdf
+{
+  "runs": [
+    {}
+  ],
+  "warning": "PDFium runtime not configured: call configurePdfiumRuntime({ wasmUrl }) first",
+  "layouts": 1
+}
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > text-runs on rotated and cjk
+
+@@ text-runs nonembedded-cjk.pdf
+{
+  "runs": [
+    {}
+  ],
+  "warning": "PDFium runtime not configured: call configurePdfiumRuntime({ wasmUrl }) first",
+  "layouts": 1
+}
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > text-runs on rotated and cjk
+
+@@ text-runs nonembedded-rtl-arabic.pdf
+{
+  "runs": [
+    {}
+  ],
+  "warning": "PDFium runtime not configured: call configurePdfiumRuntime({ wasmUrl }) first",
+  "layouts": 1
+}
+
+stdout | test/pdf-audit/probe-extract.test.ts > audit extraction probe > split-by-bookmarks on outline fixture
+
+@@ split-by-bookmarks outline.pdf
+{
+  "bookmarkCount": 3,
+  "parts": [
+    {
+      "name": "1-Introduction.pdf",
+      "title": "Introduction",
+      "pageCount": 2,
+      "startPage": 0
+    },
+    {
+      "name": "2-Method-and-Data.pdf",
+      "title": "Method and Data",
+      "pageCount": 2,
+      "startPage": 2
+    },
+    {
+      "name": "3-Results.pdf",
+      "title": "Results",
+      "pageCount": 1,
+      "startPage": 4
+    }
+  ],
+  "zipBytes": 1748
+}
+
+ Γ£ô test/pdf-audit/probe-extract.test.ts > audit extraction probe > pdf-to-text on latin, cjk, rtl 158ms
+ Γ£ô test/pdf-audit/probe-extract.test.ts > audit extraction probe > extract-images on image-only 10ms
+ Γ£ô test/pdf-audit/probe-extract.test.ts > audit extraction probe > text-runs on rotated and cjk 31ms
+ Γ£ô test/pdf-audit/probe-extract.test.ts > audit extraction probe > split-by-bookmarks on outline fixture 13ms
+
+ Test Files  3 passed (3)
+      Tests  8 passed (8)
+   Start at  11:00:29
+   Duration  2.11s (import 55%, transform 36%, tests 9%)
+
+  Transform  transforming modules took 2.04s ┬╖ 36% of tracked time, re-done on every run
+             persist transforms across runs with fsModuleCache: true
+             learn more: https://vitest.dev/guide/improving-performance#caching-between-reruns
+

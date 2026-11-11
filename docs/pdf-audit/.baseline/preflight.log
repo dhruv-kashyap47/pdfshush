@@ -1,0 +1,2 @@
+note: docker-compose.yml exists but docker compose is unavailable -- skipping compose checks
+[preflight] the api at http://localhost:8080 is down -- start the stack first:  pnpm dev   (or for the full server stack:  pnpm stack:up)

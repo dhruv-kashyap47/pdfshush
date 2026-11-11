@@ -1,0 +1,16 @@
+
+ RUN  v5.0.3 C:/Users/91947/Downloads/pdfshush/packages/pdf-core
+
+ Γ£ô test/pdf-audit/transform-annotations.test.ts > page rebuilds > PDF-ENGINE-003: flip keeps page annotations 27ms
+ Γ£ô test/pdf-audit/transform-annotations.test.ts > page rebuilds > PDF-ENGINE-003: resize keeps page annotations 6ms
+ Γ£ô test/pdf-audit/page-pipelines.test.ts > page-copy pipelines > PDF-ENGINE-001: organize keeps fillable AcroForm fields 25ms
+ Γ£ô test/pdf-audit/page-pipelines.test.ts > page-copy pipelines > PDF-ENGINE-001: merge keeps fillable AcroForm fields 22ms
+ Γ£ô test/pdf-audit/page-pipelines.test.ts > page-copy pipelines > PDF-ENGINE-001: combine keeps fillable AcroForm fields 15ms
+ Γ£ô test/pdf-audit/page-pipelines.test.ts > page-copy pipelines > PDF-ENGINE-002: organizing a page keeps its document metadata 3ms
+ Γ£ô test/pdf-audit/text-extraction.test.ts > text extraction counts > PDF-ENGINE-004: a scan with no text layer reports charCount 0 79ms
+
+ Test Files  3 passed (3)
+      Tests  7 expected fail (7)
+   Start at  11:33:39
+   Duration  1.19s (import 78%, transform 13%, tests 8%, worker 1%)
+

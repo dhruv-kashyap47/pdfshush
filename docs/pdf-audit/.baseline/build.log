@@ -1,0 +1,50 @@
+$ pnpm --filter @pdfshush/web build
+$ tsc --noEmit -p tsconfig.json && vite build
+[36mvite v8.3.3 [32mbuilding client environment for production...[36m[39m
+transforming...
+Γ£ô 2526 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                        4.43 kB Γöé gzip:     1.67 kB
+dist/sw.js                                                             6.53 kB
+dist/assets/instrument-serif-latin-ext-400-normal-CFCUzsTy.woff        9.86 kB
+dist/assets/instrument-serif-latin-ext-400-italic-D7-lnxEk.woff       10.50 kB
+dist/assets/instrument-serif-latin-ext-400-normal-C2je3j2s.woff2      11.60 kB
+dist/assets/instrument-serif-latin-ext-400-italic-C9HzH3YL.woff2      12.38 kB
+dist/assets/instrument-serif-latin-400-normal-BVbkICAY.woff           18.33 kB
+dist/assets/instrument-serif-latin-400-italic-u__WvvIK.woff           19.26 kB
+dist/assets/instrument-serif-latin-400-normal-DnYpCC2O.woff2          21.03 kB
+dist/assets/instrument-serif-latin-400-italic-DKMiL14s.woff2          22.12 kB
+dist/assets/caveat-latin-ext-wght-Byk3UhVp.woff2                      29.47 kB
+dist/assets/caveat-latin-wght-C1hSzPvX.woff2                          74.93 kB
+dist/assets/worker.min-32WLk7pY.js                                   111.30 kB
+dist/assets/index.browser-Bjcn2H71.js                                154.44 kB
+dist/assets/verify-worker-Dc7TFMrz.js                              1,013.61 kB
+dist/assets/job-worker-BWARsHxR.js                                 1,255.12 kB
+dist/assets/pdf.worker.min-CjEcRF4W.mjs                            1,264.34 kB
+dist/assets/tesseract-core-lstm.wasm-DhgzXyTR.js                   3,896.48 kB
+dist/assets/pdfium-BJ2Yip8Q.wasm                                   4,646.93 kB Γöé gzip: 2,163.83 kB
+dist/tessdata/eng.traineddata.gz                                  10,923.06 kB
+dist/assets/tool-ypsUaNsb.css                                         78.69 kB Γöé gzip:    14.12 kB
+dist/assets/index-4kBB98Na.css                                       162.35 kB Γöé gzip:    28.45 kB
+dist/assets/edit-pdf-with-ai-tool-CA7089MF.js                          0.25 kB Γöé gzip:     0.22 kB Γöé map:     0.82 kB
+dist/assets/rolldown-runtime-hePW80VL.js                               0.71 kB Γöé gzip:     0.42 kB
+dist/assets/tooltip-BgdCcKYc.js                                        1.29 kB Γöé gzip:     0.63 kB Γöé map:     3.15 kB
+dist/assets/signature-assets-BvANkVvj.js                               1.66 kB Γöé gzip:     0.90 kB Γöé map:     9.90 kB
+dist/assets/file-dropzone-D1HUovP5.js                                  4.47 kB Γöé gzip:     1.77 kB Γöé map:    14.01 kB
+dist/assets/job-pool-D1ZVUzZ2.js                                       5.24 kB Γöé gzip:     2.29 kB Γöé map:    31.78 kB
+dist/assets/client-capacity-BfCK2lkr.js                               10.73 kB Γöé gzip:     4.35 kB Γöé map:    36.46 kB
+dist/assets/verify-CeK4trcT.js                                        12.94 kB Γöé gzip:     4.63 kB Γöé map:    34.80 kB
+dist/assets/trust-DSQSAcOP.js                                         17.88 kB Γöé gzip:     6.21 kB Γöé map:    50.15 kB
+dist/assets/ai-workspace-mlSyT7c_.js                                  20.17 kB Γöé gzip:     6.57 kB Γöé map:    72.60 kB
+dist/assets/signature-pad-dialog-mvEduMet.js                          31.31 kB Γöé gzip:     9.62 kB Γöé map:    98.57 kB
+dist/assets/vendor-motion-5tZkWZVq.js                                 36.51 kB Γöé gzip:    14.73 kB Γöé map:   251.84 kB
+dist/assets/tool-copy-D1u_10Ox.js                                    145.14 kB Γöé gzip:    43.58 kB Γöé map:   579.37 kB
+dist/assets/edit-pdf-tool-Ch-8SCrn.js                                174.72 kB Γöé gzip:    51.97 kB Γöé map:   782.86 kB
+dist/assets/index-CeahjGMo.js                                        177.57 kB Γöé gzip:    52.94 kB Γöé map:   518.09 kB
+dist/assets/vendor-react-DdV28ja4.js                                 257.78 kB Γöé gzip:    81.79 kB Γöé map: 1,488.57 kB
+dist/assets/tool-DiorFdl7.js                                         274.45 kB Γöé gzip:    62.57 kB Γöé map:   836.05 kB
+dist/assets/vendor-ui-Drvwun3i.js                                    284.40 kB Γöé gzip:    87.73 kB Γöé map: 1,347.38 kB
+
+[32mΓ£ô built in 2.21s[39m
+[plugin pdfshush-prerender] prerendered 63 routes, 55 in the sitemap (origin https://pdfshush.app, 20 top-level entries)
