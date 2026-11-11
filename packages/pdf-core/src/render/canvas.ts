@@ -154,6 +154,57 @@ export function scaleForWidth(pageWidthPt: number, targetWidthPx: number): numbe
   return Math.max(0.05, Math.min(8, targetWidthPx / pageWidthPt));
 }
 
+/** Hard bounds for one page bitmap. Both must hold for every render. */
+export interface RenderBudget {
+  /** Longest side, in pixels. */
+  maxEdgePx: number;
+  /** Width x height, in pixels. */
+  maxAreaPx: number;
+}
+
+export interface FittedRender {
+  scale: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Largest scale at or below `wantedScale` whose bitmap fits `budget`.
+ *
+ * Rendering used to pick a scale from the requested width (capped at 8) and
+ * then *refuse* the page if the longest side exceeded the edge limit. That
+ * split two real documents in half: a 600x6000 pt receipt asked for 8192+ px
+ * tall at every export preset and was rejected outright, while a 5000x5000 pt
+ * poster stayed under the edge limit but allocated a 64 MP canvas, above the
+ * ~16.7 MP canvas ceiling iOS/Safari enforce (those pages paint blank). The
+ * requested width is a preference; the budget is the hard limit. Fit the scale
+ * to both instead of choosing one and rejecting the result.
+ *
+ * The 8x cap is deliberately not applied here: it also under-delivered small
+ * pages (a 250 pt wide page at a 2560 px request came back 2000 px wide). Every
+ * state a page can ask for is bounded by the budget below.
+ */
+export function fitScaleToBudget(
+  pageWidthPt: number,
+  pageHeightPt: number,
+  wantedScale: number,
+  budget: RenderBudget,
+): FittedRender {
+  const widthPt = Number.isFinite(pageWidthPt) && pageWidthPt > 0 ? pageWidthPt : 1;
+  const heightPt = Number.isFinite(pageHeightPt) && pageHeightPt > 0 ? pageHeightPt : 1;
+  const wanted = Number.isFinite(wantedScale) && wantedScale > 0 ? wantedScale : 1;
+
+  const edgeScale = budget.maxEdgePx / Math.max(widthPt, heightPt);
+  const areaScale = Math.sqrt(budget.maxAreaPx / (widthPt * heightPt));
+  const scale = Math.max(Number.EPSILON, Math.min(wanted, edgeScale, areaScale));
+
+  return {
+    scale,
+    width: Math.max(1, Math.floor(widthPt * scale)),
+    height: Math.max(1, Math.floor(heightPt * scale)),
+  };
+}
+
 /**
  * Raster width in pixels for a page rendered at `scale`, clamped so the decoded
  * bitmap stays inside `maxPixels`.

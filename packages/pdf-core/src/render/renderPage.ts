@@ -1,7 +1,7 @@
 import type { PDFPageProxy } from 'pdfjs-dist';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
-import { defaultCanvasFactory, scaleForWidth, type CanvasFactory } from './canvas.js';
+import { defaultCanvasFactory, fitScaleToBudget, type CanvasFactory } from './canvas.js';
 import { loadPdfForRender } from './pdfjsRuntime.js';
 
 export type ImageFormat = 'png' | 'jpeg';
@@ -48,18 +48,20 @@ export async function renderPageToCanvas(
   options: RenderPageOptions,
 ): Promise<RenderedCanvas> {
   const factory = options.canvasFactory ?? defaultCanvasFactory();
-  const scale = scaleForWidth(page.getViewport({ scale: 1 }).width, options.targetWidthPx);
-  const viewport = page.getViewport({ scale });
+  // Fit the scale to the requested width *and* to what a browser canvas can
+  // actually hold. Doing only the first and then refusing the result meant a
+  // tall page could never render at any offered width, and an oversized square
+  // page produced a blank canvas on iOS/Safari. See `fitScaleToBudget`.
+  const unit = page.getViewport({ scale: 1 });
+  const wantedScale = unit.width > 0 ? options.targetWidthPx / unit.width : 1;
+  const fitted = fitScaleToBudget(unit.width, unit.height, wantedScale, {
+    maxEdgePx: LIMITS.tool.maxRenderEdgePx,
+    maxAreaPx: LIMITS.tool.maxRenderAreaPx,
+  });
+  const viewport = page.getViewport({ scale: fitted.scale });
 
   const width = Math.max(1, Math.floor(viewport.width));
   const height = Math.max(1, Math.floor(viewport.height));
-  // An 8x render of a large-format page is ~100 MB of RGBA for one page; refuse
-  // it up front with a clear message rather than exhausting the worker heap.
-  if (Math.max(width, height) > LIMITS.tool.maxImagePixels) {
-    throw new Error(
-      `Rendered page would be ${width}x${height} px; the limit is ${LIMITS.tool.maxImagePixels} px on the longest side. Choose a smaller width.`,
-    );
-  }
   const canvas = factory(width, height);
   const context = canvas.context as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   if (!context) {

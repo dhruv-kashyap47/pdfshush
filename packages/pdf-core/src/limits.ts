@@ -103,6 +103,20 @@ export const LIMITS = {
     maxImageBytes: 12 * MB,
     /** Largest embedded image edge in pixels; also caps decoded RGBA at ~256 MB. */
     maxImagePixels: 8192,
+    /**
+     * Largest side of one rendered page bitmap, in pixels. The edge and the
+     * area cap below are both hard limits; `fitScaleToBudget` reduces the
+     * render scale rather than refusing an otherwise valid page.
+     */
+    maxRenderEdgePx: 8192,
+    /**
+     * Largest area of one rendered page bitmap, in pixels.
+     *
+     * WebKit (Safari, every iOS browser) caps a canvas at 16,777,216 px; a
+     * larger one is silently blank. Edge-only checks missed tall and square
+     * pages that stay under 8192 per side but exceed this area.
+     */
+    maxRenderAreaPx: 16_777_216,
     /** Undo depth. Snapshots share image buffers, so this is cheap. */
     maxHistorySteps: 250,
     /** In-place text edits in one request. Bounds the PDFium rewrite. */
