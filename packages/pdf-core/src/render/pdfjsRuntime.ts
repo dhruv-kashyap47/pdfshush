@@ -30,6 +30,44 @@ export interface PdfjsRuntimeConfig {
 
 let config: PdfjsRuntimeConfig = {};
 
+/**
+ * Node cannot `fetch()` a `file:` URL, so pdf.js must read cMap and standard
+ * font data through its `FetchBinaryData` handler (which uses `fs`) instead of
+ * fetching inside the worker. Browsers and browser workers can fetch the
+ * bundled URLs directly. Left on in Node, every standard font load logged
+ * "TypeError: fetch failed" and fell back to a system font.
+ */
+function isNodeRuntime(): boolean {
+  const proc = (
+    globalThis as {
+      process?: { versions?: { node?: string }; getBuiltinModule?: unknown };
+    }
+  ).process;
+  return (
+    typeof proc?.versions?.node === 'string' && typeof proc.getBuiltinModule === 'function'
+  );
+}
+
+/**
+ * pdf.js' Node data factory hands the factory URL straight to `fs.readFile`.
+ * A `file:///...` URL is a string there, not a path, so it resolves to a
+ * nonexistent file. Convert it once at the boundary; browser workers keep the
+ * URL they can fetch.
+ */
+function normalizeFactoryUrl(url: string | undefined): string | undefined {
+  if (!url || !isNodeRuntime() || !url.startsWith('file:')) return url;
+  const proc = (
+    globalThis as unknown as { process: { getBuiltinModule(name: string): unknown } }
+  ).process;
+  const { fileURLToPath } = proc.getBuiltinModule('node:url') as {
+    fileURLToPath(value: string): string;
+  };
+  // pdf.js requires a forward-slash trailing separator and simply concatenates
+  // the filename. `fs.readFile` accepts forward slashes on Windows too.
+  const path = fileURLToPath(url).replace(/\\/g, '/');
+  return path.endsWith('/') ? path : `${path}/`;
+}
+
 export function configurePdfjsRuntime(next: PdfjsRuntimeConfig): void {
   config = { ...config, ...next };
   if (config.workerSrc) {
@@ -188,10 +226,17 @@ export async function loadPdfForRender(
     ...(options.password !== undefined ? { password: options.password } : {}),
     ...(config.verbosity !== undefined ? { verbosity: config.verbosity } : {}),
     ...(config.cMapUrl
-      ? { cMapUrl: config.cMapUrl, cMapPacked: config.cMapPacked ?? true, useWorkerFetch: true }
+      ? {
+          cMapUrl: normalizeFactoryUrl(config.cMapUrl),
+          cMapPacked: config.cMapPacked ?? true,
+          useWorkerFetch: !isNodeRuntime(),
+        }
       : {}),
     ...(config.standardFontDataUrl
-      ? { standardFontDataUrl: config.standardFontDataUrl, useWorkerFetch: true }
+      ? {
+          standardFontDataUrl: normalizeFactoryUrl(config.standardFontDataUrl),
+          useWorkerFetch: !isNodeRuntime(),
+        }
       : {}),
   } as Parameters<typeof getDocument>[0];
   const task: PDFDocumentLoadingTask = getDocument(documentOptions);

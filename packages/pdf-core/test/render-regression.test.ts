@@ -16,10 +16,15 @@
  * Regenerate only when a deliberate rendering change lands, and look at the
  * images before committing them. The tolerance absorbs antialiasing noise, not
  * a moved or missing glyph.
+ *
+ * Font inputs are pinned so the references do not depend on the host: standard
+ * faces come from pdf.js' bundled `standard_fonts/` data, and non-embedded
+ * faces fall back to the committed `fixtures/dejavu-sans-subset.ttf` rather
+ * than a system font.
  */
 
 import { afterAll, describe, expect, it } from 'vitest';
-import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { createCanvas, GlobalFonts, loadImage } from '@napi-rs/canvas';
 
 import { configurePdfjsRuntime, loadPdfForRender, resetPdfCache } from '../src/render/pdfjsRuntime.js';
 import { renderPageToImage } from '../src/render/renderPage.js';
@@ -33,6 +38,12 @@ import { testContext } from './fixtures.js';
 
 configurePdfjsRuntime({
   workerSrc: new URL('../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url).href,
+  // Without this pdf.js cannot load its bundled standard-font data, so every
+  // non-embedded Helvetica/Times/Courier glyph is painted with whatever
+  // `sans-serif` the host happens to provide. That made the golden images
+  // differ between a developer machine and the Linux CI runner.
+  standardFontDataUrl: new URL('../node_modules/pdfjs-dist/standard_fonts/', import.meta.url)
+    .href,
 });
 
 interface NodeFs {
@@ -55,6 +66,30 @@ function env(name: string): string | undefined {
     globalThis as unknown as { process: { env?: Record<string, string | undefined> } }
   ).process;
   return proc.env?.[name];
+}
+
+/** URL -> local path without the Node types. */
+function filePath(url: URL): string {
+  const proc = (
+    globalThis as unknown as { process: { getBuiltinModule(name: string): unknown } }
+  ).process;
+  return (proc.getBuiltinModule('node:url') as { fileURLToPath(url: URL): string }).fileURLToPath(
+    url,
+  );
+}
+
+/**
+ * A non-embedded font has no glyph program, so pdf.js falls back to
+ * `fillText` with the generic `sans-serif` family. The RTL fixture uses that
+ * path; pin the family to a committed subset so the raster is identical on
+ * every host instead of depending on installed system fonts.
+ */
+GlobalFonts.registerFromPath(
+  filePath(new URL('./fixtures/dejavu-sans-subset.ttf', import.meta.url)),
+  'PDFShush Test Fallback',
+);
+if (!GlobalFonts.setAlias('PDFShush Test Fallback', 'sans-serif')) {
+  throw new Error('could not register the render-regression fallback font');
 }
 
 const fixture = (name: string) => new URL(`../../../tests/fixtures/pdf-audit/${name}`, import.meta.url);

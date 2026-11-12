@@ -52,7 +52,7 @@ jobs:
   perf:
     name: Q3/Q7 ceilings (spec)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       M5_PERF_CI: '1'
     steps:
@@ -63,7 +63,21 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # `--with-deps` shells out to apt. A transient DNS failure on the Ubuntu
+      # mirror used to fail the whole job before a single test ran, so let apt
+      # retry its own downloads and retry the whole step a few times.
+      - name: Install Chromium
+        run: |
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries
+          for attempt in 1 2 3; do
+            if pnpm exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::Playwright install failed (attempt ${attempt}/3); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Playwright install failed after 3 attempts"
+          exit 1
       - run: pnpm build
       - name: Start preview
         run: |

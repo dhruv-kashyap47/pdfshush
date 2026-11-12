@@ -25,6 +25,15 @@ so the suite carries a known-failing repro instead of enshrining the wrong
 pixels. Regenerate references only for a deliberate rendering change, look at
 them first, and commit them in the same change that proves the new output.
 
+The suite pins its fonts so those references are host-independent. Standard
+faces use pdf.js' bundled `standard_fonts/` data. A non-embedded face with no
+glyph program (the RTL fixture) is painted through `fillText` with the generic
+`sans-serif` family, so the test registers
+`packages/pdf-core/test/fixtures/dejavu-sans-subset.ttf` as that family. The
+subset and its Bitstream Vera/DejaVu notice live next to the fixture. Without
+that pin, a Linux runner with no Arabic system font painted the RTL page blank
+and the same golden image passed on a developer machine.
+
 Validation facts were observed with
 `node docs/pdf-audit/.baseline/validate-fixtures.mjs`, which loads every fixture
 through both `@cantoo/pdf-lib` and `pdfjs-dist` (legacy build, the same
