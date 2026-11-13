@@ -354,9 +354,15 @@ export function SignatureExportDialog({
     if (!output) return;
     downloadBlob(output.blob, signatureExportFileName(options.format));
     toast.success('Signature downloaded.');
-    // On a phone, finish the flow: download closes the sheet and returns to the
-    // signature list. Desktop keeps it open for a second format.
-    if (window.matchMedia('(max-width: 639px)').matches) onOpenChange(false);
+    // On a phone (portrait or landscape), finish the flow: download closes the
+    // sheet and returns to the signature list. Desktop keeps it open for a
+    // second format.
+    if (
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(max-width: 639px), (pointer: coarse)').matches
+    ) {
+      onOpenChange(false);
+    }
   };
 
   const onShare = async () => {
@@ -384,7 +390,7 @@ export function SignatureExportDialog({
           <button
             type="button"
             aria-label="Back to your signatures"
-            className="absolute top-4 right-4 z-20 flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none"
+            className="absolute top-4 right-4 z-20 flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none"
           >
             <X className="size-4" aria-hidden />
           </button>
