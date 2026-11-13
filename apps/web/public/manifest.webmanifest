@@ -1,6 +1,6 @@
 {
-  "name": "PDFShush — private PDF tools",
-  "short_name": "PDFShush",
+  "name": "pdfshush — private PDF tools",
+  "short_name": "pdfshush",
   "description": "Merge, split, edit, sign and redact PDFs in your browser. Client tools never upload a file.",
   "id": "/",
   "start_url": "/",

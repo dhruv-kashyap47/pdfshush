@@ -228,7 +228,7 @@ export function ApiToolPage() {
         <CardContent>
           {!serverDeployed ? (
             <p className="text-sm text-muted-foreground">
-              This deployment ships the browser tools only — the PDFShush server is not deployed
+              This deployment ships the browser tools only — the pdfshush server is not deployed
               here, so there is no REST API to list and no key to mint. The reference below still
               describes the surface exactly as the repository implements it.
             </p>

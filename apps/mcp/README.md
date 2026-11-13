@@ -1,6 +1,6 @@
 # @pdfshush/mcp
 
-Local stdio MCP server that runs PDFShush tools through the public `/api/v1`
+Local stdio MCP server that runs pdfshush tools through the public `/api/v1`
 REST API with **your own API key**. It ships no PDF engine and touches no
 disk: every tool call is a submit → poll → download against the deployment
 you point it at, inside the same quota, janitor and admission-control

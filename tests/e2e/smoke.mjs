@@ -162,8 +162,8 @@ async function main() {
   await mkdir(ARTIFACTS, { recursive: true });
   await mkdir(FIXTURES, { recursive: true });
 
-  const pdfA = buildPdf(3, 'PDFShush A');
-  const pdfB = buildPdf(2, 'PDFShush B');
+  const pdfA = buildPdf(3, 'pdfshush A');
+  const pdfB = buildPdf(2, 'pdfshush B');
   const fileA = path.join(FIXTURES, 'alpha.pdf');
   const fileB = path.join(FIXTURES, 'beta.pdf');
   await writeFile(fileA, pdfA);
@@ -182,7 +182,7 @@ async function main() {
   /* 1. Homepage */
   console.log('\n1. Homepage');
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  check('title contains PDFShush', (await page.title()).includes('PDFShush'));
+  check('title contains pdfshush', (await page.title()).includes('pdfshush'));
   // Asserts the shipped hero headline. This used to pin a tagline that a later
   // hero rewrite removed, so the check had been asserting copy that no longer
   // existed in the tree.
@@ -476,7 +476,7 @@ async function main() {
     30_000,
     'stamp form',
   );
-  await page.getByLabel('Header text').fill('PDFShush header');
+  await page.getByLabel('Header text').fill('pdfshush header');
   await page.getByRole('button', { name: 'Apply header & footer' }).click();
   await page.getByText('-header-footer.pdf').waitFor({ timeout: 60_000 });
   const hfDl = await downloadAndAssert(page, 'Download', 'pdf');

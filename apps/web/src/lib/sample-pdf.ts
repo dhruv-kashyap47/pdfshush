@@ -16,7 +16,7 @@ function escapePdfText(value: string): string {
   return value.replace(/[\\()]/gu, (character) => `\\${character}`);
 }
 
-export function buildSamplePdf(text = 'PDFShush locality proof'): Uint8Array {
+export function buildSamplePdf(text = 'pdfshush locality proof'): Uint8Array {
   const stream = `BT /F1 18 Tf 72 770 Td (${escapePdfText(text)}) Tj ET`;
 
   const objects = [

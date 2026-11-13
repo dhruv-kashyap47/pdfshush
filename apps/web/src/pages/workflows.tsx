@@ -280,7 +280,7 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
       {!serverDeployed && (
         <Card className="mb-8 border-primary/40">
           <CardHeader>
-            <CardTitle>Recipes need the PDFShush server</CardTitle>
+            <CardTitle>Recipes need the pdfshush server</CardTitle>
             <CardDescription>
               Every step of a recipe is a real job on the server: the file is uploaded, each step
               consumes the previous step&rsquo;s output, and the result is downloaded again. This

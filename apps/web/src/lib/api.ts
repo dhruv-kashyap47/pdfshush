@@ -1,5 +1,5 @@
 /**
- * Thin client for the PDFShush API.
+ * Thin client for the pdfshush API.
  *
  * The SPA talks to `/api` on its own origin (the Vite dev server proxies it, and
  * a reverse proxy does the same in production), so the session cookie rides

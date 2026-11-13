@@ -73,7 +73,7 @@ export type OcrEngineFactory = () => Promise<OcrEngine> | OcrEngine;
 /** Thrown when the host did not configure an OCR implementation. */
 export class OcrUnavailableError extends Error {
   constructor(
-    message = 'OCR is not available in this build. Open PDFShush in a browser to use it.',
+    message = 'OCR is not available in this build. Open pdfshush in a browser to use it.',
   ) {
     super(message);
     this.name = 'OcrUnavailableError';

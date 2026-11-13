@@ -1,4 +1,4 @@
-# PDF findings — PDFShush
+# PDF findings — pdfshush
 
 Read-only audit of `apps/` and `packages/` at commit `c8f2208`
 (branch `pdf/s1-audit`, 2026-11-11). Session 1 made no source change; the only

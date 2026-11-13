@@ -113,14 +113,14 @@ describe('service worker navigation caching', () => {
 
   it('serves the visited route offline, and the shell for unvisited routes', async () => {
     const cache = makeCache({
-      [`${ORIGIN}/`]: { body: '<title>PDFShush home</title>', status: 200 },
+      [`${ORIGIN}/`]: { body: '<title>pdfshush home</title>', status: 200 },
       [`${ORIGIN}/tools/merge-pdf`]: { body: '<title>Merge — merge-pdf</title>', status: 200 },
     });
     const handler = await loadWorker(cache);
     const visited = await navigationEvent(handler, '/tools/merge-pdf');
     expect(await visited.text()).toContain('merge-pdf');
     const shell = await navigationEvent(handler, '/tools/never-visited');
-    expect(await shell.text()).toContain('PDFShush home');
+    expect(await shell.text()).toContain('pdfshush home');
   });
 
   it('answers a fully cold offline navigation with 503, not a hang', async () => {

@@ -1,7 +1,7 @@
 /**
  * AnimatedContent — React Bits interface, anime.js implementation.
  *
- * React Bits ships this component on GSAP/ScrollTrigger. PDFShush already owns
+ * React Bits ships this component on GSAP/ScrollTrigger. pdfshush already owns
  * one motion engine (anime.js via `lib/motion.ts`) and the brief forbids a new
  * dependency, so the public surface is kept while the tween is expressed with
  * the existing engine. Transform + opacity only, reduced-motion aware, and

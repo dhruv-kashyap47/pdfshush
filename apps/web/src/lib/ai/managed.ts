@@ -1,9 +1,9 @@
 /**
  * Managed-mode client transport.
  *
- * The PDFShush trial: the browser posts the same turn shape it would send
+ * The pdfshush trial: the browser posts the same turn shape it would send
  * directly to a provider (system + messages + tools) to `/api/ai/chat`, and the
- * server streams Server-Sent Events back from the PDFShush-owned key. This is
+ * server streams Server-Sent Events back from the pdfshush-owned key. This is
  * the one path where document text reaches our server; BYOK keeps it in the tab.
  *
  * One SSE consumer serves both uses: the agent loop (streaming `stream`) and the

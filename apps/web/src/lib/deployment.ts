@@ -1,7 +1,7 @@
 /**
  * What this deployment can actually do.
  *
- * PDFShush ships in two shapes, and the difference is a build-time fact:
+ * pdfshush ships in two shapes, and the difference is a build-time fact:
  *
  *  - **server** -- the SPA, the Express API, the BullMQ worker and Redis are
  *    deployed together. Accounts, workflow recipes, the public REST API, the
@@ -49,6 +49,6 @@ export const SERVER_UNAVAILABLE_CODE = 'server_unavailable';
  * fact the visitor can act on, and it says what still works.
  */
 export const SERVER_UNAVAILABLE_MESSAGE =
-  'This deployment runs the tools in your browser only. The PDFShush server (API, worker and ' +
+  'This deployment runs the tools in your browser only. The pdfshush server (API, worker and ' +
   'queue) is not deployed here, so accounts, workflow recipes, the REST API and the managed-AI ' +
   'trial are unavailable. Every tool on this site still runs locally, with no upload.';

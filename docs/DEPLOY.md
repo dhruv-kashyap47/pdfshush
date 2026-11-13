@@ -1,4 +1,4 @@
-# Deploying PDFShush
+# Deploying pdfshush
 
 The deployment runbook (PLAN.md §33.4, §33.9). It takes a GitHub repository and a domain to a
 public HTTPS site that costs **nothing per month** and needs **no credit card**.
@@ -118,7 +118,7 @@ stays clean), and it removes the controls that could only fail:
 | Surface | What it does instead |
 | --- | --- |
 | Header "Sign in" | Not rendered. |
-| `/account` | "This deployment ships the browser tools only — the PDFShush server is not deployed here." |
+| `/account` | "This deployment ships the browser tools only — the pdfshush server is not deployed here." |
 | `/workflows` | An explicit notice that recipes run on the server; the step picker and **Run workflow** are disabled. |
 | Managed-AI trial | The tab stays disabled with "Not offered by this deployment". BYOK AI still works — it talks to the provider from the browser. |
 | `/tools/api`, `/tools/mcp` | The reference is still published; the live slug list and the OpenAPI link are replaced by a sentence saying the server is not deployed. |

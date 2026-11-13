@@ -108,7 +108,7 @@ export function formatEditReceipt(input: EditReceiptInput): string {
   const failedChecks = checks.filter((check) => !check.ok);
 
   const lines: string[] = [
-    'PDFShush edit receipt',
+    'pdfshush edit receipt',
     `File: ${fileName}`,
     `Pages: ${pageCount.toLocaleString('en-US')}`,
     `Size: ${formatBytes(sizeBytes)}`,

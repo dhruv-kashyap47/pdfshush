@@ -1,9 +1,9 @@
 /**
- * Browser E2E for *managed* mode — the PDFShush trial (Phase 5).
+ * Browser E2E for *managed* mode — the pdfshush trial (Phase 5).
  *
  * The BYOK script (./ai.mjs) proves the tab-to-provider path. This one proves the
- * other path end to end: the browser posts a turn to the PDFShush API, the API
- * streams Server-Sent Events back from a PDFShush-owned key, and the workspace
+ * other path end to end: the browser posts a turn to the pdfshush API, the API
+ * streams Server-Sent Events back from a pdfshush-owned key, and the workspace
  * renders the answer. The API is the *shipped* one (routing, request schema,
  * budget, SSE framing, provider adapter) booted by `apps/api/test/support/
  * managed-server.ts` with in-memory counters — no Redis, no Mongo, and the
@@ -209,7 +209,7 @@ async function main() {
     /* ----------------------------------------------------- the wire, checked */
     const chatRequests = requests.filter((entry) => entry.url.includes('/api/ai/chat'));
     check(
-      'the turn streams through the PDFShush API',
+      'the turn streams through the pdfshush API',
       chatRequests.length >= 1,
       chatRequests.map((entry) => entry.method).join(', '),
     );

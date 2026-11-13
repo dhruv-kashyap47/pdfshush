@@ -50,7 +50,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <Link to="/" aria-label="PDFShush home">
+            <Link to="/" aria-label="pdfshush home">
               <Logo />
             </Link>
             <p className="mt-3 max-w-sm text-sm text-muted-foreground">
@@ -109,7 +109,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col gap-3 border-t border-border/60 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; {new Date().getFullYear()} PDFShush</p>
+          <p>&copy; {new Date().getFullYear()} pdfshush</p>
           <p className="flex items-center gap-4">
             <Link to="/trust" className="transition-colors hover:text-foreground">
               Privacy

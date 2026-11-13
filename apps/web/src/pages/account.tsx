@@ -205,7 +205,7 @@ export function AccountPage() {
                 ? 'Every tool works without signing in. An account only adds saved workflows, history that follows you between devices, and API keys for programmatic access.'
                 : serverDeployed
                   ? 'This deployment keeps every tool local and has no account system. Your history stays in this browser.'
-                  : 'This deployment ships the browser tools only — the PDFShush server is not deployed here, so there is no account system. Your history stays in this browser.'}
+                  : 'This deployment ships the browser tools only — the pdfshush server is not deployed here, so there is no account system. Your history stays in this browser.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

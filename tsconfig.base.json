@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "PDFShush base",
+  "display": "pdfshush base",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",

@@ -1,7 +1,7 @@
 /**
  * Types for genuine in-place text editing.
  *
- * PDFShush's original editor was overlay-only: it painted a white box over the
+ * pdfshush's original editor was overlay-only: it painted a white box over the
  * original run and drew a new text object on top. The words changed, but the
  * original text stayed in the content stream -- selectable, searchable, and
  * recoverable -- and the overlay never reused the document's own font.

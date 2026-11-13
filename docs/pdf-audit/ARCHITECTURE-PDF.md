@@ -1,4 +1,4 @@
-# PDF architecture — PDFShush
+# PDF architecture — pdfshush
 
 Read-only audit of the PDF path in `apps/` and `packages/`. Baseline commit
 `c8f2208` on branch `pdf/s1-audit`, 2026-11-11.

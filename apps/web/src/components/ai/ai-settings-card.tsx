@@ -45,7 +45,7 @@ const EMPTY_CONFIG: AiProviderConfig = { apiKey: '', model: '' };
 
 /**
  * AI configuration. Two modes: BYOK (key in this browser, requests go straight
- * to the provider) and the PDFShush managed trial (requests go through our
+ * to the provider) and the pdfshush managed trial (requests go through our
  * server, which is metered). The key never leaves the device in either case on
  * the BYOK path; managed mode is the one path where text reaches our server.
  */
@@ -110,7 +110,7 @@ export function AiSettingsCard({
             <h3 className="studio-settings-title">AI provider</h3>
             <p className="studio-settings-copy">
               Bring your own key. The request goes straight from this browser to the provider, or
-              use the PDFShush trial.
+              use the pdfshush trial.
             </p>
           </div>
         </div>
@@ -138,7 +138,7 @@ export function AiSettingsCard({
               data-testid="ai-mode-managed"
               title={managedAvailable ? undefined : 'Not offered by this deployment'}
             >
-              <Sparkles className="h-3.5 w-3.5" /> PDFShush trial
+              <Sparkles className="h-3.5 w-3.5" /> pdfshush trial
             </button>
           </div>
         </div>
@@ -146,9 +146,9 @@ export function AiSettingsCard({
 
       {mode === 'managed' ? (
         <div className="studio-settings-managed">
-          <p className="font-medium">Using the PDFShush trial</p>
+          <p className="font-medium">Using the pdfshush trial</p>
           <p className="mt-1">
-            Requests go through PDFShush and are metered against a daily allowance. This is the one
+            Requests go through pdfshush and are metered against a daily allowance. This is the one
             mode where the text you ask about reaches our server. Switch to “Use my own key” to keep
             everything in this browser.
           </p>
@@ -261,7 +261,7 @@ export function AiSettingsCard({
           <div className="studio-settings-foot">
             <p className="studio-settings-note">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              Stored in this browser only; never sent to PDFShush.
+              Stored in this browser only; never sent to pdfshush.
             </p>
             <div className="flex items-center gap-1.5">
               {onForget ? (

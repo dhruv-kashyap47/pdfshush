@@ -1,7 +1,7 @@
 /**
  * The PDF reading skill: system prompt + tools the agent uses to answer
  * questions about one uploaded document. Ported in spirit from the donor app's
- * pdf-skill, trimmed to the read-only operations PDFShush ships first.
+ * pdf-skill, trimmed to the read-only operations pdfshush ships first.
  */
 
 import type { AgentToolCall, AgentSkill, ToolExecution } from '@pdfshush/ai-agent';

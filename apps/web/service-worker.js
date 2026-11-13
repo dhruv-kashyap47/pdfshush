@@ -1,5 +1,5 @@
 /**
- * PDFShush service worker.
+ * pdfshush service worker.
  *
  * This file is not served as-is: `vite.config.ts` replaces the build-id
  * placeholder with a hash of the emitted asset names and writes the result to

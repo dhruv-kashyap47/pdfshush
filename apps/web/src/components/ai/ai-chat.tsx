@@ -89,7 +89,7 @@ interface ChatMessage {
 interface AiChatProps {
   doc: AiDocument;
   settings: AiSettings;
-  /** BYOK (key in this tab) or managed (PDFShush trial); affects only the transport. */
+  /** BYOK (key in this tab) or managed (pdfshush trial); affects only the transport. */
   mode?: AiMode;
   /** Override the skill. Defaults to the read-only PDF skill (chat / summarize). */
   skill?: AgentSkill | undefined;

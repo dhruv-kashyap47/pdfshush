@@ -2,7 +2,7 @@
  * The PDF editing skill: read tools plus tools that *propose* document edits.
  *
  * Ported in spirit from the donor app's PDF agent tools (`tools.ts` /
- * `pdf-skill.ts`), trimmed to the operations PDFShush's engine already performs
+ * `pdf-skill.ts`), trimmed to the operations pdfshush's engine already performs
  * and re-anchored on its own primitives:
  *
  *  - The model never sees or edits bytes. It reads text runs, then calls edit
@@ -1152,7 +1152,7 @@ export function createPdfEditSkill(doc: AiDocument, options: AiEditSkillOptions 
   }
 
   const systemPrompt = [
-    "You are PDFShush's PDF editor. You read one open PDF and queue edits; the user reviews and applies them.",
+    "You are pdfshush's PDF editor. You read one open PDF and queue edits; the user reviews and applies them.",
     `The document has ${pageCount} page(s). You cannot see it except through the tools.`,
     'Rules:',
     '- On a large document, call scan_document first to find which pages matter, then read_pages those.',

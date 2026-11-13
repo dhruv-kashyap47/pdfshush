@@ -78,7 +78,7 @@ function drawCard({ name, lead, category, live }) {
 
   ctx.fillStyle = '#1c1917';
   ctx.font = '700 44px "Segoe UI", Helvetica, Arial, sans-serif';
-  ctx.fillText('PDFShush', 78, 118);
+  ctx.fillText('pdfshush', 78, 118);
 
   ctx.fillStyle = '#57534e';
   ctx.font = '500 24px "Segoe UI", Helvetica, Arial, sans-serif';
@@ -108,7 +108,7 @@ await mkdir(OUT, { recursive: true });
 const home = drawCard({
   name: 'Private PDF tools',
   lead: 'Merge, organize, convert and edit PDF files without uploading them.',
-  category: 'pdfshush',
+  category: 'Privacy-first',
   live: true,
 });
 await writeFile(path.join(OUT, 'home.png'), home);

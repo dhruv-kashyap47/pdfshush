@@ -8,7 +8,7 @@
  *  1. A client-side tool cannot upload a document, because there is no origin
  *     for it to upload to. Every origin not listed here is blocked by the
  *     browser before a request leaves.
- *  2. The only network destinations the product needs are PDFShush itself and
+ *  2. The only network destinations the product needs are pdfshush itself and
  *     the AI provider a user explicitly configures. If a feature ever needs a
  *     new origin, it has to be added here, in a commit a reviewer can see.
  *

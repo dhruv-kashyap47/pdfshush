@@ -46,7 +46,7 @@ const DATA_PATHS = [
   },
   {
     title: 'Workflows, REST API, MCP',
-    body: 'These are server-backed by design. Each step uploads the file to the PDFShush API, which deletes it within an hour of the job finishing. The tool page says so before you start.',
+    body: 'These are server-backed by design. Each step uploads the file to the pdfshush API, which deletes it within an hour of the job finishing. The tool page says so before you start.',
     tone: 'remote' as const,
   },
   {

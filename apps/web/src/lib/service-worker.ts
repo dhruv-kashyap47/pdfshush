@@ -29,7 +29,7 @@ export interface ServiceWorkerStatus {
 let registrationAttempt: Promise<ServiceWorkerRegistration> | null = null;
 
 function updateToast(registration: ServiceWorkerRegistration): void {
-  toast.info('A new version of PDFShush is ready.', {
+  toast.info('A new version of pdfshush is ready.', {
     description: 'Reload to use it. Open tabs keep the version they started with.',
     duration: Infinity,
     id: 'sw-update',

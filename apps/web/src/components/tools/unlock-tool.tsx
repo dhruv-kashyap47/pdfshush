@@ -138,7 +138,7 @@ export function UnlockTool() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <p>
-              PDFShush cannot guess or crack a password. If you do not know it, the file stays
+              pdfshush cannot guess or crack a password. If you do not know it, the file stays
               locked. PDFs that only restrict printing or copying open with the field empty.
             </p>
           </div>

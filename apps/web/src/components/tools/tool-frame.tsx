@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 const REMOTE_TRUST: Record<string, { label: string; body: string }> = {
   workflows: {
     label: 'Server-run by design.',
-    body: 'Each step uploads the file to the PDFShush API, which deletes it within an hour of the job finishing. This runner is the one place that does not stay in the tab.',
+    body: 'Each step uploads the file to the pdfshush API, which deletes it within an hour of the job finishing. This runner is the one place that does not stay in the tab.',
   },
   api: {
     label: 'Server-side by design.',
@@ -27,7 +27,7 @@ const REMOTE_TRUST: Record<string, { label: string; body: string }> = {
   },
   mcp: {
     label: 'Runs on your machine.',
-    body: 'The MCP server is a local process you launch. It sends each tool call to the PDFShush API, so a document passed to it is uploaded for that call and deleted within an hour.',
+    body: 'The MCP server is a local process you launch. It sends each tool call to the pdfshush API, so a document passed to it is uploaded for that call and deleted within an hour.',
   },
 };
 

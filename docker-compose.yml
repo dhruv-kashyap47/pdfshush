@@ -1,4 +1,4 @@
-# PDFShush server stack (Phase 3).
+# pdfshush server stack (Phase 3).
 #
 # Three services, one network:
 #   redis    -- the queue broker (state only: no PDF bytes ever enter it)

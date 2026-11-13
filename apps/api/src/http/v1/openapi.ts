@@ -49,7 +49,7 @@ export function buildOpenApiDocument(limits: OpenApiLimits): Record<string, unkn
   return {
     openapi: '3.1.0',
     info: {
-      title: 'PDFShush Public API',
+      title: 'pdfshush Public API',
       version: '1.0.0',
       description:
         'Programmatic access to the server-runnable PDF tools over the same pipeline the web app ' +

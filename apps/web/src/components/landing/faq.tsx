@@ -7,7 +7,7 @@ import {
 
 const FAQS = [
   {
-    q: 'Is PDFShush completely free to use?',
+    q: 'Is pdfshush completely free to use?',
     a: 'Yes. Every browser-based tool is free with zero task quotas, zero watermarks and no account requirements. Optional paid plans will exist in the future for server-side API volume and team collaboration, but local browser tools remain free forever.',
   },
   {
@@ -20,14 +20,14 @@ const FAQS = [
   },
   {
     q: 'How does BYOK (Bring Your Own Key) work for the AI features?',
-    a: 'When you use AI features like Chat or Natural Language Edit, you can connect your own API key from OpenAI, Anthropic, or Google Gemini. Your key is stored solely in local browser IndexedDB. Requests communicate directly from your browser to the provider endpoint without routing through any PDFShush intermediate server.',
+    a: 'When you use AI features like Chat or Natural Language Edit, you can connect your own API key from OpenAI, Anthropic, or Google Gemini. Your key is stored solely in local browser IndexedDB. Requests communicate directly from your browser to the provider endpoint without routing through any pdfshush intermediate server.',
   },
   {
-    q: 'Why is PDFShush open source under the AGPL-3.0 license?',
+    q: 'Why is pdfshush open source under the AGPL-3.0 license?',
     a: 'Privacy claims cannot be taken on faith; they must be backed by inspectable source code. The AGPL-3.0 license guarantees that anyone can inspect, audit, fork and self-host the complete stack. It also ensures the codebase cannot be closed-sourced by third parties.',
   },
   {
-    q: 'Can I use PDFShush in offline environments?',
+    q: 'Can I use pdfshush in offline environments?',
     a: 'Once the application assets and WebAssembly worker modules are loaded into your browser cache, core tools like Merge, Split, Reorder, Delete Pages and Local Redaction can function completely offline without an active internet connection.',
   },
 ];

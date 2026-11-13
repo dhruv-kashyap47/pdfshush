@@ -1,7 +1,7 @@
 /**
  * The common job contract.
  *
- * Every PDFShush tool -- merge, split, OCR, compress, edit, AI redaction -- is a
+ * Every pdfshush tool -- merge, split, OCR, compress, edit, AI redaction -- is a
  * `JobDefinition`. The browser pool and the server queue (Phase 3) both consume
  * this exact interface, so a tool never has to know where it is running.
  */

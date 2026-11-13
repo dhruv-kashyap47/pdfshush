@@ -13,7 +13,7 @@ export class ConfigError extends Error {
 }
 
 export interface McpConfig {
-  /** Absolute base of the PDFShush deployment; `/api/v1/…` is appended. */
+  /** Absolute base of the pdfshush deployment; `/api/v1/…` is appended. */
   baseUrl: URL;
   apiKey: string;
 }
@@ -52,7 +52,7 @@ export function resolveBaseUrl(
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     throw new ConfigError(
-      `PDFSHUSH_API_URL must be http(s) (got ${url.protocol}) -- the MCP server only talks to PDFShush deployments.`,
+      `PDFSHUSH_API_URL must be http(s) (got ${url.protocol}) -- the MCP server only talks to pdfshush deployments.`,
     );
   }
   if (url.protocol === 'http:' && !allowHttp && !isLoopback(url.hostname)) {
@@ -98,7 +98,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): McpConfig {
   const apiKey = env.PDFSHUSH_API_KEY ?? '';
   if (!apiKey) {
     throw new ConfigError(
-      'PDFSHUSH_API_KEY is not set. Create a key in the PDFShush account dashboard ' +
+      'PDFSHUSH_API_KEY is not set. Create a key in the pdfshush account dashboard ' +
         '(pshk_…) and put it in the MCP client config: env: { PDFSHUSH_API_KEY: "pshk_…" }.',
     );
   }

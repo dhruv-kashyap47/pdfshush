@@ -1,4 +1,4 @@
-# PDFShush API + worker image.
+# pdfshush API + worker image.
 #
 # One image, two roles: `api` runs the HTTP service, `worker` runs the same
 # bundle's worker host. That keeps the two processes provably identical -- the

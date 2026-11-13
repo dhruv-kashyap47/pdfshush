@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "PDFShush server pipeline: Express API + BullMQ workers for the heavy PDF tools.",
+  "description": "pdfshush server pipeline: Express API + BullMQ workers for the heavy PDF tools.",
   "main": "./dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",

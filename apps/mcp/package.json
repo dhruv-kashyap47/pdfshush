@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "PDFShush MCP server: local stdio bridge that drives the public /api/v1 REST API with the user's own API key. Ships no PDF engine -- every tool call lands in the same server pipeline.",
+  "description": "pdfshush MCP server: local stdio bridge that drives the public /api/v1 REST API with the user's own API key. Ships no PDF engine -- every tool call lands in the same server pipeline.",
   "license": "Apache-2.0",
   "sideEffects": false,
   "main": "./src/bin.ts",

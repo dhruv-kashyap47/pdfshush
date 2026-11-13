@@ -6,7 +6,7 @@ import type { AiMode } from '@/lib/ai/mode';
 interface AiSetupSectionProps {
   settings: AiSettings;
   mode: AiMode;
-  /** Whether this deployment offers the PDFShush trial. */
+  /** Whether this deployment offers the pdfshush trial. */
   managedAvailable: boolean;
   onSave(settings: AiSettings): void;
   onModeChange(mode: AiMode): void;
@@ -37,7 +37,7 @@ export function AiSetupSection({
           Connect a model
         </h2>
         <p className="studio-setup-copy">
-          Bring your own key, or use the PDFShush trial. Your key stays in this browser.
+          Bring your own key, or use the pdfshush trial. Your key stays in this browser.
         </p>
         <p className="studio-setup-note">
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden />

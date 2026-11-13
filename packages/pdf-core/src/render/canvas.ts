@@ -143,7 +143,7 @@ export function defaultCanvasFactory(): CanvasFactory {
   }
 
   throw new Error(
-    'This environment has no canvas implementation. Run PDFShush processing in a browser worker, ' +
+    'This environment has no canvas implementation. Run pdfshush processing in a browser worker, ' +
       'or install a canvas polyfill on the server.',
   );
 }

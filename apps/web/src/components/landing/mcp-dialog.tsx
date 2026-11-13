@@ -549,7 +549,7 @@ function DialogPanels({
       <div className="border-b border-border/70 px-6 py-6 sm:px-8">
         <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Terminal className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-          PDFShush speaks the Model Context Protocol
+          pdfshush speaks the Model Context Protocol
         </p>
         <DialogTitle
           data-mcp="title"

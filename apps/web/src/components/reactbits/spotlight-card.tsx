@@ -2,7 +2,7 @@
  * SpotlightCard — React Bits (TS + Tailwind), vendored and customised.
  *
  * Source: https://reactbits.dev/components/spotlight-card
- * The pointer/edge/focus logic is kept; the palette is bound to PDFShush's
+ * The pointer/edge/focus logic is kept; the palette is bound to pdfshush's
  * theme tokens instead of a fixed dark palette, ambient drift is off by
  * default, and the radius/size are tuned for a dense editor rail.
  *

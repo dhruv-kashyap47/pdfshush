@@ -163,7 +163,7 @@ export function McpToolPage() {
         <CardContent>
           {status === 'unavailable' ? (
             <p className="text-sm text-muted-foreground">
-              This deployment ships the browser tools only — the PDFShush server is not deployed
+              This deployment ships the browser tools only — the pdfshush server is not deployed
               here, so there is no API for the MCP server to talk to and no live tool list to show.
               The configuration below still describes the client exactly as the repository
               implements it.

@@ -196,12 +196,12 @@ export function EditMetadataTool() {
               placeholder="finance, 2026, quarterly"
               hint="comma-separated"
             />
-            <Field label="Creator" value={fields.creator} onChange={set('creator')} placeholder="PDFShush" />
+            <Field label="Creator" value={fields.creator} onChange={set('creator')} placeholder="pdfshush" />
             <Field
               label="Producer"
               value={fields.producer}
               onChange={set('producer')}
-              placeholder="PDFShush engine"
+              placeholder="pdfshush engine"
             />
           </form>
 

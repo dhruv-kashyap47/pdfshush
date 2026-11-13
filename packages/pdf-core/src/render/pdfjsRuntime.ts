@@ -131,7 +131,7 @@ export async function documentKey(data: Uint8Array, password: string): Promise<s
   const cryptoApi = globalThis.crypto;
   if (!cryptoApi?.subtle) {
     throw new Error(
-      'This environment has no secure hashing, so parsed documents cannot be cached safely. Run PDFShush in a browser worker or a modern Node.',
+      'This environment has no secure hashing, so parsed documents cannot be cached safely. Run pdfshush in a browser worker or a modern Node.',
     );
   }
   const [fileDigest, passwordDigest] = await Promise.all([

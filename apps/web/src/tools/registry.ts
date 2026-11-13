@@ -351,7 +351,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       tool('workflows', 'Workflows', 'Chain tools together and re-run them on new files automatically.', 'automate', Workflow, 'violet'),
       tool('batch-run', 'Batch run', 'Apply one operation to a whole folder of PDFs.', 'automate', Sparkles, 'amber'),
       tool('api', 'REST API', 'Call every tool from your own code with a public API key.', 'automate', Link2, 'blue'),
-      tool('mcp', 'MCP server', 'Drive PDFShush from any AI agent over the Model Context Protocol.', 'automate', Wand2, 'cyan'),
+      tool('mcp', 'MCP server', 'Drive pdfshush from any AI agent over the Model Context Protocol.', 'automate', Wand2, 'cyan'),
       tool('sign-workflow', 'Sign & route', 'Collect signatures in order, then file the finished document.', 'automate', Mail, 'rose'),
       tool('convert-batch', 'Batch convert', 'Convert many files at once with shared settings.', 'automate', Combine, 'green'),
     ],

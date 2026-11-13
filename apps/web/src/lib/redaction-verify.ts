@@ -248,7 +248,7 @@ export function formatReceipt(verification: UserVerification): string {
     : `CONTENT REMAINS - ${verification.failed} check(s) failed`;
 
   const lines = [
-    'PDFShush redaction verification',
+    'pdfshush redaction verification',
     '',
     `SHA-256  ${verification.digest}`,
     `Bytes    ${verification.byteLength}`,

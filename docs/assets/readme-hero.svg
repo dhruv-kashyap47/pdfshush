@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="heroTitle heroDesc">
-  <title id="heroTitle">PDFShush: every PDF tool, zero uploads</title>
+  <title id="heroTitle">pdfshush: every PDF tool, zero uploads</title>
   <desc id="heroDesc">An animated illustration of a PDF being signed, redacted and processed on a laptop. Floating tool chips read Merge PDF, Sign and fill, and OCR. A badge reads zero uploads.</desc>
 
   <defs>

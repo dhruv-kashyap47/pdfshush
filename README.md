@@ -8,7 +8,7 @@
 <p align="center"><strong>Free PDF tools that never upload your files.</strong></p>
 
 <p align="center">
-  <a href="https://pdfshush.7468dhruv.workers.dev"><img alt="Open PDFShush" src="https://img.shields.io/badge/Open_the_app-%E2%86%92-2f9e6a?style=for-the-badge"></a>
+  <a href="https://pdfshush.7468dhruv.workers.dev"><img alt="Open pdfshush" src="https://img.shields.io/badge/Open_the_app-%E2%86%92-2f9e6a?style=for-the-badge"></a>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 
 <img src="docs/assets/readme-hero.svg" alt="A PDF is signed and redacted on the device. Floating chips read Merge PDF, Sign and fill, and OCR, next to a badge that reads zero uploads." width="100%">
 
-**PDFShush is a free PDF toolkit that runs entirely in your browser.** Merge, split, sign, redact, OCR, compress: pick a tool, drop a file, download the result. Your document never leaves your device.
+**pdfshush is a free PDF toolkit that runs entirely in your browser.** Merge, split, sign, redact, OCR, compress: pick a tool, drop a file, download the result. Your document never leaves your device.
 
 No account. No upload. No waiting for a server.
 
@@ -42,7 +42,7 @@ No account. No upload. No waiting for a server.
 
 | The app | A tool |
 | --- | --- |
-| ![The PDFShush home screen](docs/assets/readme-home.jpg) | ![The Merge PDF tool](docs/assets/readme-merge.jpg) |
+| ![The pdfshush home screen](docs/assets/readme-home.jpg) | ![The Merge PDF tool](docs/assets/readme-merge.jpg) |
 
 ## Tools
 
@@ -66,7 +66,7 @@ No account. No upload. No waiting for a server.
 
 | Your files stay here | Your keys stay here | Your work still works |
 | --- | --- | --- |
-| Every tool runs inside your browser tab. There is no upload endpoint, no file server, and no copy of your document on our side. | AI tools use your own provider key. It is stored in your browser and sent straight to the provider you chose. | Install PDFShush as an app and keep using tools offline. Once a tool is open, the network is optional. |
+| Every tool runs inside your browser tab. There is no upload endpoint, no file server, and no copy of your document on our side. | AI tools use your own provider key. It is stored in your browser and sent straight to the provider you chose. | Install pdfshush as an app and keep using tools offline. Once a tool is open, the network is optional. |
 
 Redaction is the one you can check: pages are rebuilt without the hidden text or images, then reopened and verified before the download appears. The [verifier](https://pdfshush.7468dhruv.workers.dev/verify) lets you inspect the result yourself.
 
@@ -82,7 +82,7 @@ Nothing is sent anywhere in between.
 
 ## Run it yourself
 
-PDFShush is open source. The frontend runs on its own. No Docker, no database, no API keys.
+pdfshush is open source. The frontend runs on its own. No Docker, no database, no API keys.
 
 ```bash
 pnpm install

@@ -3,7 +3,7 @@ interface LogoProps {
 }
 
 /**
- * The PDFShush wordmark, drawn inline so it inherits the theme's ink colour:
+ * The pdfshush wordmark, drawn inline so it inherits the theme's ink colour:
  * deep charcoal on ivory in light mode, warm white on black in dark mode.
  * The artwork is the brand's own file (public/pdfshush-wordmark.svg) — the
  * paths and letterforms are unchanged, only the way they are filled moved

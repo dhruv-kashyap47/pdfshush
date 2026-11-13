@@ -1,7 +1,7 @@
 /**
  * Managed AI HTTP surface.
  *
- * A streaming proxy in front of one PDFShush-owned provider key: the browser
+ * A streaming proxy in front of one pdfshush-owned provider key: the browser
  * posts the same turn shape it would send directly (system + messages + tools)
  * and gets Server-Sent Events back. Off entirely unless the deployment sets a
  * managed key and model.

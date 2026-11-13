@@ -119,7 +119,7 @@ export function FeaturesSection() {
                   <th className="px-6 py-3.5 font-medium sm:px-8">Capability</th>
                   <th className="px-6 py-3.5 font-medium">Standard online tools</th>
                   <th className="border-x border-primary/10 bg-primary/[0.05] px-6 py-3.5 font-semibold text-foreground">
-                    PDFShush
+                    pdfshush
                   </th>
                 </tr>
               </thead>

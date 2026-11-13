@@ -1,7 +1,7 @@
 /**
  * Managed-AI budget.
  *
- * Managed mode spends PDFShush's own provider key, so every turn is metered.
+ * Managed mode spends pdfshush's own provider key, so every turn is metered.
  * Two windows mirror the anonymous tool quota: a per-minute request rate and a
  * daily token allowance. Tokens are *reserved* up front at the per-turn
  * worst case and *settled* to the provider's reported usage afterwards, so a

@@ -93,7 +93,7 @@ export function DocumentBand() {
             src="/brand/stem-4.png"
             width={1854}
             height={848}
-            alt="The PDFShush mark: a blue folder with its wordmark, held between two halftone peaks drawn in dark dots on a pale background"
+            alt="The pdfshush mark: a blue folder with its wordmark, held between two halftone peaks drawn in dark dots on a pale background"
             loading="eager"
             fetchPriority="high"
             decoding="async"
@@ -108,7 +108,7 @@ export function DocumentBand() {
             src="/brand/stem-3.png"
             width={1854}
             height={848}
-            alt="The PDFShush mark: a blue folder with its wordmark, held between two halftone peaks drawn in white dots on black"
+            alt="The pdfshush mark: a blue folder with its wordmark, held between two halftone peaks drawn in white dots on black"
             loading="lazy"
             decoding="async"
             draggable={false}

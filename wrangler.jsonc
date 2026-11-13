@@ -1,5 +1,5 @@
 /**
- * PDFShush on Cloudflare Workers + Static Assets.
+ * pdfshush on Cloudflare Workers + Static Assets.
  *
  * This deploys the **frontend only**. The Express API, BullMQ worker, Redis and
  * MongoDB in `docker-compose.yml` stay local and untouched. The one Worker

@@ -23,7 +23,7 @@ export const SERVER_VERSION = '1.0.0';
 export const SERVER_NAME = 'pdfshush';
 
 export const INSTRUCTIONS = [
-  'PDFShush: run PDF tools (merge, split/organize, page numbers & stamps, n-up, edit, inspect) on a real PDFShush deployment.',
+  'pdfshush: run PDF tools (merge, split/organize, page numbers & stamps, n-up, edit, inspect) on a real pdfshush deployment.',
   'One tool per capability. Every call submits inline base64 PDFs (max 10 MB decoded per file, max 50 files), waits for the job, and returns the outputs: embedded resources when they fit an agent context, download links otherwise.',
   'Before constructing `options`, read the matching pdfshush://guide/<slug> resource -- the vocabulary there is what the server accepts; anything else is rejected as validation_failed.',
   'Passwords travel in the `password` argument once for all files, never inline in text.',
@@ -68,7 +68,7 @@ export async function createMcpServer(config: McpConfig): Promise<McpServer> {
       tool.name,
       {
         title: tool.title,
-        description: `PDFShush "${tool.title}" over /api/v1 -- submit PDFs inline (base64), wait, get outputs. See the pdfshush://guide/${tool.slug} resource for options.`,
+        description: `pdfshush "${tool.title}" over /api/v1 -- submit PDFs inline (base64), wait, get outputs. See the pdfshush://guide/${tool.slug} resource for options.`,
         inputSchema: tool.shape,
         annotations: { readOnlyHint: tool.readonly, openWorldHint: false },
       },
@@ -94,7 +94,7 @@ export async function createMcpServer(config: McpConfig): Promise<McpServer> {
         const limits = Object.entries(catalog.limits ?? {})
           .map(([k, v]) => `${k}: ${v}`)
           .join('; ');
-        text = `PDFShush tools (live from the deployment):\n${lines.map((l) => `- ${l}`).join('\n')}\nQuota per key — ${limits}`;
+        text = `pdfshush tools (live from the deployment):\n${lines.map((l) => `- ${l}`).join('\n')}\nQuota per key — ${limits}`;
       } catch (err) {
         text =
           `The deployment could not be reached (${err instanceof Error ? err.message : String(err)}), ` +
