@@ -1139,6 +1139,13 @@ body.editor-app-active #root footer {
   display: none;
 }
 
+/* The editor shell covers the area below the header. Hide the update banner
+   there as well: it would be invisible, but its Reload button would still sit
+   in the tab order behind the editor. */
+body.editor-app-active .update-banner {
+  display: none;
+}
+
 /* The editor owns the bottom edge with its status bar; keep transient toasts
    above it so save progress and state stay readable. */
 body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {

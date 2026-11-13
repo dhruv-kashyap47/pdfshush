@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SiteFooter } from '@/components/layout/footer';
 import { SiteHeader } from '@/components/layout/header';
+import { UpdateBanner } from '@/components/layout/update-banner';
 import { AuthProvider } from '@/hooks/use-auth';
 import { AccountPage } from '@/pages/account';
 import { HomePage } from '@/pages/home';
@@ -130,6 +131,7 @@ export default function App() {
               Skip to content
             </a>
             <SiteHeader />
+            <UpdateBanner />
             <main id="main" tabIndex={-1} className="flex-1 outline-none">
               <AppRoutes />
             </main>

@@ -10,8 +10,6 @@
  * previous service worker could hand an open tool page assets from two builds.
  */
 
-import { toast } from 'sonner';
-
 const SW_URL = '/sw.js';
 
 export interface ServiceWorkerStatus {
@@ -28,16 +26,35 @@ export interface ServiceWorkerStatus {
 /** Set by `registerServiceWorker` so the trust page can await the same attempt. */
 let registrationAttempt: Promise<ServiceWorkerRegistration> | null = null;
 
-function updateToast(registration: ServiceWorkerRegistration): void {
-  toast.info('A new version of pdfshush is ready.', {
-    description: 'Reload to use it. Open tabs keep the version they started with.',
-    duration: Infinity,
-    id: 'sw-update',
-    action: {
-      label: 'Reload',
-      onClick: () => activateWaiting(registration),
-    },
-  });
+/**
+ * The waiting worker, if any. The update notice is rendered in the page flow by
+ * `UpdateBanner`, not as an infinite toast: a toast at the bottom covers real
+ * controls on small screens and cannot be dismissed without losing the only
+ * convenient path to the update.
+ */
+let waitingUpdate: ServiceWorkerRegistration | null = null;
+const updateListeners = new Set<() => void>();
+
+export function getWaitingServiceWorker(): ServiceWorkerRegistration | null {
+  return waitingUpdate;
+}
+
+export function subscribeServiceWorkerUpdate(listener: () => void): () => void {
+  updateListeners.add(listener);
+  return () => {
+    updateListeners.delete(listener);
+  };
+}
+
+function announceWaiting(registration: ServiceWorkerRegistration): void {
+  waitingUpdate = registration;
+  for (const listener of [...updateListeners]) {
+    try {
+      listener();
+    } catch {
+      // One bad subscriber must not hide the update from the others.
+    }
+  }
 }
 
 /**
@@ -64,6 +81,12 @@ export function activateWaiting(registration: ServiceWorkerRegistration): void {
   waiting.postMessage({ type: 'SKIP_WAITING' });
 }
 
+/** `UpdateBanner`'s action: activate the waiting build, or reload if it vanished. */
+export function applyServiceWorkerUpdate(): void {
+  if (waitingUpdate) activateWaiting(waitingUpdate);
+  else window.location.reload();
+}
+
 /**
  * Registers the worker in production builds. Dev is deliberately excluded: the
  * dev server's module graph changes on every edit, and a cache in front of it
@@ -87,7 +110,7 @@ export function registerServiceWorker(): void {
 
     registrationAttempt
       .then((registration) => {
-        if (registration.waiting) updateToast(registration);
+        if (registration.waiting) announceWaiting(registration);
 
         registration.addEventListener('updatefound', () => {
           const installing = registration.installing;
@@ -96,7 +119,7 @@ export function registerServiceWorker(): void {
             if (installing.state !== 'installed') return;
             // No controller means this is the first install: there is nothing to
             // update away from, so prompting would be noise.
-            if (navigator.serviceWorker.controller) updateToast(registration);
+            if (navigator.serviceWorker.controller) announceWaiting(registration);
           });
         });
       })
