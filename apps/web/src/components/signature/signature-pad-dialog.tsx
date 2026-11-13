@@ -20,10 +20,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as SignaturePadLib from 'signature_pad';
 import type { PointGroup } from 'signature_pad';
-import { Eraser, PenLine, Trash2, Undo2 } from 'lucide-react';
+import { Download, Eraser, PenLine, Trash2, Undo2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   SIGNATURE_LABEL_MAX_CHARS,
@@ -66,6 +66,12 @@ export interface SignaturePadDialogProps {
    */
   mode: 'insert' | 'manage';
   onUse?: (capture: SignatureCapture) => void;
+  /**
+   * Fired after a successful save so the page can close the pad and move the
+   * user straight on to the download step. `download` is true for the primary
+   * "Save & download" action.
+   */
+  onSaved?: (record: SignatureAssetRecord, intent: { download: boolean }) => void;
 }
 
 const INK = '#16181d';
@@ -166,7 +172,13 @@ function AssetStrip({
 
 /* -------------------------------------------------------------- the dialog */
 
-export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: SignaturePadDialogProps) {
+export function SignaturePadDialog({
+  open,
+  onOpenChange,
+  mode,
+  onUse,
+  onSaved,
+}: SignaturePadDialogProps) {
   const [tab, setTab] = useState<Tab>('draw');
   const [pen, setPen] = useState<string>(INK);
   const [typedText, setTypedText] = useState('');
@@ -193,6 +205,14 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
   const padRef = useRef<SignaturePadLib.default | null>(null);
   /** Latest stroke groups (device px), for restore-on-DPR-change. */
   const groupsRef = useRef<PointGroup[]>([]);
+  /** Guards the post-save hand-off if the user closes the pad mid-save. */
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   /**
    * Radix portals + lazy boundaries can commit this component's effects while
@@ -413,31 +433,41 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
     };
   }, [adopted, tab, typedText]);
 
-  const onSave = useCallback(async () => {
-    const captured = await capture();
-    if (!captured) {
-      toast.error(tab === 'draw' ? 'Draw a signature first.' : 'Type a name first.');
-      return;
-    }
-    try {
-      await saveSignature({
-        method: captured.method,
-        ...(captured.strokes ? { strokes: captured.strokes } : {}),
-        png: captured.png,
-        width: captured.width,
-        height: captured.height,
-      });
-      toast.success('Saved on this device.');
-    } catch (error) {
-      if (error instanceof SignatureAssetTooLargeError) {
-        toast.error(`${error.message} Try drawing a shorter signature.`);
-      } else if (error instanceof SignatureAssetLimitError) {
-        toast.error(error.message);
-      } else {
-        toast.error('Could not save the signature in this browser.');
+  const onSave = useCallback(
+    async (intent: 'save' | 'download' = 'save') => {
+      const captured = await capture();
+      if (!captured) {
+        toast.error(tab === 'draw' ? 'Draw a signature first.' : 'Type a name first.');
+        return;
       }
-    }
-  }, [capture, tab]);
+      try {
+        const record = await saveSignature({
+          method: captured.method,
+          ...(captured.strokes ? { strokes: captured.strokes } : {}),
+          png: captured.png,
+          width: captured.width,
+          height: captured.height,
+        });
+        // The user may have tapped the back/close button while IndexedDB was
+        // writing. Save the asset, but don't open the download sheet on top of
+        // a page they already left.
+        if (!mountedRef.current || !open) return;
+        onSaved?.(record, { download: intent === 'download' });
+        // "Save & download" opens the export sheet; a second toast would just
+        // sit over its footer on a phone. Save-only keeps the confirmation.
+        if (intent === 'save' || !onSaved) toast.success('Saved on this device.');
+      } catch (error) {
+        if (error instanceof SignatureAssetTooLargeError) {
+          toast.error(`${error.message} Try drawing a shorter signature.`);
+        } else if (error instanceof SignatureAssetLimitError) {
+          toast.error(error.message);
+        } else {
+          toast.error('Could not save the signature in this browser.');
+        }
+      }
+    },
+    [capture, onSaved, open, tab],
+  );
 
   const onUseClick = useCallback(async () => {
     const captured = await capture();
@@ -458,10 +488,21 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-xl gap-5 rounded-2xl border-black/10 bg-card shadow-[0_24px_80px_-24px_oklch(0.2_0.02_152/0.35)] dark:border-white/10"
+        showCloseButton={false}
+        className="flex max-h-[92svh] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-black/10 bg-card p-0 shadow-[0_24px_80px_-24px_oklch(0.2_0.02_152/0.35)] sm:max-w-xl dark:border-white/10"
         data-testid="signature-pad-dialog"
       >
-        <div className="space-y-1.5 pr-6">
+        <DialogClose asChild>
+          <button
+            type="button"
+            aria-label="Close and return to your signatures"
+            className="absolute top-4 right-4 z-20 flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:outline-none"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        </DialogClose>
+
+        <div className="shrink-0 space-y-1.5 px-5 pt-5 pr-12 sm:px-6 sm:pt-6">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-secondary px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
             <PenLine className="size-3" aria-hidden />
             Signature
@@ -473,6 +514,8 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
             Draw or type it once. It stays on this device; nothing is uploaded.
           </DialogDescription>
         </div>
+
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 sm:py-5">
 
         {/* Segment switch */}
         <div
@@ -718,54 +761,57 @@ export function SignaturePadDialog({ open, onOpenChange, mode, onUse }: Signatur
           }}
         />
 
-        {/* Footer CTAs */}
-        <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4 dark:border-white/5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-9 rounded-full px-4 text-sm text-muted-foreground transition-colors duration-300 hover:text-foreground"
-            data-testid="signature-save-copy"
-            disabled={!canSaveToday}
-            onClick={() => void onSave()}
-          >
-            Save for later
-          </Button>
-          {mode === 'insert' ? (
-            <Button
-              type="button"
-              size="sm"
-              className="group h-10 rounded-full pr-2 pl-5 text-sm transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] disabled:opacity-60"
-              data-testid="signature-use"
-              disabled={!hasInput}
-              onClick={() => void onUseClick()}
-            >
-              Use signature
-              <span className="ml-2.5 flex size-7 items-center justify-center rounded-full bg-primary-foreground/15 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5">
-                <PenLine className="size-3.5" aria-hidden />
-              </span>
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              className="group h-10 rounded-full pr-2 pl-5 text-sm transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] disabled:opacity-60"
-              data-testid="signature-save-primary"
-              disabled={!canSaveToday}
-              onClick={() => void onSave()}
-            >
-              Save as new
-              <span className="ml-2.5 flex size-7 items-center justify-center rounded-full bg-primary-foreground/15 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5">
-                <PenLine className="size-3.5" aria-hidden />
-              </span>
-            </Button>
-          )}
         </div>
 
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Saved copies live only in this browser. A signature is never sent to a server, and
-          signing adds an honest, non-certified audit note next to the file.
-        </p>
+        <div className="shrink-0 border-t border-border/60 bg-card/95 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:px-6 dark:border-white/5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 w-full rounded-full px-4 text-sm text-muted-foreground transition-colors duration-300 hover:text-foreground sm:w-auto"
+              data-testid="signature-save-copy"
+              disabled={!canSaveToday}
+              onClick={() => void onSave('save')}
+            >
+              Save for later
+            </Button>
+            {mode === 'insert' ? (
+              <Button
+                type="button"
+                size="sm"
+                className="group h-10 w-full rounded-full pr-2 pl-5 text-sm transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] disabled:opacity-60 sm:w-auto"
+                data-testid="signature-use"
+                disabled={!hasInput}
+                onClick={() => void onUseClick()}
+              >
+                Use signature
+                <span className="ml-2.5 flex size-7 items-center justify-center rounded-full bg-primary-foreground/15 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5">
+                  <PenLine className="size-3.5" aria-hidden />
+                </span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                className="group h-10 w-full rounded-full pr-2 pl-5 text-sm transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] disabled:opacity-60 sm:w-auto"
+                data-testid="signature-save-primary"
+                disabled={!canSaveToday}
+                onClick={() => void onSave('download')}
+              >
+                Save &amp; download
+                <span className="ml-2.5 flex size-7 items-center justify-center rounded-full bg-primary-foreground/15 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5">
+                  <Download className="size-3.5" aria-hidden />
+                </span>
+              </Button>
+            )}
+          </div>
+
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+            Saved copies live only in this browser. A signature is never sent to a server, and
+            signing adds an honest, non-certified audit note next to the file.
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   );

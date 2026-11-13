@@ -170,6 +170,10 @@ export function SignatureTool() {
             open
             onOpenChange={setDialogOpen}
             mode="manage"
+            onSaved={(record, { download }) => {
+              setDialogOpen(false);
+              if (download) setExportAsset(record);
+            }}
           />
         </Suspense>
       )}

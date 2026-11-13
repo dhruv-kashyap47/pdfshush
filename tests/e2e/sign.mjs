@@ -171,13 +171,35 @@ async function main() {
 
     await page.goto(`${BASE}/tools/signature`);
     await page.waitForLoadState('networkidle');
+    await page.getByText('Your signatures').waitFor({ timeout: 15_000 });
+    // The editor flow above already saved one asset; wait for it before taking
+    // the baseline so the count is stable.
+    await waitFor(
+      async () =>
+        (await page.locator('[data-testid^="signature-manage-"]').count()) >= 1 ? true : null,
+      8_000,
+      'existing saved asset',
+    );
+    const cardsBefore = await page.locator('[data-testid^="signature-manage-"]').count();
     await page.getByTestId('signature-new').click();
     const manageDialog = page.getByTestId('signature-pad-dialog');
     await manageDialog.waitFor({ timeout: 15_000 });
     const manageCanvas = page.getByTestId('signature-canvas-draw');
     await drawStroke(page, manageCanvas, { x: 0.3 });
     await page.getByTestId('signature-save-primary').click();
+    const exportDialog = page.getByTestId('signature-export-dialog');
+    const exportOpened = await waitFor(
+      async () => ((await exportDialog.count()) > 0 ? true : null),
+      15_000,
+      'download flow opens after save',
+    );
+    check('saving opens the download flow', exportOpened === true);
     await page.keyboard.press('Escape');
+    await waitFor(
+      async () => ((await exportDialog.count()) === 0 ? true : null),
+      8_000,
+      'export sheet closed',
+    );
     await waitFor(
       async () => ((await manageDialog.count()) === 0 ? true : null),
       8_000,
@@ -186,19 +208,18 @@ async function main() {
     const cardCount = await waitFor(
       async () => {
         const n = await page.locator('[data-testid^="signature-manage-"]').count();
-        return n === 1 ? n : null;
+        return n === cardsBefore + 1 ? n : null;
       },
       8_000,
       'saved asset card',
     );
-    check('the manage page saves a signature', cardCount === 1);
-    // Two assets exist at this point (one from the editor flow, one from here);
-    // delete unwraps to a single card, not zero.
+    check('the manage page saves a signature', cardCount === cardsBefore + 1);
+    // Delete unwraps to the count that existed before this manage save.
     await page.locator('[data-testid="signature-delete"]').first().click();
     const afterDelete = await waitFor(
       async () => {
         const n = await page.locator('[data-testid^="signature-manage-"]').count();
-        return n === 1 ? true : null;
+        return n === cardsBefore ? true : null;
       },
       8_000,
       'asset deleted',
