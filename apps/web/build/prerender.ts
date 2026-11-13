@@ -110,6 +110,9 @@ const STYLE = `
 .pre-footer{border-top:1px solid #ded9d2;padding-top:1.25rem;font-size:.85rem;color:#57534e}
 .pre-footer a{color:#0f766e;text-decoration:none;margin-right:1rem}
 @media(prefers-color-scheme:dark){.pre-shell{background:#0c0a09;color:#f5f5f4}.pre-brand{color:#f5f5f4}.pre-lead{color:#d6d3d1}.pre-note{background:#1c1917}.pre-list a{background:#1c1917;border-color:#292524;color:#f5f5f4}.pre-list span,.pre-footer{color:#a8a29e}}
+.pre-boot{min-height:100vh;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.375rem;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:inherit}
+.pre-boot-brand{font-size:1.25rem;font-weight:700;letter-spacing:-.02em}
+.pre-boot-note{font-size:.875rem;opacity:.65}
 `.trim();
 
 function header(): string {
@@ -178,6 +181,24 @@ function homePage(tools: ToolEntry[]): string {
 <p class="pre-note"><strong>Verifiable, not a slogan.</strong> The policy is part of the build, the service worker keeps the shell available offline, and <a href="/verify">the verifier</a> prints a SHA-256 receipt for any redacted PDF.</p>
 ${sections}
 </main>${footer()}</div>`;
+}
+
+/**
+ * The first paint of `/`, for a browser that runs JavaScript.
+ *
+ * The prerendered catalog below is real content for crawlers and for visitors
+ * without JavaScript, but it used to be the first thing every browser painted:
+ * a complete, separately styled tools directory stayed on screen until the
+ * module graph had downloaded and React had replaced it. Opening the app
+ * therefore *looked* like it had navigated to the wrong page first.
+ *
+ * The catalog now lives inside `<noscript>` (same bytes, same links, so no-JS
+ * reach is unchanged) and a JS visitor gets this small branded shell until
+ * React mounts. It deliberately has no timer, redirect or fake progress: the
+ * app replaces it as soon as the real route is ready.
+ */
+function startupShell(): string {
+  return '<div class="pre-boot" role="status" aria-live="polite"><span class="pre-boot-brand">PDFShush</span><span class="pre-boot-note">Loading…</span></div>';
 }
 
 function simplePage(
@@ -401,6 +422,13 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
       ];
 
       for (const entry of routes) {
+        // Root only: a tool route's static copy already describes the page the
+        // visitor asked for, so it is not the wrong page flashing by. The home
+        // document is the one that must not paint the whole catalog first.
+        const staticBody =
+          entry.route === '/'
+            ? `${startupShell()}<noscript>${entry.html}</noscript>`
+            : entry.html;
         const html = withHead(template, {
           title: entry.title,
           description: entry.description,
@@ -411,7 +439,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           jsonLd: jsonLd(origin, entry.route, entry.tool),
         }).replace(
           '<div id="root"></div>',
-          `<div id="root">${entry.html}</div>`,
+          `<div id="root">${staticBody}</div>`,
         );
         // A flat `<route>.html`, not `<route>/index.html`.
         //
