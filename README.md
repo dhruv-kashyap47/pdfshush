@@ -26,7 +26,7 @@
 
 <img src="docs/assets/readme-hero.svg" alt="A PDF is signed and redacted on the device. Floating chips read Merge PDF, Sign and fill, and OCR, next to a badge that reads zero uploads." width="100%">
 
-**PDFShush is a free PDF toolkit that runs entirely in your browser.** Merge, split, sign, redact, OCR, compress — pick a tool, drop a file, download the result. Your document never leaves your device.
+**PDFShush is a free PDF toolkit that runs entirely in your browser.** Merge, split, sign, redact, OCR, compress: pick a tool, drop a file, download the result. Your document never leaves your device.
 
 No account. No upload. No waiting for a server.
 
@@ -46,17 +46,17 @@ No account. No upload. No waiting for a server.
 
 ## Tools
 
-**Merge & organize** — Merge PDF, Organize pages, Alternate & mix, Combine files, Delete pages, Extract pages, Rotate, N-up, Crop, Batch run.
+**Merge & organize:** Merge PDF, Organize pages, Alternate & mix, Combine files, Delete pages, Extract pages, Rotate, N-up, Crop, Batch run.
 
-**Split** — Split by pages, Split in half, Split by size, Split by text, Split by bookmarks.
+**Split:** Split by pages, Split in half, Split by size, Split by text, Split by bookmarks.
 
-**Edit & sign** — Edit PDF, Fill & sign, Signature, Create forms, Create bookmarks, Page numbers, Header & footer, Watermark, Stamp, Bates numbering, Edit metadata, Rename, Image editor.
+**Edit & sign:** Edit PDF, Fill & sign, Signature, Create forms, Create bookmarks, Page numbers, Header & footer, Watermark, Stamp, Bates numbering, Edit metadata, Rename, Image editor.
 
-**Convert & clean** — PDF to JPG, PDF to text, Extract images, JPG to PDF, Compress, Grayscale, Dark mode, Resize, Flip, Deskew, OCR, Repair, Flatten, Remove annotations.
+**Convert & clean:** PDF to JPG, PDF to text, Extract images, JPG to PDF, Compress, Grayscale, Dark mode, Resize, Flip, Deskew, OCR, Repair, Flatten, Remove annotations.
 
-**Protect** — Redact PDF (with a verifier), Protect with a password, Unlock.
+**Protect:** Redact PDF (with a verifier), Protect with a password, Unlock.
 
-**AI, with your own key** — Summarize, Chat with a PDF, Edit with AI.
+**AI, with your own key:** Summarize, Chat with a PDF, Edit with AI.
 
 <p align="center">
   <a href="https://pdfshush.7468dhruv.workers.dev"><strong>See all 48 tools →</strong></a>
@@ -75,14 +75,14 @@ When you use an AI tool, the text you choose to send goes to your AI provider, n
 ## Drop, pick, done
 
 1. **Drop a PDF.** Choose a local file, or drag it into the tab.
-2. **Pick a tool.** Merge, sign, redact, OCR, compress — it opens in place.
+2. **Pick a tool.** Merge, sign, redact, OCR, compress. It opens in place.
 3. **Download the result.** The finished file is built in your browser.
 
 Nothing is sent anywhere in between.
 
 ## Run it yourself
 
-PDFShush is open source. The frontend runs on its own — no Docker, no database, no API keys.
+PDFShush is open source. The frontend runs on its own. No Docker, no database, no API keys.
 
 ```bash
 pnpm install
