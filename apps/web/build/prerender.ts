@@ -3,7 +3,7 @@
  *
  * Every tool URL already exists as a React route, but the HTML a crawler gets
  * before JavaScript is an empty `<div id="root">`. This plugin writes a real
- * `dist/<route>/index.html` for every route: title, description, canonical,
+ * `dist/<route>.html` for every route: title, description, canonical,
  * Open Graph card, `SoftwareApplication` JSON-LD and visible content (headline,
  * explanation, limits, navigation). React replaces the content on mount, so
  * there is no hydration contract and no duplicate shell.
@@ -272,6 +272,37 @@ function withHead(
   return next;
 }
 
+/**
+ * The 404 document.
+ *
+ * A static host serves a top-level `404.html` with a real 404 status for any
+ * path it cannot match. Without one, Cloudflare Pages falls back to serving
+ * the app shell with a **200** -- a soft 404, which tells a crawler the URL
+ * exists and is content. That is the kind of quiet dishonesty this product
+ * does not ship.
+ *
+ * Every route the app knows is prerendered (63 of them), so this file is only
+ * ever reached by a URL that does not exist. The copy matches the client's own
+ * NotFound page so a no-JS visitor sees the same thing.
+ */
+function notFoundDocument(template: string): string {
+  return template
+    .replace(/<title>[\s\S]*?<\/title>/, '<title>Page not found | PDFShush</title>')
+    .replace(
+      /<meta\s+name="description"[^>]*>/,
+      '<meta name="description" content="This page does not exist. The full PDFShush catalog is one click away." />',
+    )
+    .replace(/<meta\s+name="robots"[^>]*>/, '<meta name="robots" content="noindex, follow" />')
+    .replace(
+      '<div id="root"></div>',
+      `<div id="root">${simplePage(
+        'This page went missing',
+        'The link may be old, or the tool has not shipped yet.',
+        'The full catalog is one click away.',
+      )}</div>`,
+    );
+}
+
 export function prerenderPlugin(options: PrerenderOptions): Plugin {
   return {
     name: 'pdfshush-prerender',
@@ -382,9 +413,21 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           '<div id="root"></div>',
           `<div id="root">${entry.html}</div>`,
         );
-        const dir = entry.route === '/' ? dist : path.join(dist, entry.route);
-        await mkdir(dir, { recursive: true });
-        await writeFile(path.join(dir, 'index.html'), html);
+        // A flat `<route>.html`, not `<route>/index.html`.
+        //
+        // Cloudflare Pages (like Netlify and most static hosts) resolves a
+        // directory's `index.html` only at the *trailing-slash* URL: a request
+        // for `/tools/merge-pdf` is 308-redirected to `/tools/merge-pdf/`. Every
+        // canonical URL and every sitemap entry would then point at a
+        // redirect, which is exactly the kind of quiet SEO damage this product
+        // does not ship. A flat file is served at the extension-less path with a
+        // 200, so the URL we publish is the URL the visitor gets.
+        const file =
+          entry.route === '/'
+            ? path.join(dist, 'index.html')
+            : path.join(dist, `${entry.route}.html`);
+        await mkdir(path.dirname(file), { recursive: true });
+        await writeFile(file, html);
       }
 
       const sitemapRoutes = routes.filter(
@@ -404,6 +447,9 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         path.join(dist, 'robots.txt'),
         ['User-agent: *', 'Allow: /', 'Disallow: /account', 'Disallow: /api/', `Sitemap: ${origin}/sitemap.xml`, ''].join('\n'),
       );
+      // A top-level 404.html, so a static host answers an unknown URL with a
+      // real 404 status instead of the app shell and a 200.
+      await writeFile(path.join(dist, '404.html'), notFoundDocument(template));
 
       const assetCount = (await readdir(dist, { withFileTypes: true })).length;
       this.warn(
@@ -415,8 +461,8 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
 
 /**
  * `vite preview` uses the SPA fallback, so it would answer `/tools/merge-pdf`
- * with the root document even though the prerendered directory exists. Static
- * hosts commonly serve `route/index.html` themselves; this makes the local
+ * with the root document even though the prerendered file exists. Static
+ * hosts serve `route.html` at the extension-less path; this makes the local
  * preview match them so the reach suite tests the bytes a crawler gets.
  */
 export function prerenderedRoutesPlugin(rootDir: string): Plugin {
@@ -429,9 +475,11 @@ export function prerenderedRoutesPlugin(rootDir: string): Plugin {
           const url = new URL(request.url ?? '/', 'http://preview.local');
           if (url.pathname === '/' || url.pathname.includes('.')) return next();
           const clean = url.pathname.replace(/\/$/, '');
-          const candidate = path.join(rootDir, 'dist', clean, 'index.html');
+          // The prerendered file is flat (`/tools/merge-pdf.html`), which is how
+          // a static host resolves the extension-less path.
+          const candidate = path.join(rootDir, 'dist', `${clean}.html`);
           await access(candidate);
-          request.url = `${clean}/index.html${url.search}`;
+          request.url = `${clean}.html${url.search}`;
         } catch {
           /* not a prerendered route; let the SPA fallback handle it */
         }

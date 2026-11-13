@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { ApiKeysPanel } from '@/components/account/api-keys';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/api';
+import { serverDeployed } from '@/lib/deployment';
 import { downloadBytes } from '@/lib/download';
 import { setHistorySyncEnabled } from '@/lib/history-sync';
 import { clearRecent, getRecent } from '@/tools/recent';
@@ -202,7 +203,9 @@ export function AccountPage() {
             <CardDescription>
               {accountsEnabled
                 ? 'Every tool works without signing in. An account only adds saved workflows, history that follows you between devices, and API keys for programmatic access.'
-                : 'This deployment keeps every tool local and has no account system. Your history stays in this browser.'}
+                : serverDeployed
+                  ? 'This deployment keeps every tool local and has no account system. Your history stays in this browser.'
+                  : 'This deployment ships the browser tools only — the PDFShush server is not deployed here, so there is no account system. Your history stays in this browser.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -210,8 +213,9 @@ export function AccountPage() {
               <Button onClick={signIn}>Sign in with Google</Button>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Accounts are not enabled on this deployment. Every tool still works, and history
-                stays in this browser.
+                {serverDeployed
+                  ? 'Accounts are not enabled on this deployment. Every tool still works, and history stays in this browser.'
+                  : 'There is no account system on this deployment, because the server that hosts it is not deployed here. Every tool still works, and history stays in this browser.'}
               </p>
             )}
             <div>

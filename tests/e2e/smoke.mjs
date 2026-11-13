@@ -1231,10 +1231,17 @@ async function main() {
   // deployment has no account system". The header must not advertise a sign-in
   // control that lands on a 503, so the assertions branch on the deployment
   // switch rather than assuming accounts are configured.
+  //
+  // A deployment with no API at all (the frontend-only shape, PLAN.md 33.11)
+  // answers `/api/tools` with the static host's 404 document, not JSON. That is
+  // not a catalog with accounts enabled -- it is no catalog, so the switch
+  // cannot be read and the deployment has no account system. Treating "unknown"
+  // as "enabled" is what would make this suite demand a sign-in control on a
+  // static deployment.
   const catalog = await fetch(`${BASE}/api/tools`)
-    .then((response) => response.json())
+    .then((response) => (response.ok ? response.json() : null))
     .catch(() => null);
-  const accountsEnabled = catalog?.accounts?.enabled !== false;
+  const accountsEnabled = catalog !== null && catalog?.accounts?.enabled !== false;
 
   await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
   if (accountsEnabled) {

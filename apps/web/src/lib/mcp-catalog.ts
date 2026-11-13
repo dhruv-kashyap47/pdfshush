@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { serverDeployed } from '@/lib/deployment';
 
 const SPEC_URL = '/api/v1/openapi.json';
 
@@ -56,14 +57,16 @@ export function mcpToolName(slug: string): string {
   return `pdfshush_${slug.replaceAll('-', '_')}`;
 }
 
-export type McpCatalogStatus = 'loading' | 'ready' | 'failed';
+export type McpCatalogStatus = 'loading' | 'ready' | 'failed' | 'unavailable';
 
 export function useMcpCatalog(): {
   status: McpCatalogStatus;
   catalog: McpCatalog | undefined;
   reload: () => void;
 } {
-  const [status, setStatus] = useState<McpCatalogStatus>('loading');
+  const [status, setStatus] = useState<McpCatalogStatus>(
+    serverDeployed ? 'loading' : 'unavailable',
+  );
   const [catalog, setCatalog] = useState<McpCatalog | undefined>(undefined);
   const [nonce, setNonce] = useState(0);
 
@@ -72,6 +75,14 @@ export function useMcpCatalog(): {
   }, []);
 
   useEffect(() => {
+    // A frontend-only deployment has no `/api/v1` to read. `unavailable` is a
+    // different answer from `failed`: nothing is wrong, there is simply no
+    // server behind this build, and a "Retry" button would be a lie.
+    if (!serverDeployed) {
+      setStatus('unavailable');
+      setCatalog(undefined);
+      return;
+    }
     const controller = new AbortController();
     let cancelled = false;
     void (async () => {

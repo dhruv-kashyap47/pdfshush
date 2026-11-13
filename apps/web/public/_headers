@@ -1,0 +1,61 @@
+# Cloudflare response headers. Pages and Workers Static Assets parse the same
+# format; `wrangler.jsonc` deploys this build to Workers.
+#
+# The file is copied into the build output (`dist/_headers`) and applied to
+# static asset responses. It is not served as a file itself.
+#
+# The security headers apply to everything. The cache rules are deliberately
+# narrow: Cloudflare joins the headers of every matching rule, so a catch-all
+# that also set Cache-Control would join with the /assets/* rule and turn
+# "immutable" into "immutable, no-cache" -- the worst of both.
+#
+# Two facts drive the cache policy:
+#
+#  1. Vite emits content-hashed filenames under /assets, so the bytes behind a
+#     URL never change. A year of immutable caching is why a deploy is cheap
+#     for a returning visitor.
+#  2. Everything else -- the HTML shell, the prerendered route documents, the
+#     service worker, the manifest -- is revalidated. A cached shell is what
+#     strands a visitor on a build whose hashed chunks are gone, and PLAN.md
+#     34.7 shipped recovery logic for exactly that.
+
+/*
+	X-Content-Type-Options: nosniff
+	Referrer-Policy: strict-origin-when-cross-origin
+	X-Frame-Options: DENY
+
+/assets/*
+	Cache-Control: public, max-age=31536000, immutable
+
+/index.html
+	Cache-Control: public, max-age=0, must-revalidate
+
+/sw.js
+	Cache-Control: public, max-age=0, must-revalidate
+
+/manifest.webmanifest
+	Cache-Control: public, max-age=0, must-revalidate
+
+/robots.txt
+	Cache-Control: public, max-age=3600
+
+/sitemap.xml
+	Cache-Control: public, max-age=3600
+
+/tools/*
+	Cache-Control: public, max-age=0, must-revalidate
+
+/account
+	Cache-Control: public, max-age=0, must-revalidate
+
+/workflows
+	Cache-Control: public, max-age=0, must-revalidate
+
+/trust
+	Cache-Control: public, max-age=0, must-revalidate
+
+/verify
+	Cache-Control: public, max-age=0, must-revalidate
+
+# The Content-Security-Policy is a meta tag in the document itself
+# (apps/web/src/lib/csp.ts), so it needs no header here.

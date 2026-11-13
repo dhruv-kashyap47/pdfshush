@@ -14,6 +14,7 @@
  */
 
 import { api, ApiError } from '@/lib/api';
+import { serverDeployed } from '@/lib/deployment';
 import { WORKFLOW_STORE, pdfshushDb } from '@/lib/idb';
 
 /** Mirrors `validateWorkflow`'s shape in the engine. */
@@ -93,6 +94,10 @@ let serverSlugs: Set<string> | undefined;
 
 /** Which slugs this deployment can run server-side. */
 export async function fetchServerSlugs(): Promise<Set<string>> {
+  // A frontend-only deployment runs no server jobs, so the set is empty and
+  // nothing is asked over the network. An empty picker is the honest answer:
+  // a full one would offer steps that could only fail.
+  if (!serverDeployed) return new Set<string>();
   if (serverSlugs) return serverSlugs;
   const result = await api<{ slugs: string[] }>('/api/tools');
   serverSlugs = new Set(result?.slugs ?? []);

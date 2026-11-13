@@ -22,6 +22,7 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import { ApiError, api } from '@/lib/api';
+import { SERVER_UNAVAILABLE_MESSAGE, serverDeployed } from '@/lib/deployment';
 import { setHistorySyncEnabled } from '@/lib/history-sync';
 
 export interface Account {
@@ -48,11 +49,22 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
-  const [accountsEnabled, setAccountsEnabled] = useState(true);
+  // A frontend-only deployment has no account system to talk to, so the control
+  // is hidden from the start rather than shown and then failing.
+  const [accountsEnabled, setAccountsEnabled] = useState(serverDeployed);
   const mountedRef = useRef(true);
   const refreshControllerRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!serverDeployed) {
+      // Nothing to refresh: this deployment has no API and therefore no
+      // session. Saying so here keeps the request out of the network entirely.
+      if (mountedRef.current) {
+        setAccount(null);
+        setLoading(false);
+      }
+      return;
+    }
     refreshControllerRef.current?.abort();
     const controller = new AbortController();
     refreshControllerRef.current = controller;
@@ -83,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // disabled". `/api/tools` is the deployment-level switch; an older API that
   // does not expose it keeps the previous behaviour (sign-in visible).
   useEffect(() => {
+    if (!serverDeployed) return;
     const controller = new AbortController();
     void api<{ accounts?: { enabled?: boolean } }>('/api/tools', {
       signal: controller.signal,
@@ -121,6 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [account]);
 
   const signIn = useCallback(() => {
+    if (!serverDeployed) {
+      toast.error(SERVER_UNAVAILABLE_MESSAGE);
+      return;
+    }
     // A full navigation, not fetch: this is a browser redirect to Google, and
     // the callback returns the browser to wherever we sent it from.
     const returnTo = `${window.location.pathname}${window.location.search}`;

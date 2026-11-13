@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-11-08
+**Last updated:** 2026-11-13
 
 ---
 
@@ -43,7 +43,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 356 unit tests, responsive sweep clean, phone/tablet editor checks green |
 | **Deploy recovery** | Stale hashed CSS/JS can no longer strand an open tab: empty stylesheet/SPA-fallback detection, one guarded fresh-shell reload, hard-reset reload, service-worker navigation cache bypass, critical fallback CSS | ? **done 2026-11-05** - see section 34.7; stale-build E2E 8/8 |
-| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 📋 **decision record written 2026-11-04 (§33); M6.1 not started** — nothing in §33 is claimed as delivered |
+| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 frontend shipped to Cloudflare Pages 2026-11-13 (§33.11); the public gate has not run yet** — domain bought (`pdfshush.space`), build + Pages config committed, deploy pending. The server tier (API/worker/Redis/Mongo) is **parked** (§33.11), not deployed |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
@@ -69,16 +69,22 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **P4.3** | Workflow recipes: contract, storage, builder, run-now | ✅ **done 2026-10-12** |
 | **P4.4** | Automated triggers (upload / URL / schedule) — separate gate | ⛔ **gated, deliberately not built** (§18.5) |
 
-**Current gate:** re-measured 2026-11-08 for the **OCR batch** (`pnpm -r typecheck`, `pnpm test` - **1 409/1 409 unit** - `pnpm build`,
-`pnpm test:bundle` green; main chunk 172.9 kB with 0 engines, 17 lazy app chunks with 0 engines, engines only in
-worker chunks). The Phase 4 profile, before/after numbers and SHIP gate are in §30; the Phase 3
-document-intelligence benchmark (§29), the Phase 2.5 adversarial audit and its four verification
-fixes (§28.10) are unchanged and still in force. **M5 is complete** (§31.12-§31.21); the
-2026-11-05 passes and the 2026-11-08 OCR batch are recorded in §8. Browser suites re-run green
-against this commit: the new OCR E2E, smoke, deskew, dark-mode, plain-tools, next-tools, a11y
-(now 17 routes), keyboard, offline, reach (51 live, 55 sitemap URLs) and verify. The containerised
-`test:api`/`test:hardening` gates were **not** re-run; Docker is not available in this environment,
-so those checks stay unclaimed (§31.21).
+**Current gate:** re-measured 2026-11-13 for the **Pages deployment** (`pnpm -r typecheck`, `pnpm test` -
+**1 528/1 528 unit** (1 expected fail) - `pnpm build` with `VITE_SERVER_API=off` +
+`VITE_SITE_ORIGIN=https://pdfshush.space` - `pnpm test:bundle` green; main chunk 172.9 kB with 0
+engines, 17 lazy app chunks with 0 engines, engines only in worker chunks). The 2026-11-08 OCR
+batch is unchanged; the delta since is the **pdf-audit remediation** (engine/API fixes on
+`main`) plus this session's five deployment tests. The Phase 4 profile, before/after numbers and
+SHIP gate are in §30; the Phase 3 document-intelligence benchmark (§29), the Phase 2.5 adversarial
+audit and its four verification fixes (§28.10) are unchanged and still in force. **M5 is complete**
+(§31.12-§31.21); the 2026-11-05 passes, the 2026-11-08 OCR batch and the 2026-11-13 Pages work
+are recorded in §8. Browser suites re-run green **against Cloudflare Pages' own local emulator**
+(`wrangler pages dev`) on 2026-11-13: smoke, reach (51 live, 55 sitemap URLs), offline, a11y,
+keyboard, verify, plain-tools, next-tools, forms-bookmarks, bookmark-batch, dark-mode, deskew, OCR,
+text-edit and text-model — no console errors. **The containerised `test:api`/`test:hardening` gates
+were not re-run**, so those checks stay unclaimed (§31.21), and `tests/e2e/sign.mjs` fails its
+"manage page saves a signature" check against any production build — reproduced from an untouched
+checkout of `main`, so it is a pre-existing defect and not a claim of green here (§33.11).
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -98,7 +104,7 @@ Security; `summarize-pdf` +
 `api` under Automate from P6.2 and `mcp` from P6.3 — both docs pages, not pipelines; the hero's third
 door opens the MCP console in place from P6.4's polish pass)
 · 8 server-runnable slugs over `/api/v1`, one MCP tool apiece ·
-**1 409/1 409 unit** (**488 engine** · **214 API** · 375 provider · 152 agent · **161 web** ·
+**1 528/1 528 unit** (**564 engine** · **242 API** · 375 provider · 152 agent · **177 web** ·
 **19 MCP**) — Phase 2 added 23 engine tests (reflow, fonts, content-stream, capabilities,
 export/pixel verification), Phase 2.5 added 27 more (adversarial corpus + verification/
 robustness gates), and Phase 3 added 38 (held-out synthetic benchmark, real-PDF gate,
@@ -155,9 +161,12 @@ export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
 (PDFium is a lazy 4.6 MB asset fetched on first text edit; Tesseract's worker, core and English
 model are lazy assets fetched only when a scanned page needs recognition; `signature_pad` + the
 bundled Caveat faces ride the 33 kB lazy signature-pad dialog chunk).
-**Next: M6.1 — deploy to a real origin** (§33.4), which is blocked on the owner supplying a domain,
-VPS/Cloudflare access and the AGPL/CLA stance; **M6.3's global budget breaker** is the one M6 item
-that protects the free tier and can start before deployment. P7 is closed except for P7.1's remaining
+**Next: finish M6.1 — publish the frontend on Cloudflare Pages and run the §33.4 gate against
+`https://pdfshush.space`** (§33.11). The deployment shape changed on 2026-11-13: the frontend
+ships on Cloudflare Pages (free, no card) and the **server tier is parked**, so accounts,
+workflow recipes, the REST API and the MCP server's backend are switched off in the build rather
+than offered and left to fail. **M6.3's global budget breaker** is still the one M6 item that
+protects the free tier and can start before the gate runs. P7 is closed except for P7.1's remaining
 edge fixtures (10k-page, broken fonts, linearized) and the containerised gates; P7.2 SEO prerender and
 P7.3 perf/a11y were absorbed by M5.5/M5.6. R2 stays
 deferred until R1 is proven in production, and P4.4 triggers stay gated on the SSRF/scheduling design.
@@ -715,6 +724,66 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-13 - The frontend ships on Cloudflare Pages. The server tier is parked, on purpose.**
+
+  The owner set a hard constraint — **₹0/month, no credit card, no paid infrastructure** — and that
+  constraint decided the deployment architecture rather than the other way round. The frontend now
+  ships on **Cloudflare Pages** (free, no card, Git integration, free TLS), the custom domain is
+  `pdfshush.space`, and the Express API, the BullMQ worker, Redis and MongoDB **stay in the
+  repository** for local development and are **not deployed**.
+
+  **The draft VPS deployment was deleted, not parked.** The Caddyfile, the web Dockerfile, the
+  `web`/`cloudflared` compose services, the SSH deploy script and the production env file were
+  removed; `docker-compose.yml` and `package.json` went back to their previous state, so
+  `pnpm stack:up` still brings up exactly the redis + api + worker it always did. The backend code
+  was not touched.
+
+  **The app learned what deployment it is in.** `apps/web/src/lib/deployment.ts` reads one build
+  variable, `VITE_SERVER_API=off`, and every server-backed surface asks it first: the header hides
+  sign-in, the account page says the server is not deployed here, the workflow builder disables the
+  step picker and **Run workflow**, the managed-AI trial stays off, and the API/MCP reference pages
+  document the surface without pretending it is reachable. `api()` rejects with
+  `server_unavailable` **before touching the network**, so the browser console stays clean instead
+  of filling with failed requests to a host that never had an API. The switch is build-time on
+  purpose: a static host has no `/api` to ask, and "the API did not answer" and "there is no API"
+  are the same observation.
+
+  **Two static-host facts were measured, not assumed** (with Cloudflare's own `pages dev`
+  emulator). First: Pages resolves a directory's `index.html` only at the **trailing-slash** URL —
+  `/tools/merge-pdf` 308-redirects to `/tools/merge-pdf/` — which would have left every canonical
+  URL and all 55 sitemap entries pointing at a redirect. The prerender now writes **flat**
+  `dist/<route>.html` files, and the extension-less path answers **200** with the same document.
+  Second: without a top-level `404.html`, Pages answers an unknown URL with the app shell and a
+  **200** (a soft 404). The build now emits one, so an unknown URL and every `/api/*` path answer a
+  real **404**.
+
+  **The Pages cache policy is a file, not a dashboard setting** (`apps/web/public/_headers`):
+  `/assets/*` immutable for a year (Vite hashes those names), everything else revalidated, and
+  deliberately **no `/*` cache rule** — Pages joins the headers of every matching rule, so a
+  catch-all would turn "immutable" into "immutable, no-cache".
+
+  **The gate tooling learned to target a remote origin.** `tests/support/preflight.mjs` now honours
+  `E2E_BASE_URL`: it checks that origin and skips the local compose assertions, and it reports a
+  missing API as a note rather than a failure, because a frontend-only deployment is a valid shape.
+  The smoke suite's account assertions branch on the shape too — they used to read *"no catalog"* as
+  *"accounts enabled"*, which is what made them demand a sign-in control on a static deployment.
+
+  **Verified locally against Pages' own emulator**, not claimed: prerendered routes answer 200 with
+  the right `<h1>`, canonical and JSON-LD; `/sitemap.xml`, `/robots.txt` and `/sw.js` answer 200 with
+  the intended cache headers; unknown URLs and `/api/*` answer 404; and the smoke suite plus reach,
+  offline, a11y, keyboard, verify, plain-tools, next-tools, forms-bookmarks, bookmark-batch,
+  dark-mode, deskew, OCR, text-edit and text-model are green against that origin with **no console
+  errors**. The full unit suite (**1 528** unit tests, one of them an expected fail) and the bundle
+  boundary are green.
+
+  **Not claimed:** no Cloudflare account, no Pages project, no public URL yet. M6.1 stays open until
+  `docs/DEPLOY.md` §7 is green against `https://pdfshush.space`. And the **server tier is M6.1b**,
+  deferred: it needs a host that runs a persistent queue and a writable volume, and every card-free
+  option either sleeps (Render), has no free tier (Fly.io), costs $29/month (Koyeb), cannot be the
+  BullMQ broker (Upstash has no blocking commands) or needs a card and can be reclaimed after seven
+  idle days (Oracle Always Free). The code stays, it runs locally, and when a host is chosen the
+  same source produces both builds.
 
 - **2026-11-08 - The OCR batch: scanned documents become searchable without leaving the tab.**
 
@@ -2792,8 +2861,8 @@ never actually wired, and a stream with no error listener.*
 pnpm install          # deps (Node ≥ 20.19, pnpm 11)
 pnpm dev              # http://localhost:5173 (web app + API together)
 pnpm typecheck        # strict tsc, all seven workspace projects
-pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 409 tests)
-pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks)
+pnpm test             # vitest: pdf-core + api + ai-provider + ai-agent + web + mcp (1 528 tests)
+pnpm test:e2e         # Playwright vs. running dev server (system Edge, 101 checks); E2E_BASE_URL=https://… runs it against a deployed origin
 pnpm test:e2e:plain-tools # the ten plain tools end to end, magic-byte asserts (13 checks)
 pnpm test:e2e:next-tools  # unlock, JPG→PDF, rename, Bates, split-by-text, compress (18 checks)
 pnpm test:e2e:dark-mode   # Dark Mode PDF: preview pixels exact, download checks (8 checks)
@@ -2816,8 +2885,10 @@ pnpm test:baseline       # product baseline: performance, a11y, crawler, corpus,
 pnpm test:bundle      # after `pnpm build`: entry chunk must carry no PDF engine
 pnpm test:sweep       # responsive sweep (not a gate): overflow, reveal + size/contrast outliers
 pnpm build            # production build (web + api bundles)
+pnpm --filter @pdfshush/web build   # the Pages build; VITE_SITE_ORIGIN=<origin> VITE_SERVER_API=off for the deployed frontend
 pnpm stack:up         # docker compose up -d --build (redis + api + worker)
-pnpm stack:down       # docker compose down
+pnpm stack:prod       # the deployed shape: --profile web --profile tunnel up -d --build (needs .env)
+pnpm stack:down       # docker compose down (profiles included)
 pnpm test:api         # 37 checks against a running stack on :8080 (21 without §6; set PSH_SMOKE_MONGODB_URI for the v1 key walk)
 pnpm test:hardening   # 19 checks: SIGKILL a worker mid-job, prove the pipeline holds (recreate with FILE_TTL_MS=20000 JANITOR_INTERVAL_MS=5000)
 pnpm --filter @pdfshush/mcp test        # parity + no-escape + spawned-stdio E2E (19 checks)
@@ -2849,11 +2920,16 @@ back-to-back quota-consuming runs (smoke → hardening) leave the anonymous day 
 spent — `docker compose restart redis` resets them. *(2026-10-18 addendum: Docker's server **is**
 on PATH now — `docker compose up -d --build` works directly from the session.)*
 
-**Next move:** **M6.1 — deploy to a real origin** (§33.4) once the owner supplies a domain,
-VPS/Cloudflare access and the AGPL/CLA stance; **M6.3's global budget breaker** is the one M6 item
-that can start now. The remaining P7.1 edges (10k-page, broken-font and linearized fixtures) and the
-containerised `test:api`/`test:hardening` gates are the only open hardening checks; P7.2 and P7.3
-were absorbed by M5.5/M5.6.
+**Next move:** **finish M6.1 by publishing the frontend on Cloudflare Pages and running the §33.4
+gate against `https://pdfshush.space`** — the domain exists, the build is verified locally
+(`VITE_SERVER_API=off` + `VITE_SITE_ORIGIN`), and the Pages configuration is documented in
+`docs/DEPLOY.md` §3; what remains is the Cloudflare account, the Pages project and the gate
+itself. The **server tier is parked** (§33.11): the API, the BullMQ worker, Redis and MongoDB stay
+in the repository and in `docker-compose.yml` for local development, and every server-backed
+surface is switched off in the deployed build rather than left to fail. **M6.3's global budget
+breaker** is the one M6 item that can start now. The remaining P7.1 edges (10k-page, broken-font
+and linearized fixtures) and the containerised `test:api`/`test:hardening` gates are the only open
+hardening checks; P7.2 and P7.3 were absorbed by M5.5/M5.6.
 **P7.0 — the reconcile pass — shipped 2026-10-25** (§8 top entry): L1/L2 CSRF, bounded `options`,
 L5 result types, L7 input-token reservation, L8 cross-instance AI lock, CI, and the doc counts.
 The 2026-10-28 dark-mode batch (§8) took the catalog to 49 of 58 live entries and the engine to
@@ -6613,10 +6689,13 @@ existing organize job.
 
 ## 33. Monetization — freemium, ads and the revenue spine (decided 2026-11-04)
 
-**Status: decision record only. No code in this section is built.** It exists because the site
-already promises things the plan never decided (`Pricing (soon)` in the footer, "optional paid
-plans will exist in the future" in the landing FAQ), and §25.1 fences pricing out of P6 without
-ever picking it up again. A promise with no owner is the §31.5 failure mode.
+**Status: a decision record, with M6.1 partly built.** It exists because the site already promises
+things the plan never decided (`Pricing (soon)` in the footer, "optional paid plans will exist in
+the future" in the landing FAQ), and §25.1 fences pricing out of P6 without ever picking it up
+again. A promise with no owner is the §31.5 failure mode. **The launch shape was decided and built
+on 2026-11-13 (§33.4, §33.11): the frontend ships on Cloudflare Pages and the server tier is
+parked.** Nothing in §33.3–§33.6 — the plan catalog, entitlements, Stripe, the pricing page, ads —
+is built, and the live site must not imply otherwise.
 
 ### 33.1 The decision
 
@@ -6637,8 +6716,8 @@ auth, account or billing. No ad that resembles a download button, system notice 
 Paid = zero ads platform-wide.
 
 **Budget.** Bootstrap: near-zero fixed monthly cost at launch, upgrading only from revenue. The
-architecture must therefore stay deployable on one small origin (§33.4) and must never put an
-unmetered server-side feature in the free tier (§33.2).
+architecture must therefore stay deployable on free tiers (§33.4) and must never put an unmetered
+server-side feature in the free tier (§33.2).
 
 **Timeline.** First revenue in 1–3 months, with a polished launch rather than a rushed one;
 prices are ratified against a measured cost model (§33.7) and then iterated.
@@ -6682,33 +6761,59 @@ the *revenue-funded* roadmap, not the launch.
 
 ### 33.4 Deployment — the hard blocker before any revenue
 
-Verified absent as of 2026-11-04: no web Dockerfile, no reverse-proxy config, no deploy workflow,
+**State on 2026-11-04:** absent — no web Dockerfile, no reverse-proxy config, no deploy workflow,
 no `web` service in `docker-compose.yml`, and no hosting doc anywhere in the plan.
+
+**State on 2026-11-13:** the owner bought `https://pdfshush.space`, and the deployment shape was
+**changed** on that day: the frontend ships on **Cloudflare Pages** (free, no card) and the server
+tier is **parked** (§33.11). The Caddy/Tunnel/VPS artifacts that were drafted earlier the same
+day were removed rather than left behind as dead configuration. **M6.1 is still not delivered**:
+it is delivered when the gate at the end of this section passes on the public URL. Files are not
+evidence.
 
 **One origin, or none of the auth works.** `apps/web/src/lib/api.ts` calls `/api` with
 `SameSite=Lax` session cookies and **there is no CORS layer in `apps/api`**. Splitting the SPA and
 the API across hosts requires CORS + `SameSite=None; Secure` + re-proving the double-submit CSRF
 design. Do not do that to save $0.
 
-**Chosen shape (bootstrap-compatible):**
+**Chosen shape (as built, 2026-11-13):**
 
 ```
-Cloudflare (free: DNS, TLS, cache, WAF)
-  └── one VPS (~$5/mo) behind Caddy
-        ├── /            → apps/web/dist (static, SPA fallback)
-        └── /api/*       → api:8080  (docker compose: redis + api + worker)
+GitHub (main)
+  └── Cloudflare Pages (free plan, Git integration, no card)
+        ├── /              → the app shell
+        ├── /tools/<slug>  → 58 prerendered tool pages (real HTML, no JavaScript needed)
+        ├── /sitemap.xml, /robots.txt, /404.html
+        └── /assets/*      → content-hashed, immutable for a year
 ```
 
-Why not free-tier serverless first: the worker is a real Node process running BullMQ and PDFium;
-`apps/api` requires a persistent queue and a writable work volume. Free web-service tiers sleep
-(30–60 s cold start on every API call) and do not include background workers. Reusing the existing
-`docker-compose.yml` on one small VPS is *less* work and *more* reliable than re-platforming.
+The API, the BullMQ worker, Redis and MongoDB **stay in the repository and in
+`docker-compose.yml`** for local development. They are not deployed, and the app is built with
+`VITE_SERVER_API=off` so that every server-backed surface says so instead of offering a control
+that could only fail (§33.11).
 
-Cloudflare Pages stays useful for previews and the marketing site later; it is not the launch
-target. Free-tier alternatives (Koyeb/Upstash) are recorded as fallbacks, not the plan.
+This replaced the 2026-11-04 sketch (one VPS behind Caddy, Cloudflare DNS/TLS) and the
+same-day draft of it (a VPS behind Caddy and a Cloudflare Tunnel). The reason is cost and
+honesty, not convenience: the Always Free A1 instance needs a credit or debit card that behaves
+like a credit card, and a free instance that can be reclaimed after seven idle days is not a place
+to put a product's public face. Cloudflare Pages needs no card, has no idle-reclamation rule, and
+costs nothing — and **51 of the 58 tools run in the visitor's browser**, so a static host is not a
+demotion, it is the cheapest correct hosting for the product's actual centre of gravity.
 
-**Exit gate:** production URL, `/api/health` connected, Google sign-in round-trip, one client tool,
-one API job, and `tests/e2e/smoke.mjs` green against `E2E_BASE_URL`.
+The server tier is deferred to a later milestone, not cancelled. When it comes, the work is small
+because the app already reads the deployment shape: the same source produces both builds.
+
+**Exit gate:** the production URL serves the prerendered routes, the sitemap and `robots.txt`;
+`/api/*` answers **404** (there is no API, by design); one client tool runs end to end; and
+`tests/e2e/smoke.mjs` is green against `E2E_BASE_URL`. The server-backed checks (accounts, a
+workflow run, the REST API) **skip** in this shape and say which dependency was missing.
+
+**Gate mechanics (2026-11-13).** `E2E_BASE_URL=https://pdfshush.space pnpm test:e2e` now works: the
+shared `tests/support/preflight.mjs` checks that origin and **skips the local compose assertions**,
+because a running local stack says nothing about the deployment under test. The preflight reports a
+missing API as a note rather than a failure — a frontend-only deployment is a valid shape, and the
+suites themselves branch on what they need. `docs/DEPLOY.md` §7 is the executable form of this
+paragraph.
 
 ### 33.5 Ads — scoped so they cannot damage the claim
 
@@ -6761,7 +6866,8 @@ later. Decide before `billing/` exists, not after.
 
 | | Scope | Exit gate |
 | --- | --- | --- |
-| **M6.1** | Deploy: Caddy + `web` service, production env, Cloudflare DNS/TLS | §33.4 gate green on the public URL |
+| **M6.1** | Deploy the frontend to a real origin (Cloudflare Pages), production env, custom domain | §33.4 gate green on the public URL — 🟡 **build + configuration verified locally 2026-11-13 (§33.11); the public gate has not run** |
+| **M6.1b** | Server tier: the Express API, the BullMQ worker, Redis and MongoDB on a persistent host | ⛔ **deferred** — it needs a host that runs a queue and a writable volume, and every card-free option either sleeps or expires (§33.11). The code stays and runs locally |
 | **M6.2** | Content + policy: privacy, terms, about, contact, status; per-tool content; prerender, sitemap, robots, JSON-LD (absorbs M5.5) | crawler sees unique title/h1/canonical per route with JS off |
 | **M6.3** | Plan catalog + entitlements + usage ledger + global budget breaker | parity test green; breaker verified by a load test |
 | **M6.4** | Stripe test mode: Checkout, portal, webhook, subscription state | buy → limit rises → cancel → reverts; replay idempotent |
@@ -6770,11 +6876,77 @@ later. Decide before `billing/` exists, not after.
 
 ### 33.10 Open decisions owned by the project owner
 
-1. Domain + VPS/Cloudflare account access (M6.1 cannot start without them).
+1. ~~Domain + VPS/Cloudflare access~~ → **domain bought (`pdfshush.space`)**; a free Cloudflare
+   account is still needed to create the Pages project and attach the domain (§33.11). No VPS and no
+   card are required.
 2. Stripe account + business entity/tax details (M6.4; no card data ever reaches us).
 3. AGPL/CLA stance (§33.8) before billing code.
 4. Ratified prices after §33.7.
 5. Keep ads, decline ads, or defer to M7 — the pricing page works either way.
+
+### 33.11 M6.1 — the frontend ships on Cloudflare Pages, the server tier is parked (2026-11-13)
+
+The owner bought `https://pdfshush.space` and set a hard constraint: **₹0/month, no credit card,
+no paid infrastructure.** That constraint decided the architecture, and it deleted more than it
+added.
+
+**What was removed.** The same-day drafts of a VPS deployment — `infra/docker/web.Dockerfile`,
+`infra/caddy/Caddyfile`, the `web` and `cloudflared` compose services, `infra/deploy.sh`,
+`.env.production.example` — were **deleted**, not left behind as dead configuration. The
+`docker-compose.yml` and `package.json` were restored to their pre-draft state, so `pnpm stack:up`
+still brings up exactly the redis + api + worker it always did. The backend is untouched: it is the
+same Express API, the same BullMQ worker, the same Redis, the same MongoDB, still in the repository
+and still runnable locally.
+
+**Why the VPS plan did not survive the constraint.** Every genuinely free always-on host for a
+Node process with a persistent queue requires a card:
+
+- **Oracle Always Free A1** — 2 OCPU / 12 GB (the 4/24 figure in older material is stale), 200 GB
+  of storage, 10 TB of egress, and **no end date** — but it **requires a credit or debit card that
+  behaves like a credit card** (it refuses PIN-debit, virtual, single-use and prepaid cards), and
+  it can **reclaim the instance** when CPU, network and memory all sit under 20% at the 95th
+  percentile for seven days. An Always-Free-only tenancy gets no support.
+- **Fly.io** — no free tier for new organisations, only a $1 seven-day trial.
+- **Koyeb** — the free Starter plan was discontinued on 17 Feb 2026; new accounts start on Pro at
+  $29/month. The docs still describe a free instance; it is not available to new users.
+- **Render** — a free web service exists (512 MB, 0.1 CPU) but spins down after 15 idle minutes,
+  has an ephemeral disk and **no free background worker**, and its free Postgres expires after 30
+  days. The BullMQ worker and the `PEPPER` secret both break on a sleeping host.
+- **Upstash Redis** — verified to **not support blocking commands** (BLPOP/BRPOP/BRPOPLPUSH), which
+  BullMQ requires, so it cannot be the broker.
+- **Cloudflare Pages** — free, **no card**, 500 builds a month, unlimited static bandwidth, free
+  TLS, and a Git integration that deploys on every push. This is what ships.
+
+**What was built.**
+
+| Artifact | Why it exists |
+| --- | --- |
+| `apps/web/src/lib/deployment.ts` | The deployment shape, decided at **build time** by `VITE_SERVER_API=off`. A static host has no `/api` to ask, so a runtime probe would cost every page load a failed request and still only guess — *"the API did not answer"* and *"there is no API"* are the same observation. The deployment knows; the build records it. |
+| `apps/web/public/_headers` | The Pages cache policy: `/assets/*` immutable for a year (Vite hashes those names), the shell, the service worker and the manifest revalidated. Deliberately **no `/*` cache rule**: Pages joins the headers of every matching rule, so a catch-all would turn "immutable" into "immutable, no-cache". |
+| `apps/web/build/prerender.ts` → flat `dist/<route>.html` | Cloudflare Pages resolves a directory's `index.html` only at the **trailing-slash** URL (`/tools/merge-pdf` → 308 → `/tools/merge-pdf/`), which would leave every canonical URL and all 55 sitemap entries pointing at a redirect. A flat file is served at the extension-less path with a **200**, verified against Pages' own emulator. The build also emits a top-level `404.html`, so an unknown URL gets a real **404** instead of the app shell and a 200. |
+| `apps/web/src/lib/api.ts`, `hooks/use-auth.ts`, `lib/ai/managed.ts`, `lib/workflows.ts`, `lib/mcp-catalog.ts` | Every server-backed surface asks the deployment shape first: no request is made, no control is offered, and the copy says why. The MCP catalog gains an `unavailable` state, which is a different answer from `failed` — nothing is wrong, there is simply no server, and a "Retry" button would be a lie. |
+| `pages/account.tsx`, `pages/workflows.tsx`, `components/tools/api-tool.tsx`, `components/tools/mcp-tool.tsx`, `components/landing/mcp-dialog.tsx` | The honest surface: no sign-in, no account panel, no workflow runner, an API reference that documents the surface without pretending it is reachable. What is **not** disabled: all 51 browser tools, the editor, redaction, OCR, the service worker, the offline mode, and every catalog page. |
+| `tests/support/preflight.mjs` | `E2E_BASE_URL` makes the shared preflight check the **remote** origin and skip the local compose assertions. Before this, the documented §33.4 gate could not run against production at all. A missing API is now a **note**, not a failure: a frontend-only deployment is a valid shape. |
+| `tests/e2e/smoke.mjs` | The account assertions branch on the deployment shape. They used to read *"no catalog"* as *"accounts enabled"*, which is what made the suite demand a sign-in control on a static deployment. |
+| `docs/DEPLOY.md` | The runbook: the Pages project, the two build variables, the custom domain, the verification commands, day-2 operations and troubleshooting. |
+| `.node-version` | Node 24 for the Pages build image. |
+
+**Verified locally, against Pages' own emulator** (`wrangler pages dev`, Cloudflare's local
+implementation of the Pages asset router): the prerendered routes answer **200** with the right
+`<h1>`, canonical and JSON-LD; the trailing-slash and `.html` forms 308 to the canonical URL;
+`/sitemap.xml`, `/robots.txt` and `/sw.js` answer 200 with the intended cache headers; an unknown
+URL and `/api/*` answer **404**; and the full smoke suite plus reach, offline, a11y, keyboard,
+verify, plain-tools, next-tools, forms-bookmarks, bookmark-batch, dark-mode, deskew, OCR, text-edit
+and text-model suites are green against that origin, with **no console errors**.
+
+**Not claimed.** No Cloudflare account has been created, no Pages project exists, the public URL
+has never answered, and **M6.1 stays open** until `docs/DEPLOY.md` §7 is green against
+`https://pdfshush.space`. §33.4's rule applies to this section too — files are not evidence.
+
+**Known, pre-existing, unrelated:** `tests/e2e/sign.mjs` fails its "the manage page saves a
+signature" check against any **production build** (it passes against the dev server). Reproduced
+from an untouched checkout of `main`, so it is not a regression from this work; it is a separate
+defect and it is not claimed green here.
 
 
 

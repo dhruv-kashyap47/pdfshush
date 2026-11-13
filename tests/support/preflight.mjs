@@ -16,8 +16,15 @@ import { spawnSync } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
-const WEB = 'http://localhost:5173';
-const API = 'http://localhost:8080';
+/**
+ * A remote origin (any deployed build) checks the public URL only. The compose
+ * assertions are local truths: they describe containers on *this* machine, and
+ * a green local stack says nothing about the deployment being tested.
+ */
+const REMOTE = process.env.E2E_BASE_URL?.replace(/\/$/, '');
+
+const WEB = REMOTE ?? 'http://localhost:5173';
+const API = REMOTE ?? 'http://localhost:8080';
 
 async function composing() {
   try {
@@ -73,16 +80,38 @@ export async function preflight({ log = console.log } = {}) {
   const problems = [];
 
   const web = await reachable(WEB);
-  if (!web) problems.push(`the web app at ${WEB} is down -- start the stack first:  pnpm dev`);
+  if (!web) {
+    problems.push(
+      REMOTE
+        ? `the deployed app at ${WEB} did not answer -- check the tunnel and the web container (docs/DEPLOY.md, troubleshooting)`
+        : `the web app at ${WEB} is down -- start the stack first:  pnpm dev`,
+    );
+  }
 
   const api = await reachable(`${API}/api/health`);
   if (!api) {
     problems.push(
-      `the api at ${API} is down${web ? '' : ' (also see above)'} -- start the stack first:  pnpm dev   (or for the full server stack:  pnpm stack:up)`,
+      REMOTE
+        ? `the api at ${API}/api/health did not answer -- a tunnel that reaches the SPA but not the API is a proxy problem`
+        : `the api at ${API} is down${web ? '' : ' (also see above)'} -- start the stack first:  pnpm dev   (or for the full server stack:  pnpm stack:up)`,
     );
+  } else if (REMOTE) {
+    // Informational, never a failure. The suites branch on what they actually
+    // need (`/api/tools` reachable), so a deployment with no API -- or with an
+    // unhealthy one -- skips the server-backed steps and says so. Failing the
+    // whole run here would invent a gate the suites do not have.
+    if (api.status === 404) {
+      log(
+        'note: no API on this origin -- a frontend-only deployment (accounts, workflows and the REST API are switched off)',
+      );
+    } else if (!api.ok) {
+      log(`note: ${API}/api/health answered ${api.status} -- the server-backed steps will be skipped`);
+    }
   }
 
-  const composeFile = await composing();
+  // Local-only: `docker compose ps` describes this machine's containers, not
+  // the deployment under test.
+  const composeFile = REMOTE ? undefined : await composing();
   if (composeFile) {
     const services = composeServices();
     if (services === undefined) {
@@ -103,7 +132,11 @@ export async function preflight({ log = console.log } = {}) {
     for (const problem of problems) log(`[preflight] ${problem}`);
     return false;
   }
-  log('preflight: web + api reachable' + (composeFile ? ', compose status ok' : ''));
+  log(
+    REMOTE
+      ? `preflight: ${REMOTE} reachable (remote origin)`
+      : 'preflight: web + api reachable' + (composeFile ? ', compose status ok' : ''),
+  );
   return true;
 }
 

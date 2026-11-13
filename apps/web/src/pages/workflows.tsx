@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/api';
+import { SERVER_UNAVAILABLE_MESSAGE, serverDeployed } from '@/lib/deployment';
 import {
   deleteLocalRecipe,
   fetchServerSlugs,
@@ -276,6 +277,29 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
         </div>
       )}
 
+      {!serverDeployed && (
+        <Card className="mb-8 border-primary/40">
+          <CardHeader>
+            <CardTitle>Recipes need the PDFShush server</CardTitle>
+            <CardDescription>
+              Every step of a recipe is a real job on the server: the file is uploaded, each step
+              consumes the previous step&rsquo;s output, and the result is downloaded again. This
+              deployment ships the browser tools only, so a recipe cannot be built or run here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {SERVER_UNAVAILABLE_MESSAGE}
+            </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              <Link to="/#all-tools" className="font-medium text-primary underline-offset-4 hover:underline">
+                Browse the tools that work offline
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>{editingId ? 'Edit workflow' : 'New workflow'}</CardTitle>
@@ -357,14 +381,18 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
               aria-label="Add a step"
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               value=""
-              disabled={!canAddStep}
+              disabled={!canAddStep || !serverDeployed}
               onChange={(event) => {
                 if (event.target.value) addStep(event.target.value);
                 event.target.value = '';
               }}
             >
               <option value="">
-                {canAddStep ? '+ Add a step…' : 'This step must be last; save or remove it to continue'}
+                {!serverDeployed
+                  ? 'The server is not deployed in this build'
+                  : canAddStep
+                    ? '+ Add a step…'
+                    : 'This step must be last; save or remove it to continue'}
               </option>
               {selectableJobs.map((slug) => (
                 <option key={slug} value={slug}>
@@ -428,7 +456,10 @@ export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {})
               <Progress value={progress.ratio !== undefined ? Math.round(progress.ratio * 100) : undefined} />
             </div>
           )}
-          <Button disabled={running || draft.steps.length === 0 || cannotRun} onClick={() => void run()}>
+          <Button
+            disabled={running || draft.steps.length === 0 || cannotRun || !serverDeployed}
+            onClick={() => void run()}
+          >
             {running ? (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             ) : (

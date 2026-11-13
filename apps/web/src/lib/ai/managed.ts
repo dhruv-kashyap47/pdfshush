@@ -21,6 +21,7 @@ import type {
   AgentTransport,
 } from '@pdfshush/ai-agent';
 import { csrfToken } from '@/lib/api';
+import { serverDeployed } from '@/lib/deployment';
 
 const ENDPOINT = '/api/ai/chat';
 const STATUS_ENDPOINT = '/api/tools';
@@ -30,6 +31,10 @@ let probe: Promise<boolean> | null = null;
 
 /** Whether this deployment offers the managed trial (server has a key + model). */
 export function managedAvailable(): Promise<boolean> {
+  // A frontend-only deployment has no gateway to ask. The trial is the one
+  // path where document text would reach our server, so its absence is a fact
+  // about the deployment, not a transient outage to retry.
+  if (!serverDeployed) return Promise.resolve(false);
   probe ??= (async () => {
     try {
       const response = await fetch(STATUS_ENDPOINT, { credentials: 'same-origin' });

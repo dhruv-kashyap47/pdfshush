@@ -641,7 +641,9 @@ function DialogPanels({
                 ? `${cases.length} tools live on this deployment`
                 : status === 'loading'
                   ? 'reading the deployment catalog'
-                  : 'catalog unreachable, showing the shipped tool set'}
+                  : status === 'unavailable'
+                    ? 'no server in this deployment — showing the shipped tool set'
+                    : 'catalog unreachable, showing the shipped tool set'}
             </p>
           </div>
 

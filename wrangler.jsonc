@@ -1,0 +1,66 @@
+/**
+ * PDFShush on Cloudflare Workers + Static Assets.
+ *
+ * This deploys the **frontend only**. The Express API, BullMQ worker, Redis and
+ * MongoDB in `docker-compose.yml` stay local and untouched. The one Worker
+ * script (`infra/cloudflare/api-404.js`) exists only to return a real 404 for
+ * `/api/*`; every other request is routed as a static asset.
+ *
+ * Build first, then deploy:
+ *
+ *   pnpm --filter @pdfshush/web build
+ *   npx wrangler deploy
+ *
+ * The build reads `apps/web/.env.production` (canonical origin, and
+ * `VITE_SERVER_API=off`), so the uploaded HTML is already the frontend shape.
+ */
+{
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "pdfshush",
+  "compatibility_date": "2026-11-13",
+
+  // Scoped by `run_worker_first` below to API paths only.
+  "main": "./infra/cloudflare/api-404.js",
+
+  "assets": {
+    "directory": "./apps/web/dist",
+    "binding": "ASSETS",
+
+    // The prerender plugin writes flat documents (`dist/trust.html`,
+    // `dist/tools/merge-pdf.html`), not `<route>/index.html`. The default
+    // "auto-trailing-slash" serves those at the extensionless canonical URLs
+    // and redirects `/trust.html` -> `/trust`, so one URL per page survives.
+    // "force-trailing-slash" would break every prerendered route.
+    "html_handling": "auto-trailing-slash",
+
+    // Normal client-side routes keep the SPA fallback: an unmatched path gets
+    // `/index.html` with a 200 so the React router can render. API paths are
+    // the exception: `run_worker_first` invokes the Worker script, which returns
+    // a real 404 instead of the shell. `dist/404.html` is still generated but is
+    // not served by this fallback mode.
+    //
+    // Cloudflare matches these patterns case-sensitively, while HTTP servers
+    // (including Express, the server shape's router) match paths
+    // case-insensitively. All eight spellings of "api" are listed so
+    // `/API/health` cannot bypass the fence and receive the SPA shell.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api",
+      "/api/*",
+      "/apI",
+      "/apI/*",
+      "/aPi",
+      "/aPi/*",
+      "/aPI",
+      "/aPI/*",
+      "/Api",
+      "/Api/*",
+      "/APi",
+      "/APi/*",
+      "/ApI",
+      "/ApI/*",
+      "/API",
+      "/API/*"
+    ]
+  }
+}

@@ -7,6 +7,8 @@
  * a header, which is the one thing a cross-site request cannot forge.
  */
 
+import { SERVER_UNAVAILABLE_CODE, SERVER_UNAVAILABLE_MESSAGE, serverDeployed } from '@/lib/deployment';
+
 export const CSRF_COOKIE = 'pdfshush_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 
@@ -50,6 +52,13 @@ export interface ApiOptions {
  * rather than parsing prose.
  */
 export async function api<T = unknown>(path: string, options: ApiOptions = {}): Promise<T | undefined> {
+  // A frontend-only deployment has no API behind `/api`. Fail here, with a
+  // sentence that says why, instead of asking the static host for a document
+  // that is not there and reporting a 404 as if the server had refused.
+  if (!serverDeployed) {
+    throw new ApiError(503, SERVER_UNAVAILABLE_CODE, SERVER_UNAVAILABLE_MESSAGE);
+  }
+
   const method = options.method ?? (options.formData || options.body ? 'POST' : 'GET');
   const headers: Record<string, string> = {};
 

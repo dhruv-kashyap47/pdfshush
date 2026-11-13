@@ -13,6 +13,7 @@ import { ArrowUpRight, BookOpen, KeyRound, ShieldCheck, Terminal } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatBytes } from '@pdfshush/pdf-core';
+import { serverDeployed } from '@/lib/deployment';
 
 interface Spec {
   components: {
@@ -47,6 +48,10 @@ export function ApiToolPage() {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    // A frontend-only deployment has no `/api/v1` to read, so nothing is
+    // asked. The page below says so in words; a failed request would say it
+    // with a status code and a Retry button that could never succeed.
+    if (!serverDeployed) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -85,16 +90,27 @@ export function ApiToolPage() {
     <div className="space-y-8">
       {/* Hero ---------------------------------------------------------- */}
       <div className="flex flex-wrap gap-3">
-        <Button asChild variant="secondary">
-          <Link to="/account">
-            <KeyRound className="mr-1.5 h-4 w-4" /> Manage API keys
-          </Link>
-        </Button>
-        <Button asChild variant="outline">
-          <a href={SPEC_URL} target="_blank" rel="noreferrer">
-            <BookOpen className="mr-1.5 h-4 w-4" /> OpenAPI spec <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-          </a>
-        </Button>
+        {serverDeployed && (
+          <Button asChild variant="secondary">
+            <Link to="/account">
+              <KeyRound className="mr-1.5 h-4 w-4" /> Manage API keys
+            </Link>
+          </Button>
+        )}
+        {serverDeployed && (
+          <Button asChild variant="outline">
+            <a href={SPEC_URL} target="_blank" rel="noreferrer">
+              <BookOpen className="mr-1.5 h-4 w-4" /> OpenAPI spec <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+            </a>
+          </Button>
+        )}
+        {!serverDeployed && (
+          <Button asChild variant="secondary">
+            <Link to="/#all-tools">
+              <KeyRound className="mr-1.5 h-4 w-4" /> Browse the browser tools
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* What it is ---------------------------------------------------- */}
@@ -210,7 +226,13 @@ export function ApiToolPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {failed ? (
+          {!serverDeployed ? (
+            <p className="text-sm text-muted-foreground">
+              This deployment ships the browser tools only — the PDFShush server is not deployed
+              here, so there is no REST API to list and no key to mint. The reference below still
+              describes the surface exactly as the repository implements it.
+            </p>
+          ) : failed ? (
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Could not reach the API right now, so no slug list will show up.</span>
               <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
