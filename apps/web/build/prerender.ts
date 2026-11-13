@@ -42,8 +42,8 @@ const REMOTE = new Set(['workflows', 'api', 'mcp']);
 const REMOTE_COPY: Record<string, { status: string; how: string }> = {
   workflows: {
     status:
-      'Server-run by design. Each step uploads the file to the PDFShush API, which deletes it within an hour of the job finishing. This is not a client-side promise.',
-    how: 'Build a recipe, send the file to the PDFShush API, and download the result. The quota and the one-hour retention window are stated on the page.',
+      'Server-run by design. Each step uploads the file to the pdfshush API, which deletes it within an hour of the job finishing. This is not a client-side promise.',
+    how: 'Build a recipe, send the file to the pdfshush API, and download the result. The quota and the one-hour retention window are stated on the page.',
   },
   api: {
     status:
@@ -52,7 +52,7 @@ const REMOTE_COPY: Record<string, { status: string; how: string }> = {
   },
   mcp: {
     status:
-      'Runs on your machine, calls the API. The MCP server is a local process; each tool call uploads the file to the PDFShush API for that call, and the API deletes it within an hour.',
+      'Runs on your machine, calls the API. The MCP server is a local process; each tool call uploads the file to the pdfshush API for that call, and the API deletes it within an hour.',
     how: 'Launch the local MCP server, point your agent at it, and call a tool. The document is uploaded for that call and deleted on the API schedule.',
   },
 };
@@ -116,11 +116,11 @@ const STYLE = `
 `.trim();
 
 function header(): string {
-  return `<header class="pre-header"><a class="pre-brand" href="/">PDFShush</a><nav class="pre-nav" aria-label="Primary"><a href="/#all-tools">All tools</a><a href="/workflows">Workflows</a><a href="/trust">Privacy</a><a href="/verify">Verify a redaction</a></nav></header>`;
+  return `<header class="pre-header"><a class="pre-brand" href="/">pdfshush</a><nav class="pre-nav" aria-label="Primary"><a href="/#all-tools">All tools</a><a href="/workflows">Workflows</a><a href="/trust">Privacy</a><a href="/verify">Verify a redaction</a></nav></header>`;
 }
 
 function footer(): string {
-  return `<footer class="pre-footer"><a href="/">Home</a><a href="/trust">How privacy is proven</a><a href="/verify">Redaction verifier</a><a href="/workflows">Workflows</a><p>PDFShush runs in your browser. Files are not uploaded to a server.</p></footer>`;
+  return `<footer class="pre-footer"><a href="/">Home</a><a href="/trust">How privacy is proven</a><a href="/verify">Redaction verifier</a><a href="/workflows">Workflows</a><p>pdfshush runs in your browser. Files are not uploaded to a server.</p></footer>`;
 }
 
 function relatedTools(tool: ToolEntry, tools: ToolEntry[]): ToolEntry[] {
@@ -142,7 +142,7 @@ function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
   const how = !tool.live
     ? ''
     : remote
-      ? `<h2>How it works</h2><p>${escapeHtml(REMOTE_COPY[tool.slug]?.how ?? 'Send the file to the PDFShush API and download the result; the API deletes it on its stated schedule.')}</p>`
+      ? `<h2>How it works</h2><p>${escapeHtml(REMOTE_COPY[tool.slug]?.how ?? 'Send the file to the pdfshush API and download the result; the API deletes it on its stated schedule.')}</p>`
       : `<h2>How it works</h2><ol><li>Choose a PDF from this device.</li><li>The engine reads and writes it inside a worker in this tab.</li><li>Download the result; the bytes never leave the browser.</li></ol>`;
   return `<div class="pre-shell">${header()}<main class="pre-main">
 <p class="pre-kicker">${escapeHtml(tool.categoryLabel)}</p>
@@ -198,7 +198,7 @@ ${sections}
  * app replaces it as soon as the real route is ready.
  */
 function startupShell(): string {
-  return '<div class="pre-boot" role="status" aria-live="polite"><span class="pre-boot-brand">PDFShush</span><span class="pre-boot-note">Loading…</span></div>';
+  return '<div class="pre-boot" role="status" aria-live="polite"><span class="pre-boot-brand">pdfshush</span><span class="pre-boot-note">Loading…</span></div>';
 }
 
 function simplePage(
@@ -206,7 +206,7 @@ function simplePage(
   lead: string,
   body: string,
 ): string {
-  return `<div class="pre-shell">${header()}<main class="pre-main"><p class="pre-kicker">PDFShush</p><h1>${escapeHtml(title)}</h1><p class="pre-lead">${escapeHtml(lead)}</p><p class="pre-note">${body}</p></main>${footer()}</div>`;
+  return `<div class="pre-shell">${header()}<main class="pre-main"><p class="pre-kicker">pdfshush</p><h1>${escapeHtml(title)}</h1><p class="pre-lead">${escapeHtml(lead)}</p><p class="pre-note">${body}</p></main>${footer()}</div>`;
 }
 
 function jsonLd(origin: string, route: string, tool?: ToolEntry): string {
@@ -231,12 +231,12 @@ function jsonLd(origin: string, route: string, tool?: ToolEntry): string {
           name: tool.name,
           description: `${tool.name} is not built. This page explains why and points at the closest live alternative.`,
           url,
-          isPartOf: { '@type': 'WebSite', name: 'PDFShush', url: origin },
+          isPartOf: { '@type': 'WebSite', name: 'pdfshush', url: origin },
         }
     : {
         '@context': 'https://schema.org',
         '@type': 'WebSite',
-        name: 'PDFShush',
+        name: 'pdfshush',
         url: origin,
         description:
           'Private PDF tools that run in your browser: merge, organize, convert, redact and edit without uploading.',
@@ -308,10 +308,10 @@ function withHead(
  */
 function notFoundDocument(template: string): string {
   return template
-    .replace(/<title>[\s\S]*?<\/title>/, '<title>Page not found | PDFShush</title>')
+    .replace(/<title>[\s\S]*?<\/title>/, '<title>Page not found | pdfshush</title>')
     .replace(
       /<meta\s+name="description"[^>]*>/,
-      '<meta name="description" content="This page does not exist. The full PDFShush catalog is one click away." />',
+      '<meta name="description" content="This page does not exist. The full pdfshush catalog is one click away." />',
     )
     .replace(/<meta\s+name="robots"[^>]*>/, '<meta name="robots" content="noindex, follow" />')
     .replace(
@@ -349,18 +349,18 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
       }[] = [
         {
           route: '/',
-          title: 'PDFShush: Free, private PDF tools that run in your browser',
+          title: 'pdfshush: Free, private PDF tools that run in your browser',
           description:
-            'Merge, organize, convert and edit PDF files without uploading them. Every tool runs locally in your browser: free, no account, no limits that hide a server.',
+            'Merge, split, edit, sign and redact PDFs in your browser. Your files never leave your device: nothing is uploaded, stored or seen. Free, no sign-up.',
           html: homePage(tools),
           image: '/og/home.png',
           indexable: true,
         },
         {
           route: '/workflows',
-          title: 'Workflows - chain PDF tools and re-run them | PDFShush',
+          title: 'Workflows - chain PDF tools and re-run them | pdfshush',
           description:
-            'Chain PDFShush tools into a recipe and run it again on new files. Server-run workflows state their quota; client tools stay on your device.',
+            'Chain pdfshush tools into a recipe and run it again on new files. Server-run workflows state their quota; client tools stay on your device.',
           html: simplePage(
             'Workflows',
             'Chain tools into a recipe and run it again on new files.',
@@ -371,7 +371,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         },
         {
           route: '/trust',
-          title: 'How PDFShush proves privacy | PDFShush',
+          title: 'How pdfshush proves privacy | pdfshush',
           description:
             'The Content-Security-Policy is part of the build, the service worker is versioned, and the trust page runs a live proof with zero body-bearing requests.',
           html: simplePage(
@@ -384,7 +384,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         },
         {
           route: '/verify',
-          title: 'Verify a redacted PDF | PDFShush',
+          title: 'Verify a redacted PDF | pdfshush',
           description:
             'Run the same independent verifier the Redact tool requires before export on any PDF, and get a SHA-256 receipt with the exact bytes.',
           html: simplePage(
@@ -397,7 +397,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         },
         {
           route: '/account',
-          title: 'Account - optional sync | PDFShush',
+          title: 'Account - optional sync | pdfshush',
           description:
             'Accounts are optional. Client-side tools work without one; an account only syncs preferences and workflow recipes.',
           html: simplePage(
@@ -410,7 +410,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         },
         ...tools.map((tool) => ({
           route: `/tools/${tool.slug}`,
-          title: `${tool.name} - ${tool.live ? 'free and private' : 'not built'} | PDFShush`,
+          title: `${tool.name} - ${tool.live ? 'free and private' : 'not built'} | pdfshush`,
           description: tool.live
             ? `${tool.description} Runs in your browser; the file is not uploaded.`
             : `${tool.name} is not built. This page explains why and points at the closest live alternative.`,

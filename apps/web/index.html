@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
 
-    <title>PDFShush: Free, private PDF tools that run in your browser</title>
+    <title>pdfshush: Free, private PDF tools that run in your browser</title>
     <meta
       name="description"
-      content="Merge, organize, convert and edit PDF files without limits. Your files never leave your device; every tool runs locally in your browser. Free forever, no sign-up."
+      content="Merge, split, edit, sign and redact PDFs in your browser. Your files never leave your device: nothing is uploaded, stored or seen. Free, no sign-up."
     />
     <meta name="robots" content="index, follow" />
 
@@ -51,19 +51,29 @@
     </script>
 
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="PDFShush" />
-    <meta property="og:title" content="PDFShush: Free, private PDF tools" />
+    <meta property="og:site_name" content="pdfshush" />
+    <meta property="og:title" content="pdfshush: Free, private PDF tools" />
     <meta
       property="og:description"
-      content="Merge, organize, convert and edit PDF files without limits. Your files never leave your device."
+      content="Merge, split, edit, sign and redact PDFs in your browser. Your files never leave your device: nothing is uploaded, stored or seen. Free, no sign-up."
     />
 
+    <!--
+      Order matters for what a crawler can read. Google Search does not accept
+      SVG favicons, and a site that offers only /favicon.svg falls back to the
+      generic globe in results. /favicon.ico is a real 4-size icon
+      (scripts/gen-favicon.mjs), the PNGs cover the "larger than 48px" advice,
+      and the SVG stays last for crisp browser tabs.
+    -->
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="PDFShush" />
-    <meta name="application-name" content="PDFShush" />
+    <meta name="apple-mobile-web-app-title" content="pdfshush" />
+    <meta name="application-name" content="pdfshush" />
   </head>
   <body>
     <div id="root"></div>
