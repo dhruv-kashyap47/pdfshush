@@ -361,7 +361,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     label: 'Editors',
     tools: [
       tool('image-editor', 'Image Editor', 'Crop, rotate and filter images before they become a PDF.', 'editors', Image, 'amber'),
-      tool('signature', 'Signature', 'Create and save a reusable handwritten signature.', 'editors', Signature, 'green'),
+      tool('signature', 'Signature', 'Create a signature and download it as PNG, JPG or PDF.', 'editors', Signature, 'green'),
       tool('stamp', 'Stamp', 'Apply APPROVED / DRAFT stamps across pages.', 'editors', Stamp, 'rose'),
       tool('combine-pdf', 'Combine files', 'Merge PDFs with images and Office files in between.', 'editors', Combine, 'blue'),
     ],

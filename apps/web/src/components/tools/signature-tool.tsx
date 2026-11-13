@@ -9,11 +9,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eraser, Info, PenLine, Trash2 } from 'lucide-react';
+import { Download, Eraser, Info, PenLine, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { SignatureExportDialog } from '@/components/signature/signature-export-dialog';
 import {
   deleteSignature,
   listSignatures,
@@ -32,6 +33,7 @@ const SignaturePadDialog = lazy(
 export function SignatureTool() {
   const [assets, setAssets] = useState<SignatureAssetRecord[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [exportAsset, setExportAsset] = useState<SignatureAssetRecord | null>(null);
   const [urls, setUrls] = useState<Map<string, string>>(new Map());
 
   const refresh = useCallback(() => {
@@ -63,8 +65,9 @@ export function SignatureTool() {
         <div className="space-y-1">
           <h2 className="text-base font-semibold tracking-tight">Your signatures</h2>
           <p className="text-sm text-muted-foreground">
-            Draw or type once, then place it from any signing session on this device. Saved copies
-            live in this browser only: {assets.length} / {SIGNATURE_STORE_MAX} used.
+            Draw or type once, then place it from any signing session on this device. Download any
+            saved signature as PNG, JPG, WebP or PDF. Saved copies live in this browser only:{' '}
+            {assets.length} / {SIGNATURE_STORE_MAX} used.
           </p>
         </div>
         <Button
@@ -109,19 +112,30 @@ export function SignatureTool() {
               >
                 <div className="relative flex h-32 items-center justify-center bg-white p-4">
                   <img src={url} alt="" className="max-h-full max-w-full object-contain" />
-                  <button
-                    type="button"
-                    aria-label="Delete this signature"
-                    className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-card text-muted-foreground opacity-70 ring-1 ring-black/10 transition-opacity duration-200 hover:opacity-100 hover:text-destructive focus-visible:opacity-100 dark:ring-white/15"
-                    data-testid="signature-delete"
-                    onClick={() => {
-                      void deleteSignature(asset.id).then(() => {
-                        toast.success('Deleted from this device.');
-                      });
-                    }}
-                  >
-                    <Trash2 className="size-3.5" aria-hidden />
-                  </button>
+                  <div className="absolute top-2 right-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label="Download this signature"
+                      className="flex size-8 touch-manipulation items-center justify-center rounded-full bg-card text-muted-foreground opacity-80 ring-1 ring-black/10 transition-opacity duration-200 hover:opacity-100 hover:text-primary focus-visible:opacity-100 sm:size-7 dark:ring-white/15"
+                      data-testid="signature-download"
+                      onClick={() => setExportAsset(asset)}
+                    >
+                      <Download className="size-4 sm:size-3.5" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Delete this signature"
+                      className="flex size-8 touch-manipulation items-center justify-center rounded-full bg-card text-muted-foreground opacity-80 ring-1 ring-black/10 transition-opacity duration-200 hover:opacity-100 hover:text-destructive focus-visible:opacity-100 sm:size-7 dark:ring-white/15"
+                      data-testid="signature-delete"
+                      onClick={() => {
+                        void deleteSignature(asset.id).then(() => {
+                          toast.success('Deleted from this device.');
+                        });
+                      }}
+                    >
+                      <Trash2 className="size-4 sm:size-3.5" aria-hidden />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between px-4 py-2.5 text-[11px] text-muted-foreground">
                   <span className="tracking-wide uppercase">
@@ -158,6 +172,16 @@ export function SignatureTool() {
             mode="manage"
           />
         </Suspense>
+      )}
+
+      {exportAsset && (
+        <SignatureExportDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setExportAsset(null);
+          }}
+          asset={exportAsset}
+        />
       )}
     </div>
   );
