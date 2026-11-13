@@ -510,8 +510,8 @@ export function SignaturePadDialog({
           <DialogTitle className="text-lg font-semibold tracking-tight">
             {mode === 'insert' ? 'Add your signature' : 'Create a signature'}
           </DialogTitle>
-          <DialogDescription>
-            Draw or type it once. It stays on this device; nothing is uploaded.
+          <DialogDescription className="sr-only">
+            Create a signature that stays on this device; nothing is uploaded.
           </DialogDescription>
         </div>
 
@@ -806,11 +806,6 @@ export function SignaturePadDialog({
               </Button>
             )}
           </div>
-
-          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-            Saved copies live only in this browser. A signature is never sent to a server, and
-            signing adds an honest, non-certified audit note next to the file.
-          </p>
         </div>
       </DialogContent>
     </Dialog>
