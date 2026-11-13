@@ -865,7 +865,7 @@ export function AiShowcase() {
                   </div>
                 </div>
                 {phase === 'thinking' ? (
-                  <span className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-400">
                     <span className="flex gap-0.5 text-amber-500" aria-hidden="true">
                       <span className="thinking-dot" />
                       <span className="thinking-dot" />
@@ -874,7 +874,7 @@ export function AiShowcase() {
                     Working
                   </span>
                 ) : (
-                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
                     Ready
                   </span>
                 )}
@@ -900,7 +900,7 @@ export function AiShowcase() {
                         } ${isBusy ? 'italic' : ''} disabled:pointer-events-none disabled:opacity-80`}
                       >
                         <span>{item.label}</span>
-                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/80">
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                           {item.citation}
                         </span>
                       </button>

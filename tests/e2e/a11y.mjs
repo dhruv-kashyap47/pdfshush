@@ -62,13 +62,56 @@ async function ready(page) {
 }
 
 const browser = await chromium.launch();
+
+/**
+ * Audit contexts run with the reduced-motion preference emulated.
+ *
+ * Entrance animations fade text in from `opacity: 0`, so a snapshot taken
+ * mid-fade sees a half-transparent heading and reports a contrast failure that
+ * no one ever reads. Reduced motion is the app's own supported state: every
+ * entrance lands on its final frame, which is exactly the state axe should
+ * judge. It is also the state a motion-sensitive visitor sees, so a page that
+ * only looks right mid-animation fails here.
+ */
+function auditContext() {
+  return browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: 'reduce',
+  });
+}
+
+/**
+ * Belt and braces for anything that ignores the preference: wait for every
+ * finite animation to finish and force the stragglers to their end state, so
+ * axe never samples a frame that exists for 300ms.
+ */
+async function settle(page) {
+  await page.evaluate(async () => {
+    const running = () =>
+      document.getAnimations().filter((animation) => {
+        if (animation.playState !== 'running') return false;
+        const timing = animation.effect?.getComputedTiming();
+        return !timing || timing.endTime !== Infinity;
+      });
+    const deadline = performance.now() + 3_000;
+    while (running().length > 0 && performance.now() < deadline) {
+      await Promise.race([
+        Promise.all(running().map((animation) => animation.finished.catch(() => {}))),
+        new Promise((resolve) => setTimeout(resolve, 400)),
+      ]);
+    }
+    for (const animation of running()) animation.finish();
+  });
+}
+
 try {
   for (const route of ROUTES) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const context = await auditContext();
     const page = await context.newPage();
     try {
       await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       await ready(page);
+      await settle(page);
       await page.addScriptTag({ path: AXE_PATH });
       const result = await page.evaluate(async () => {
         // @ts-expect-error axe is injected at runtime
@@ -107,7 +150,7 @@ try {
   // The editor with a real selected object: the static route check above cannot
   // see the inspector, the tool groups or the resize handles.
   {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const context = await auditContext();
     const page = await context.newPage();
     try {
       await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -119,6 +162,7 @@ try {
       await page.getByTestId('editor-text-input').waitFor({ timeout: 10_000 });
       await page.keyboard.type('accessibility check');
       await page.keyboard.press('Escape');
+      await settle(page);
       await page.addScriptTag({ path: AXE_PATH });
       const result = await page.evaluate(async () => {
         // @ts-expect-error axe is injected at runtime
@@ -147,11 +191,12 @@ try {
 
   // Keyboard entry: the first Tab must land on a real control, and the focus
   // ring must be visible (the engine sets a 3px ring in `:focus-visible`).
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await auditContext();
   const page = await context.newPage();
   try {
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
     await ready(page);
+    await settle(page);
     const seen = [];
     for (let index = 0; index < 8; index += 1) {
       await page.keyboard.press('Tab');
