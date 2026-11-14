@@ -7,7 +7,7 @@ import {
 } from '@pdfshush/pdf-core';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
-import { largestBytes, readAsInputFiles, totalBytes } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, totalBytes } from '@/lib/files';
 
 export interface PageTile {
   id: string;
@@ -113,7 +113,15 @@ export function usePageThumbnails() {
       // pointing at dead blob URLs -- broken thumbnails with no explanation.
 
       // Inspect first: page count decides whether rendering previews is safe.
-      const inspectInput = await readAsInputFiles(incoming);
+      // The read is not abortable and can reject (a picked file that was
+      // renamed, deleted or locked between the picker and the read), so it goes
+      // through the guarded helper: a rejection here must reset `preparing` or
+      // the dropzone stays disabled forever with no error shown.
+      const inspectInput = await readAsInputFilesOrToast(incoming);
+      if (!inspectInput) {
+        setPreparing(false);
+        return false;
+      }
       // Reading the File list is not abortable; re-check both the request id and
       // the mount before starting a worker job after that gap.
       if (!isCurrent(request)) return true;
@@ -149,7 +157,11 @@ export function usePageThumbnails() {
 
       // Thumbnail width degradation for huge documents lives in the engine
       // (LIMITS.client.thumbnailDegradeAtPages) -- one source of truth.
-      const thumbnailInput = await readAsInputFiles(incoming);
+      const thumbnailInput = await readAsInputFilesOrToast(incoming);
+      if (!thumbnailInput) {
+        setPreparing(false);
+        return false;
+      }
       if (!isCurrent(request)) return true;
       const outcome = await thumbsRunner.run(
         thumbnailInput,
