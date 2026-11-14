@@ -1,60 +1,88 @@
-import { useEffect, useRef } from 'react';
-import { animate } from 'animejs';
-import { prefersReducedMotion } from '@/lib/motion';
+import type { CSSProperties, ReactNode } from 'react';
 import {
   enabledTestimonials,
   initialsFor,
   socialProof,
+  splitTestimonialRows,
   type SocialProofContent,
+  type Testimonial,
 } from './socialProof.data';
 import './social-proof.css';
 
 /**
- * A compact band of testimonials. Each card floats on its own slow cycle, with
- * a different phase and amplitude, so the group reads as a handful of notes
- * resting on the page rather than a carousel. Animation is transform-only and
- * loops with anime.js; reduced motion leaves the cards still.
+ * Two compact rows of testimonials, drifting in opposite directions behind a
+ * soft edge mask. The marquee is the same CSS mechanism the section used
+ * before: 60 s and 75 s linear loops, seamless because each row carries one
+ * aria-hidden copy, and paused on hover or focus-within. Reduced motion turns
+ * both rows into a static wrapped grid; there is no JS animation to clean up.
  */
 
-const FLOAT_PLAN = [
-  { y: -12, x: 3, rotate: -0.22, duration: 5900, delay: 0 },
-  { y: 10, x: -3, rotate: 0.18, duration: 6900, delay: 450 },
-  { y: -11, x: 2, rotate: -0.16, duration: 6300, delay: 180 },
-  { y: 12, x: -2, rotate: 0.2, duration: 7200, delay: 750 },
-  { y: -10, x: 3, rotate: -0.2, duration: 6100, delay: 300 },
-] as const;
+/** Widths are chosen so each three-card row fills the 1216 px content band. */
+const CARD_WIDTHS = [400, 364, 404, 372, 400, 396];
+
+interface MarqueeProps {
+  speed: number;
+  reverse?: boolean;
+  label: string;
+  children: ReactNode;
+}
+
+function Marquee({ speed, reverse = false, label, children }: MarqueeProps) {
+  return (
+    <div
+      className={`sp-marquee${reverse ? ' sp-marquee--reverse' : ''}`}
+      role="group"
+      aria-label={label}
+    >
+      <div className="sp-marquee__viewport">
+        <div
+          className="sp-marquee__track"
+          style={{ '--sp-duration': `${speed}s` } as CSSProperties}
+        >
+          <ul className="sp-marquee__group">{children}</ul>
+          {/* Loop copy only. Hidden from assistive tech, and inert so it can
+              never take keyboard focus behind the visible row. */}
+          <ul className="sp-marquee__group sp-marquee__group--dup" aria-hidden="true" inert>
+            {children}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TestimonialCard({ testimonial, width }: { testimonial: Testimonial; width: number }) {
+  return (
+    <li
+      className="sp-card"
+      style={{ '--sp-card-width': `${width}px` } as CSSProperties}
+    >
+      <blockquote className="sp-quote">
+        <p>“{testimonial.quote}”</p>
+      </blockquote>
+
+      <div className="sp-person">
+        <span className="sp-avatar" aria-hidden="true">
+          {initialsFor(testimonial.name)}
+        </span>
+        <span className="sp-person__text">
+          <span className="sp-person__name">{testimonial.name}</span>
+          {testimonial.role ? (
+            <span className="sp-person__meta">{testimonial.role}</span>
+          ) : null}
+        </span>
+      </div>
+    </li>
+  );
+}
 
 interface SocialProofSectionProps {
   content?: SocialProofContent;
 }
 
 export function SocialProofSection({ content = socialProof }: SocialProofSectionProps) {
-  const listRef = useRef<HTMLUListElement>(null);
   const testimonials = enabledTestimonials(content);
-
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list || prefersReducedMotion()) return;
-
-    const cards = Array.from(list.querySelectorAll<HTMLElement>('[data-float]'));
-    const animations = cards.map((card, index) => {
-      const plan = FLOAT_PLAN[index % FLOAT_PLAN.length]!;
-      return animate(card, {
-        y: [0, plan.y],
-        x: [0, plan.x],
-        rotate: [0, plan.rotate],
-        duration: plan.duration,
-        delay: plan.delay,
-        ease: 'inOutSine',
-        loop: true,
-        alternate: true,
-      });
-    });
-
-    return () => {
-      for (const animation of animations) animation.cancel();
-    };
-  }, [testimonials.length]);
+  const [firstRow, secondRow] = splitTestimonialRows(testimonials);
 
   if (testimonials.length === 0) return null;
 
@@ -65,32 +93,27 @@ export function SocialProofSection({ content = socialProof }: SocialProofSection
           What people say
         </h2>
 
-        <ul
-          ref={listRef}
-          className="sp-list"
-          aria-label="Testimonials"
-          tabIndex={0}
-        >
-          {testimonials.map((testimonial) => (
-            <li key={testimonial.id} className="sp-card" data-float>
-              <blockquote className="sp-quote">
-                <p>“{testimonial.quote}”</p>
-              </blockquote>
+        <div className="sp-rows">
+          <Marquee speed={60} label="Customer reviews, first row">
+            {firstRow.map((testimonial, index) => (
+              <TestimonialCard
+                key={testimonial.id}
+                testimonial={testimonial}
+                width={CARD_WIDTHS[index % CARD_WIDTHS.length]!}
+              />
+            ))}
+          </Marquee>
 
-              <div className="sp-person">
-                <span className="sp-avatar" aria-hidden="true">
-                  {initialsFor(testimonial.name)}
-                </span>
-                <span className="sp-person__text">
-                  <span className="sp-person__name">{testimonial.name}</span>
-                  {testimonial.role ? (
-                    <span className="sp-person__meta">{testimonial.role}</span>
-                  ) : null}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
+          <Marquee speed={75} reverse label="Customer reviews, second row">
+            {secondRow.map((testimonial, index) => (
+              <TestimonialCard
+                key={testimonial.id}
+                testimonial={testimonial}
+                width={CARD_WIDTHS[(index + 3) % CARD_WIDTHS.length]!}
+              />
+            ))}
+          </Marquee>
+        </div>
       </div>
     </section>
   );

@@ -57,8 +57,25 @@ export const socialProof: SocialProofContent = {
       role: 'Office manager',
       enabled: true,
     },
+    {
+      id: 'luis',
+      quote: 'Combined three versions of a lease into one file before a call.',
+      name: 'Luis F.',
+      role: 'Property manager',
+      enabled: true,
+    },
   ],
 };
+
+/**
+ * Two rows, keeping the authored reading order and a balanced split.
+ */
+export function splitTestimonialRows(
+  testimonials: readonly Testimonial[],
+): [Testimonial[], Testimonial[]] {
+  const middle = Math.ceil(testimonials.length / 2);
+  return [testimonials.slice(0, middle), testimonials.slice(middle)];
+}
 
 export function enabledTestimonials(content: SocialProofContent): Testimonial[] {
   return content.testimonials.filter((testimonial) => testimonial.enabled);
