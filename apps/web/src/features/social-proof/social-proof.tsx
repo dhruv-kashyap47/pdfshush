@@ -17,11 +17,11 @@ import './social-proof.css';
  */
 
 const FLOAT_PLAN = [
-  { y: -6, x: 2, duration: 8200, delay: 0 },
-  { y: 5, x: -2, duration: 9400, delay: 700 },
-  { y: -4, x: 1, duration: 8800, delay: 340 },
-  { y: 6, x: -1, duration: 9700, delay: 1050 },
-  { y: -5, x: 2, duration: 8600, delay: 520 },
+  { y: -12, x: 3, rotate: -0.22, duration: 5900, delay: 0 },
+  { y: 10, x: -3, rotate: 0.18, duration: 6900, delay: 450 },
+  { y: -11, x: 2, rotate: -0.16, duration: 6300, delay: 180 },
+  { y: 12, x: -2, rotate: 0.2, duration: 7200, delay: 750 },
+  { y: -10, x: 3, rotate: -0.2, duration: 6100, delay: 300 },
 ] as const;
 
 interface SocialProofSectionProps {
@@ -42,6 +42,7 @@ export function SocialProofSection({ content = socialProof }: SocialProofSection
       return animate(card, {
         y: [0, plan.y],
         x: [0, plan.x],
+        rotate: [0, plan.rotate],
         duration: plan.duration,
         delay: plan.delay,
         ease: 'inOutSine',
