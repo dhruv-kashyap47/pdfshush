@@ -23,7 +23,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
-import { largestBytes, readAsInputFiles, shortName, totalBytes } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const PAGE_SIZES: { value: ImagePageSize; label: string }[] = [
@@ -152,7 +152,9 @@ export function JpgToPdfTool() {
       toast.error(verdict.message);
       return;
     }
-    const outcome = await runner.run(await readAsInputFiles(entries.map((entry) => entry.file)), {
+    const input = await readAsInputFilesOrToast(entries.map((entry) => entry.file));
+    if (!input) return;
+    const outcome = await runner.run(input, {
       pageSize,
       orientation,
       margin: pageSize === 'image' ? 0 : margin,

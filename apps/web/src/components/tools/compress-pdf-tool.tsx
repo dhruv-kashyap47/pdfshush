@@ -33,7 +33,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const MODES: { value: CompressMode; label: string; detail: string; icon: typeof Minimize2 }[] = [
@@ -102,7 +102,9 @@ export function CompressPdfTool() {
     setFile(candidate);
     setInspect(null);
 
-    const outcome = await inspectRunner.run(await readAsInputFiles([candidate]));
+    const input = await readAsInputFilesOrToast([candidate]);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -123,8 +125,10 @@ export function CompressPdfTool() {
 
   const run = async () => {
     if (!file || running || overCap) return;
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles([file]),
+      input,
       { mode, quality: quality / 100, dpi },
       { timeoutMs: timeoutForPageCount(inspect?.pageCount ?? 60) },
     );

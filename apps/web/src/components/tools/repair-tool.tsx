@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { readAsInputFiles } from '@/lib/files';
+import { readAsInputFilesOrToast } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /**
@@ -50,7 +50,9 @@ export function RepairPdfTool() {
 
   const run = async () => {
     if (files.length === 0 || running) return;
-    const outcome = await runner.run(await readAsInputFiles(files), {
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
+    const outcome = await runner.run(input, {
       ...(password ? { password } : {}),
     });
     if (!outcome.ok) {

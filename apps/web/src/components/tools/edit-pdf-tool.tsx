@@ -1815,8 +1815,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       return;
     }
     setConfirmRedact(false);
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await redactRunner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         regions,
         outputName: `${file.name.replace(/\.pdf$/i, '')}-redacted`,
@@ -1958,8 +1960,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       return;
     }
     const refs: PageRef[] = pageOrder.map((pageIndex) => ({ docIndex: 0, pageIndex }));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await organizeRunner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         pageOrder: refs,
         outputName: `${file.name.replace(/\.pdf$/i, '')}-organized`,
@@ -2232,8 +2236,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       if (cover) linked.add(cover.id);
     }
     const objects = snapshot.objects.filter((object) => !linked.has(object.id));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await editRunner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         edits,
         objects,

@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName, totalBytes } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 function stemOf(name: string): string {
@@ -61,7 +61,9 @@ export function RenamePdfTool() {
     announceCapacityWarning(verdict);
     setFiles(incoming);
 
-    const outcome = await inspectRunner.run(await readAsInputFiles(incoming));
+    const input = await readAsInputFilesOrToast(incoming);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -89,7 +91,9 @@ export function RenamePdfTool() {
 
   const run = async () => {
     if (files.length === 0 || running) return;
-    const outcome = await runner.run(await readAsInputFiles(files), {
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
+    const outcome = await runner.run(input, {
       pattern,
       digits,
     });

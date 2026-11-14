@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /**
@@ -46,8 +46,10 @@ export function FlattenTool() {
 
   const run = async () => {
     if (files.length === 0 || running) return;
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       undefined,
       { timeoutMs: timeoutForPageCount(120) },
     );

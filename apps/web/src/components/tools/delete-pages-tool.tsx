@@ -10,7 +10,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { usePageThumbnails } from '@/hooks/use-page-thumbnails';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { readAsInputFiles, totalBytes } from '@/lib/files';
+import { readAsInputFilesOrToast, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /**
@@ -49,8 +49,10 @@ export function DeletePagesTool() {
       return;
     }
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       {
         pageOrder: tiles.map((tile) => ({ docIndex: tile.docIndex, pageIndex: tile.pageIndex })),
         // Without this the shared `organize` job fell back to its own default

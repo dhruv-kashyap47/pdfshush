@@ -24,7 +24,7 @@ import {
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const WIDTH_OPTIONS = [
@@ -88,7 +88,9 @@ export function PdfToImagesTool() {
     }
 
     setRangeError(null);
-    const outcome = await inspectRunner.run(await readAsInputFiles([file]));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       setFiles([]);
@@ -139,8 +141,10 @@ export function PdfToImagesTool() {
       return;
     }
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await renderRunner.run(
-      await readAsInputFiles(files),
+      input,
       {
         // The job's ImageFormat is 'png' | 'jpeg'; the UI says 'jpg'.
         format: format === 'png' ? 'png' : 'jpeg',

@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 type RangeResult = { ok: true; indexes: number[] } | { ok: false; error: string };
@@ -64,7 +64,9 @@ export function ExtractPagesTool() {
     }
 
     setRangeError(null);
-    const outcome = await inspectRunner.run(await readAsInputFiles([file]));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -99,8 +101,10 @@ export function ExtractPagesTool() {
     }
     setRangeError(null);
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       {
         pageOrder: range.indexes.map((pageIndex) => ({ docIndex: 0, pageIndex })),
         outputName: `${files[0]!.name.replace(/\.pdf$/i, '')}-extracted`,

@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 interface Fields {
@@ -65,7 +65,9 @@ export function EditMetadataTool() {
     }
     announceCapacityWarning(verdict);
 
-    const outcome = await inspectRunner.run(await readAsInputFiles([file]));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -108,8 +110,10 @@ export function EditMetadataTool() {
       return;
     }
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       { edits },
       { timeoutMs: timeoutForPageCount(pageCount ?? 30) },
     );
