@@ -1,22 +1,19 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SOCIAL PROOF
-   One ambient gesture: two review rows drift in opposite directions behind a
-   soft edge mask. Everything else is still. Colour comes entirely from the
-   site tokens, so light and dark share one DOM and one geometry.
+   TESTIMONIALS
+   A compact band of notes. Geometry and colour come from the site tokens; the
+   only motion is a slow transform float driven by anime.js (see the component).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .sp-section {
-  --sp-card-radius: var(--radius-xl);
-  position: relative;
   overflow: hidden;
-  padding-block: 3.5rem;
+  padding-block: 4rem;
   background: var(--background);
   color: var(--foreground);
 }
 
 @media (min-width: 640px) {
   .sp-section {
-    padding-block: 5.5rem;
+    padding-block: 6rem;
   }
 }
 
@@ -39,280 +36,98 @@
   }
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
-
-.sp-header {
-  max-width: 46rem;
-}
-
-.sp-title {
+/* Phone: a short, swipeable row keeps the band compact; every quote stays in
+   the DOM and the row is keyboard-scrollable. */
+.sp-list {
+  display: flex;
+  gap: 0.75rem;
   margin: 0;
-  font-family: var(--font-sans);
-  font-size: clamp(2rem, 1.2rem + 2.6vw, 3.4rem);
-  font-weight: 700;
-  line-height: 1.04;
-  letter-spacing: -0.035em;
-  text-wrap: balance;
-  color: var(--foreground);
-}
-
-.sp-sub {
-  margin: 1rem 0 0;
-  max-width: 35rem;
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--muted-foreground);
-}
-
-@media (min-width: 640px) {
-  .sp-sub {
-    font-size: 1.0625rem;
-  }
-}
-
-/* ── Stats ──────────────────────────────────────────────────────────────── */
-
-.sp-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.25rem 2.75rem;
-  margin: 2rem 0 0;
-  padding: 1.25rem 0 0;
-  border-top: 1px solid var(--border);
-  max-width: 46rem;
-}
-
-.sp-stat {
-  display: flex;
-  flex-direction: column-reverse;
-  align-items: flex-start;
-  min-width: 7rem;
-}
-
-.sp-stat__value {
-  margin: 0;
-  font-size: 1.375rem;
-  font-weight: 650;
-  line-height: 1.1;
-  letter-spacing: -0.025em;
-  color: var(--foreground);
-  font-variant-numeric: tabular-nums;
-}
-
-.sp-stat__label {
-  margin: 0.3rem 0 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--muted-foreground);
-  max-width: 13rem;
-}
-
-/* ── Logo strip ─────────────────────────────────────────────────────────── */
-
-.sp-logos {
-  position: relative;
-  margin-top: 2.75rem;
-}
-
-@media (min-width: 640px) {
-  .sp-logos {
-    margin-top: 3.25rem;
-  }
-}
-
-.sp-logos__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.sp-logos__note {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--muted-foreground);
-}
-
-.sp-marquee {
-  position: relative;
-}
-
-.sp-marquee__viewport {
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(
-    90deg,
-    transparent 0,
-    #000 7%,
-    #000 93%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
-}
-
-.sp-marquee__track {
-  display: flex;
-  width: max-content;
-  animation: sp-drift-left var(--sp-duration, 60s) linear infinite;
-  will-change: transform;
-}
-
-.sp-marquee--reverse .sp-marquee__track {
-  animation-name: sp-drift-right;
-}
-
-/* Pausing is an accessibility contract, not a flourish: a reader can stop the
-   only ambient motion in the section by hovering or by tabbing into it. */
-.sp-marquee:hover .sp-marquee__track,
-.sp-marquee:focus-within .sp-marquee__track {
-  animation-play-state: paused;
-}
-
-.sp-marquee__group {
-  display: flex;
-  flex: none;
-  align-items: stretch;
-  gap: var(--sp-gap, 1rem);
-  /* A copy must be at least one viewport wide, or the loop opens a gap on a
-     wide screen before the second copy arrives. */
-  min-width: 100vw;
-  margin: 0;
-  /* The trailing gap is what makes -50% land exactly on the copy boundary. */
-  padding: 0 var(--sp-gap, 1rem) 0 0;
+  padding: 0 0 0.5rem;
+  overflow-x: auto;
   list-style: none;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
 }
 
-@keyframes sp-drift-left {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-50%, 0, 0);
-  }
+.sp-list::-webkit-scrollbar {
+  display: none;
 }
 
-@keyframes sp-drift-right {
-  from {
-    transform: translate3d(-50%, 0, 0);
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-.sp-marquee--logos {
-  --sp-gap: 3rem;
-}
-
-.sp-marquee--logos .sp-marquee__viewport {
-  display: flex;
-  align-items: center;
-  min-height: 4.5rem;
-}
-
-.sp-marquee--logos .sp-marquee__group {
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sp-logo-item {
-  flex: none;
-}
-
-.sp-logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  color: var(--muted-foreground);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: -0.015em;
-  white-space: nowrap;
-  text-decoration: none;
-  transition: color 180ms ease;
-}
-
-a.sp-logo:hover {
-  color: var(--foreground);
-}
-
-a.sp-logo:focus-visible {
+.sp-list:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 4px;
-  border-radius: 0.25rem;
-}
-
-.sp-logo__svg {
-  display: block;
-  height: 1.5rem;
-  width: auto;
-}
-
-.sp-logo__svg svg {
-  display: block;
-  height: 100%;
-  width: auto;
-  fill: currentColor;
-}
-
-/* ── Review rows ────────────────────────────────────────────────────────── */
-
-.sp-reviews {
-  margin-top: 2.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .sp-reviews {
-    margin-top: 3rem;
-    gap: 1.125rem;
-  }
-}
-
-.sp-marquee--reviews {
-  --sp-gap: 1rem;
+  border-radius: var(--radius-xl);
 }
 
 .sp-card {
   display: flex;
-  flex: none;
+  flex: 0 0 78%;
   flex-direction: column;
-  width: min(var(--sp-card-width, 340px), calc(100vw - 3rem));
-  min-height: 13rem;
-  padding: 1.375rem;
+  min-height: 10rem;
+  padding: 1.15rem;
   border: 1px solid var(--border);
-  border-radius: var(--sp-card-radius);
+  border-radius: var(--radius-xl);
   background: var(--card);
   color: var(--card-foreground);
-  box-shadow: none;
+  scroll-snap-align: start;
+  will-change: transform;
 }
 
-.sp-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.875rem;
+@media (min-width: 640px) {
+  .sp-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .sp-card {
+    flex: initial;
+    width: auto;
+    min-height: 11rem;
+  }
 }
 
-.sp-stars {
-  display: inline-flex;
-  gap: 0.125rem;
-  color: var(--primary);
+@media (min-width: 900px) {
+  .sp-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
-.sp-stars svg {
-  width: 0.8125rem;
-  height: 0.8125rem;
-  fill: currentColor;
+@media (min-width: 1280px) {
+  .sp-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1.125rem;
+  }
+
+  /* A hand-set baseline: every card sits at its own height, so the row never
+     reads as five identical tiles. The float starts from these positions. */
+  .sp-card:nth-child(1) {
+    margin-top: 0.35rem;
+  }
+
+  .sp-card:nth-child(2) {
+    margin-top: 1.75rem;
+  }
+
+  .sp-card:nth-child(3) {
+    margin-top: 0.6rem;
+  }
+
+  .sp-card:nth-child(4) {
+    margin-top: 2.15rem;
+  }
+
+  .sp-card:nth-child(5) {
+    margin-top: 1rem;
+  }
 }
 
 .sp-quote {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.1875rem;
+  font-size: 1.0625rem;
   font-weight: 400;
   line-height: 1.55;
   letter-spacing: 0.002em;
@@ -327,22 +142,22 @@ a.sp-logo:focus-visible {
 .sp-person {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.65rem;
   margin-top: auto;
-  padding-top: 1.25rem;
+  padding-top: 1.1rem;
 }
 
 .sp-avatar {
   display: grid;
   flex: none;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2rem;
+  height: 2rem;
   border: 1px solid color-mix(in oklab, var(--primary) 32%, transparent);
   border-radius: 9999px;
   background: color-mix(in oklab, var(--primary) 11%, transparent);
   color: var(--primary);
-  font-size: 0.71875rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -367,160 +182,8 @@ a.sp-logo:focus-visible {
   color: var(--muted-foreground);
 }
 
-.sp-source {
-  display: inline-block;
-  margin-top: 0.7rem;
-  font-size: 0.71875rem;
-  font-weight: 500;
-  color: var(--muted-foreground);
-  text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
-  text-underline-offset: 0.2em;
-}
-
-.sp-source:hover {
-  color: var(--primary);
-  text-decoration-color: currentColor;
-}
-
-.sp-source:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-  border-radius: 0.125rem;
-}
-
-/* ── Persona fallback (fewer than three enabled reviews) ────────────────── */
-
-.sp-personas {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .sp-personas {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  .sp-personas {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.sp-persona {
-  padding: 1.375rem;
-  border: 1px solid var(--border);
-  border-radius: var(--sp-card-radius);
-  background: var(--card);
-}
-
-.sp-persona__label {
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  color: var(--foreground);
-}
-
-.sp-persona__detail {
-  margin: 0.6rem 0 0;
-  font-size: 0.875rem;
-  line-height: 1.55;
-  color: var(--muted-foreground);
-}
-
-/* ── Development placeholder badge ──────────────────────────────────────── */
-
-.sp-badge {
-  flex: none;
-  padding: 0.1rem 0.4rem;
-  border: 1px dashed color-mix(in oklab, var(--muted-foreground) 45%, transparent);
-  border-radius: 9999px;
-  font-size: 0.5625rem;
-  font-weight: 650;
-  letter-spacing: 0.09em;
-  line-height: 1.5;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
-  white-space: nowrap;
-}
-
-.sp-dev-note {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 1.5rem 0 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-}
-
-/* ── Reduced motion: the strip and rows become static, wrapped grids ─────── */
-
 @media (prefers-reduced-motion: reduce) {
-  .sp-marquee__viewport {
-    overflow: visible;
-    min-height: 0;
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
-
-  .sp-marquee__track {
-    display: block;
-    width: auto;
-    animation: none;
-    transform: none;
+  .sp-card {
     will-change: auto;
-  }
-
-  .sp-marquee__group {
-    flex-wrap: wrap;
-    width: auto;
-    min-width: 0;
-    padding-right: 0;
-    padding-inline: 1.25rem;
-    row-gap: 0.75rem;
-  }
-
-  .sp-marquee--logos .sp-marquee__group {
-    align-items: center;
-    justify-content: flex-start;
-    gap: 1rem 2.25rem;
-  }
-
-  .sp-marquee--reviews .sp-marquee__group {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
-    gap: 1rem;
-  }
-
-  .sp-marquee--reviews .sp-card {
-    width: 100%;
-  }
-
-  /* The second copy exists only to make the loop seamless. It comes after the
-     grid rule above so it wins on source order at equal specificity. */
-  .sp-marquee .sp-marquee__group--dup {
-    display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) and (min-width: 640px) {
-  .sp-marquee__group {
-    padding-inline: 1.5rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) and (min-width: 1024px) {
-  .sp-marquee__group {
-    padding-inline: 2rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) and (max-width: 767px) {
-  .sp-marquee--logos .sp-marquee__group {
-    gap: 0.75rem 1.5rem;
   }
 }
