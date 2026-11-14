@@ -40,7 +40,7 @@ import {
   checkClientCapacity,
 } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { readAsInputFiles, totalBytes } from '@/lib/files';
+import { readAsInputFilesOrToast, totalBytes } from '@/lib/files';
 import { cn } from '@/lib/utils';
 import { recordRecent } from '@/tools/recent';
 
@@ -367,8 +367,10 @@ export function CreateFormsTool() {
     }));
 
     const stem = files[0]!.name.replace(/\.pdf$/i, '') || 'document';
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       { fields: specs, outputName: `${stem}-fillable` },
       { timeoutMs: timeoutForPageCount(pageCount) },
     );

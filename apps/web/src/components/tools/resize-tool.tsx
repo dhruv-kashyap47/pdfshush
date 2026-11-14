@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName, totalBytes } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 type Choice = { kind: 'preset'; preset: 'a4' | 'letter' } | { kind: 'percent'; percent: number };
@@ -58,7 +58,9 @@ export function ResizeTool() {
     }
     announceCapacityWarning(verdict);
 
-    const outcome = await inspectRunner.run(await readAsInputFiles([file]));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -98,8 +100,10 @@ export function ResizeTool() {
       return;
     }
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       {
         request: request(),
         outputName: `${files[0]!.name.replace(/\.pdf$/i, '')}-resized`,

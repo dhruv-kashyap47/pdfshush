@@ -758,10 +758,13 @@ never actually wired, and a stream with no error listener.*
   **200** (a soft 404). The build now emits one, so an unknown URL and every `/api/*` path answer a
   real **404**.
 
-  **The Pages cache policy is a file, not a dashboard setting** (`apps/web/public/_headers`):
-  `/assets/*` immutable for a year (Vite hashes those names), everything else revalidated, and
-  deliberately **no `/*` cache rule** — Pages joins the headers of every matching rule, so a
-  catch-all would turn "immutable" into "immutable, no-cache".
+  **The static-host cache policy is a file, not a dashboard setting** (`apps/web/public/_headers`):
+  `/assets/*` immutable for a year (Vite hashes those names), everything else revalidated. The file
+  opens with a `/*` rule because the document policy carries `no-transform` — the only origin-side
+  switch that stops Cloudflare injecting its Web Analytics beacon into the HTML — and the SPA
+  fallback serves `index.html` at an unmatched path, so a per-route list would leave a hole. Pages
+  joins the headers of every matching rule, so each narrower rule detaches `Cache-Control` before
+  setting its own value; without that, a catch-all would turn "immutable" into "immutable, no-cache".
 
   **The gate tooling learned to target a remote origin.** `tests/support/preflight.mjs` now honours
   `E2E_BASE_URL`: it checks that origin and skips the local compose assertions, and it reports a
@@ -6922,7 +6925,7 @@ Node process with a persistent queue requires a card:
 | Artifact | Why it exists |
 | --- | --- |
 | `apps/web/src/lib/deployment.ts` | The deployment shape, decided at **build time** by `VITE_SERVER_API=off`. A static host has no `/api` to ask, so a runtime probe would cost every page load a failed request and still only guess — *"the API did not answer"* and *"there is no API"* are the same observation. The deployment knows; the build records it. |
-| `apps/web/public/_headers` | The Pages cache policy: `/assets/*` immutable for a year (Vite hashes those names), the shell, the service worker and the manifest revalidated. Deliberately **no `/*` cache rule**: Pages joins the headers of every matching rule, so a catch-all would turn "immutable" into "immutable, no-cache". |
+| `apps/web/public/_headers` | The static-host policy: `/assets/*` immutable for a year (Vite hashes those names), everything else revalidated, and `no-transform` on documents so Cloudflare cannot inject its Web Analytics beacon into the HTML. The `/*` rule exists for the SPA fallback, which serves `index.html` at an unmatched path; every narrower rule detaches `Cache-Control` first, because Pages joins the headers of every matching rule and a joined value would turn "immutable" into "immutable, no-cache". |
 | `apps/web/build/prerender.ts` → flat `dist/<route>.html` | Cloudflare Pages resolves a directory's `index.html` only at the **trailing-slash** URL (`/tools/merge-pdf` → 308 → `/tools/merge-pdf/`), which would leave every canonical URL and all 55 sitemap entries pointing at a redirect. A flat file is served at the extension-less path with a **200**, verified against Pages' own emulator. The build also emits a top-level `404.html`, so an unknown URL gets a real **404** instead of the app shell and a 200. |
 | `apps/web/src/lib/api.ts`, `hooks/use-auth.ts`, `lib/ai/managed.ts`, `lib/workflows.ts`, `lib/mcp-catalog.ts` | Every server-backed surface asks the deployment shape first: no request is made, no control is offered, and the copy says why. The MCP catalog gains an `unavailable` state, which is a different answer from `failed` — nothing is wrong, there is simply no server, and a "Retry" button would be a lie. |
 | `pages/account.tsx`, `pages/workflows.tsx`, `components/tools/api-tool.tsx`, `components/tools/mcp-tool.tsx`, `components/landing/mcp-dialog.tsx` | The honest surface: no sign-in, no account panel, no workflow runner, an API reference that documents the surface without pretending it is reachable. What is **not** disabled: all 51 browser tools, the editor, redaction, OCR, the service worker, the offline mode, and every catalog page. |

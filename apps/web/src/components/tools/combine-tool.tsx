@@ -23,7 +23,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
-import { isPdfLike, largestBytes, readAsInputFiles, shortName, totalBytes } from '@/lib/files';
+import { isPdfLike, largestBytes, readAsInputFilesOrToast, shortName, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png']);
@@ -100,7 +100,9 @@ export function CombineFilesTool() {
 
   const run = async () => {
     if (files.length === 0 || running) return;
-    const outcome = await runner.run(await readAsInputFiles(files), {
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
+    const outcome = await runner.run(input, {
       pageSize,
       orientation,
       margin,

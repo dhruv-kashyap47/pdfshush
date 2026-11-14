@@ -83,6 +83,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/tools/merge-pdf  
 curl -s http://localhost:8787/tools/merge-pdf | grep -o '<h1[^>]*>[^<]*</h1>'       # real prerendered HTML
 curl -sI http://localhost:8787/assets/$(ls apps/web/dist/assets | head -1) | grep -i cache-control
 curl -sI http://localhost:8787/sw.js | grep -i cache-control
+curl -sI http://localhost:8787/ | grep -i cache-control        # ... must-revalidate, no-transform
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/no-such-page         # 200 (SPA shell)
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/api/health           # 404 (JSON)
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/API/health           # 404 (case-insensitive)
@@ -260,6 +261,8 @@ HTML references.
 | `/api/health` or `/API/health` returns the HTML shell | `run_worker_first` is missing or no longer covers every case spelling of the prefix | Restore the full `run_worker_first` list from `wrangler.jsonc`; the Worker lowercases before comparing. |
 | Security headers missing | `_headers` did not reach `dist` | Confirm `apps/web/dist/_headers` exists before deploying. Custom headers apply to static asset responses; the API 404 sets its own headers in `infra/cloudflare/api-404.js`. |
 | Assets are not cached for a year | The request did not match `/assets/*` | Check the URL; only hashed build assets are meant to be immutable. |
+| Console shows `static.cloudflareinsights.com/beacon.min.js` blocked by CSP | Cloudflare injected its Web Analytics beacon into the HTML | The `/*` rule in `_headers` sets `no-transform` so the rewrite cannot happen; confirm the live `/` response carries it (`curl -sI https://pdfshush.space/ \| grep -i cache-control`). If it does and the beacon is still injected, Web Analytics is on for the zone: turn it off in **Analytics → Web Analytics**. Do not widen `script-src` ([`edge-headers.test.ts`](../apps/web/src/lib/edge-headers.test.ts) pins that). |
+| HTML arrives uncompressed | Expected: `no-transform` disables Cloudflare's HTML compression | Hashed assets are detached from that rule, so JS/CSS still compress. The documents are ~16 kB. |
 
 ---
 

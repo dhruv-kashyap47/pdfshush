@@ -4,7 +4,7 @@
  * gestures which checkpoint once at release.
  */
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import {
   AlignCenter,
   AlignLeft,
@@ -182,6 +182,8 @@ export function EditorInspector({
   const kind = object.kind;
   const panelRef = useRef<HTMLElement>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
+  /** Detach for the listeners a drag attached; also runs on unmount. */
+  const detachDragListeners = useRef<() => void>(() => {});
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const title = OBJECT_TITLES[kind];
   const Icon = OBJECT_ICONS[kind];
@@ -198,13 +200,22 @@ export function EditorInspector({
       setPosition({ x: nextX, y: nextY });
     };
     const onUp = () => {
+      detach();
+    };
+    function detach() {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-    };
+    }
+    // An unmount mid-drag (or a second drag before the first pointerup) must
+    // not leave these window listeners behind.
+    detachDragListeners.current();
+    detachDragListeners.current = detach;
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     event.preventDefault();
   };
+
+  useEffect(() => () => detachDragListeners.current(), []);
 
   return (
     <aside

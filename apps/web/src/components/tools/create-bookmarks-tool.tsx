@@ -43,7 +43,7 @@ import {
   checkClientCapacity,
 } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { readAsInputFiles, totalBytes } from '@/lib/files';
+import { readAsInputFilesOrToast, totalBytes } from '@/lib/files';
 import { cn } from '@/lib/utils';
 import { recordRecent } from '@/tools/recent';
 
@@ -123,7 +123,9 @@ export function CreateBookmarksTool() {
     pages: number,
     nextMode: DetectMode,
   ): Promise<Row[] | null> => {
-    const outcome = await textRunner.run(await readAsInputFiles(source), undefined, {
+    const input = await readAsInputFilesOrToast(source);
+    if (!input) return null;
+    const outcome = await textRunner.run(input, undefined, {
       timeoutMs: timeoutForPageCount(pages),
     });
     if (!outcome.ok) {
@@ -165,7 +167,9 @@ export function CreateBookmarksTool() {
     }
     announceCapacityWarning(byteVerdict);
 
-    const inspected = await inspectRunner.run(await readAsInputFiles(incoming));
+    const input = await readAsInputFilesOrToast(incoming);
+    if (!input) return;
+    const inspected = await inspectRunner.run(input);
     if (!inspected.ok) {
       if (!inspected.aborted) toast.error(inspected.message);
       inspectRunner.reset();
@@ -317,8 +321,10 @@ export function CreateBookmarksTool() {
     // Handlers keep this normalised already; re-run it here so any path that
     // adds rows can never hand the writer a skipped nesting level.
     const includedRows = normalizeLevels(included);
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await writer.run(
-      await readAsInputFiles(files),
+      input,
       {
         bookmarks: includedRows.map((row) => ({
           title: row.title.trim(),

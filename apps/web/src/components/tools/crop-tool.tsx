@@ -12,7 +12,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { usePageThumbnails } from '@/hooks/use-page-thumbnails';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { readAsInputFiles, totalBytes } from '@/lib/files';
+import { readAsInputFilesOrToast, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 interface PageSize {
@@ -94,8 +94,10 @@ export function CropTool() {
       return;
     }
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       {
         pageOrder: Array.from({ length: pageCount }, (_, pageIndex) => ({ docIndex: 0, pageIndex })),
         crop: {

@@ -107,7 +107,7 @@ import {
 } from '@/lib/audit-sidecar';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBlob, downloadBytes } from '@/lib/download';
-import { readAsInputFiles, PDF_ACCEPT } from '@/lib/files';
+import { readAsInputFiles, readAsInputFilesOrToast, PDF_ACCEPT } from '@/lib/files';
 import { useEditorSession } from '@/lib/editor-session';
 import { editorIsDirty } from '@/lib/editor-dirty';
 import type { EditorDoc } from '@/lib/editor-state';
@@ -889,7 +889,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     // results overwritten by the slower of the two.
     const request = ++loadSequence.current;
     setStage('preparing');
-    const outcome = await inspectRunner.run(await readAsInputFiles([file]));
+    // The read can reject (a file that turned unreadable between the picker
+    // and the read); left unguarded it stranded stage='preparing' and kept the
+    // dropzone disabled forever with no error.
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) {
+      setStage('idle');
+      return;
+    }
+    const outcome = await inspectRunner.run(input);
     if (request !== loadSequence.current) return; // superseded by a newer pick
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
@@ -1807,8 +1815,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       return;
     }
     setConfirmRedact(false);
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await redactRunner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         regions,
         outputName: `${file.name.replace(/\.pdf$/i, '')}-redacted`,
@@ -1950,8 +1960,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       return;
     }
     const refs: PageRef[] = pageOrder.map((pageIndex) => ({ docIndex: 0, pageIndex }));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await organizeRunner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         pageOrder: refs,
         outputName: `${file.name.replace(/\.pdf$/i, '')}-organized`,
@@ -2224,8 +2236,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       if (cover) linked.add(cover.id);
     }
     const objects = snapshot.objects.filter((object) => !linked.has(object.id));
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await editRunner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         edits,
         objects,

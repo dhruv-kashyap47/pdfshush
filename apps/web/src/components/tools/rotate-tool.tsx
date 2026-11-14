@@ -10,7 +10,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { usePageThumbnails, type PageTile } from '@/hooks/use-page-thumbnails';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { readAsInputFiles, totalBytes } from '@/lib/files';
+import { readAsInputFilesOrToast, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 type Turn = 0 | 90 | 180 | 270;
@@ -63,8 +63,10 @@ export function RotateTool() {
         : { docIndex: tile.docIndex, pageIndex: tile.pageIndex, rotateDegrees };
     });
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       {
         pageOrder,
         // Without this the shared `organize` job fell back to its own default

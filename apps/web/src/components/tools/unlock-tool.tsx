@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /**
@@ -48,7 +48,9 @@ export function UnlockTool() {
 
   const run = async () => {
     if (!file || running) return;
-    const outcome = await runner.run(await readAsInputFiles([file]), {
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
+    const outcome = await runner.run(input, {
       ...(password.length > 0 ? { password } : {}),
     });
     if (!outcome.ok) {

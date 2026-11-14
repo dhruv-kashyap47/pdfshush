@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { readAsInputFiles, shortName } from '@/lib/files';
+import { readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 type Placement = 'center' | 'tile';
@@ -90,8 +90,10 @@ export function StampMarkTool() {
     }
     if (files.length === 0 || running) return;
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       {
         outputName: `${files[0]!.name.replace(/\.[^.]+$/, '')}-stamped`,
         spec: {

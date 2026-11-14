@@ -31,7 +31,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const PERMISSION_OPTIONS: {
@@ -151,7 +151,9 @@ export function ProtectPdfTool() {
     setInspect(null);
     setSourceWarning(null);
 
-    const outcome = await inspectRunner.run(await readAsInputFiles([candidate]));
+    const input = await readAsInputFilesOrToast([candidate]);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (outcome.aborted) return;
       if (/password protected|incorrect password|encrypted/i.test(outcome.message)) {
@@ -176,8 +178,10 @@ export function ProtectPdfTool() {
 
   const run = async () => {
     if (!file || !canRun) return;
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         userPassword: password,
         ...(advanced && ownerPassword.length > 0 ? { ownerPassword } : {}),

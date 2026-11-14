@@ -29,7 +29,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /** Render-width presets. Recognition accuracy falls off below ~1500 px. */
@@ -100,15 +100,19 @@ export function OcrTool() {
     setInspect(null);
     setOwnerRestricted(false);
 
-    const inspected = await inspectRunner.run(await readAsInputFiles([candidate]));
+    const input = await readAsInputFilesOrToast([candidate]);
+    if (!input) return;
+    const inspected = await inspectRunner.run(input);
     const inspectionFailure = inspected.ok ? null : inspected;
     let accepted = inspected;
     if (inspectionFailure && !inspectionFailure.aborted && inspectionFailure.code === 'encrypted') {
       // pdf-lib only takes its decrypt path when a password is defined, and
       // an owner-restricted file has an empty user password. A real open
       // password still fails here, so only permission-only files get through.
+      const retryInput = await readAsInputFilesOrToast([candidate]);
+      if (!retryInput) return;
       const retry = await inspectRunner.run(
-        (await readAsInputFiles([candidate])).map((input) => ({ ...input, password: '' })),
+        retryInput.map((input) => ({ ...input, password: '' })),
       );
       if (retry.ok) {
         accepted = retry;
@@ -135,7 +139,8 @@ export function OcrTool() {
 
   const run = async () => {
     if (!file || running || overCap) return;
-    const inputs = await readAsInputFiles([file]);
+    const inputs = await readAsInputFilesOrToast([file]);
+    if (!inputs) return;
     if (ownerRestricted) {
       for (const input of inputs) input.password = '';
     }

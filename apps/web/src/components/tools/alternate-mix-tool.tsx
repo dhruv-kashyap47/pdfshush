@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName, totalBytes } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /**
@@ -45,7 +45,9 @@ export function AlternateMixTool() {
       return;
     }
 
-    const outcome = await inspectRunner.run(await readAsInputFiles(picked));
+    const input = await readAsInputFilesOrToast(picked);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -89,8 +91,10 @@ export function AlternateMixTool() {
       if (i < secondCount) pageOrder.push({ docIndex: second, pageIndex: i });
     }
 
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles(files),
+      input,
       {
         pageOrder,
         outputName: `${(startWith === 'first' ? a! : b!).name.replace(/\.pdf$/i, '')}-mixed`,

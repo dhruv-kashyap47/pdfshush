@@ -169,9 +169,19 @@ Pages would answer an unknown URL with the app shell and a **200** — a soft 40
 crawler the page exists. With it, the status is honest.
 
 The cache rules live in `apps/web/public/_headers`, which Vite copies into the build output and
-Pages applies. There is deliberately **no `/*` cache rule**: Pages joins the headers of every
-matching rule, so a catch-all would also apply to `/assets/*` and turn "immutable" into
-"immutable, no-cache".
+Pages applies. Pages joins the headers of every matching rule, so a catch-all `Cache-Control`
+would also apply to `/assets/*` and turn "immutable" into "immutable, no-cache". The file
+therefore uses Cloudflare's `!` detach: `/*` sets the document policy, and each narrower rule
+drops it before setting its own value (`/assets/*` gets the year-long `immutable` one).
+
+That catch-all value carries `no-transform`, and it is not a cache setting: it is what stops
+Cloudflare from injecting its own Web Analytics beacon (`beacon.min.js`) into the HTML. The
+document CSP would block the beacon anyway, but that would leave a violation in every visitor's
+console, and the policy would be the only thing standing between the "no analytics, no
+third-party scripts" claim and the edge. With `no-transform` the rewrite never happens. The cost
+is Cloudflare's edge compression of HTML; hashed assets are detached from that rule and still
+compress normally. If the beacon is still visible, Web Analytics is switched on for the zone —
+turn it off in **Analytics → Web Analytics** as well.
 
 ---
 
@@ -196,9 +206,10 @@ curl -fsS https://pdfshush.space/robots.txt
 # 4. An unknown URL is a real 404, not a 200 with a 404 page.
 curl -s -o /dev/null -w '%{http_code}\n' https://pdfshush.space/no-such-page   # 404
 
-# 5. Assets are immutable; the shell is not.
+# 5. Assets are immutable; the shell is not, and it may not be rewritten.
 curl -sI https://pdfshush.space/assets/$(ls apps/web/dist/assets | head -1) | grep -i cache-control
 curl -sI https://pdfshush.space/sw.js | grep -i cache-control
+curl -sI https://pdfshush.space/ | grep -i cache-control   # ... must-revalidate, no-transform
 ```
 
 Then the browser suites against the live URL:

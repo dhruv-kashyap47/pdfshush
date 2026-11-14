@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /**
@@ -57,7 +57,9 @@ export function GrayscaleTool() {
     setShowPreview(true);
     setInspect(null);
 
-    const outcome = await inspectRunner.run(await readAsInputFiles([candidate]));
+    const input = await readAsInputFilesOrToast([candidate]);
+    if (!input) return;
+    const outcome = await inspectRunner.run(input);
     if (!outcome.ok) {
       if (!outcome.aborted) toast.error(outcome.message);
       return;
@@ -77,8 +79,10 @@ export function GrayscaleTool() {
 
   const run = async () => {
     if (!file || running || overCap) return;
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles([file]),
+      input,
       undefined,
       { timeoutMs: timeoutForPageCount(inspect?.pageCount ?? 60) },
     );

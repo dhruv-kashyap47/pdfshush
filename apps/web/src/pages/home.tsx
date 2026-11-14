@@ -6,7 +6,7 @@ import { FaqSection } from '@/components/landing/faq';
 import { FeaturesSection } from '@/components/landing/features';
 import { HeroSection } from '@/components/landing/hero';
 import { AllToolsSection, PopularToolsSection } from '@/components/landing/tools-sections';
-import { AiShowcase } from '@/components/landing/ai-showcase';
+import { SocialProofSection } from '@/features/social-proof/social-proof';
 import { useReveal } from '@/hooks/use-reveal';
 
 export function HomePage() {
@@ -27,7 +27,7 @@ export function HomePage() {
   return (
     <>
       <HeroSection />
-      <AiShowcase />
+      <SocialProofSection />
       <PopularToolsSection />
       <AllToolsSection />
       <DocumentBand />

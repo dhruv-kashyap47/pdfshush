@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 /** `+4.0°` / `−3.5°`; the sign is the direction the page was turned. */
@@ -70,7 +70,9 @@ export function DeskewTool() {
     announceCapacityWarning(verdict);
     setFile(candidate);
     setInspect(null);
-    const inspected = await inspectRunner.run(await readAsInputFiles([candidate]));
+    const input = await readAsInputFilesOrToast([candidate]);
+    if (!input) return;
+    const inspected = await inspectRunner.run(input);
     if (!inspected.ok) {
       if (!inspected.aborted) toast.error(inspected.message);
       setFile(null);
@@ -91,8 +93,10 @@ export function DeskewTool() {
       }
       angle = parsed;
     }
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles([file]),
+      input,
       { ...(angle !== undefined ? { overrideAngle: angle } : {}) },
       { timeoutMs: timeoutForPageCount(inspect?.pageCount ?? 60) },
     );

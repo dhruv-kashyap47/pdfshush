@@ -28,6 +28,17 @@ describe('content security policy', () => {
     expect(policy).toContain("worker-src 'self' blob:");
   });
 
+  it('allows no third-party script origin', () => {
+    // The beacon Cloudflare injects at the edge is stopped by `no-transform` in
+    // public/_headers, not by an exception here. A `script-src` that names any
+    // host is how that exception would get added back in.
+    const scriptSrc = policy
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('script-src '));
+    expect(scriptSrc).toBe("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'");
+  });
+
   it('never widens connect-src to all HTTPS', () => {
     const connect = parseConnectSrc(policy);
     expect(connect).not.toContain('https:');

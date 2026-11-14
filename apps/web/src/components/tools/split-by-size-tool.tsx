@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const MB = 1024 * 1024;
@@ -65,7 +65,9 @@ export function SplitBySizeTool() {
       toast.error(`Set a target of at least ${MIN_TARGET_MB} MB.`);
       return;
     }
-    const outcome = await runner.run(await readAsInputFiles(files), {
+    const input = await readAsInputFilesOrToast(files);
+    if (!input) return;
+    const outcome = await runner.run(input, {
       targetBytes: targetBytes(),
     });
     if (!outcome.ok) {

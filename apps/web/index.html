@@ -71,6 +71,13 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <!--
+      Both spellings are needed. The unprefixed name is the standard one, and
+      Chrome logs a deprecation warning for a document that declares only the
+      `apple-` variant. The `apple-` variant is what iOS Safari actually reads
+      for the standalone launch, so it stays.
+    -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="pdfshush" />
     <meta name="application-name" content="pdfshush" />

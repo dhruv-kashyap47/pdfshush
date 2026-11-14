@@ -19,7 +19,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { usePageThumbnails } from '@/hooks/use-page-thumbnails';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, totalBytes } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 type Mode = 'text' | 'image';
@@ -150,7 +150,8 @@ export function WatermarkTool() {
       return;
     }
 
-    const inputFile = await readAsInputFiles(files);
+    const inputFile = await readAsInputFilesOrToast(files);
+    if (!inputFile) return;
     if (image && mode === 'image') {
       payload.spec.image = {
         data: new Uint8Array(await image.arrayBuffer()),

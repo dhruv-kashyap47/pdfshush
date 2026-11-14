@@ -499,6 +499,33 @@ describe('history', () => {
     expect((await body<{ history: unknown[] }>(await call('/api/account/history'))).history).toEqual([]);
   });
 
+  it('rejects counters that are not sane non-negative integers', async () => {
+    const { call } = await harness();
+    const base = { toolSlug: 'merge-pdf', toolName: 'Merge', fileName: 'a.pdf' };
+
+    for (const pageCount of [-1, 1.5, 100_001]) {
+      const response = await call('/api/account/history', {
+        method: 'POST',
+        body: JSON.stringify({ ...base, pageCount }),
+      });
+      expect(response.status).toBe(400);
+    }
+    for (const sizeBytes of [-1, 2.5, 501 * 1024 * 1024]) {
+      const response = await call('/api/account/history', {
+        method: 'POST',
+        body: JSON.stringify({ ...base, sizeBytes }),
+      });
+      expect(response.status).toBe(400);
+    }
+
+    // Zero stays valid: the SPA may record a count it does not know yet.
+    const accepted = await call('/api/account/history', {
+      method: 'POST',
+      body: JSON.stringify({ ...base, pageCount: 0, sizeBytes: 0 }),
+    });
+    expect(accepted.status).toBe(201);
+  });
+
   it('requires the identifying fields', async () => {
     const { call } = await harness();
     const response = await call('/api/account/history', {

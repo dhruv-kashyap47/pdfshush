@@ -33,7 +33,7 @@ import { Button } from '@/components/ui/button';
 import { useJobRunner } from '@/hooks/use-job-runner';
 import { checkClientCapacity, announceCapacityWarning } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
-import { largestBytes, readAsInputFiles, shortName } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 const KINDS: { id: DarkModeKind; name: string; blurb: string }[] = [
@@ -165,7 +165,9 @@ export function DarkModePdfTool() {
     setInspect(null);
     resetPreview();
 
-    const inspected = await inspectRunner.run(await readAsInputFiles([candidate]));
+    const input = await readAsInputFilesOrToast([candidate]);
+    if (!input) return;
+    const inspected = await inspectRunner.run(input);
     if (!current()) return;
     if (!inspected.ok) {
       if (!inspected.aborted) toast.error(inspected.message);
@@ -186,8 +188,10 @@ export function DarkModePdfTool() {
     }
 
     // Page 1 render for the live wipe preview, at a width sharp enough to read.
+    const previewInput = await readAsInputFilesOrToast([candidate]);
+    if (!previewInput) return;
     const outcome = await previewRunner.run(
-      await readAsInputFiles([candidate]),
+      previewInput,
       { pageIndexes: [0], targetWidthPx: 1000 },
       { timeoutMs: timeoutForPageCount(Math.max(doc.pageCount, 60)) },
     );
@@ -203,7 +207,19 @@ export function DarkModePdfTool() {
     // build the original layer and the pristine pixel cache from that copy.
     const bytes = new Uint8Array(thumb.data.slice(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: thumb.mimeType }));
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: thumb.mimeType }));
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(new Blob([bytes], { type: thumb.mimeType }));
+    } catch (error) {
+      // The preview URL exists before the decode; a failed decode would
+      // otherwise leak it (it never reaches the ref that revokes on reset).
+      URL.revokeObjectURL(url);
+      if (current()) {
+        toast.error('Could not decode the preview for this file.');
+        console.warn('[dark-mode] preview decode failed:', error);
+      }
+      return;
+    }
     if (!current()) {
       URL.revokeObjectURL(url);
       bitmap.close();
@@ -230,8 +246,10 @@ export function DarkModePdfTool() {
 
   const run = async () => {
     if (!file || running || overCap) return;
+    const input = await readAsInputFilesOrToast([file]);
+    if (!input) return;
     const outcome = await runner.run(
-      await readAsInputFiles([file]),
+      input,
       {
         kind,
         ...(kind === 'theme' ? { themeId } : {}),

@@ -26,7 +26,7 @@ import { useJobRunner } from '@/hooks/use-job-runner';
 import { announceCapacityWarning, checkClientCapacity } from '@/lib/client-capacity';
 import { downloadBytes } from '@/lib/download';
 import { formatBytes } from '@/lib/format';
-import { largestBytes, readAsInputFiles, shortName, totalBytes } from '@/lib/files';
+import { largestBytes, readAsInputFilesOrToast, shortName, totalBytes } from '@/lib/files';
 import { recordRecent } from '@/tools/recent';
 
 interface Entry {
@@ -65,8 +65,19 @@ export function MergeTool() {
     busyRef.current = true;
     setEntries(incoming.map((file) => ({ id: crypto.randomUUID(), file, status: 'loading' as const })));
 
-    const outcome = await inspectRunner.run(await readAsInputFiles(incoming));
+    const input = await readAsInputFilesOrToast(incoming);
     busyRef.current = false;
+    if (!input) {
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.status === 'loading'
+            ? { ...entry, status: 'error' as const, error: 'Could not read file' }
+            : entry,
+        ),
+      );
+      return;
+    }
+    const outcome = await inspectRunner.run(input);
 
     if (!outcome.ok) {
       // Aborted runs must not leave rows stuck on "reading…" -- that state
@@ -118,8 +129,10 @@ export function MergeTool() {
       return;
     }
     announceCapacityWarning(pageVerdict);
+    const input = await readAsInputFilesOrToast(entries.map((entry) => entry.file));
+    if (!input) return;
     const outcome = await mergeRunner.run(
-      await readAsInputFiles(entries.map((entry) => entry.file)),
+      input,
       { reverse },
       { timeoutMs: timeoutForPageCount(pages) },
     );

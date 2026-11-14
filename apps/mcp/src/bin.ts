@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const config = loadConfig(process.env);
   // stderr is the diagnostic channel for stdio servers; stdout is protocol.
   process.stderr.write(
-    `pdfshush-mcp: serving /api/v1 at ${config.baseUrl.toString()} (key ${config.apiKey.slice(0, 9)}…)\n`,
+    `pdfshush-mcp: serving /api/v1 at ${config.baseUrl.toString()} (API key configured: yes)\n`,
   );
   await serveStdio(config);
 }

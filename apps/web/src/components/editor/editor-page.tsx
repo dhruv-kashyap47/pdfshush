@@ -357,6 +357,15 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
+  /**
+   * Removal for the window-level gesture listeners, recorded against the
+   * exact identities that were attached. Every render recreates
+   * `onWindowMove` and friends, so the unmount cleanup -- which runs the
+   * FIRST render's `stopGesture` closure -- must remove via this ref rather
+   * than that closure's own (never-attached) names, or a mid-gesture unmount
+   * leaks five window listeners and the whole page subtree with them.
+   */
+  const detachGestureListeners = useRef<() => void>(() => {});
   const [ghost, setGhost] = useState<Rect | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -383,15 +392,18 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     window.addEventListener('pointercancel', onWindowUp);
     window.addEventListener('blur', onWindowBlur);
     window.addEventListener('keydown', onGestureKey);
+    detachGestureListeners.current = () => {
+      window.removeEventListener('pointermove', onWindowMove);
+      window.removeEventListener('pointerup', onWindowUp);
+      window.removeEventListener('pointercancel', onWindowUp);
+      window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('keydown', onGestureKey);
+    };
   };
 
   const stopGesture = () => {
     gestureRef.current = null;
-    window.removeEventListener('pointermove', onWindowMove);
-    window.removeEventListener('pointerup', onWindowUp);
-    window.removeEventListener('pointercancel', onWindowUp);
-    window.removeEventListener('blur', onWindowBlur);
-    window.removeEventListener('keydown', onGestureKey);
+    detachGestureListeners.current();
   };
 
   /** Escape abandons an in-flight draw: no object, no undo entry. */
