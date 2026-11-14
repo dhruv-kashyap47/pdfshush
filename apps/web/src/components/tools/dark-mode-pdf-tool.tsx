@@ -207,7 +207,19 @@ export function DarkModePdfTool() {
     // build the original layer and the pristine pixel cache from that copy.
     const bytes = new Uint8Array(thumb.data.slice(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: thumb.mimeType }));
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: thumb.mimeType }));
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(new Blob([bytes], { type: thumb.mimeType }));
+    } catch (error) {
+      // The preview URL exists before the decode; a failed decode would
+      // otherwise leak it (it never reaches the ref that revokes on reset).
+      URL.revokeObjectURL(url);
+      if (current()) {
+        toast.error('Could not decode the preview for this file.');
+        console.warn('[dark-mode] preview decode failed:', error);
+      }
+      return;
+    }
     if (!current()) {
       URL.revokeObjectURL(url);
       bitmap.close();
