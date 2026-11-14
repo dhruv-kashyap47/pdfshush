@@ -88,6 +88,7 @@ describe('testimonial render', () => {
     expect(markup).toContain('--sp-duration:60s');
     expect(markup).toContain('--sp-duration:75s');
     expect(markup.match(/sp-marquee--reverse/g)).toHaveLength(1);
+    expect(markup.match(/tabindex="0"/g)).toHaveLength(2);
     expect(markup).toContain('Customer reviews, first row');
     expect(markup).toContain('Customer reviews, second row');
   });

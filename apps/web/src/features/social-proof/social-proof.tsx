@@ -33,6 +33,7 @@ function Marquee({ speed, reverse = false, label, children }: MarqueeProps) {
       className={`sp-marquee${reverse ? ' sp-marquee--reverse' : ''}`}
       role="group"
       aria-label={label}
+      tabIndex={0}
     >
       <div className="sp-marquee__viewport">
         <div
