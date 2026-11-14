@@ -13,7 +13,7 @@
  */
 
 import type { Express, Request, Response } from 'express';
-import { validateWorkflow, type Workflow } from '@pdfshush/pdf-core/node';
+import { LIMITS, validateWorkflow, type Workflow } from '@pdfshush/pdf-core/node';
 import type { AccountStore } from './store.js';
 import { MAX_WORKFLOWS } from './store.js';
 import type { Account, AuthStore } from '../auth/store.js';
@@ -50,6 +50,27 @@ function view(account: Account): AccountView {
     name: account.name,
     picture: account.picture,
   };
+}
+
+/**
+ * Structural ceiling for a synced history row's page count. A merged document's
+ * count is a sum, so `LIMITS.client.maxPages` (a per-document processing cap)
+ * would reject legitimate rows; this bound is far beyond anything the pipelines
+ * produce and exists only to keep a NaN/Infinity/1e15 from reaching Mongo.
+ */
+const MAX_HISTORY_PAGE_COUNT = 100_000;
+/** No artifact either side of the pipeline exceeds the server upload cap. */
+const MAX_HISTORY_BYTES = LIMITS.server.maxUploadBytes;
+
+/**
+ * `undefined` = absent (omit the field), `null` = present but not storable.
+ * Only plain non-negative integers inside `max` qualify: history counters are
+ * display metadata, so a negative, fraction, NaN or Infinity is a client bug.
+ */
+function historyCount(value: unknown, max: number): number | undefined | null {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > max) return null;
+  return value;
 }
 
 export function registerAccountRoutes(app: Express, deps: AccountRoutesDeps): void {
@@ -165,14 +186,30 @@ export function registerAccountRoutes(app: Express, deps: AccountRoutesDeps): vo
       body.createdAt <= Date.now() + 5 * 60_000
         ? body.createdAt
         : undefined;
+    const pageCount = historyCount(body.pageCount, MAX_HISTORY_PAGE_COUNT);
+    if (pageCount === null) {
+      response.status(400).json({
+        error: `pageCount must be a whole number between 0 and ${MAX_HISTORY_PAGE_COUNT}.`,
+        code: 'validation_failed',
+      });
+      return;
+    }
+    const sizeBytes = historyCount(body.sizeBytes, MAX_HISTORY_BYTES);
+    if (sizeBytes === null) {
+      response.status(400).json({
+        error: `sizeBytes must be a whole number between 0 and ${MAX_HISTORY_BYTES}.`,
+        code: 'validation_failed',
+      });
+      return;
+    }
     const entry = await deps.account.addHistory(account.id, {
       toolSlug: body.toolSlug,
       toolName: body.toolName,
       fileName: body.fileName,
       ...(createdAt !== undefined ? { createdAt } : {}),
       ...(clientId !== undefined ? { clientId } : {}),
-      ...(typeof body.pageCount === 'number' ? { pageCount: body.pageCount } : {}),
-      ...(typeof body.sizeBytes === 'number' ? { sizeBytes: body.sizeBytes } : {}),
+      ...(pageCount !== undefined ? { pageCount } : {}),
+      ...(sizeBytes !== undefined ? { sizeBytes } : {}),
     });
     response.status(201).json({ entry });
   });
