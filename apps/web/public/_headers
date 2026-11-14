@@ -4,10 +4,13 @@
 # The file is copied into the build output (`dist/_headers`) and applied to
 # static asset responses. It is not served as a file itself.
 #
-# The security headers apply to everything. The cache rules are deliberately
-# narrow: Cloudflare joins the headers of every matching rule, so a catch-all
-# that also set Cache-Control would join with the /assets/* rule and turn
-# "immutable" into "immutable, no-cache" -- the worst of both.
+# The security headers apply to everything. Cloudflare joins the headers of
+# every matching rule, so a catch-all that also set Cache-Control would join
+# with the /assets/* rule and turn "immutable" into "immutable, no-cache" --
+# the worst of both. That is what the `!` detaches below are for: the broad rule
+# sets the document policy, and each narrower rule drops it before setting its
+# own value, so two Cache-Control values are never joined. Rules are applied in
+# file order, which is why every detach sits after the rule it overrides.
 #
 # Two facts drive the cache policy:
 #
@@ -18,44 +21,47 @@
 #     service worker, the manifest -- is revalidated. A cached shell is what
 #     strands a visitor on a build whose hashed chunks are gone, and PLAN.md
 #     34.7 shipped recovery logic for exactly that.
+#
+# `no-transform` on the catch-all is not a cache setting. Cloudflare rewrites
+# HTML it is allowed to modify, and one of the things it injects is its own Web
+# Analytics beacon (static.cloudflareinsights.com/beacon.min.js). This product's
+# promise is that there is no analytics and no third-party script, so the CSP in
+# apps/web/src/lib/csp.ts blocks that beacon -- which leaves a CSP violation in
+# every visitor's console, and makes the policy the only thing standing between
+# the claim and the edge. `no-transform` stops the rewrite at the source:
+# Cloudflare may not modify a payload it is told not to transform. It sits on
+# the catch-all rather than on each prerendered route because an unmatched path
+# is served `index.html` as the SPA fallback, and that document must be covered
+# too.
+#
+# The cost is Cloudflare's edge compression of HTML, which it skips for a
+# `no-transform` payload. The documents are ~16 kB; every hashed asset is
+# detached below and still compresses normally.
+#
+#   pnpm --filter @pdfshush/web build
+#   curl -sI https://pdfshush.space/ | grep -i cache-control
+#   -> public, max-age=0, must-revalidate, no-transform
+#
+# https://developers.cloudflare.com/web-analytics/faq/
+# https://developers.cloudflare.com/cache/concepts/cache-control/
 
 /*
 	X-Content-Type-Options: nosniff
 	Referrer-Policy: strict-origin-when-cross-origin
 	X-Frame-Options: DENY
+	Cache-Control: public, max-age=0, must-revalidate, no-transform
 
 /assets/*
+	! Cache-Control
 	Cache-Control: public, max-age=31536000, immutable
 
-/index.html
-	Cache-Control: public, max-age=0, must-revalidate
-
-/sw.js
-	Cache-Control: public, max-age=0, must-revalidate
-
-/manifest.webmanifest
-	Cache-Control: public, max-age=0, must-revalidate
-
 /robots.txt
+	! Cache-Control
 	Cache-Control: public, max-age=3600
 
 /sitemap.xml
+	! Cache-Control
 	Cache-Control: public, max-age=3600
-
-/tools/*
-	Cache-Control: public, max-age=0, must-revalidate
-
-/account
-	Cache-Control: public, max-age=0, must-revalidate
-
-/workflows
-	Cache-Control: public, max-age=0, must-revalidate
-
-/trust
-	Cache-Control: public, max-age=0, must-revalidate
-
-/verify
-	Cache-Control: public, max-age=0, must-revalidate
 
 # The Content-Security-Policy is a meta tag in the document itself
 # (apps/web/src/lib/csp.ts), so it needs no header here.
