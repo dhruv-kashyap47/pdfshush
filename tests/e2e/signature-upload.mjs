@@ -8,7 +8,7 @@
  * Run with the dev server up:  pnpm dev  &&  node tests/e2e/signature-upload.mjs
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
@@ -155,6 +155,25 @@ async function main() {
       'placed signature keeps the uploaded ink aspect (not the pad aspect)',
       Math.abs(actualRatio - expectedRatio) < expectedRatio * 0.25,
       `${actualRatio.toFixed(2)} vs ${expectedRatio.toFixed(2)}`,
+    );
+
+    // The audit note must describe the signature as uploaded, not as drawn.
+    await page.getByTestId('signer-label-input').fill('Uploaded Ink');
+    await page.getByRole('button', { name: 'Sign & export' }).click();
+    await waitFor(
+      async () => ((await page.getByTestId('download-audit-note').count()) > 0 ? true : null),
+      60_000,
+      'sign result panel',
+    );
+    const [auditDownload] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30_000 }),
+      page.getByTestId('download-audit-note').click(),
+    ]);
+    const audit = JSON.parse(await readFile(await auditDownload.path(), 'utf8'));
+    check(
+      'audit records the upload as uploaded, not drawn',
+      audit.signed?.method === 'uploaded',
+      String(audit.signed?.method),
     );
 
     check('no console errors during the run', consoleErrors.length === 0, consoleErrors.join(' | '));

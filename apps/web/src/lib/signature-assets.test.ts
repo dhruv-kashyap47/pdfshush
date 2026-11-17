@@ -117,6 +117,12 @@ describe('isSignatureAssetRecord', () => {
     ).toBe(true);
   });
 
+  it('accepts an uploaded record without strokes', () => {
+    expect(
+      isSignatureAssetRecord({ ...valid, method: 'uploaded', strokes: undefined }),
+    ).toBe(true);
+  });
+
   it('rejects wrong method, missing png, empty png and oversize png', () => {
     expect(isSignatureAssetRecord({ ...valid, method: 'scanned' })).toBe(false);
     expect(isSignatureAssetRecord({ ...valid, png: undefined })).toBe(false);

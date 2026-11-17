@@ -28,7 +28,7 @@ export interface AuditSidecarInput {
   outputBytes: Uint8Array | ArrayBuffer;
   /** Signature render kind for this export (raster in slice one). */
   renderKind: 'raster' | 'vector';
-  method: 'drawn' | 'typed';
+  method: 'drawn' | 'typed' | 'uploaded';
   label: string | undefined;
   placements: AuditPlacement[];
 }
@@ -55,7 +55,7 @@ export interface AuditSidecar {
   source: { digest: string; filename: string };
   output: { digest: string; filename: string };
   signed: {
-    method: 'drawn' | 'typed';
+    method: 'drawn' | 'typed' | 'uploaded';
     signerLabel?: string;
     renderKind: 'raster' | 'vector';
     placements: AuditPlacement[];

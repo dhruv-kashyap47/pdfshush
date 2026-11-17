@@ -22,7 +22,11 @@ export const SIGNATURE_LABEL_MAX_CHARS = 80;
 /** Versioned, so a stored record can be read long after the library changes. */
 export const SIGNATURE_STROKES_SCHEMA = 1;
 
-export type SignatureMethod = 'drawn' | 'typed';
+/**
+ * How the signature was produced. `uploaded` is a photo/scan of real ink, not
+ * a pad capture; the audit note must say so rather than claiming `drawn`.
+ */
+export type SignatureMethod = 'drawn' | 'typed' | 'uploaded';
 
 /**
  * The point-relevant fields of a `signature_pad` point group. Extra fields the
@@ -246,7 +250,9 @@ export function isSignatureAssetRecord(value: unknown): value is SignatureAssetR
   if (!isPlainObject(value)) return false;
   if (typeof value.id !== 'string' || value.id.length === 0 || value.id.length > 100) return false;
   if (!isPositiveFinite(value.createdAt, Number.MAX_SAFE_INTEGER)) return false;
-  if (value.method !== 'drawn' && value.method !== 'typed') return false;
+  if (value.method !== 'drawn' && value.method !== 'typed' && value.method !== 'uploaded') {
+    return false;
+  }
   if (!(value.png instanceof Blob)) return false;
   if (value.png.size === 0 || value.png.size > SIGNATURE_PNG_MAX_BYTES) return false;
   if (!isPositiveFinite(value.width, MAX_CAPTURE_SIDE)) return false;

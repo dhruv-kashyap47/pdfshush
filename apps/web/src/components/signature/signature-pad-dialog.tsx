@@ -409,7 +409,9 @@ export function SignaturePadDialog({
         : !padEmpty);
 
   const adoptAsset = useCallback((asset: SignatureAssetRecord) => {
-    setTab(asset.method === 'typed' ? 'type' : 'draw');
+    setTab(
+      asset.method === 'typed' ? 'type' : asset.method === 'uploaded' ? 'upload' : 'draw',
+    );
     setAdopted(asset);
     // The adopted PNG is the truth surface; blank the pad and any typed text
     // beneath it.
@@ -438,7 +440,7 @@ export function SignaturePadDialog({
       if (!uploaded) return null;
       return {
         png: uploaded.png,
-        method: 'drawn',
+        method: 'uploaded',
         width: uploaded.width,
         height: uploaded.height,
       };
@@ -843,8 +845,11 @@ export function SignaturePadDialog({
                         className="size-8 rounded-full text-muted-foreground transition-transform duration-200 active:scale-[0.96] disabled:opacity-35"
                         aria-label="Clear the uploaded image"
                         data-testid="signature-upload-clear"
-                        disabled={!uploaded}
-                        onClick={() => setUploaded(null)}
+                        disabled={!uploaded && !adopted}
+                        onClick={() => {
+                          setUploaded(null);
+                          setAdopted(null);
+                        }}
                       >
                         <Eraser className="size-4" />
                       </Button>

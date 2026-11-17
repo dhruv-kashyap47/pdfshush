@@ -139,7 +139,11 @@ export function SignatureTool() {
                 </div>
                 <div className="flex items-center justify-between px-4 py-2.5 text-[11px] text-muted-foreground">
                   <span className="tracking-wide uppercase">
-                    {asset.method === 'drawn' ? 'Drawn' : 'Typed'}
+                    {asset.method === 'drawn'
+                      ? 'Drawn'
+                      : asset.method === 'uploaded'
+                        ? 'Uploaded'
+                        : 'Typed'}
                   </span>
                   <span className="tabular-nums">
                     {new Date(asset.createdAt).toLocaleDateString()}

@@ -135,6 +135,7 @@ import {
   SIGNATURE_LABEL_MAX_CHARS,
   sanitizeSignatureLabel,
   scaledSignatureSize,
+  type SignatureMethod,
 } from '@/lib/signature-assets';
 import {
   bodySelectionToDisplay,
@@ -487,7 +488,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   /** D2 signer label: optional, sanitized at save time, never a secret. */
   const [signerLabel, setSignerLabel] = useState('');
   /** Render kind/method of the latest placed signature, for the audit note. */
-  const lastSignatureMethodRef = useRef<'drawn' | 'typed'>('drawn');
+  const lastSignatureMethodRef = useRef<SignatureMethod>('drawn');
   /** The produced sidecar, offered as a second download on the result panel. */
   const [auditNote, setAuditNote] = useState<{ fileName: string; json: string } | null>(null);
   const [auditNoteError, setAuditNoteError] = useState<string | null>(null);

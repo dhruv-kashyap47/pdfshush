@@ -7310,9 +7310,9 @@ allocation failures are checked before the size-cap pattern.
 | Step | Command | Result |
 | --- | --- | --- |
 | Typecheck | `pnpm typecheck` | pass |
-| Unit | `pnpm test` | 1,654 passed, 0 failed, 1 expected fail |
+| Unit | `pnpm test` | 1,655 passed, 0 failed, 1 expected fail |
 | pdf-core | `vitest run` (package) | 586 passed, 1 expected fail |
-| web | `vitest run` (package) | 279 passed |
+| web | `vitest run` (package) | 280 passed |
 | Build | `pnpm build` | pass, 63 routes prerendered |
 | Bundle | `pnpm test:bundle` | pass, 0 engines in main |
 | Provenance | `pnpm test:provenance` | OK, 0 derived files |
@@ -7324,7 +7324,7 @@ allocation failures are checked before the size-cap pattern.
 | Accessibility | `node tests/e2e/a11y.mjs` | all checks passed |
 | Fill & Sign | `node tests/e2e/sign.mjs` | all checks passed |
 
-Sprint 1 comparison: pdf-core 580+1 -> 586+1, web 211 -> 279. New E2E coverage:
+Sprint 1 comparison: pdf-core 580+1 -> 586+1, web 211 -> 280. New E2E coverage:
 vector ink and one-undo, check/cross/date/stamp placement, preset isolation
 from redaction, copy/paste offset, typed 400% + fit page, outline at fit and
 400%, signature upload transparency and aspect.
@@ -7369,5 +7369,12 @@ A read-through of the new surface found and fixed these before close:
   next placement.
 - **Upload decode after the dialog closes** no longer installs state into an
   unmounted tree.
+- **Uploaded signatures were recorded as `drawn`.** The audit note and the
+  asset list now use an explicit `uploaded` method, so a photo of real ink is
+  never described as a pad capture. The signature-upload E2E reads the audit
+  JSON back and asserts the method.
+- **Clearing an adopted saved signature on the Upload tab** did nothing; the
+  clear button now clears either the upload or the adopted asset.
+
 
 
