@@ -3,6 +3,7 @@ import {
   EDITOR_TOOL_DEFS,
   defaultToolForMode,
   toolDef,
+  toolStatusLabel,
   toolsForMode,
   type EditorMode,
 } from './editor-tools';
@@ -48,6 +49,28 @@ describe('editor capability registry', () => {
     for (const tool of EDITOR_TOOL_DEFS) {
       expect(typeof tool.capability.history).toBe('boolean');
       expect(tool.capability.controls).toBeInstanceOf(Array);
+    }
+  });
+
+  test('quick-parity tools are offered in the editing workspaces only', () => {
+    const quick = ['pen', 'check', 'cross', 'date', 'stamp'] as const;
+    for (const mode of ['edit', 'sign', 'ai'] as const) {
+      const ids = toolsForMode(mode).map((tool) => tool.id);
+      for (const id of quick) expect(ids, `${mode} offers ${id}`).toContain(id);
+    }
+    for (const mode of ['redact', 'organize'] as const) {
+      const ids = toolsForMode(mode).map((tool) => tool.id);
+      for (const id of quick) expect(ids, `${mode} hides ${id}`).not.toContain(id);
+    }
+  });
+
+  test('every declared shortcut is unique and every tool has a status label', () => {
+    const shortcuts = EDITOR_TOOL_DEFS.map((tool) => tool.shortcut).filter(
+      (shortcut): shortcut is string => Boolean(shortcut),
+    );
+    expect(new Set(shortcuts).size).toBe(shortcuts.length);
+    for (const tool of EDITOR_TOOL_DEFS) {
+      expect(toolStatusLabel(tool.id).length).toBeGreaterThan(0);
     }
   });
 });

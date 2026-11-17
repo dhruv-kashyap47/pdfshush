@@ -17,7 +17,9 @@ import {
   Image as ImageIcon,
   Italic,
   Minus,
+  PenTool,
   Square,
+  Stamp,
   Trash2,
   Type,
   X,
@@ -53,6 +55,10 @@ const OBJECT_TITLES: Record<EditorObject['kind'], string> = {
   ellipse: 'Ellipse',
   line: 'Line',
   arrow: 'Arrow',
+  ink: 'Ink',
+  check: 'Check mark',
+  cross: 'Cross mark',
+  stamp: 'Stamp',
 };
 
 const OBJECT_ICONS: Record<EditorObject['kind'], typeof Type> = {
@@ -66,6 +72,10 @@ const OBJECT_ICONS: Record<EditorObject['kind'], typeof Type> = {
   ellipse: Square,
   line: Minus,
   arrow: Minus,
+  ink: PenTool,
+  check: Check,
+  cross: X,
+  stamp: Stamp,
 };
 
 /** Dark check mark on light swatches, white on dark ones. */
@@ -430,6 +440,83 @@ export function EditorInspector({
               Drag to move the image. Use the corner handles to resize it proportionally.
             </p>
           ) : null}
+
+          {kind === 'ink' ? (
+            <>
+              <div className="flex flex-col gap-2">
+                <SectionLabel>Ink colour</SectionLabel>
+                <Swatches
+                  label="Ink colour"
+                  colors={SWATCHES}
+                  active={object.stroke}
+                  onPick={(color) => onPatch({ stroke: color ?? '#1f293b' })}
+                />
+              </div>
+              <StrokeWidthPicker
+                value={object.strokeWidth ?? 1.5}
+                onChange={(strokeWidth) => onPatch({ strokeWidth })}
+              />
+              <div className="flex flex-col gap-1.5">
+                <SectionLabel>Opacity</SectionLabel>
+                <div className="flex items-center gap-0.5 self-start rounded-md border p-0.5">
+                  {[0.25, 0.5, 0.75, 1].map((opacity) => (
+                    <Button
+                      key={opacity}
+                      type="button"
+                      variant={(object.opacity ?? 1) === opacity ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-7 min-w-8 px-2 text-xs tabular-nums"
+                      aria-pressed={(object.opacity ?? 1) === opacity}
+                      data-testid={`inspector-ink-opacity-${Math.round(opacity * 100)}`}
+                      onClick={() => onPatch({ opacity })}
+                    >
+                      {Math.round(opacity * 100)}%
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          {kind === 'check' || kind === 'cross' ? (
+            <>
+              <div className="flex flex-col gap-2">
+                <SectionLabel>Mark colour</SectionLabel>
+                <Swatches
+                  label="Mark colour"
+                  colors={SWATCHES}
+                  active={object.stroke}
+                  onPick={(color) => onPatch({ stroke: color ?? '#15803d' })}
+                />
+              </div>
+              <StrokeWidthPicker
+                value={object.strokeWidth ?? 2}
+                onChange={(strokeWidth) => onPatch({ strokeWidth })}
+              />
+            </>
+          ) : null}
+
+          {kind === 'stamp' ? (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <SectionLabel>Label</SectionLabel>
+                <StampLabelInput value={object.text} onCommit={(text) => onPatch({ text })} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <SectionLabel>Stamp colour</SectionLabel>
+                <Swatches
+                  label="Stamp colour"
+                  colors={SWATCHES}
+                  active={object.color}
+                  onPick={(color) => onPatch({ color: color ?? '#15803d' })}
+                />
+              </div>
+              <FontSizeInput
+                value={object.fontSize ?? 16}
+                onCommit={(fontSize) => onPatch({ fontSize })}
+              />
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -486,8 +573,46 @@ function FontSizeInput({
   );
 }
 
-function StrokeWidthPicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+/**
+ * Stamp labels are editable after placement, like text boxes: committed on
+ * blur or Enter so one rename is one undo step.
+ */
+function StampLabelInput({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (text: string) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (raw: string) => {
+    const next = raw.trim();
+    if (next.length > 0 && next !== value) onCommit(next);
+    setDraft(null);
+  };
   return (
+    <Input
+      id="inspector-stamp-label"
+      aria-label="Stamp label"
+      type="text"
+      maxLength={80}
+      className="h-8"
+      data-testid="inspector-stamp-label"
+      value={draft ?? value}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => commit(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commit((event.target as HTMLInputElement).value);
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+}
+
+function StrokeWidthPicker({ value, onChange }: { value: number; onChange: (value: number) => void }) {  return (
     <div className="flex flex-col gap-1.5">
       <SectionLabel>Stroke width</SectionLabel>
       <div className="flex items-center gap-0.5 self-start rounded-md border p-0.5">

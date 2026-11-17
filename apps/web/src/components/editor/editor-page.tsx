@@ -23,6 +23,9 @@ import { TextLayer } from '@/components/editor/text-layer';
 import type { EditorTool } from '@/lib/editor-tools';
 import type { EditorProposalMarker } from '@/lib/editor-tools';
 import { isFormWidgetChecked } from '@/lib/form-widgets';
+import { normalizeInk, sampleInk, type InkPoint } from '@/lib/ink';
+import { DEFAULT_STAMP_PRESET, type StampPreset } from '@/lib/stamp-presets';
+import { formatStampDate } from '@/lib/stamp-date';
 import type { ParagraphEditState, TextSelectionState } from '@/lib/text-editing';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +47,10 @@ export interface EditorPageProps {
   selectedId: string | null;
   editingId: string | null;
   tool: EditorTool;
+  /** Preset the stamp tool will place next (chosen in the context bar). */
+  stampPreset?: StampPreset;
+  /** Debug overlay: draw the detected text model's outlines. */
+  debugOutline?: boolean;
   runs: TextRun[] | null;
   /** Structured text model for this page, when extraction has finished. */
   layout: PageLayout | null;
@@ -96,6 +103,7 @@ export interface EditorPageProps {
 
 type Gesture =
   | { kind: 'create'; startX: number; startY: number }
+  | { kind: 'ink'; points: InkPoint[] }
   | { kind: 'move'; id: string; startLocalX: number; startLocalY: number; origX: number; origY: number }
   | { kind: 'resize'; id: string; corner: 'nw' | 'ne' | 'sw' | 'se'; orig: Rect };
 
@@ -124,6 +132,8 @@ const DEFAULT_COLORS = {
   strikeout: '#d92b2b',
   underline: '#1a57e6',
   ink: '#1f293b',
+  check: '#15803d',
+  stamp: '#15803d',
 } as const;
 
 let idCounter = 0;
@@ -147,11 +157,21 @@ export function describeEditorObject(object: EditorObject): string {
   const content =
     object.kind === 'text'
       ? `: ${object.text.trim().slice(0, 60) || 'empty'}`
-      : '';
+      : object.kind === 'stamp'
+        ? `: ${object.text.trim().slice(0, 60)}`
+        : object.kind === 'ink'
+          ? `: ${object.points.length} point stroke`
+          : '';
   return `${kind} object${content}, page ${object.pageIndex + 1}, x ${Math.round(object.x)}, y ${Math.round(object.y)}`;
 }
 
-function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorObject | null {  const base = { id: newObjectId(), pageIndex, ...rect, role: 'content' as const };
+function objectForTool(
+  tool: EditorTool,
+  pageIndex: number,
+  rect: Rect,
+  stampPreset: StampPreset = DEFAULT_STAMP_PRESET,
+): EditorObject | null {
+  const base = { id: newObjectId(), pageIndex, ...rect, role: 'content' as const };
   switch (tool) {
     case 'text':
       return {
@@ -203,6 +223,41 @@ function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorO
     case 'line':
     case 'arrow':
       return { ...base, kind: tool, stroke: DEFAULT_COLORS.ink, strokeWidth: 1.5 };
+    case 'pen':
+      // The pen is a freehand gesture, not a box: the page builds it on release.
+      return null;
+    case 'check':
+    case 'cross':
+      return {
+        ...base,
+        kind: tool,
+        stroke: DEFAULT_COLORS.check,
+        strokeWidth: 2,
+        width: Math.max(rect.width, 34),
+        height: Math.max(rect.height, 34),
+      };
+    case 'date': {
+      const stamp = formatStampDate();
+      return {
+        ...base,
+        kind: 'text',
+        text: stamp.text,
+        fontSize: 14,
+        color: DEFAULT_COLORS.text,
+        width: Math.max(rect.width, 170),
+        height: Math.max(rect.height, 20),
+      };
+    }
+    case 'stamp':
+      return {
+        ...base,
+        kind: 'stamp',
+        text: stampPreset.label,
+        color: stampPreset.color,
+        fontSize: 16,
+        width: Math.max(rect.width, 140),
+        height: Math.max(rect.height, 42),
+      };
     default:
       return null;
   }
@@ -225,6 +280,13 @@ function defaultRectFor(tool: EditorTool, x: number, y: number): Rect {
     case 'line':
     case 'arrow':
       return { x, y, width: 140, height: 0 };
+    case 'check':
+    case 'cross':
+      return { x: x - 17, y: y - 17, width: 34, height: 34 };
+    case 'date':
+      return { x, y, width: 180, height: 20 };
+    case 'stamp':
+      return { x: x - 70, y: y - 21, width: 140, height: 42 };
     default:
       return { x, y, width: 1, height: 1 };
   }
@@ -372,6 +434,8 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
    */
   const detachGestureListeners = useRef<() => void>(() => {});
   const [ghost, setGhost] = useState<Rect | null>(null);
+  /** Live freehand stroke while the pen is down (display space). */
+  const [inkGhost, setInkGhost] = useState<InkPoint[] | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
 
@@ -391,7 +455,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     // take over the same gesture slot and strand the first drag's history.
     if (gestureRef.current) return;
     gestureRef.current = gesture;
-    if (gesture.kind !== 'create') p.onBeginTx();
+    if (gesture.kind === 'move' || gesture.kind === 'resize') p.onBeginTx();
     window.addEventListener('pointermove', onWindowMove);
     window.addEventListener('pointerup', onWindowUp);
     window.addEventListener('pointercancel', onWindowUp);
@@ -418,7 +482,8 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     if (!gesture) return;
     stopGesture();
     setGhost(null);
-    if (gesture.kind !== 'create') propsRef.current.onEndTx();
+    setInkGhost(null);
+    if (gesture.kind === 'move' || gesture.kind === 'resize') propsRef.current.onEndTx();
   }
 
   /** Pointer released outside the window: commit what moved, cancel ghosts. */
@@ -427,7 +492,8 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     const p = propsRef.current;
     stopGesture();
     setGhost(null);
-    if (gesture && gesture.kind !== 'create') p.onEndTx();
+    setInkGhost(null);
+    if (gesture && (gesture.kind === 'move' || gesture.kind === 'resize')) p.onEndTx();
   }
 
   function onWindowMove(event: PointerEvent) {
@@ -438,6 +504,14 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
 
     if (gesture.kind === 'create') {
       setGhost(normalizeRect(gesture.startX, gesture.startY, point.x, point.y));
+      return;
+    }
+    if (gesture.kind === 'ink') {
+      const next = sampleInk(gesture.points, point);
+      if (next !== gesture.points) {
+        gesture.points = next;
+        setInkGhost(next);
+      }
       return;
     }
     if (gesture.kind === 'move') {
@@ -473,6 +547,29 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     stopGesture();
     if (!gesture) return;
 
+    if (gesture.kind === 'ink') {
+      const point = toLocal(event.clientX, event.clientY);
+      const points = sampleInk(gesture.points, point);
+      const normalized = normalizeInk(points);
+      setInkGhost(null);
+      if (normalized) {
+        p.onCreate({
+          id: newObjectId(),
+          kind: 'ink',
+          role: 'content',
+          pageIndex: p.pageIndex,
+          x: normalized.bounds.x,
+          y: normalized.bounds.y,
+          width: normalized.bounds.width,
+          height: normalized.bounds.height,
+          points: normalized.points,
+          stroke: DEFAULT_COLORS.ink,
+          strokeWidth: 1.5,
+        });
+      }
+      return;
+    }
+
     if (gesture.kind === 'create') {
       const point = toLocal(event.clientX, event.clientY);
       const dragged = normalizeRect(gesture.startX, gesture.startY, point.x, point.y);
@@ -484,17 +581,19 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       if (p.tool === 'line' || p.tool === 'arrow') {
         const dx = point.x - gesture.startX;
         const dy = point.y - gesture.startY;
-        const object = objectForTool(p.tool, p.pageIndex, rect);
+        const object = objectForTool(p.tool, p.pageIndex, rect, p.stampPreset);
         if (object && (object.kind === 'line' || object.kind === 'arrow')) {
           object.reverse = dx * dy < 0;
         }
         if (object) p.onCreate(object);
         return;
       }
-      const object = objectForTool(p.tool, p.pageIndex, rect);
+      const object = objectForTool(p.tool, p.pageIndex, rect, p.stampPreset);
       if (!object) return;
       p.onCreate(object);
-      if (object.kind === 'text') p.onStartEdit(object.id);
+      // Only the Text tool opens the inline editor. A date stamp is a text
+      // object too, but placing it should not throw the user into a textarea.
+      if (object.kind === 'text' && p.tool === 'text') p.onStartEdit(object.id);
       return;
     }
     p.onEndTx();
@@ -576,6 +675,11 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
         return;
       }
     }
+    if (p.tool === 'pen') {
+      setInkGhost([{ x: point.x, y: point.y }]);
+      startGesture({ kind: 'ink', points: [{ x: point.x, y: point.y }] });
+      return;
+    }
     startGesture({ kind: 'create', startX: point.x, startY: point.y });
   };
 
@@ -633,11 +737,19 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
               width: 120,
               height: 24,
             };
-            const object = objectForTool('text', pageIndex, rect);
+            const object = objectForTool('text', pageIndex, rect, props.stampPreset);
             if (!object) return;
             event.preventDefault();
             props.onCreate(object);
             props.onStartEdit(object.id);
+            return;
+          }
+          if (tool === 'check' || tool === 'cross' || tool === 'date' || tool === 'stamp') {
+            const rect = defaultRectFor(tool, width / 2, height / 2);
+            const object = objectForTool(tool, pageIndex, rect, props.stampPreset);
+            if (!object) return;
+            event.preventDefault();
+            props.onCreate(object);
             return;
           }
           if (tool === 'select' && pageObjects.length > 0) {
@@ -693,6 +805,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             selectedBlockId={selectedTextBlockId}
             editing={paragraphEdit}
             claimedTextBoxes={claimedTextBoxes}
+            debugOutline={props.debugOutline ?? false}
             onBlockSelect={props.onTextBlockSelect}
             onParagraphEdit={props.onParagraphEdit}
             onSelectionChange={props.onTextSelectionChange}
@@ -775,6 +888,34 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             style={{ left: ghost.x * zoom, top: ghost.y * zoom, width: ghost.width * zoom, height: ghost.height * zoom }}
             data-testid="editor-ghost"
           />
+        ) : null}
+
+        {inkGhost && inkGhost.length > 0 ? (
+          <svg
+            className="pointer-events-none absolute inset-0 overflow-visible"
+            width={displayW}
+            height={displayH}
+            data-testid="editor-ink-ghost"
+            aria-hidden
+          >
+            {inkGhost.length === 1 ? (
+              <circle
+                cx={inkGhost[0]!.x * zoom}
+                cy={inkGhost[0]!.y * zoom}
+                r={Math.max(1, 0.75 * zoom)}
+                fill={DEFAULT_COLORS.ink}
+              />
+            ) : (
+              <polyline
+                points={inkGhost.map((point) => `${point.x * zoom},${point.y * zoom}`).join(' ')}
+                fill="none"
+                stroke={DEFAULT_COLORS.ink}
+                strokeWidth={1.5 * zoom}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+          </svg>
         ) : null}
       </div>
       <div className="mt-2 text-center text-[11px] text-muted-foreground tabular-nums">Page {pageIndex + 1}</div>
@@ -1102,6 +1243,101 @@ function ObjectView({
                 ))
               : null}
           </svg>
+        );
+      }
+      case 'ink': {
+        const thickness = object.strokeWidth ?? 1.5;
+        const stroke = object.stroke ?? DEFAULT_COLORS.ink;
+        const opacity = object.opacity ?? 1;
+        return (
+          <svg
+            className="pointer-events-none absolute inset-0 overflow-visible"
+            width={object.width * zoom}
+            height={object.height * zoom}
+            viewBox={`0 0 ${Math.max(1, object.width)} ${Math.max(1, object.height)}`}
+            preserveAspectRatio="none"
+            data-testid="editor-object-ink-stroke"
+          >
+            {object.points.length === 1 ? (
+              <circle
+                cx={object.points[0]!.x}
+                cy={object.points[0]!.y}
+                r={thickness / 2}
+                fill={stroke}
+                opacity={opacity}
+              />
+            ) : (
+              <polyline
+                points={object.points.map((point) => `${point.x},${point.y}`).join(' ')}
+                fill="none"
+                stroke={stroke}
+                strokeWidth={thickness}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={opacity}
+              />
+            )}
+          </svg>
+        );
+      }
+      case 'check':
+      case 'cross': {
+        const stroke = object.stroke ?? DEFAULT_COLORS.check;
+        const thickness = object.strokeWidth ?? 2;
+        const w = object.width;
+        const h = object.height;
+        const segments =
+          object.kind === 'check'
+            ? [
+                [w * 0.18, h * 0.52, w * 0.42, h * 0.8],
+                [w * 0.42, h * 0.8, w * 0.86, h * 0.22],
+              ]
+            : [
+                [w * 0.2, h * 0.2, w * 0.8, h * 0.8],
+                [w * 0.8, h * 0.2, w * 0.2, h * 0.8],
+              ];
+        return (
+          <svg
+            className="pointer-events-none absolute inset-0 overflow-visible"
+            width={w * zoom}
+            height={h * zoom}
+            viewBox={`0 0 ${Math.max(1, w)} ${Math.max(1, h)}`}
+            data-testid={`editor-object-${object.kind}-stroke`}
+          >
+            {segments.map(([x1, y1, x2, y2], index) => (
+              <line
+                key={index}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={stroke}
+                strokeWidth={thickness}
+                strokeLinecap="round"
+              />
+            ))}
+          </svg>
+        );
+      }
+      case 'stamp': {
+        const color = object.color ?? DEFAULT_COLORS.stamp;
+        const border = Math.max(1, Math.min(5, Math.min(object.width, object.height) * 0.07));
+        const fontSize = Math.max(4, Math.min(72, object.fontSize ?? object.height * 0.42));
+        return (
+          <div
+            className="absolute inset-0 flex items-center justify-center overflow-hidden"
+            data-testid="editor-object-stamp-body"
+            style={{
+              border: `${border * zoom}px solid ${color}`,
+              color,
+              fontSize: fontSize * zoom,
+              fontWeight: 700,
+              letterSpacing: '0.06em',
+              lineHeight: 1,
+            }}
+          >
+            {object.text.toUpperCase()}
+          </div>
         );
       }
     }

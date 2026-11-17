@@ -127,9 +127,70 @@ export function computeInkBounds(
   return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
 }
 
+/**
+ * Turns a photographed or scanned signature into transparent ink.
+ *
+ * The old trim path used a hard alpha threshold: paper at luminance 243 was
+ * opaque, 241 was not, so a photographed signature kept a grey slab and a soft
+ * pencil edge disappeared. This derives alpha from luminance along a ramp
+ * instead -- paper is fully transparent, ink is fully opaque, and the
+ * antialiased range in between keeps a proportional alpha.
+ *
+ * Returns a new buffer (the caller's `ImageData` is not mutated) in the same
+ * RGBA byte layout.
+ */
+export function inkAlphaFromLuminance(
+  data: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+  options?: { paper?: number; ink?: number },
+): Uint8ClampedArray {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
+    return new Uint8ClampedArray(0);
+  }
+  const length = Math.min(data.length, width * height * 4);
+  const out = new Uint8ClampedArray(length);
+  const paper = Math.min(255, Math.max(1, options?.paper ?? 242));
+  const ink = Math.min(paper - 1, Math.max(0, options?.ink ?? 120));
+  const span = Math.max(1, paper - ink);
+  for (let i = 0; i + 3 < length; i += 4) {
+    const r = data[i]!;
+    const g = data[i + 1]!;
+    const b = data[i + 2]!;
+    const alpha = data[i + 3]!;
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    let ramp: number;
+    if (luminance >= paper) ramp = 0;
+    else if (luminance <= ink) ramp = 1;
+    else ramp = (paper - luminance) / span;
+    out[i] = r;
+    out[i + 1] = g;
+    out[i + 2] = b;
+    out[i + 3] = Math.round(alpha * Math.max(0, Math.min(1, ramp)));
+  }
+  return out;
+}
+
+/**
+ * Placement size for a captured signature: cap the width, keep the trimmed
+ * aspect exactly. The bug this replaces used the pad's aspect, so a wide
+ * signature captured on a tall pad was stretched vertically.
+ */
+export function scaledSignatureSize(
+  width: number,
+  height: number,
+  maxWidth = 150,
+): { width: number; height: number } {
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+    return { width: 24, height: 24 };
+  }
+  const boxWidth = Math.max(24, Math.min(maxWidth, Math.round(width)));
+  const boxHeight = Math.max(20, Math.round(boxWidth * (height / width)));
+  return { width: boxWidth, height: boxHeight };
+}
+
 /** Positive-finite number guard shared by the pad and the store. */
-function isPositiveFinite(value: unknown, max: number): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= max;
+function isPositiveFinite(value: unknown, max: number): value is number {  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= max;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

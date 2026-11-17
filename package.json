@@ -30,6 +30,8 @@
     "test:e2e:keyboard": "node tests/e2e/keyboard.mjs",
     "test:e2e:editor-unmount": "node tests/e2e/editor-unmount.mjs",
     "test:e2e:editor-cancel": "node tests/e2e/editor-cancel-save.mjs",
+    "test:e2e:editor-parity": "node tests/support/preflight.mjs && node tests/e2e/editor-quick-parity.mjs",
+    "test:e2e:signature-upload": "node tests/support/preflight.mjs && node tests/e2e/signature-upload.mjs",
     "test:e2e:stale-build": "node tests/e2e/stale-build.mjs",
     "test:e2e:verify": "node tests/e2e/verify.mjs",
     "test:e2e:forms-bookmarks": "node tests/support/preflight.mjs && node tests/e2e/forms-bookmarks.mjs",

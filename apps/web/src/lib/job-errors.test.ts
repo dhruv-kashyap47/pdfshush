@@ -92,6 +92,34 @@ describe('describeJobError', () => {
     expect(info.message).toContain('Invalid PDF structure');
   });
 
+  it('names an empty file instead of calling it damaged', () => {
+    const info = describeJobError(new Error('The file is empty'));
+    expect(info.code).toBe('empty');
+    expect(info.retryable).toBe(false);
+    expect(info.message).toContain('empty');
+  });
+
+  it('names a non-PDF file apart from a corrupt PDF', () => {
+    const info = describeJobError(new Error('This file is not a PDF'));
+    expect(info.code).toBe('not-a-pdf');
+    expect(info.retryable).toBe(false);
+    expect(info.message).toContain('not a PDF');
+    // A corrupt PDF keeps the damaged copy and the repair advice.
+    expect(describeJobError(new Error('Invalid PDF structure')).code).toBe('damaged');
+  });
+
+  it('names an allocation failure as running out of memory, not a size cap', () => {
+    const info = describeJobError(new Error('Array buffer allocation failed'));
+    expect(info.code).toBe('out-of-memory');
+    expect(info.retryable).toBe(true);
+    expect(info.message.toLowerCase()).toContain('memory');
+  });
+
+  it('does not mislabel a policy limit as memory', () => {
+    const info = describeJobError(new Error('At most 50 files fit in one run'));
+    expect(info.code).toBe('too-large');
+  });
+
   it('classifies a failed fetch as a network problem', () => {
     const info = describeJobError(new TypeError('Failed to fetch'));
     expect(info.code).toBe('network');

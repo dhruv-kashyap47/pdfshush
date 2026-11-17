@@ -21,10 +21,13 @@
 import { isAbortError, type ValidationIssue } from '@pdfshush/pdf-core';
 
 export type JobErrorCode =
+  | 'empty'
+  | 'not-a-pdf'
   | 'encrypted'
   | 'damaged'
   | 'unsupported'
   | 'too-large'
+  | 'out-of-memory'
   | 'timeout'
   | 'cancelled'
   | 'canvas-unavailable'
@@ -74,12 +77,18 @@ const REFUSAL_NAMES = new Set([
 ]);
 
 const ENCRYPTED_RE = /password protected|incorrect password|needs? (?:a )?password|is encrypted/i;
+const EMPTY_RE =
+  /(?:file|document|pdf|input|selection) (?:is |was )?empty|empty (?:file|document|pdf)|0 bytes|zero bytes|no data|nothing to (?:read|process|export)|file has no content/i;
+const NOT_PDF_RE =
+  /not a pdf|not a valid pdf|(?:does\s?n[o']?t|does not) look like a pdf|expected (?:a )?pdf|a pdf (?:file )?is required|choose a pdf|pdf expected/i;
+const OOM_RE =
+  /out of memory|out-of-memory|allocation failed|array buffer allocation|heap (?:limit|exhausted|out)|memory limit|too much memory|cannot allocate|\boom\b/i;
 const REFUSAL_RE = /refusing to (?:export|apply)|verification failed|could not be (?:rebuilt|verified) safely/i;
 const CANVAS_RE = /canvas|rasteriz|offscreen|createRasterizer/i;
 const TOO_LARGE_RE =
   /at most \d+|limited to \d+|limit (?:is|of) \d+|too many|too large|larger than|over the .{0,20}limit|exceeds? (?:the )?.{0,20}(?:limit|cap|maximum)|would create \d+ files|maximum (?:of )?\d+/i;
 const DAMAGED_RE =
-  /invalid (?:pdf|file|object|structure)|not a pdf|could not be (?:read|decoded|opened|parsed)|cannot (?:read|parse|open|decode)|failed to (?:parse|load|decode)|damaged|corrupt|truncated|xref|has no pages|no pages were produced|unexpected end|not a (?:jpeg|jpg|png) image/i;
+  /invalid (?:pdf|file|object|structure)|could not be (?:read|decoded|opened|parsed)|cannot (?:read|parse|open|decode)|failed to (?:parse|load|decode)|damaged|corrupt|truncated|xref|has no pages|no pages were produced|unexpected end|not a (?:jpeg|jpg|png) image/i;
 const NETWORK_RE =
   /failed to fetch|network ?error|network request|load failed|offline|econn|http (?:4|5)\d\d|status (?:4|5)\d\d/i;
 const UNSUPPORTED_RE =
@@ -116,10 +125,13 @@ export function describeJobError(
 }
 
 const RETRYABLE: Record<JobErrorCode, boolean> = {
+  empty: false,
+  'not-a-pdf': false,
   encrypted: false,
   damaged: false,
   unsupported: false,
   'too-large': true,
+  'out-of-memory': true,
   timeout: true,
   cancelled: false,
   'canvas-unavailable': true,
@@ -144,8 +156,16 @@ function classify(
   // input" (which is exactly the message that used to reach the toast).
   if (name === 'JobValidationError' || (issues?.length ?? 0) > 0) return 'validation';
 
+  // Empty input and the wrong file type are their own failures. They used to be
+  // swept into `damaged` ("could not be read as a PDF") and `too-large`, which
+  // told the user the wrong thing to do.
+  if (EMPTY_RE.test(detail)) return 'empty';
+  if (NOT_PDF_RE.test(detail)) return 'not-a-pdf';
+
   if (name === 'EncryptedDocumentError' || ENCRYPTED_RE.test(detail)) return 'encrypted';
   if (REFUSAL_NAMES.has(name) || REFUSAL_RE.test(detail)) return 'refused';
+  // Before `too-large`: an allocation failure names memory, not a policy cap.
+  if (OOM_RE.test(detail)) return 'out-of-memory';
   if (CANVAS_RE.test(detail)) return 'canvas-unavailable';
   if (TOO_LARGE_RE.test(detail)) return 'too-large';
   if (DAMAGED_RE.test(detail)) return 'damaged';
@@ -170,6 +190,27 @@ function copyFor(
       return {
         message: 'Cancelled. Nothing was changed.',
         action: 'Run it again when you are ready.',
+      };
+
+    case 'empty':
+      return {
+        message: 'That file is empty.',
+        action: 'Choose a file that has content.',
+      };
+
+    case 'not-a-pdf':
+      return {
+        message: sentence('That file is not a PDF.', detail),
+        action: 'Choose a PDF file, or use the tool that matches this format.',
+      };
+
+    case 'out-of-memory':
+      return {
+        message: sentence(
+          'The browser ran out of memory while processing this file.',
+          detail,
+        ),
+        action: 'Try a smaller file, or close other tabs and run it again.',
       };
 
     case 'encrypted':

@@ -7252,3 +7252,80 @@ Session-5 comparison: 1496/0/8/117 -> 1523/0/1/119; round-trip 15 -> 17;
 render 10/1 -> 11/1; share walkthrough 17 -> 18; sweep 61 -> 60 (baseline).
 Nothing regressed. Details: `FINDINGS.md` "Session 6 evidence",
 `FINAL-REPORT.md` session-6 addendum.
+
+## 37. Sprint 2 - quick parity (2026-11-17)
+
+Branch `rea-uplift`, continuing the reaTask.md uplift (sprint 2 of 7). Scope:
+E-01 pen/ink, E-02 check/cross, E-03 date stamp, E-04 stamp presets, E-05
+signature crop/aspect/upload, E-06 fit page/percent/400%, E-08 object
+clipboard, T-04 detected-text outline, S-05 error taxonomy.
+
+### 37.1 Engine: three new object kinds
+
+- `ink`: points stored relative to the object box, exported as vector segments
+  with round caps (`LineCapStyle.Round`); a single point becomes a dot. Points
+  are validated for finiteness, the 5,000-point cap, stroke/opacity and
+  `role`, and resizing scales the stroke with the box.
+- `check`/`cross`: one object drawn as two stroked segments -- deliberately not
+  two `line` objects, so one mark is one undo step and cannot be split.
+- `stamp`: a bordered box plus one bold text run, shrunk to fit; the label
+  stays selectable and editable, unlike the reference's raster stamps. The
+  stamp inherits the engine's WinAnsi rule at validation time.
+
+All three are typed (`EditInkObject`, `EditCheckObject`, `EditStampObject`)
+and exported from `packages/pdf-core/src/index.ts`.
+
+### 37.2 Editor
+
+- Tool registry: `pen`, `check`, `cross`, `date`, `stamp` with rail order,
+  labels, shortcuts (P/K/X/D/M), inspector titles/icons, hints and help copy.
+- Pen: rAF-free live polyline ghost, 0.6 pt sampling, RDP simplification,
+  bounded point count, one `apply` on release.
+- Stamps: seven-preset catalogue shared by the context bar and inspector; the
+  preset picker is reachable while the tool is armed even with an unrelated
+  object selected.
+- Date: placed as an ordinary text object (no textarea pop-up), pinned to an
+  en-GB long date; `lib/stamp-date.ts` can detect non-WinAnsi locales and fall
+  back safely for a future locale picker.
+- Signature: upload tab, luminance→alpha ramp (paper transparent, ink opaque,
+  antialiased middle proportional), trimmed capture dimensions rather than the
+  pad's, and shared `scaledSignatureSize`/`clampToPage` maths.
+- Zoom: 25–400%, editable percent readout (Enter/blur, Escape restores), fit
+  width and fit page (width+height), mobile HUD fit-page. `lib/zoom.ts` owns
+  clamp/parse/fit so the maths is unit-tested.
+- Clipboard: Ctrl/Cmd+C/X/V for objects, +12/+12 paste, duplicate +8/+8;
+  paste/duplicate/signature all clamp through `lib/object-placement.ts`.
+- Debug overlay: T-04 block/paragraph/line outlines with hover labels, off by
+  default, pointer-transparent and never part of the export.
+
+### 37.3 Error taxonomy
+
+`empty`, `not-a-pdf` and `out-of-memory` are now distinct codes with their own
+copy and retry policy. `not a pdf` was removed from the damaged pattern so a
+wrong file type no longer tells the user to repair a corrupt document, and
+allocation failures are checked before the size-cap pattern.
+
+### 37.4 Verification (live, dev server)
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Typecheck | `pnpm typecheck` | pass |
+| Unit | `pnpm test` | 1,641 passed, 0 failed, 1 expected fail |
+| pdf-core | `vitest run` (package) | 586 passed, 1 expected fail |
+| web | `vitest run` (package) | 266 passed |
+| Build | `pnpm build` | pass, 63 routes prerendered |
+| Bundle | `pnpm test:bundle` | pass, 0 engines in main |
+| Provenance | `pnpm test:provenance` | OK, 0 derived files |
+| Quick parity E2E | `node tests/e2e/editor-quick-parity.mjs` | all checks passed |
+| Signature upload E2E | `node tests/e2e/signature-upload.mjs` | all checks passed |
+| Text edit | `node tests/e2e/text-edit.mjs` | all checks passed |
+| Text model | `node tests/e2e/text-model.mjs` | all checks passed |
+| Keyboard | `node tests/e2e/keyboard.mjs` | all checks passed |
+| Accessibility | `node tests/e2e/a11y.mjs` | all checks passed |
+| Fill & Sign | `node tests/e2e/sign.mjs` | all checks passed |
+
+Sprint 1 comparison: pdf-core 580+1 -> 586+1, web 211 -> 266. New E2E coverage:
+vector ink and one-undo, check/cross/date/stamp placement, preset isolation
+from redaction, copy/paste offset, typed 400% + fit page, outline at fit and
+400%, signature upload transparency and aspect.
+

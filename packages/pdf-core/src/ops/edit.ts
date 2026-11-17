@@ -12,6 +12,7 @@
  */
 
 import {
+  LineCapStyle,
   PDFDocument,
   StandardFonts,
   degrees,
@@ -138,12 +139,54 @@ export interface EditMarkObject extends EditObjectBase {
   native?: EditTextNativePlan;
 }
 
+/** A freehand stroke point, relative to the object box (0..width, 0..height). */
+export interface EditInkPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * Freehand ink. Points are stored relative to the object box so moving the
+ * object is a pure `x`/`y` change and resizing scales the stroke without
+ * re-sampling it. Exported as vector segments with round caps/joins -- never
+ * rasterised.
+ */
+export interface EditInkObject extends EditObjectBase {
+  kind: 'ink';
+  points: EditInkPoint[];
+  stroke?: string;
+  strokeWidth?: number;
+  /** 0..1; default 1. */
+  opacity?: number;
+}
+
+/** A check or cross mark: one object drawn as two stroked segments. */
+export interface EditCheckObject extends EditObjectBase {
+  kind: 'check' | 'cross';
+  stroke?: string;
+  strokeWidth?: number;
+}
+
+/**
+ * A rubber stamp: a bordered box with one bold label. Kept as one object so a
+ * stamp is one undo step and can never be mistaken for a redaction mark.
+ */
+export interface EditStampObject extends EditObjectBase {
+  kind: 'stamp';
+  text: string;
+  color?: string;
+  fontSize?: number;
+}
+
 export type EditorObject =
   | EditTextObject
   | EditImageObject
   | EditRectObject
   | EditLineObject
-  | EditMarkObject;
+  | EditMarkObject
+  | EditInkObject
+  | EditCheckObject
+  | EditStampObject;
 
 /**
  * Text metrics shared with the UI live in a dependency-free module (see
@@ -156,6 +199,10 @@ const MIN_FONT_SIZE = 4;
 const MAX_EXTENT_PT = 200_000;
 /** Objects may hang off an edge, but not a whole page away in any direction. */
 const OFF_PAGE_MARGIN_PAGES = 2;
+/** One stroke is a gesture, not a trace of every pointer sample forever. */
+const MAX_INK_POINTS = 5_000;
+/** Stamps are short labels, not paragraphs. */
+const MAX_STAMP_CHARS = 80;
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg']);
 
 /** Parses `#rgb` / `#rrggbb` (clamped); anything unparseable falls back. */
@@ -263,6 +310,10 @@ export function validateEditObjects(
     'strikeout',
     'underline',
     'whiteout',
+    'ink',
+    'check',
+    'cross',
+    'stamp',
   ]);
   const seenIds = new Set<string>();
 
@@ -397,6 +448,52 @@ export function validateEditObjects(
         const line = object as EditLineObject;
         assertHexColor(at, kind, 'stroke', line.stroke);
         assertStrokeWidth(at, kind, line.strokeWidth);
+        break;
+      }
+      case 'ink': {
+        const ink = object as EditInkObject;
+        if (!Array.isArray(ink.points) || ink.points.length === 0) {
+          throw new Error(`${at} (ink): a stroke needs at least one point`);
+        }
+        if (ink.points.length > MAX_INK_POINTS) {
+          throw new Error(`${at} (ink): ${ink.points.length} points exceeds the ${MAX_INK_POINTS} point limit`);
+        }
+        for (const point of ink.points) {
+          if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+            throw new Error(`${at} (ink): every point needs finite x and y`);
+          }
+        }
+        if (ink.opacity !== undefined && (!Number.isFinite(ink.opacity) || ink.opacity < 0 || ink.opacity > 1)) {
+          throw new Error(`${at} (ink): opacity must be between 0 and 1`);
+        }
+        assertHexColor(at, kind, 'stroke', ink.stroke);
+        assertStrokeWidth(at, kind, ink.strokeWidth);
+        break;
+      }
+      case 'check':
+      case 'cross': {
+        const mark = object as EditCheckObject;
+        assertHexColor(at, kind, 'stroke', mark.stroke);
+        assertStrokeWidth(at, kind, mark.strokeWidth);
+        break;
+      }
+      case 'stamp': {
+        const stamp = object as EditStampObject;
+        if (typeof stamp.text !== 'string' || stamp.text.trim().length === 0) {
+          throw new Error(`${at} (stamp): a stamp needs a label`);
+        }
+        if (stamp.text.length > MAX_STAMP_CHARS) {
+          throw new Error(`${at} (stamp): label is too long (max ${MAX_STAMP_CHARS} characters)`);
+        }
+        if (
+          stamp.fontSize !== undefined &&
+          (!Number.isFinite(stamp.fontSize) || stamp.fontSize <= 0 || stamp.fontSize > MAX_FONT_SIZE)
+        ) {
+          throw new Error(`${at} (stamp): font size must be between 0 and ${MAX_FONT_SIZE}`);
+        }
+        assertHexColor(at, kind, 'color', stamp.color);
+        // Stamps draw with a standard face, so they inherit the WinAnsi rule.
+        assertEncodable(at, stamp.text);
         break;
       }
       default: {
@@ -612,6 +709,16 @@ async function drawObject(
     case 'arrow':
       drawLine(page, geom, object);
       return;
+    case 'ink':
+      drawInk(page, geom, object);
+      return;
+    case 'check':
+    case 'cross':
+      drawCheck(page, geom, object);
+      return;
+    case 'stamp':
+      await drawStamp(page, geom, object, fonts);
+      return;
     case 'highlight': {
       const box = viewRectToPdf(geom, object);
       page.drawRectangle({
@@ -816,6 +923,115 @@ function drawLine(page: PDFPage, geom: PageGeom, object: EditLineObject): void {
       });
     }
   }
+}
+
+/**
+ * Freehand ink as vector segments. Round caps make each join round without a
+ * second join pass, and a single-point stroke is a dot rather than an invisible
+ * zero-length line. Points are relative to the object box, so a move is just a
+ * new `x`/`y` and a resize scales the stroke with the box.
+ */
+function drawInk(page: PDFPage, geom: PageGeom, object: EditInkObject): void {
+  if (object.points.length === 0) return;
+  const thickness = clamp(object.strokeWidth ?? 1.5, 0.5, 24);
+  const color = parseHexColor(object.stroke, rgb(0.12, 0.16, 0.23));
+  const opacity = clamp(object.opacity ?? 1, 0, 1);
+  const map = (point: EditInkPoint): [number, number] =>
+    viewToPdf(geom, object.x + point.x, object.y + point.y);
+
+  if (object.points.length === 1) {
+    const [x, y] = map(object.points[0]!);
+    page.drawCircle({ x, y, size: thickness / 2, color, opacity });
+    return;
+  }
+
+  for (let i = 1; i < object.points.length; i += 1) {
+    const [sx, sy] = map(object.points[i - 1]!);
+    const [ex, ey] = map(object.points[i]!);
+    page.drawLine({
+      start: { x: sx, y: sy },
+      end: { x: ex, y: ey },
+      thickness,
+      color,
+      opacity,
+      lineCap: LineCapStyle.Round,
+    });
+  }
+}
+
+/** Two stroked segments in the object box: a tick or a cross. */
+function drawCheck(page: PDFPage, geom: PageGeom, object: EditCheckObject): void {
+  const thickness = clamp(object.strokeWidth ?? 2, 0.5, 24);
+  const color = parseHexColor(object.stroke, rgb(0.09, 0.55, 0.3));
+  const point = (fx: number, fy: number): [number, number] =>
+    viewToPdf(geom, object.x + object.width * fx, object.y + object.height * fy);
+  const segments: Array<[[number, number], [number, number]]> =
+    object.kind === 'check'
+      ? [
+          [point(0.18, 0.52), point(0.42, 0.8)],
+          [point(0.42, 0.8), point(0.86, 0.22)],
+        ]
+      : [
+          [point(0.2, 0.2), point(0.8, 0.8)],
+          [point(0.8, 0.2), point(0.2, 0.8)],
+        ];
+  for (const [[sx, sy], [ex, ey]] of segments) {
+    page.drawLine({
+      start: { x: sx, y: sy },
+      end: { x: ex, y: ey },
+      thickness,
+      color,
+      lineCap: LineCapStyle.Round,
+    });
+  }
+}
+
+/**
+ * A bordered stamp with one bold label, centred in the box and shrunk to fit.
+ * Vector plus a real text run: the label stays selectable/editable, unlike the
+ * raster stamps in the reference.
+ */
+async function drawStamp(
+  page: PDFPage,
+  geom: PageGeom,
+  object: EditStampObject,
+  fonts: FontSet,
+): Promise<void> {
+  const color = parseHexColor(object.color, rgb(0.09, 0.55, 0.3));
+  const box = viewRectToPdf(geom, object);
+  const border = clamp(Math.min(object.width, object.height) * 0.07, 1, 5);
+  page.drawRectangle({
+    x: box.x,
+    y: box.y,
+    width: box.width,
+    height: box.height,
+    borderColor: color,
+    borderWidth: border,
+  });
+
+  const font = await embedStandardFont(page.doc, fonts.fontCache, 'helvetica', true, false);
+  if (!font || object.text.length === 0) return;
+  const text = object.text.toUpperCase();
+  let size = clamp(object.fontSize ?? object.height * 0.42, MIN_FONT_SIZE, MAX_FONT_SIZE);
+  let width = font.widthOfTextAtSize(text, size);
+  const maxWidth = Math.max(1, object.width - border * 4);
+  if (width > maxWidth && width > 0) {
+    size = clamp((size * maxWidth) / width, MIN_FONT_SIZE, MAX_FONT_SIZE);
+    width = font.widthOfTextAtSize(text, size);
+  }
+  const [ax, ay] = viewToPdf(
+    geom,
+    object.x + (object.width - width) / 2,
+    object.y + object.height / 2 + size * 0.35,
+  );
+  page.drawText(text, {
+    x: ax,
+    y: ay,
+    size,
+    font,
+    color,
+    rotate: degrees(displayAngle(geom)),
+  });
 }
 
 /**

@@ -5,8 +5,10 @@ import {
   SIGNATURE_STROKES_SCHEMA,
   SIGNATURE_STORE_MAX,
   computeInkBounds,
+  inkAlphaFromLuminance,
   isSignatureAssetRecord,
   sanitizeSignatureLabel,
+  scaledSignatureSize,
 } from '@/lib/signature-assets';
 
 /** Builds an rgba buffer of `width×height` from a list of marked pixels. */
@@ -146,6 +148,75 @@ describe('isSignatureAssetRecord', () => {
     expect(isSignatureAssetRecord(null)).toBe(false);
     expect(isSignatureAssetRecord('signature')).toBe(false);
     expect(isSignatureAssetRecord([])).toBe(false);
+  });
+});
+
+describe('inkAlphaFromLuminance', () => {
+  function pixels(values: Array<[number, number, number, number]>): Uint8ClampedArray {
+    return new Uint8ClampedArray(values.flat());
+  }
+
+  it('makes paper fully transparent and ink fully opaque', () => {
+    const out = inkAlphaFromLuminance(
+      pixels([
+        [255, 255, 255, 255], // paper
+        [0, 0, 0, 255], // ink
+      ]),
+      2,
+      1,
+    );
+    expect(out[3]).toBe(0);
+    expect(out[7]).toBe(255);
+  });
+
+  it('ramps the antialiased middle instead of a hard 242 cut', () => {
+    // 181 is halfway between the default paper (242) and ink (120).
+    const out = inkAlphaFromLuminance(pixels([[181, 181, 181, 255]]), 1, 1);
+    expect(out[3]).toBeGreaterThan(100);
+    expect(out[3]).toBeLessThan(160);
+    // 241 is just below paper: visible but faint, not suddenly opaque.
+    const faint = inkAlphaFromLuminance(pixels([[241, 241, 241, 255]]), 1, 1);
+    expect(faint[3]).toBeGreaterThan(0);
+    expect(faint[3]).toBeLessThan(10);
+  });
+
+  it('never invents ink where the source was transparent', () => {
+    const out = inkAlphaFromLuminance(pixels([[0, 0, 0, 0]]), 1, 1);
+    expect(out[3]).toBe(0);
+  });
+
+  it('is pure: the source buffer is untouched', () => {
+    const source = pixels([[255, 255, 255, 255]]);
+    const copy = new Uint8ClampedArray(source);
+    inkAlphaFromLuminance(source, 1, 1);
+    expect(Array.from(source)).toEqual(Array.from(copy));
+  });
+
+  it('returns an empty buffer for degenerate sizes', () => {
+    expect(inkAlphaFromLuminance(new Uint8ClampedArray(4), 0, 1)).toHaveLength(0);
+    expect(inkAlphaFromLuminance(new Uint8ClampedArray(4), 1, Number.NaN)).toHaveLength(0);
+  });
+});
+
+describe('scaledSignatureSize', () => {
+  it('caps the width and keeps the trimmed aspect exactly', () => {
+    // A 5:1 signature (600x120) must not be given the pad's 3:1 aspect.
+    expect(scaledSignatureSize(600, 120, 150)).toEqual({ width: 150, height: 30 });
+    // A wide signature captured on a 3:1 pad keeps its own ~6:1 aspect.
+    expect(scaledSignatureSize(300, 50, 150)).toEqual({ width: 150, height: 25 });
+  });
+
+  it('does not enlarge a small signature past its capture size', () => {
+    expect(scaledSignatureSize(90, 30, 150)).toEqual({ width: 90, height: 30 });
+  });
+
+  it('keeps a minimum hit target', () => {
+    expect(scaledSignatureSize(4, 1, 150)).toEqual({ width: 24, height: 20 });
+  });
+
+  it('survives degenerate dimensions with a square fallback', () => {
+    expect(scaledSignatureSize(0, 0, 150)).toEqual({ width: 24, height: 24 });
+    expect(scaledSignatureSize(Number.NaN, 100, 150)).toEqual({ width: 24, height: 24 });
   });
 });
 

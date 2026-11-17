@@ -98,6 +98,10 @@ export type {
   EditRectObject,
   EditLineObject,
   EditMarkObject,
+  EditInkObject,
+  EditInkPoint,
+  EditCheckObject,
+  EditStampObject,
 } from './ops/edit.js';
 export { extractFormWidgets, applyFormValues } from './ops/forms.js';
 export type { FormWidgetInfo, FormFieldType } from './ops/forms.js';

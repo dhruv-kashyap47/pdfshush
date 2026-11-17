@@ -42,6 +42,7 @@ import {
   Redo2,
   RotateCcw,
   Save,
+  Scan,
   SendToBack,
   ShieldAlert,
   SlidersHorizontal,
@@ -85,6 +86,8 @@ import {
 } from '@/lib/editor-tools';
 import { formatPercent } from '@/lib/format';
 import { EASE, UI, dur } from '@/lib/motion';
+import { STAMP_PRESETS, type StampPreset } from '@/lib/stamp-presets';
+import { parseZoomPercent } from '@/lib/zoom';
 import { cn } from '@/lib/utils';
 
 /* --------------------------------------------------------------- top bar */
@@ -582,6 +585,10 @@ export interface EditorContextBarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onFitWidth: () => void;
+  onFitPage: () => void;
+  /** Preset the stamp tool places, chosen from the context bar. */
+  stampPreset?: StampPreset;
+  onStampPreset?: (preset: StampPreset) => void;
   /** Phone-only properties sheet toggle. */
   onOpenInspector?: () => void;
   inspectorOpen?: boolean;
@@ -615,9 +622,13 @@ export function EditorContextBar(props: EditorContextBarProps) {
     onReorder,
     onDuplicate,
     zoom,
+    onZoomChange,
     onZoomIn,
     onZoomOut,
     onFitWidth,
+    onFitPage,
+    stampPreset,
+    onStampPreset,
     onOpenInspector,
     inspectorOpen,
     disabled,
@@ -649,6 +660,8 @@ export function EditorContextBar(props: EditorContextBarProps) {
             object={selectedObject}
             onPatch={onPatch}
             disabled={disabled}
+            stampPreset={stampPreset}
+            onStampPreset={onStampPreset}
             redactCount={redactCount}
             onRedactReview={onRedactReview}
             pageCount={pageCount}
@@ -733,13 +746,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
         >
           <ZoomOut className="size-3.5" />
         </ContextIcon>
-        <span
-          className="editor-zoom-readout editor-context-zoom"
-          data-testid="editor-zoom-level"
-          aria-live="polite"
-        >
-          {Math.round(zoom * 100)}%
-        </span>
+        <ZoomReadout zoom={zoom} onCommit={onZoomChange} />
         <ContextIcon
           label="Zoom in (Ctrl++)"
           testId="editor-zoom-in"
@@ -756,8 +763,56 @@ export function EditorContextBar(props: EditorContextBarProps) {
         >
           <Maximize2 className="size-3.5" />
         </ContextIcon>
+        <ContextIcon
+          label="Fit page"
+          testId="editor-fit-page"
+          className="editor-context-zoom"
+          onClick={onFitPage}
+        >
+          <Scan className="size-3.5" />
+        </ContextIcon>
       </div>
     </div>
+  );
+}
+
+/**
+ * Editable zoom readout: type a percentage and press Enter (or blur) to apply.
+ * Committed in one step so a typed number is one viewport change, and clamped
+ * to the same 25–400% window the step controls use.
+ */
+function ZoomReadout({ zoom, onCommit }: { zoom: number; onCommit: (zoom: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (raw: string) => {
+    const next = parseZoomPercent(raw);
+    if (next !== null) onCommit(next);
+    setDraft(null);
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      className="editor-zoom-readout editor-context-zoom"
+      data-testid="editor-zoom-level"
+      aria-label="Zoom level, percent"
+      title="Zoom level — type a percentage and press Enter"
+      value={draft ?? String(Math.round(zoom * 100))}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => commit(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commit((event.target as HTMLInputElement).value);
+          (event.target as HTMLInputElement).blur();
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setDraft(null);
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
+      style={{ width: '3rem', textAlign: 'center', background: 'transparent' }}
+    />
   );
 }
 
@@ -769,8 +824,7 @@ function ContextIcon({
   destructive,
   className,
   children,
-}: {
-  label: string;
+}: {  label: string;
   testId?: string;
   disabled?: boolean;
   onClick: () => void;
@@ -815,6 +869,8 @@ function ToolContext({
   object,
   onPatch,
   disabled,
+  stampPreset,
+  onStampPreset,
   redactCount,
   onRedactReview,
   pageCount,
@@ -828,6 +884,8 @@ function ToolContext({
   object: EditorObject | null;
   onPatch: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
+  stampPreset?: StampPreset;
+  onStampPreset?: (preset: StampPreset) => void;
   redactCount: number;
   onRedactReview?: () => void;
   pageCount: number;
@@ -897,6 +955,50 @@ function ToolContext({
     );
   }
 
+  if (object?.kind === 'stamp') {
+    return (
+      <>
+        <span className="editor-context-label">Stamp</span>
+        {STAMP_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="editor-context-chip"
+            aria-pressed={object.text.toUpperCase() === preset.label}
+            data-testid={`editor-stamp-preset-${preset.id}`}
+            onClick={() => onPatch({ text: preset.label, color: preset.color })}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </>
+    );
+  }
+
+  // Chosen before the selected-object controls: arming the stamp tool must
+  // always expose the preset picker, even while an unrelated object is still
+  // selected from the previous placement.
+  if (tool === 'stamp') {
+    return (
+      <>
+        {STAMP_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="editor-context-chip"
+            aria-pressed={stampPreset?.id === preset.id}
+            data-testid={`editor-stamp-preset-${preset.id}`}
+            disabled={disabled}
+            onClick={() => onStampPreset?.(preset)}
+          >
+            {preset.label}
+          </button>
+        ))}
+        <Hint>Choose a stamp, then click the page.</Hint>
+      </>
+    );
+  }
+
   if (object?.kind === 'text') {
     return <TextControls object={object} onPatch={onPatch} disabled={disabled} />;
   }
@@ -925,7 +1027,10 @@ function ToolContext({
     object?.kind === 'rect' ||
     object?.kind === 'ellipse' ||
     object?.kind === 'line' ||
-    object?.kind === 'arrow'
+    object?.kind === 'arrow' ||
+    object?.kind === 'ink' ||
+    object?.kind === 'check' ||
+    object?.kind === 'cross'
   ) {
     return (
       <>
@@ -939,12 +1044,12 @@ function ToolContext({
           />
         ))}
         <span className="editor-context-divider" aria-hidden />
-        {[1, 1.5, 2, 3].map((width) => (
+        {(object.kind === 'ink' ? [1, 2, 3, 5] : [1, 1.5, 2, 3]).map((width) => (
           <button
             key={width}
             type="button"
             className="editor-context-chip"
-            aria-pressed={(object.strokeWidth ?? 1.5) === width}
+            aria-pressed={(object.strokeWidth ?? (object.kind === 'ink' ? 1.5 : 1.5)) === width}
             data-testid={`editor-stroke-${width}`}
             onClick={() => onPatch({ strokeWidth: width })}
           >
@@ -957,6 +1062,18 @@ function ToolContext({
 
   if (object?.kind === 'image') {
     return <Hint>Drag to move. Corner handles resize. The inspector keeps the exact bounds.</Hint>;
+  }
+
+  if (tool === 'pen') {
+    return <Hint>Draw on the page. The stroke is exported as vectors, not an image.</Hint>;
+  }
+
+  if (tool === 'check' || tool === 'cross') {
+    return <Hint>Click the page to place the mark, or drag to size it.</Hint>;
+  }
+
+  if (tool === 'date') {
+    return <Hint>Click the page to stamp today&apos;s date. It stays editable as text.</Hint>;
   }
 
   if (mode === 'sign') {
@@ -1545,7 +1662,7 @@ export function SelectionChip({ label, detail, onClear }: SelectionChipProps) {
 }
 
 /** Tiny step controls shared by the status bar and keyboard zoom. */
-export const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+export const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4] as const;
 
 export function editorStepZoom(zoom: number, direction: 'in' | 'out'): number | null {
   if (direction === 'in') return ZOOM_STEPS.find((level) => level > zoom + 0.001) ?? null;

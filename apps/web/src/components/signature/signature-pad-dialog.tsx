@@ -17,10 +17,10 @@
  * `isEmpty()` lies until the restore happens).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import * as SignaturePadLib from 'signature_pad';
 import type { PointGroup } from 'signature_pad';
-import { Download, Eraser, PenLine, Trash2, Undo2, X } from 'lucide-react';
+import { Download, Eraser, PenLine, Trash2, Undo2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -29,6 +29,7 @@ import {
   SIGNATURE_LABEL_MAX_CHARS,
   SIGNATURE_STORE_MAX,
   computeInkBounds,
+  inkAlphaFromLuminance,
   type SignatureMethod,
   type SignatureStrokes,
 } from '@/lib/signature-assets';
@@ -52,7 +53,7 @@ export interface SignatureCapture {
   method: SignatureMethod;
   /** Present only when the signer drew it (vector output later, §25.2). */
   strokes?: SignatureStrokes;
-  /** Capture-space dimensions in CSS pixels. */
+  /** Trimmed PNG dimensions in CSS pixels (the ink box, not the pad). */
   width: number;
   height: number;
 }
@@ -87,7 +88,11 @@ const BASELINE_FROM_BOTTOM = 44;
 /** Alpha threshold below which antialiased edges count as paper, not ink. */
 const INK_ALPHA_THRESHOLD = 8;
 
-type Tab = 'draw' | 'type';
+type Tab = 'draw' | 'type' | 'upload';
+
+/** Uploaded signatures are capped so a phone photo cannot exhaust the tab. */
+const UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+const UPLOAD_MAX_SIDE_PX = 2_400;
 
 /* ------------------------------------------------------------ assets strip */
 
@@ -199,6 +204,22 @@ export function SignaturePadDialog({
     setAdoptedUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [adopted]);
+
+  /** Uploaded image already converted to transparent ink and trimmed. */
+  const [uploaded, setUploaded] = useState<{ png: Blob; width: number; height: number } | null>(
+    null,
+  );
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!uploaded) {
+      setUploadedUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(uploaded.png);
+    setUploadedUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [uploaded]);
 
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -370,6 +391,7 @@ export function SignaturePadDialog({
     if (open) return;
     groupsRef.current = [];
     setAdopted(null);
+    setUploaded(null);
     setPadEmpty(true);
     setTypedText('');
     setTab('draw');
@@ -378,7 +400,12 @@ export function SignaturePadDialog({
   /* ------------------------------------------------ actions */
 
   const hasInput =
-    adopted !== null || (tab === 'type' ? typedText.trim().length > 0 : !padEmpty);
+    adopted !== null ||
+    (tab === 'type'
+      ? typedText.trim().length > 0
+      : tab === 'upload'
+        ? uploaded !== null
+        : !padEmpty);
 
   const adoptAsset = useCallback((asset: SignatureAssetRecord) => {
     setTab(asset.method === 'typed' ? 'type' : 'draw');
@@ -386,6 +413,7 @@ export function SignaturePadDialog({
     // The adopted PNG is the truth surface; blank the pad and any typed text
     // beneath it.
     setTypedText('');
+    setUploaded(null);
     groupsRef.current = [];
     padRef.current?.clear();
     setPadEmpty(true);
@@ -400,6 +428,15 @@ export function SignaturePadDialog({
         ...(adopted.strokes ? { strokes: adopted.strokes } : {}),
         width: adopted.width,
         height: adopted.height,
+      };
+    }
+    if (tab === 'upload') {
+      if (!uploaded) return null;
+      return {
+        png: uploaded.png,
+        method: 'drawn',
+        width: uploaded.width,
+        height: uploaded.height,
       };
     }
     const canvas = canvasRef.current;
@@ -421,9 +458,10 @@ export function SignaturePadDialog({
     if (!bounds) return null;
     const blob = await cropToPng(canvas, bounds);
     if (!blob) return null;
-    // Capture-space CSS dims: canvas pixels / ratio.
-    const cssWidth = Math.round(canvas.width / ratio);
-    const cssHeight = Math.round(canvas.height / ratio);
+    // Trimmed dimensions, in CSS pixels: the placed signature must keep the
+    // aspect of the ink that was captured, not the aspect of the pad.
+    const cssWidth = Math.max(1, Math.round(bounds.width / ratio));
+    const cssHeight = Math.max(1, Math.round(bounds.height / ratio));
     return {
       png: blob,
       method: tab === 'draw' ? 'drawn' : 'typed',
@@ -431,13 +469,70 @@ export function SignaturePadDialog({
       width: cssWidth,
       height: cssHeight,
     };
-  }, [adopted, tab, typedText]);
+  }, [adopted, tab, typedText, uploaded]);
+
+  const onUploadFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.type !== 'image/png' && file.type !== 'image/jpeg') {
+      toast.error('Upload a PNG or JPEG image.');
+      return;
+    }
+    if (file.size > UPLOAD_MAX_BYTES) {
+      toast.error(`That image is larger than ${Math.round(UPLOAD_MAX_BYTES / 1048576)} MB.`);
+      return;
+    }
+    try {
+      const image = await loadImageFile(file);
+      const sourceWidth = image.naturalWidth || image.width;
+      const sourceHeight = image.naturalHeight || image.height;
+      const scale = Math.min(1, UPLOAD_MAX_SIDE_PX / Math.max(sourceWidth, sourceHeight));
+      const width = Math.max(1, Math.round(sourceWidth * scale));
+      const height = Math.max(1, Math.round(sourceHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no canvas');
+      ctx.drawImage(image, 0, 0, width, height);
+      const pixels = ctx.getImageData(0, 0, width, height);
+      // Paper becomes transparent along a luminance ramp, so a photo on a sheet
+      // of paper places as ink rather than as a grey rectangle.
+      pixels.data.set(inkAlphaFromLuminance(pixels.data, width, height));
+      ctx.putImageData(pixels, 0, 0);
+      const bounds = computeInkBounds(pixels.data, width, height, {
+        alphaThreshold: INK_ALPHA_THRESHOLD,
+        padding: 6,
+      });
+      if (!bounds) {
+        toast.error('No ink was found in that image.');
+        return;
+      }
+      const png = await cropToPng(canvas, bounds);
+      if (!png) throw new Error('could not encode');
+      setUploaded({ png, width: bounds.width, height: bounds.height });
+      setAdopted(null);
+      setTypedText('');
+      groupsRef.current = [];
+      padRef.current?.clear();
+      setPadEmpty(true);
+    } catch {
+      toast.error('Could not read that image.');
+    }
+  }, []);
 
   const onSave = useCallback(
     async (intent: 'save' | 'download' = 'save') => {
       const captured = await capture();
       if (!captured) {
-        toast.error(tab === 'draw' ? 'Draw a signature first.' : 'Type a name first.');
+        toast.error(
+          tab === 'draw'
+            ? 'Draw a signature first.'
+            : tab === 'upload'
+              ? 'Choose an image first.'
+              : 'Type a name first.',
+        );
         return;
       }
       try {
@@ -472,7 +567,13 @@ export function SignaturePadDialog({
   const onUseClick = useCallback(async () => {
     const captured = await capture();
     if (!captured) {
-      toast.error(tab === 'draw' ? 'Draw a signature first.' : 'Type a name first.');
+      toast.error(
+        tab === 'draw'
+          ? 'Draw a signature first.'
+          : tab === 'upload'
+            ? 'Choose an image first.'
+            : 'Type a name first.',
+      );
       return;
     }
     onUse?.(captured);
@@ -523,7 +624,7 @@ export function SignaturePadDialog({
           role="tablist"
           aria-label="Signature input method"
         >
-          {(['draw', 'type'] as Tab[]).map((entry) => (
+          {(['draw', 'type', 'upload'] as Tab[]).map((entry) => (
             <button
               key={entry}
               type="button"
@@ -543,7 +644,7 @@ export function SignaturePadDialog({
                 setTab(entry);
               }}
             >
-              {entry === 'draw' ? 'Draw' : 'Type'}
+              {entry === 'draw' ? 'Draw' : entry === 'type' ? 'Type' : 'Upload'}
             </button>
           ))}
         </div>
@@ -608,6 +709,7 @@ export function SignaturePadDialog({
                 className={cn(
                   'relative z-10 block touch-none select-none',
                   tab === 'draw' && !adopted ? 'cursor-crosshair' : 'pointer-events-none',
+                  tab === 'upload' && 'invisible',
                 )}
                 style={{
                   height: CANVAS_CSS_HEIGHT,
@@ -619,6 +721,14 @@ export function SignaturePadDialog({
                 <img
                   src={adoptedUrl}
                   alt=""
+                  className="pointer-events-none absolute inset-0 z-20 m-auto max-h-[85%] max-w-[80%] object-contain"
+                />
+              )}
+              {!adopted && tab === 'upload' && uploadedUrl && (
+                <img
+                  src={uploadedUrl}
+                  alt="Preview of the uploaded signature"
+                  data-testid="signature-upload-preview"
                   className="pointer-events-none absolute inset-0 z-20 m-auto max-h-[85%] max-w-[80%] object-contain"
                 />
               )}
@@ -636,6 +746,14 @@ export function SignaturePadDialog({
                   className="pointer-events-none absolute inset-x-0 top-1/2 z-0 -translate-y-1/2 text-center text-sm italic text-black/25 select-none"
                 >
                   Your signature appears here
+                </span>
+              )}
+              {!adopted && tab === 'upload' && !uploadedUrl && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-1/2 z-0 -translate-y-1/2 text-center text-sm italic text-black/25 select-none"
+                >
+                  Upload a photo of your signature
                 </span>
               )}
             </div>
@@ -696,6 +814,37 @@ export function SignaturePadDialog({
                     <TooltipContent>Clear</TooltipContent>
                   </Tooltip>
                 </>
+              ) : tab === 'upload' ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 rounded-full px-3 text-xs"
+                    aria-label="Choose an image file"
+                    data-testid="signature-upload"
+                    onClick={() => uploadInputRef.current?.click()}
+                  >
+                    <Upload className="mr-1.5 size-3.5" /> Choose image
+                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 rounded-full text-muted-foreground transition-transform duration-200 active:scale-[0.96] disabled:opacity-35"
+                        aria-label="Clear the uploaded image"
+                        data-testid="signature-upload-clear"
+                        disabled={!uploaded}
+                        onClick={() => setUploaded(null)}
+                      >
+                        <Eraser className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Clear</TooltipContent>
+                  </Tooltip>
+                </>
               ) : (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -746,8 +895,22 @@ export function SignaturePadDialog({
             {tab === 'type' && fontReady === true && (
               <span className="text-[11px] text-muted-foreground">Caveat, sized to fit</span>
             )}
+            {tab === 'upload' && (
+              <span className="text-[11px] text-muted-foreground">PNG or JPEG · paper removed</span>
+            )}
           </div>
         </div>
+
+        <input
+          ref={uploadInputRef}
+          type="file"
+          accept="image/png,image/jpeg"
+          className="hidden"
+          aria-hidden
+          tabIndex={-1}
+          data-testid="signature-upload-input"
+          onChange={(event) => void onUploadFile(event)}
+        />
 
         <AssetStrip
           assets={assets}
@@ -813,6 +976,23 @@ export function SignaturePadDialog({
 }
 
 /* ---------------------------------------------------------------- helpers */
+
+/** Decodes an uploaded file and releases its object URL as soon as it is drawn. */
+function loadImageFile(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('unreadable image'));
+    };
+    image.src = url;
+  });
+}
 
 async function cropToPng(
   source: HTMLCanvasElement,

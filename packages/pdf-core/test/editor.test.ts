@@ -5,6 +5,7 @@
  */
 
 import { PDFDocument, PDFName, StandardFonts, degrees, rgb } from '@cantoo/pdf-lib';
+import { unzlibSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -870,6 +871,147 @@ describe('edit job output naming', () => {
     expect((await run('..')).name).toBe('alpha-edited.pdf');
     expect((await run('   ')).name).toBe('alpha-edited.pdf');
     expect((await run('report')).name).toBe('report.pdf');
+  });
+});
+
+/* ------------------------------------------------- new object kinds (Sprint 2) */
+
+describe('ink, check/cross and stamp objects', () => {
+  /** Inflates content streams so operator assertions see what is really drawn. */
+  function contentOf(bytes: Uint8Array): string {
+    const decoder = new TextDecoder('latin1');
+    const latin1 = decoder.decode(bytes);
+    let out = '';
+    const streams = /stream\r?\n/g;
+    let match: RegExpExecArray | null;
+    while ((match = streams.exec(latin1)) !== null) {
+      const start = match.index + match[0].length;
+      const end = latin1.indexOf('endstream', start);
+      if (end < 0) break;
+      const slice = bytes.subarray(start, end);
+      try {
+        out += decoder.decode(unzlibSync(slice));
+      } catch {
+        out += decoder.decode(slice);
+      }
+      streams.lastIndex = end + 'endstream'.length;
+    }
+    return out;
+  }
+
+  it('exports a freehand stroke as vector segments, not an image', async () => {
+    const doc = await docWithText(1);
+    await applyEdits(
+      doc,
+      [
+        {
+          id: 'ink',
+          kind: 'ink',
+          pageIndex: 0,
+          x: 100,
+          y: 200,
+          width: 100,
+          height: 50,
+          points: [
+            { x: 0, y: 0 },
+            { x: 50, y: 25 },
+            { x: 100, y: 0 },
+          ],
+          stroke: '#1f293b',
+          strokeWidth: 2,
+        },
+      ],
+      testContext(),
+    );
+    const saved = await doc.save({ useObjectStreams: false });
+    await expect(validateExport(saved, 1)).resolves.toBeUndefined();
+    const content = contentOf(saved);
+    expect(content).toMatch(/\d+(?:\.\d+)? \d+(?:\.\d+)? m\b/); // move to
+    expect(content).toMatch(/\d+(?:\.\d+)? \d+(?:\.\d+)? l\b/); // line to
+    expect(content).toMatch(/\bS\b/); // stroke
+    expect(new TextDecoder('latin1').decode(saved)).not.toContain('/Subtype /Image');
+  });
+
+  it('draws a single-point stroke as a dot instead of nothing', async () => {
+    const doc = await docWithText(1);
+    await applyEdits(
+      doc,
+      [{ id: 'dot', kind: 'ink', pageIndex: 0, x: 200, y: 200, width: 1, height: 1, points: [{ x: 0, y: 0 }] }],
+      testContext(),
+    );
+    const saved = await doc.save({ useObjectStreams: false });
+    await expect(validateExport(saved, 1)).resolves.toBeUndefined();
+  });
+
+  it('exports check and cross marks as stroked segments', async () => {
+    for (const kind of ['check', 'cross'] as const) {
+      const doc = await docWithText(1);
+      await applyEdits(
+        doc,
+        [{ id: kind, kind, pageIndex: 0, x: 100, y: 100, width: 34, height: 34, stroke: '#15803d', strokeWidth: 2 }],
+        testContext(),
+      );
+      const saved = await doc.save({ useObjectStreams: false });
+      const content = contentOf(saved);
+      expect(content.match(/\bl\b/g)?.length ?? 0, kind).toBeGreaterThanOrEqual(2);
+      expect(content).toMatch(/\bS\b/);
+    }
+  });
+
+  it('exports a stamp as a bordered box plus real, selectable text', async () => {
+    const doc = await docWithText(1);
+    await applyEdits(
+      doc,
+      [
+        {
+          id: 'stamp',
+          kind: 'stamp',
+          pageIndex: 0,
+          x: 300,
+          y: 300,
+          width: 160,
+          height: 44,
+          text: 'Approved',
+          color: '#15803d',
+        },
+      ],
+      testContext(),
+    );
+    const saved = await doc.save({ useObjectStreams: false });
+    await expect(validateExport(saved, 1)).resolves.toBeUndefined();
+    expect(pdfContainsText(saved, 'APPROVED')).toBe(true);
+    // pdf-lib draws a rectangle as a closed four-point path, not the `re`
+    // shorthand; the stroke is the border and `h` is the close-path operator.
+    expect(contentOf(saved)).toMatch(/\bh\b/);
+    expect(contentOf(saved)).toMatch(/\bS\b/);
+  });
+
+  it('rejects ink with no points, non-finite points or a runaway point count', () => {
+    const base = { id: 'i', kind: 'ink', pageIndex: 0, x: 10, y: 10, width: 20, height: 20 } as const;
+    expect(() => validateEditObjects([{ ...base, points: [] } as EditorObject], 1)).toThrow(
+      /at least one point/,
+    );
+    expect(() =>
+      validateEditObjects([{ ...base, points: [{ x: Number.NaN, y: 0 }] } as EditorObject], 1),
+    ).toThrow(/finite x and y/);
+    const tooMany = Array.from({ length: 5_001 }, (_, i) => ({ x: i * 0.1, y: 0 }));
+    expect(() => validateEditObjects([{ ...base, points: tooMany } as EditorObject], 1)).toThrow(
+      /point limit/,
+    );
+    expect(() =>
+      validateEditObjects([{ ...base, points: [{ x: 0, y: 0 }], opacity: 2 } as EditorObject], 1),
+    ).toThrow(/opacity/);
+  });
+
+  it('rejects a stamp with no label or a label the standard font cannot draw', () => {
+    const base = { id: 's', kind: 'stamp', pageIndex: 0, x: 10, y: 10, width: 100, height: 40 } as const;
+    expect(() => validateEditObjects([{ ...base, text: '   ' } as EditorObject], 1)).toThrow(
+      /needs a label/,
+    );
+    expect(() => validateEditObjects([{ ...base, text: '你好' } as EditorObject], 1)).toThrow(
+      /cannot be drawn with the standard font/,
+    );
+    expect(() => validateEditObjects([{ ...base, text: 'VOID' } as EditorObject], 1)).not.toThrow();
   });
 });
 

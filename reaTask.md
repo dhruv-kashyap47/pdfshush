@@ -188,15 +188,15 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | Phase | Theme | Tasks | Done | Partial | Status |
 | --- | --- | --- | --- | --- | --- |
 | 0 | Safety rails, corpus, provenance, fonts | G-01..G-05, F-01 | 2 | 4 | `[~]` |
-| 1 | Editor capability parity | E-00..E-10 | 1 | 5 | `[~]` |
-| 2 | Text editing UX | T-01..T-07 | 0 | 1 | `[~]` |
-| 3 | Search, recovery, data-loss guards | S-01..S-06 | 0 | 2 | `[~]` |
+| 1 | Editor capability parity | E-00..E-10 | 8 | 2 | `[~]` |
+| 2 | Text editing UX | T-01..T-07 | 1 | 1 | `[~]` |
+| 3 | Search, recovery, data-loss guards | S-01..S-06 | 1 | 1 | `[~]` |
 | 4 | Content-stream surgery | C-01..C-14 | 0 | 3 | `[~]` |
 | 5 | OCR inside the editor | O-01..O-05 | 0 | 2 | `[~]` |
 | 6 | Export trust and metadata | X-01..X-06 | 1 | 3 | `[~]` |
 | 7 | Hardening and parity sweep | H-01..H-08 | 0 | 4 | `[~]` |
 
-**Queue:** G-01 → G-02 → G-04 → E-00 → E-10 → S-06 → E-01..E-04 → T/S quick wins → C-core → O → X → H.
+**Queue:** Sprint 2 complete → T-01 → T-02 → T-03 → T-05 → T-06 (UI half) → S-01 → S-02 → S-03 → S-04 → C-core → O → X → H.
 **Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1.
 
 ### 4.2 Full board
@@ -210,20 +210,20 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | G-05 | Guardrail scripts | P0 | S | ~60% | `[~]` |
 | F-01 | Fontkit adoption + document-font embedding | P0 | L | ~85% | `[~]` |
 | E-00 | Object role discriminator + batch create | P0 | S | done | `[x]` |
-| E-01 | Pen / ink tool | P1 | M | 0% | `[ ]` |
-| E-02 | Check / cross marks | P1 | S | 0% | `[ ]` |
-| E-03 | Date stamp | P1 | S | 0% | `[ ]` |
-| E-04 | Stamp presets | P1 | S | 0% | `[ ]` |
-| E-05 | Signature crop/aspect/upload | P1 | S | ~60% | `[~]` |
-| E-06 | Fit page + percent + 400% | P1 | S | ~60% | `[~]` |
+| E-01 | Pen / ink tool | P1 | M | done | `[x]` |
+| E-02 | Check / cross marks | P1 | S | done | `[x]` |
+| E-03 | Date stamp | P1 | S | done | `[x]` |
+| E-04 | Stamp presets | P1 | S | done | `[x]` |
+| E-05 | Signature crop/aspect/upload | P1 | S | done | `[x]` |
+| E-06 | Fit page + percent + 400% | P1 | S | done | `[x]` |
 | E-07 | Snap guides + Alt bypass | P1 | M | 0% | `[ ]` |
-| E-08 | Object clipboard + clamp | P1 | S | ~60% | `[~]` |
+| E-08 | Object clipboard + clamp | P1 | S | done | `[x]` |
 | E-09 | Insert pages from PDF | P2 | M | ~20% | `[~]` |
 | E-10 | Rail/inspector integration + capability truth | P0 | S | ~70% | `[~]` |
 | T-01 | Revert paragraph via reverse edit | P1 | M | 0% | `[ ]` |
 | T-02 | Move paragraph with plan offsets | P1 | M | 0% | `[ ]` |
 | T-03 | Detection details drawer | P1 | M | 0% | `[ ]` |
-| T-04 | Outline detected text | P2 | S | 0% | `[ ]` |
+| T-04 | Outline detected text | P2 | S | done | `[x]` |
 | T-05 | Inline editing legibility | P1 | L | ~40% | `[~]` |
 | T-06 | Formatting that reaches native | P1 | L | ~30% | `[~]` |
 | T-07 | Rotate text block | P2 | M | 0% | `[ ]` |
@@ -231,7 +231,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | S-02 | Find & replace UI | P1 | S | 0% | `[ ]` |
 | S-03 | Draft autosave + `resetTo` | P1 | M | 0% | `[ ]` |
 | S-04 | Restore/discard banner | P1 | S | 0% | `[ ]` |
-| S-05 | Error taxonomy completion | P1 | S | ~70% | `[~]` |
+| S-05 | Error taxonomy completion | P1 | S | done | `[x]` |
 | S-06 | Data-loss path guards | P0 | S | ~80% | `[~]` |
 | C-01 | Lexer + emitter v2 | P0 | M | ~20% | `[~]` |
 | C-02 | Glyph metrics + AFM + ToUnicode | P0 | M | ~5% | `[~]` |
@@ -825,6 +825,26 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 
 ---
 
+## Sprint 2 close (2026-11-17)
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| E-01 | `[x]` | Engine `ink` object exports vector segments with round caps (single point = dot); 5,000-point cap; `lib/ink.ts` sampling (0.6 pt), RDP simplify, bounds and resize scaling; inspector colour/width/opacity; one undo step; unit + `editor-quick-parity` draw/undo/redo; exported PDF has stroke operators and no image XObject. |
+| E-02 | `[x]` | One `check`/`cross` object drawn as two stroked segments, role `content`; unit vector export + E2E placement; redaction count stays 0 with stamps/checks present. |
+| E-03 | `[x]` | `date` tool places a text object with a long date; locale pinned to en-GB; `lib/stamp-date.ts` detects non-WinAnsi output and falls back (warn-ready); unit en-GB/en-US/ar-EG; date survives export extraction. |
+| E-04 | `[x]` | Seven-preset catalogue (`APPROVED/PAID/DRAFT/FINAL/CONFIDENTIAL/REJECTED/VOID`), one bordered stamp object with real text, editable label/colour/size, preset chips; unit catalogue, E2E preset + copy/paste + redaction isolation. |
+| E-05 | `[x]` | Upload tab with luminance→alpha ramp; capture returns the **trimmed** ink dimensions (not the pad), shared `scaledSignatureSize`; unit ramp/aspect; `signature-upload` E2E proves 84% transparency and 5.56:1 placement from a wide upload. |
+| E-06 | `[x]` | 25–400% window; typed percent input (Enter/blur, Escape restores); fit page (width+height) and fit width; mobile HUD fit-page; `lib/zoom.ts`; unit fit/parse; E2E 400% + fit. |
+| E-08 | `[x]` | Ctrl/Cmd+C/X/V for objects, +12/+12 paste, duplicate offset and signature placement share `clampToPage`; unit clamp/offset; E2E copy/paste lands offset on the page. |
+| T-04 | `[x]` | Debug outline layer for blocks/paragraphs/lines with hover labels, pointer-transparent, off by default; E2E toggles it at fit and 400%, absent when off. |
+| S-05 | `[x]` | New `empty`, `not-a-pdf`, `out-of-memory` codes with distinct copy/retry; damaged and size caps no longer swallow them; unit mapping including negative controls. |
+
+**Verification:** `pnpm typecheck` green; `pnpm test` green (pdf-core 586 + 1 expected fail, web 266, api 243, mcp 19, ai-agent 152, ai-provider 375); `pnpm build` green; `pnpm test:bundle` 0 engines in main; `pnpm test:provenance` clean; E2E `editor-quick-parity`, `signature-upload`, `text-edit`, `text-model`, `keyboard`, `a11y`, `sign` all green.
+
+**Still open before Sprint 3:** E-07 snapping (invented), E-09 insert pages, E-10's remaining rail/capability truth. Date locale is pinned to en-GB this sprint; a locale picker can use the existing fallback API later. None blocks Gate A for the current feature set.
+
+---
+
 ## 8. Release gates
 
 ### Gate A — Foundation + parity
@@ -909,3 +929,4 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-17 | G-01 landed: `licenses/rea-ihpdf-NOTICE.md`, derived-code header convention, `scripts/check-provenance.mjs`, `pnpm test:provenance`, CI step; positive + negative control verified. |
 | 2026-11-17 | **Sprint 1 landed.** G-01/G-04/E-00/X-06 complete; G-02/G-03/F-01/E-10/S-06 partial. Added provenance gate; validated `TextEngineStrategy`; object roles + batch create; fontkit 2.0.12 with document-programme extraction/embedding; text-surgery + golden harnesses; leave-confirmation sheet; cancel E2E. Evidence: typecheck all packages, 580+1 pdf-core, 211 web, build + bundle boundary, text-model/text-edit/keyboard/editor-unmount/editor-cancel green. |
 | 2026-11-17 | **Sprint 1 bug pass.** Fixed Change-file discarding the picker before it returned (input now stays mounted until a file is chosen); font discovery now follows inherited page resources; `native-only` now refuses every non-native outcome, not just the content-stream pass; Hono advisories patched via workspace overrides (`pnpm audit` clean, MCP 19/19). |
+| 2026-11-17 | **Sprint 2 landed.** E-01/E-02/E-03/E-04/E-05/E-06/E-08/T-04/S-05 complete: vector ink + check/cross/stamp object kinds, date stamp, signature upload with luminance alpha + trimmed aspect, 400%/typed/fit-page zoom, object clipboard with shared page clamp, detected-text outline debug layer, and `empty`/`not-a-pdf`/`out-of-memory` error codes. New pure libs `ink`, `stamp-date`, `stamp-presets`, `object-placement`, `zoom` with unit tests; E2E `editor-quick-parity` + `signature-upload`. PDF-core 586+1 expected fail, web 266, build/bundle/provenance green, text-edit/text-model/keyboard/a11y/sign E2E green. |

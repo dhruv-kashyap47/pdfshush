@@ -32,6 +32,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Maximize2,
   Settings2,
   ShieldAlert,
   Sparkles,
@@ -119,12 +120,20 @@ import {
   type EditorProposalMarker,
   type EditorTool,
 } from '@/lib/editor-tools';
+import { clampToPage, offsetOnPage } from '@/lib/object-placement';
+import { scaleInkPoints } from '@/lib/ink';
+import {
+  DEFAULT_STAMP_PRESET,
+  type StampPreset,
+} from '@/lib/stamp-presets';
+import { clampZoom, fitZoom } from '@/lib/zoom';
 import { jobPool } from '@/lib/job-pool';
 import { UI } from '@/lib/motion';
 import type { AiPlanApplyResult } from '@/lib/ai/edit-skill';
 import {
   SIGNATURE_LABEL_MAX_CHARS,
   sanitizeSignatureLabel,
+  scaledSignatureSize,
 } from '@/lib/signature-assets';
 import {
   bodySelectionToDisplay,
@@ -196,6 +205,11 @@ const KEY_TOOLS: Record<string, EditorTool> = {
   h: 'highlight',
   a: 'ai',
   r: 'redact',
+  p: 'pen',
+  k: 'check',
+  x: 'cross',
+  d: 'date',
+  m: 'stamp',
 };
 
 let objectCounter = 0;
@@ -219,11 +233,6 @@ function measureTextLine(
         : 'Arial, Helvetica, sans-serif';
   context.font = `${object.italic ? 'italic ' : ''}${object.bold ? '700 ' : ''}${object.fontSize}px ${family}`;
   return context.measureText(line.length > 0 ? line : ' ').width;
-}
-
-function clampZoom(value: number): number {
-  if (!Number.isFinite(value)) return 1;
-  return Math.min(2, Math.max(0.25, Math.round(value * 20) / 20));
 }
 
 /** Cancelled work, not a failure worth reporting to the user. */
@@ -470,6 +479,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   /** Where the signature insertion lands: set when the pad opens. */
   const pendingSignatureRef = useRef<{ pageIndex: number; x: number; y: number } | null>(null);
   const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  /** Preset applied to the next stamp placed, chosen from the context bar. */
+  const [stampPreset, setStampPreset] = useState<StampPreset>(DEFAULT_STAMP_PRESET);
+  /** Debug overlay: outlines the detected text model. Never affects export. */
+  const [showTextOutlines, setShowTextOutlines] = useState(false);
   /** D2 signer label: optional, sanitized at save time, never a secret. */
   const [signerLabel, setSignerLabel] = useState('');
   /** Render kind/method of the latest placed signature, for the audit note. */
@@ -973,7 +986,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         1,
         ...pages.map((page) => page.displayWidthPt ?? page.widthPt),
       );
-      return clampZoom((container.clientWidth - padding - 2) / widest);
+      return fitZoom(
+        { width: container.clientWidth, height: container.clientHeight, paddingX: padding },
+        { width: widest, height: 1 },
+        'width',
+      );
     },
     [],
   );
@@ -992,6 +1009,44 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     zoomTouchedRef.current = true;
     setZoom(computeFitZoom(container, pages));
   }, [computeFitZoom]);
+
+  /**
+   * Fit the whole page (width *and* height), which centres a landscape page
+   * instead of letting its height overflow the viewport.
+   */
+  const fitPage = useCallback(() => {
+    const container = scrollRef.current;
+    const pages = infoRef.current?.pages;
+    if (!container || !pages || pages.length === 0) return;
+    const styles = getComputedStyle(container);
+    const paddingX =
+      (Number.parseFloat(styles.paddingLeft) || 0) +
+      (Number.parseFloat(styles.paddingRight) || 0);
+    const paddingY =
+      (Number.parseFloat(styles.paddingTop) || 0) +
+      (Number.parseFloat(styles.paddingBottom) || 0);
+    const widest = Math.max(
+      1,
+      ...pages.map((page) => page.displayWidthPt ?? page.widthPt),
+    );
+    const tallest = Math.max(
+      1,
+      ...pages.map((page) => page.displayHeightPt ?? page.heightPt),
+    );
+    zoomTouchedRef.current = true;
+    setZoom(
+      fitZoom(
+        {
+          width: container.clientWidth,
+          height: container.clientHeight,
+          paddingX,
+          paddingY,
+        },
+        { width: widest, height: tallest },
+        'page',
+      ),
+    );
+  }, []);
 
   /** Jump to a page by index, moving only the document canvas. */
   const goToPage = useCallback((pageIndex: number) => {
@@ -1158,6 +1213,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const objectCount = editor.doc.objects.length;
   const atObjectLimit = objectCount >= LIMITS.tool.maxEditObjects;
 
+  /** Display-space page box for placement clamps; safe before a page loads. */
+  const pageBoxFor = useCallback((pageIndex: number) => {
+    const page = infoRef.current?.pages.find((candidate) => candidate.index === pageIndex);
+    return {
+      width: page?.displayWidthPt ?? page?.widthPt ?? 612,
+      height: page?.displayHeightPt ?? page?.heightPt ?? 792,
+    };
+  }, []);
+
   const createObjects = useCallback(
     (objects: EditorObject[]) => {
       if (objects.length === 0) return;
@@ -1215,7 +1279,23 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     (id: string, rect: { x: number; y: number; width: number; height: number }) => {
       editor.live((doc) => ({
         ...doc,
-        objects: doc.objects.map((object) => (object.id === id ? { ...object, ...rect } : object)),
+        objects: doc.objects.map((object) => {
+          if (object.id !== id) return object;
+          // Ink points are stored relative to the box, so a resize must scale
+          // them with it or the stroke would stay the old size in a new frame.
+          if (object.kind === 'ink') {
+            return {
+              ...object,
+              ...rect,
+              points: scaleInkPoints(
+                object.points,
+                { width: object.width, height: object.height },
+                { width: rect.width, height: rect.height },
+              ),
+            };
+          }
+          return { ...object, ...rect };
+        }),
       }));
     },
     [editor.live],
@@ -1651,11 +1731,16 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         // the new id has to exist before we can select it.
         const source = editor.doc.objects.find((object) => object.id === selectedId);
         if (!source) return;
+        const placed = offsetOnPage(
+          { x: source.x, y: source.y, width: source.width, height: source.height },
+          pageBoxFor(source.pageIndex),
+          8,
+          8,
+        );
         const copy = {
           ...source,
           id: newObjectId(),
-          x: source.x + 8,
-          y: source.y + 8,
+          ...placed,
         } as EditorObject;
         editor.apply((doc) => ({ ...doc, objects: [...doc.objects, copy] }));
         setSelectedId(copy.id);
@@ -1704,8 +1789,49 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         return { ...doc, objects };
       });
     },
-    [selectedId, saving, atObjectLimit, editor.apply],
+    [selectedId, saving, atObjectLimit, editor.apply, pageBoxFor],
   );
+
+  /* ----------------------------------------------------- object clipboard */
+
+  /** Last copied object; survives undo and page changes, per editor session. */
+  const objectClipboard = useRef<EditorObject | null>(null);
+
+  const copySelectedObject = useCallback((): boolean => {
+    if (!selectedId) return false;
+    const source = editorDocRef.current.objects.find((object) => object.id === selectedId);
+    if (!source) return false;
+    objectClipboard.current = structuredClone(source) as EditorObject;
+    toast.success('Object copied');
+    return true;
+  }, [selectedId]);
+
+  const cutSelectedObject = useCallback((): boolean => {
+    if (!copySelectedObject()) return false;
+    deleteSelected();
+    return true;
+  }, [copySelectedObject, deleteSelected]);
+
+  /**
+   * Pastes onto the page in view, offset like every other editor's paste and
+   * clamped so the copy always lands inside the page.
+   */
+  const pasteObject = useCallback((): boolean => {
+    const clipboard = objectClipboard.current;
+    if (!clipboard || atObjectLimit) return false;
+    const pageIndex = Math.min(
+      Math.max(0, currentPage),
+      Math.max(0, (infoRef.current?.pageCount ?? 1) - 1),
+    );
+    const placed = offsetOnPage(
+      { x: clipboard.x, y: clipboard.y, width: clipboard.width, height: clipboard.height },
+      pageBoxFor(pageIndex),
+      12,
+      12,
+    );
+    createObject({ ...(structuredClone(clipboard) as EditorObject), id: newObjectId(), pageIndex, ...placed });
+    return true;
+  }, [atObjectLimit, createObject, currentPage, pageBoxFor]);
 
   const selectedIndex = selectedId
     ? editor.doc.objects.findIndex((object) => object.id === selectedId)
@@ -2100,22 +2226,23 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     async (capture: SignatureCapture) => {
       const pending = pendingSignatureRef.current;
       if (!pending) return;
-      const page = infoRef.current?.pages.find((candidate) => candidate.index === pending.pageIndex);
-      const pageWidthPt = page?.displayWidthPt ?? page?.widthPt ?? 612;
-      const width = Math.min(SIGNATURE_WIDTH_PT, Math.max(24, Math.round(capture.width)));
-      const height = Math.max(20, Math.round(width * (capture.height / Math.max(1, capture.width))));
-      const clamped = { ...pending };
-      // The click seeds the top-left; keep the placement on the page.
-      // Clamping reuses the same bounds rule the engine validates with.
-      clamped.x = Math.min(clamped.x, Math.max(0, pageWidthPt - width));
-      clamped.y = Math.max(0, clamped.y);
+      const { width, height } = scaledSignatureSize(
+        capture.width,
+        capture.height,
+        SIGNATURE_WIDTH_PT,
+      );
+      // The click seeds the top-left; keep the whole placement on the page.
+      const placed = clampToPage(
+        { x: pending.x, y: pending.y, width, height },
+        pageBoxFor(pending.pageIndex),
+      );
       lastSignatureMethodRef.current = capture.method;
       const object: EditorObject = {
         id: newObjectId(),
         kind: 'image',
         pageIndex: pending.pageIndex,
-        x: Math.round(clamped.x),
-        y: Math.round(clamped.y),
+        x: Math.round(placed.x),
+        y: Math.round(placed.y),
         width,
         height,
         data: new Uint8Array(await capture.png.arrayBuffer()),
@@ -2124,7 +2251,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       pendingSignatureRef.current = null;
       createObject(object);
     },
-    [createObject],
+    [createObject, pageBoxFor],
   );
 
   /* --------------------------------------------------------------- save */
@@ -2495,6 +2622,25 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           return;
         }
       }
+      // Object clipboard: only when there is no text selection and focus is not
+      // in a field (the typing guard above already returned).
+      if (mod && !textSelectionRef.current) {
+        if (key === 'c' && selectedId) {
+          event.preventDefault();
+          copySelectedObject();
+          return;
+        }
+        if (key === 'x' && selectedId) {
+          event.preventDefault();
+          cutSelectedObject();
+          return;
+        }
+        if (key === 'v' && objectClipboard.current) {
+          event.preventDefault();
+          pasteObject();
+          return;
+        }
+      }
       if ((event.key === 'Delete' || event.key === 'Backspace') && textSelectionRef.current) {
         event.preventDefault();
         deleteTextSelection();
@@ -2544,6 +2690,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     cutTextSelection,
     pasteTextSelection,
     deleteTextSelection,
+    copySelectedObject,
+    cutSelectedObject,
+    pasteObject,
     mode,
   ]);
 
@@ -3118,6 +3267,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                   if (next !== null) onZoomChange(next);
                 }}
                 onFitWidth={fitWidth}
+                onFitPage={fitPage}
+                stampPreset={stampPreset}
+                onStampPreset={setStampPreset}
                 onOpenInspector={() => setMobileInspectorOpen((open) => !open)}
                 inspectorOpen={mobileInspectorOpen}
                 disabled={saving}
@@ -3190,6 +3342,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         selectedId={selectedId}
                         editingId={editingId}
                         tool={tool}
+                        stampPreset={stampPreset}
+                        debugOutline={showTextOutlines}
                         runs={runsByPage[page.index] ?? null}
                         layout={layoutsByPage[page.index] ?? null}
                         textSelection={
@@ -3309,6 +3463,16 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                       }}
                     >
                       <ZoomIn className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="editor-mobile-hud-btn"
+                      aria-label={`${Math.round(zoom * 100)}% — fit page`}
+                      title="Fit page"
+                      data-testid="mobile-fit-page"
+                      onClick={fitPage}
+                    >
+                      <Maximize2 className="size-4" />
                     </button>
                   </div>
                 </div>
@@ -3614,6 +3778,17 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         ) : null}
                       </dl>
 
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={showTextOutlines}
+                          onChange={(event) => setShowTextOutlines(event.target.checked)}
+                          data-testid="editor-outline-toggle"
+                          className="size-3.5 accent-blue-600"
+                        />
+                        Outline detected text
+                      </label>
+
                       <StructurePanel
                         layout={
                           currentMetaPage ? layoutsByPage[currentMetaPage.index] ?? null : null
@@ -3634,11 +3809,18 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                             <kbd>V</kbd> Select <kbd>T</kbd> Text <kbd>H</kbd> Highlight
                           </li>
                           <li>
+                            <kbd>P</kbd> Pen <kbd>K</kbd> Check <kbd>X</kbd> Cross
+                          </li>
+                          <li>
+                            <kbd>D</kbd> Date <kbd>M</kbd> Stamp
+                          </li>
+                          <li>
                             <kbd>Ctrl</kbd> <kbd>Z</kbd> Undo <kbd>Ctrl</kbd> <kbd>Shift</kbd>{' '}
                             <kbd>Z</kbd> Redo
                           </li>
                           <li>
-                            <kbd>Del</kbd> Remove selection <kbd>Ctrl</kbd> <kbd>D</kbd> Duplicate
+                            <kbd>Del</kbd> Remove <kbd>Ctrl</kbd> <kbd>D</kbd> Duplicate{' '}
+                            <kbd>Ctrl</kbd> <kbd>C</kbd>/<kbd>X</kbd>/<kbd>V</kbd> Copy
                           </li>
                           <li>
                             <kbd>Ctrl</kbd> <kbd>0</kbd> Fit width <kbd>+</kbd> <kbd>-</kbd> Zoom

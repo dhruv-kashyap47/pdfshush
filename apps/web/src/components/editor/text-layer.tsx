@@ -56,6 +56,8 @@ export interface TextLayerProps {
    * the original paragraph underneath.
    */
   claimedTextBoxes?: readonly BBox[];
+  /** Debug overlay: outline detected blocks, paragraphs and lines. Off by default. */
+  debugOutline?: boolean;
 
   onBlockSelect: (blockId: string | null) => void;
   onParagraphEdit: (
@@ -71,6 +73,7 @@ export interface TextLayerProps {
 interface HoverState {
   blockId: string | null;
   paragraphId: string | null;
+  lineId: string | null;
 }
 
 interface DragState {
@@ -91,7 +94,7 @@ const DRAG_SLOP_PX = 3;
 const DOUBLE_CLICK_EDIT_DELAY_MS = 220;
 
 export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
-  const { layout, zoom, tool, readOnly, selection, selectedBlockId, editing } = props;
+  const { layout, zoom, tool, readOnly, selection, selectedBlockId, editing, debugOutline = false } = props;
   const propsRef = useRef(props);
   propsRef.current = props;
   const claimedRef = useRef(props.claimedTextBoxes);
@@ -125,7 +128,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
     window.removeEventListener('pointerdown', outsideCancel.current, true);
   });
 
-  const [hover, setHover] = useState<HoverState>({ blockId: null, paragraphId: null });
+  const [hover, setHover] = useState<HoverState>({ blockId: null, paragraphId: null, lineId: null });
   const [keyboardParagraphId, setKeyboardParagraphId] = useState<string | null>(null);
 
   const blockById = useMemo(
@@ -227,7 +230,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
   /** Clears transient hover when the layer stops being interactive. */
   useEffect(() => {
     if (!active) {
-      setHover({ blockId: null, paragraphId: null });
+      setHover({ blockId: null, paragraphId: null, lineId: null });
       setKeyboardParagraphId(null);
       cancelPendingDoubleClick();
     }
@@ -297,19 +300,22 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       const point = pointFromClient(pending.clientX, pending.clientY);
       if (pointIsClaimed(point)) {
         setHover((previous) =>
-          previous.blockId === null && previous.paragraphId === null
+          previous.blockId === null && previous.paragraphId === null && previous.lineId === null
             ? previous
-            : { blockId: null, paragraphId: null },
+            : { blockId: null, paragraphId: null, lineId: null },
         );
         return;
       }
       const hit = p.model.hitTest(point, tolerance);
       const paragraphId = hit.paragraph?.id ?? null;
       const blockId = hit.block?.id ?? (paragraphId ? paragraphToBlock.get(paragraphId) ?? null : null);
+      const lineId = hit.line?.id ?? null;
       setHover((previous) =>
-        previous.blockId === blockId && previous.paragraphId === paragraphId
+        previous.blockId === blockId &&
+        previous.paragraphId === paragraphId &&
+        previous.lineId === lineId
           ? previous
-          : { blockId, paragraphId },
+          : { blockId, paragraphId, lineId },
       );
     });
   }
@@ -324,9 +330,9 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       hoverFrame.current = null;
     }
     setHover((previous) =>
-      previous.blockId === null && previous.paragraphId === null
+      previous.blockId === null && previous.paragraphId === null && previous.lineId === null
         ? previous
-        : { blockId: null, paragraphId: null },
+        : { blockId: null, paragraphId: null, lineId: null },
     );
   }
 
@@ -391,7 +397,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       // Empty page: let the page's own handler clear selection or start an
       // Add Text draw. Hover is cleared so a stale outline does not linger.
       cancelPendingDoubleClick();
-      setHover({ blockId: null, paragraphId: null });
+      setHover({ blockId: null, paragraphId: null, lineId: null });
       clickRef.current = null;
       return;
     }
@@ -567,6 +573,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
 
   const hoverBlock = hover.blockId ? blockById.get(hover.blockId) ?? null : null;
   const hoverParagraph = hover.paragraphId ? paragraphById.get(hover.paragraphId) ?? null : null;
+  const hoverLine = hover.lineId ? layout.lines.find((line) => line.id === hover.lineId) ?? null : null;
   const selectedBlock = selectedBlockId ? blockById.get(selectedBlockId) ?? null : null;
   const selectionForPage =
     selection && selection.pageIndex === layout.index ? selection : null;
@@ -587,6 +594,89 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       onPointerLeave={onPointerLeave}
       onDoubleClick={onDoubleClick}
     >
+      {/* Debug model overlay (T-04): block, paragraph and line outlines. Pure
+          DOM, pointer-transparent, and rendered only while explicitly enabled,
+          so it can never affect selection or reach the export. */}
+      {debugOutline ? (
+        <div
+          className="pointer-events-none absolute inset-0"
+          data-testid="editor-text-outline-layer"
+          aria-hidden
+        >
+          {layout.blocks.map((block) => (
+            <div
+              key={`debug-block-${block.id}`}
+              className="absolute border border-dashed"
+              data-testid="editor-text-outline-block"
+              data-outline-id={block.id}
+              style={{
+                left: block.bbox.x * zoom,
+                top: block.bbox.y * zoom,
+                width: Math.max(1, block.bbox.width) * zoom,
+                height: Math.max(1, block.bbox.height) * zoom,
+                borderColor: 'rgba(8,145,178,0.8)',
+                borderWidth: Math.max(1, zoom),
+              }}
+            />
+          ))}
+          {layout.paragraphs.map((paragraph) => (
+            <div
+              key={`debug-paragraph-${paragraph.id}`}
+              className="absolute border"
+              data-testid="editor-text-outline-paragraph"
+              data-outline-id={paragraph.id}
+              style={{
+                left: paragraph.bbox.x * zoom,
+                top: paragraph.bbox.y * zoom,
+                width: Math.max(1, paragraph.bbox.width) * zoom,
+                height: Math.max(1, paragraph.bbox.height) * zoom,
+                borderColor: 'rgba(37,99,235,0.8)',
+                borderWidth: Math.max(1, zoom * 0.75),
+              }}
+            />
+          ))}
+          {layout.lines.map((line) => (
+            <div
+              key={`debug-line-${line.id}`}
+              className="absolute border"
+              data-testid="editor-text-outline-line"
+              data-outline-id={line.id}
+              style={{
+                left: line.bbox.x * zoom,
+                top: line.bbox.y * zoom,
+                width: Math.max(1, line.bbox.width) * zoom,
+                height: Math.max(1, line.bbox.height) * zoom,
+                borderColor: 'rgba(147,51,234,0.55)',
+                borderWidth: Math.max(1, zoom * 0.5),
+                borderStyle: 'dotted',
+              }}
+            />
+          ))}
+          {(
+            [
+              ['block', hoverBlock?.bbox],
+              ['paragraph', hoverParagraph?.bbox],
+              ['line', hoverLine?.bbox],
+            ] as const
+          ).map(([label, bbox]) =>
+            bbox ? (
+              <span
+                key={`debug-label-${label}`}
+                className="absolute rounded-sm bg-slate-900/85 px-1 py-0.5 text-[10px] leading-none font-medium text-white"
+                data-testid="editor-text-outline-label"
+                data-outline-kind={label}
+                style={{
+                  left: Math.max(0, bbox.x * zoom),
+                  top: Math.max(0, bbox.y * zoom - 14),
+                }}
+              >
+                {label}
+              </span>
+            ) : null,
+          )}
+        </div>
+      ) : null}
+
       {/* Hover: a soft block outline plus a stronger paragraph tint. */}
       {hoverBlock && hoverBlock.id !== selectedBlockId ? (
         <div

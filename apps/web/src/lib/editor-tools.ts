@@ -14,6 +14,8 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   ArrowRight,
+  CalendarDays,
+  Check,
   Circle,
   Eraser,
   Highlighter,
@@ -21,11 +23,14 @@ import {
   Minus,
   MousePointer2,
   PenLine,
+  PenTool,
   Sparkles,
   Square,
+  Stamp,
   Strikethrough,
   Type,
   Underline,
+  X,
 } from 'lucide-react';
 
 /** The workspace a route opens with. */
@@ -44,6 +49,11 @@ export type EditorTool =
   | 'ellipse'
   | 'line'
   | 'arrow'
+  | 'pen'
+  | 'check'
+  | 'cross'
+  | 'date'
+  | 'stamp'
   | 'redact'
   | 'ai';
 
@@ -91,7 +101,6 @@ const CONTROLS = {
   ai: ['ai'],
   redact: ['redact'],
 } as const;
-
 export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
   {
     id: 'select',
@@ -202,6 +211,51 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     modes: ['edit', 'sign', 'ai'],
   },
   {
+    id: 'pen',
+    label: 'Pen',
+    shortcut: 'p',
+    group: 'shape',
+    icon: PenTool,
+    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
+    modes: ['edit', 'sign', 'ai'],
+  },
+  {
+    id: 'check',
+    label: 'Check mark',
+    shortcut: 'k',
+    group: 'markup',
+    icon: Check,
+    capability: { produces: 'object', controls: CONTROLS.shape, history: true },
+    modes: ['edit', 'sign', 'ai'],
+  },
+  {
+    id: 'cross',
+    label: 'Cross mark',
+    shortcut: 'x',
+    group: 'markup',
+    icon: X,
+    capability: { produces: 'object', controls: CONTROLS.shape, history: true },
+    modes: ['edit', 'sign', 'ai'],
+  },
+  {
+    id: 'date',
+    label: 'Date stamp',
+    shortcut: 'd',
+    group: 'insert',
+    icon: CalendarDays,
+    capability: { produces: 'object', controls: CONTROLS.type, history: true },
+    modes: ['edit', 'sign', 'ai'],
+  },
+  {
+    id: 'stamp',
+    label: 'Stamp',
+    shortcut: 'm',
+    group: 'insert',
+    icon: Stamp,
+    capability: { produces: 'object', controls: CONTROLS.type, history: true },
+    modes: ['edit', 'sign', 'ai'],
+  },
+  {
     id: 'redact',
     label: 'Redaction mark',
     shortcut: 'r',
@@ -268,6 +322,16 @@ export function toolStatusLabel(id: EditorTool): string {
       return 'Line';
     case 'arrow':
       return 'Arrow';
+    case 'pen':
+      return 'Pen';
+    case 'check':
+      return 'Check mark';
+    case 'cross':
+      return 'Cross mark';
+    case 'date':
+      return 'Date stamp';
+    case 'stamp':
+      return 'Stamp';
     case 'redact':
       return 'Redact';
     case 'ai':
