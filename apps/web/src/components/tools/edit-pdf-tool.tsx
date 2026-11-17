@@ -121,6 +121,7 @@ import {
   type EditorTool,
 } from '@/lib/editor-tools';
 import { clampToPage, offsetOnPage } from '@/lib/object-placement';
+import { cloneObjectForPaste, detachEditIntent } from '@/lib/object-copy';
 import { scaleInkPoints } from '@/lib/ink';
 import {
   DEFAULT_STAMP_PRESET,
@@ -1018,6 +1019,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     const container = scrollRef.current;
     const pages = infoRef.current?.pages;
     if (!container || !pages || pages.length === 0) return;
+    // A hidden/zero-height viewport cannot fit a page; width fit is the sane
+    // fallback instead of jumping to the minimum zoom.
+    if (container.clientHeight <= 0) {
+      fitWidth();
+      return;
+    }
     const styles = getComputedStyle(container);
     const paddingX =
       (Number.parseFloat(styles.paddingLeft) || 0) +
@@ -1046,7 +1053,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         'page',
       ),
     );
-  }, []);
+  }, [fitWidth]);
 
   /** Jump to a page by index, moving only the document canvas. */
   const goToPage = useCallback((pageIndex: number) => {
@@ -1737,11 +1744,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           8,
           8,
         );
-        const copy = {
+        const copy = detachEditIntent({
           ...source,
           id: newObjectId(),
           ...placed,
-        } as EditorObject;
+        } as EditorObject);
         editor.apply((doc) => ({ ...doc, objects: [...doc.objects, copy] }));
         setSelectedId(copy.id);
         return;
@@ -1818,7 +1825,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
    */
   const pasteObject = useCallback((): boolean => {
     const clipboard = objectClipboard.current;
-    if (!clipboard || atObjectLimit) return false;
+    if (!clipboard) return false;
     const pageIndex = Math.min(
       Math.max(0, currentPage),
       Math.max(0, (infoRef.current?.pageCount ?? 1) - 1),
@@ -1829,9 +1836,16 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       12,
       12,
     );
-    createObject({ ...(structuredClone(clipboard) as EditorObject), id: newObjectId(), pageIndex, ...placed });
+    // `createObject` owns the object-limit check and its visible message, so a
+    // paste at the limit explains itself instead of silently doing nothing.
+    createObject({
+      ...cloneObjectForPaste(clipboard),
+      id: newObjectId(),
+      pageIndex,
+      ...placed,
+    });
     return true;
-  }, [atObjectLimit, createObject, currentPage, pageBoxFor]);
+  }, [createObject, currentPage, pageBoxFor]);
 
   const selectedIndex = selectedId
     ? editor.doc.objects.findIndex((object) => object.id === selectedId)
@@ -2043,6 +2057,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         const duplicate = existing.some(
           (object) =>
             object.kind === 'rect' &&
+            // Only another redaction mark can be a duplicate; a decorative
+            // black rectangle at the same coordinates is a different thing.
+            object.role === 'redaction' &&
             object.pageIndex === region.pageIndex &&
             Math.abs(object.x - region.x) < 1 &&
             Math.abs(object.y - region.y) < 1 &&
@@ -3467,7 +3484,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                     <button
                       type="button"
                       className="editor-mobile-hud-btn"
-                      aria-label={`${Math.round(zoom * 100)}% — fit page`}
+                      aria-label="Fit page"
                       title="Fit page"
                       data-testid="mobile-fit-page"
                       onClick={fitPage}

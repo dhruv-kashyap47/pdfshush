@@ -185,8 +185,36 @@ export function scaledSignatureSize(
     return { width: 24, height: 24 };
   }
   const boxWidth = Math.max(24, Math.min(maxWidth, Math.round(width)));
-  const boxHeight = Math.max(20, Math.round(boxWidth * (height / width)));
+  // Aspect is the contract: a very wide stroke gets a thin box, not a
+  // vertically stretched one. The editor's 4 pt hit tolerance keeps it usable.
+  const boxHeight = Math.max(1, Math.round(boxWidth * (height / width)));
   return { width: boxWidth, height: boxHeight };
+}
+
+/**
+ * Reads width/height from a PNG blob's IHDR chunk without decoding it.
+ *
+ * Saved signature records written before the trimmed-dimension fix stored the
+ * pad's size, while their PNG was already trimmed. Reading the actual image on
+ * adoption keeps old records placing at the right aspect too.
+ */
+export async function pngPixelSize(
+  blob: Blob,
+): Promise<{ width: number; height: number } | null> {
+  if (blob.type && blob.type !== 'image/png') return null;
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await blob.slice(0, 24).arrayBuffer());
+  } catch {
+    return null;
+  }
+  if (bytes.length < 24) return null;
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (!signature.every((byte, index) => bytes[index] === byte)) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16);
+  const height = view.getUint32(20);
+  return width > 0 && height > 0 ? { width, height } : null;
 }
 
 /** Positive-finite number guard shared by the pad and the store. */

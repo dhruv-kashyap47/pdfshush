@@ -7310,9 +7310,9 @@ allocation failures are checked before the size-cap pattern.
 | Step | Command | Result |
 | --- | --- | --- |
 | Typecheck | `pnpm typecheck` | pass |
-| Unit | `pnpm test` | 1,643 passed, 0 failed, 1 expected fail |
+| Unit | `pnpm test` | 1,654 passed, 0 failed, 1 expected fail |
 | pdf-core | `vitest run` (package) | 586 passed, 1 expected fail |
-| web | `vitest run` (package) | 268 passed |
+| web | `vitest run` (package) | 279 passed |
 | Build | `pnpm build` | pass, 63 routes prerendered |
 | Bundle | `pnpm test:bundle` | pass, 0 engines in main |
 | Provenance | `pnpm test:provenance` | OK, 0 derived files |
@@ -7324,8 +7324,50 @@ allocation failures are checked before the size-cap pattern.
 | Accessibility | `node tests/e2e/a11y.mjs` | all checks passed |
 | Fill & Sign | `node tests/e2e/sign.mjs` | all checks passed |
 
-Sprint 1 comparison: pdf-core 580+1 -> 586+1, web 211 -> 268. New E2E coverage:
+Sprint 1 comparison: pdf-core 580+1 -> 586+1, web 211 -> 279. New E2E coverage:
 vector ink and one-undo, check/cross/date/stamp placement, preset isolation
 from redaction, copy/paste offset, typed 400% + fit page, outline at fit and
 400%, signature upload transparency and aspect.
+
+### 37.5 Bug pass
+
+A read-through of the new surface found and fixed these before close:
+
+- **Copied paragraph edits double-applied.** Duplicate/paste copied
+  `native`/`inPlace` intents, so the same rewrite could be queued twice and the
+  second would fall back to an overlay. `lib/object-copy.ts` now strips those
+  intents and deep-clones buffers for paste.
+- **Signature aspect could still distort.** The helper's 20 pt minimum height
+  overrode the ratio for very wide ink. Aspect is now exact (a thin box is
+  legitimate; the 4 pt hit tolerance keeps it usable), and adopted saved
+  signatures read the PNG IHDR so records written before the trim fix place
+  correctly too.
+- **Redaction styling keyed off shape.** A decorative black rect still got the
+  red selection outline and `redact-mark-*` test id in the redaction workspace.
+  Both now require `role === 'redaction'`, matching E-00 and the mark set.
+- **`not-a-pdf` repeated itself** ("That file is not a PDF. This file is not a
+  PDF"); the fixed sentence is used and the engine detail stays in `detail`.
+- **`no data` mislabelled truncation as empty.** A truncated xref is damaged,
+  not an empty file; the pattern now requires file/document context.
+- **`sentence()` downgraded richer headlines**, so an allocation failure
+  printed only "out of memory". The headline wins when it contains the detail.
+- **Zero-byte files** are refused with the taxonomy's empty-file copy before
+  the engine turns them into a generic damaged-PDF failure.
+- **Invalid dates** from a restored draft no longer throw the formatter.
+- **Stamp labels were uppercased by the engine**, which could turn a validated
+  WinAnsi `µ` into Greek Mu after validation. The engine draws the label as
+  stored; presets are authored uppercase. A mixed-case export test pins it.
+- **Stamp text could outgrow a short box vertically**; the draw size is now
+  height-clamped before the width fit.
+- **Fit page in a zero-height viewport** jumps to 25%; it now falls back to
+  fit width.
+- **Paste at the object limit was silent**; it now uses the same visible limit
+  message as every other create path.
+- **Zoom lost its live announcement** when the readout became an input; an
+  `sr-only` live region and select-on-focus restore it.
+- **Stamp preset on a selected stamp** now also updates the preset used by the
+  next placement.
+- **Upload decode after the dialog closes** no longer installs state into an
+  unmounted tree.
+
 

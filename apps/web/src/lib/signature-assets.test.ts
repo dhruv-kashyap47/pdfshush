@@ -7,6 +7,7 @@ import {
   computeInkBounds,
   inkAlphaFromLuminance,
   isSignatureAssetRecord,
+  pngPixelSize,
   sanitizeSignatureLabel,
   scaledSignatureSize,
 } from '@/lib/signature-assets';
@@ -210,13 +211,39 @@ describe('scaledSignatureSize', () => {
     expect(scaledSignatureSize(90, 30, 150)).toEqual({ width: 90, height: 30 });
   });
 
-  it('keeps a minimum hit target', () => {
-    expect(scaledSignatureSize(4, 1, 150)).toEqual({ width: 24, height: 20 });
+  it('keeps the aspect even for a hairline', () => {
+    // 4:1 at a 24 pt minimum width stays 6 pt tall rather than being stretched.
+    expect(scaledSignatureSize(4, 1, 150)).toEqual({ width: 24, height: 6 });
+    expect(scaledSignatureSize(2000, 40, 150)).toEqual({ width: 150, height: 3 });
   });
 
   it('survives degenerate dimensions with a square fallback', () => {
     expect(scaledSignatureSize(0, 0, 150)).toEqual({ width: 24, height: 24 });
     expect(scaledSignatureSize(Number.NaN, 100, 150)).toEqual({ width: 24, height: 24 });
+  });
+});
+
+describe('pngPixelSize', () => {
+  function pngBlob(width: number, height: number, type = 'image/png'): Blob {
+    const bytes = new Uint8Array(24);
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(16, width);
+    view.setUint32(20, height);
+    return new Blob([bytes], { type });
+  }
+
+  it('reads the IHDR dimensions without decoding the image', async () => {
+    await expect(pngPixelSize(pngBlob(600, 120))).resolves.toEqual({ width: 600, height: 120 });
+  });
+
+  it('rejects a non-PNG blob', async () => {
+    await expect(pngPixelSize(pngBlob(10, 10, 'image/jpeg'))).resolves.toBeNull();
+  });
+
+  it('rejects short or zero-size headers', async () => {
+    await expect(pngPixelSize(new Blob([new Uint8Array(8)], { type: 'image/png' }))).resolves.toBeNull();
+    await expect(pngPixelSize(pngBlob(0, 120))).resolves.toBeNull();
   });
 });
 

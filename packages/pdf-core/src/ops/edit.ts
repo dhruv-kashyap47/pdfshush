@@ -1011,8 +1011,14 @@ async function drawStamp(
 
   const font = await embedStandardFont(page.doc, fonts.fontCache, 'helvetica', true, false);
   if (!font || object.text.length === 0) return;
-  const text = object.text.toUpperCase();
+  // Draw the label exactly as stored. Uppercasing here could turn a valid
+  // WinAnsi code point into a non-WinAnsi one (µ -> Greek Mu) after validation
+  // had already passed; presets are authored uppercase instead.
+  const text = object.text;
   let size = clamp(object.fontSize ?? object.height * 0.42, MIN_FONT_SIZE, MAX_FONT_SIZE);
+  // Never let the label outgrow the box vertically; a short stamp would
+  // otherwise draw its text past the border.
+  size = Math.min(size, Math.max(MIN_FONT_SIZE, object.height * 0.72));
   let width = font.widthOfTextAtSize(text, size);
   const maxWidth = Math.max(1, object.width - border * 4);
   if (width > maxWidth && width > 0) {

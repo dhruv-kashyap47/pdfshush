@@ -789,30 +789,38 @@ function ZoomReadout({ zoom, onCommit }: { zoom: number; onCommit: (zoom: number
     setDraft(null);
   };
   return (
-    <input
-      type="text"
-      inputMode="numeric"
-      className="editor-zoom-readout editor-context-zoom"
-      data-testid="editor-zoom-level"
-      aria-label="Zoom level, percent"
-      title="Zoom level — type a percentage and press Enter"
-      value={draft ?? String(Math.round(zoom * 100))}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={(event) => commit(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          commit((event.target as HTMLInputElement).value);
-          (event.target as HTMLInputElement).blur();
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          setDraft(null);
-          (event.target as HTMLInputElement).blur();
-        }
-      }}
-      style={{ width: '3rem', textAlign: 'center', background: 'transparent' }}
-    />
+    <>
+      <input
+        type="text"
+        inputMode="numeric"
+        className="editor-zoom-readout editor-context-zoom"
+        data-testid="editor-zoom-level"
+        aria-label="Zoom level, percent"
+        aria-describedby="editor-zoom-live"
+        title="Zoom level — type a percentage and press Enter"
+        value={draft ?? String(Math.round(zoom * 100))}
+        onChange={(event) => setDraft(event.target.value)}
+        onFocus={(event) => event.currentTarget.select()}
+        onBlur={(event) => commit(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            commit((event.target as HTMLInputElement).value);
+            (event.target as HTMLInputElement).blur();
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            setDraft(null);
+            (event.target as HTMLInputElement).blur();
+          }
+        }}
+        style={{ width: '3rem', textAlign: 'center', background: 'transparent' }}
+      />
+      {/* Step/fit changes do not move focus, so announce the level explicitly. */}
+      <span id="editor-zoom-live" className="sr-only" aria-live="polite">
+        {Math.round(zoom * 100)}%
+      </span>
+    </>
   );
 }
 
@@ -824,7 +832,8 @@ function ContextIcon({
   destructive,
   className,
   children,
-}: {  label: string;
+}: {
+  label: string;
   testId?: string;
   disabled?: boolean;
   onClick: () => void;
@@ -966,7 +975,12 @@ function ToolContext({
             className="editor-context-chip"
             aria-pressed={object.text.toUpperCase() === preset.label}
             data-testid={`editor-stamp-preset-${preset.id}`}
-            onClick={() => onPatch({ text: preset.label, color: preset.color })}
+            onClick={() => {
+              onPatch({ text: preset.label, color: preset.color });
+              // Keep the next placement in step with the preset the user just
+              // applied to this stamp.
+              onStampPreset?.(preset);
+            }}
           >
             {preset.label}
           </button>
@@ -1049,7 +1063,7 @@ function ToolContext({
             key={width}
             type="button"
             className="editor-context-chip"
-            aria-pressed={(object.strokeWidth ?? (object.kind === 'ink' ? 1.5 : 1.5)) === width}
+            aria-pressed={(object.strokeWidth ?? 1.5) === width}
             data-testid={`editor-stroke-${width}`}
             onClick={() => onPatch({ strokeWidth: width })}
           >

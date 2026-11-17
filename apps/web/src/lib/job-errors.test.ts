@@ -104,15 +104,22 @@ describe('describeJobError', () => {
     expect(info.code).toBe('not-a-pdf');
     expect(info.retryable).toBe(false);
     expect(info.message).toContain('not a PDF');
+    expect(info.message.match(/not a PDF/gi)).toHaveLength(1);
     // A corrupt PDF keeps the damaged copy and the repair advice.
     expect(describeJobError(new Error('Invalid PDF structure')).code).toBe('damaged');
+  });
+
+  it('does not call a truncated stream empty just because it has no data', () => {
+    const info = describeJobError(new Error('Unexpected end of stream: no data after xref'));
+    expect(info.code).toBe('damaged');
   });
 
   it('names an allocation failure as running out of memory, not a size cap', () => {
     const info = describeJobError(new Error('Array buffer allocation failed'));
     expect(info.code).toBe('out-of-memory');
     expect(info.retryable).toBe(true);
-    expect(info.message.toLowerCase()).toContain('memory');
+    expect(info.message).toContain('ran out of memory');
+    expect(info.message).toContain('close other tabs');
   });
 
   it('does not mislabel a policy limit as memory', () => {

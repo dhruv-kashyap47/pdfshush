@@ -41,6 +41,14 @@ export async function readAsInputFiles(files: File[]): Promise<JobInputFile[]> {
 export async function readAsInputFilesOrToast(
   files: File[],
 ): Promise<JobInputFile[] | null> {
+  // A zero-byte file can never be parsed. Catch it here, before the engine
+  // turns it into a generic "damaged PDF" message: the taxonomy's `empty`
+  // copy says exactly what to do. Kept as a literal so `files.ts` does not
+  // import the error module (and pdf-core) into the main chunk.
+  if (files.some((file) => file.size === 0)) {
+    toast.error('That file is empty. Choose a file that has content.');
+    return null;
+  }
   try {
     return await readAsInputFiles(files);
   } catch (error) {

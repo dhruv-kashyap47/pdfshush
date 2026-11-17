@@ -1066,13 +1066,13 @@ function ObjectView({
         interactive && !selected && !editing &&
           'hover:outline hover:outline-1 hover:outline-blue-500/40 hover:outline-offset-1',
         selected && !editing &&
-          (object.kind === 'rect' && object.fill === '#000000'
+          (object.role === 'redaction'
             ? 'outline-2 outline-red-600 outline-offset-2 shadow-[0_0_0_4px_rgba(220,38,38,0.14)]'
             : 'outline-2 outline-blue-600 outline-offset-2 shadow-[0_0_0_4px_rgba(37,99,235,0.12)]'),
       )}
       style={style}
       data-testid={
-        redactMode && object.kind === 'rect'
+        redactMode && object.kind === 'rect' && object.role === 'redaction'
           ? `redact-mark-${object.pageIndex}-${object.id}`
           : `editor-object-${object.kind}`
       }
@@ -1336,7 +1336,7 @@ function ObjectView({
               lineHeight: 1,
             }}
           >
-            {object.text.toUpperCase()}
+            {object.text}
           </div>
         );
       }

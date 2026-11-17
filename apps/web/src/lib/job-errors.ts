@@ -78,7 +78,7 @@ const REFUSAL_NAMES = new Set([
 
 const ENCRYPTED_RE = /password protected|incorrect password|needs? (?:a )?password|is encrypted/i;
 const EMPTY_RE =
-  /(?:file|document|pdf|input|selection) (?:is |was )?empty|empty (?:file|document|pdf)|0 bytes|zero bytes|no data|nothing to (?:read|process|export)|file has no content/i;
+  /(?:file|document|pdf|input|selection) (?:is |was )?empty|empty (?:file|document|pdf)|0 bytes|zero bytes|(?:file|document|pdf|input) (?:has |contains )?no data|nothing to (?:read|process|export)|file has no content/i;
 const NOT_PDF_RE =
   /not a pdf|not a valid pdf|(?:does\s?n[o']?t|does not) look like a pdf|expected (?:a )?pdf|a pdf (?:file )?is required|choose a pdf|pdf expected/i;
 const OOM_RE =
@@ -199,8 +199,11 @@ function copyFor(
       };
 
     case 'not-a-pdf':
+      // Every path that reaches this code already said "not a PDF" in the
+      // engine detail, so appending it produced "That file is not a PDF. This
+      // file is not a PDF". The detail stays in `detail` for logs.
       return {
-        message: sentence('That file is not a PDF.', detail),
+        message: 'That file is not a PDF.',
         action: 'Choose a PDF file, or use the tool that matches this format.',
       };
 
@@ -310,7 +313,11 @@ function sentence(headline: string, detail: string): string {
   if (!d) return headline;
   const h = headline.toLowerCase().replace(/[.!?]+$/, '');
   const dl = d.toLowerCase();
-  if (dl === h || dl.includes(h) || h.includes(dl)) return d;
+  if (dl === h || dl.includes(h)) return d;
+  // The headline is the richer sentence: keep it rather than downgrading an
+  // explanation ("The browser ran out of memory…") to the engine's fragment
+  // ("out of memory").
+  if (h.includes(dl)) return headline;
   return `${headline} ${d}`;
 }
 

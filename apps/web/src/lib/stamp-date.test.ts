@@ -37,6 +37,12 @@ describe('formatStampDate', () => {
     const result = formatStampDate(DAY, 'en-GB');
     expect(result.text).not.toMatch(/[\u00a0\u202f]/u);
   });
+
+  it('uses today instead of throwing for an invalid Date', () => {
+    const result = formatStampDate(new Date(Number.NaN), 'en-GB');
+    expect(result.text.length).toBeGreaterThan(0);
+    expect(isWinAnsiText(result.text)).toBe(true);
+  });
 });
 
 describe('isWinAnsiText', () => {

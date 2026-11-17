@@ -75,6 +75,9 @@ export function formatStampDate(
   date: Date = new Date(),
   locale: string = 'en-GB',
 ): StampDateResult {
+  // A caller can hand us an invalid Date (a parsed draft, a bad restore). Keep
+  // the stamp usable with today rather than throwing out of the error path.
+  const when = Number.isFinite(date.getTime()) ? date : new Date();
   let text: string;
   try {
     text = normalizeSpaces(
@@ -82,15 +85,15 @@ export function formatStampDate(
         day: 'numeric',
         month: 'long',
         year: 'numeric',
-      }).format(date),
+      }).format(when),
     );
   } catch {
-    return { text: format(date, 'en-GB'), locale: 'en-GB', fallback: true };
+    return { text: format(when, 'en-GB'), locale: 'en-GB', fallback: true };
   }
   const supported = locale === 'en-GB' || locale === 'en-US';
   if (supported && isWinAnsiText(text)) {
     return { text, locale, fallback: false };
   }
-  const safe = format(date, 'en-GB');
+  const safe = format(when, 'en-GB');
   return { text: safe, locale: 'en-GB', fallback: true };
 }

@@ -30,6 +30,7 @@ import {
   SIGNATURE_STORE_MAX,
   computeInkBounds,
   inkAlphaFromLuminance,
+  pngPixelSize,
   type SignatureMethod,
   type SignatureStrokes,
 } from '@/lib/signature-assets';
@@ -422,12 +423,15 @@ export function SignaturePadDialog({
   /** Shared capture: ink bounds, trim into a fresh canvas, PNG blob. */
   const capture = useCallback(async (): Promise<SignatureCapture | null> => {
     if (adopted) {
+      // The PNG is the truth surface. Use its real pixel box rather than the
+      // record's stored size, which older records set to the whole pad.
+      const size = await pngPixelSize(adopted.png);
       return {
         png: adopted.png,
         method: adopted.method,
         ...(adopted.strokes ? { strokes: adopted.strokes } : {}),
-        width: adopted.width,
-        height: adopted.height,
+        width: size?.width ?? adopted.width,
+        height: size?.height ?? adopted.height,
       };
     }
     if (tab === 'upload') {
@@ -511,6 +515,9 @@ export function SignaturePadDialog({
       }
       const png = await cropToPng(canvas, bounds);
       if (!png) throw new Error('could not encode');
+      // The dialog can be closed while a large image decodes; do not install
+      // the upload into a tree that is already gone.
+      if (!mountedRef.current) return;
       setUploaded({ png, width: bounds.width, height: bounds.height });
       setAdopted(null);
       setTypedText('');

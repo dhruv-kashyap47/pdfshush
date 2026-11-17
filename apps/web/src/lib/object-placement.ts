@@ -21,9 +21,11 @@ export interface PageBox {
 
 function clampAxis(value: number, size: number, extent: number): number {
   if (!Number.isFinite(value)) return 0;
+  const safeSize = Number.isFinite(size) ? size : 0;
+  const safeExtent = Number.isFinite(extent) ? Math.max(0, extent) : 0;
   // An object wider than the page is pinned to the left/top edge rather than
   // pushed off it: half of a huge stamp is better than none of it.
-  const max = Math.max(0, size - extent);
+  const max = Math.max(0, safeSize - safeExtent);
   return Math.min(max, Math.max(0, value));
 }
 

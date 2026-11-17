@@ -17,11 +17,12 @@ afterEach(() => {
 
 /** A File stand-in: readAsInputFiles only touches name, type and arrayBuffer. */
 function fakeFile(
-  init: { name: string; type?: string; bytes?: Uint8Array; fail?: Error },
+  init: { name: string; type?: string; bytes?: Uint8Array; fail?: Error; size?: number },
 ): File {
   return {
     name: init.name,
     type: init.type ?? 'application/pdf',
+    size: init.size ?? init.bytes?.byteLength ?? 3,
     arrayBuffer: init.fail
       ? () => Promise.reject(init.fail)
       : () => Promise.resolve((init.bytes ?? new Uint8Array([1, 2, 3])).buffer),
@@ -65,6 +66,16 @@ describe('readAsInputFilesOrToast', () => {
     expect(toastError).toHaveBeenCalledTimes(1);
     expect(toastError).toHaveBeenCalledWith(
       'Could not read the selected file. Try picking it again.',
+    );
+  });
+
+  it('refuses a zero-byte file with the empty-file copy, not a damaged-PDF one', async () => {
+    const input = await readAsInputFilesOrToast([
+      fakeFile({ name: 'empty.pdf', bytes: new Uint8Array(0) }),
+    ]);
+    expect(input).toBeNull();
+    expect(toastError).toHaveBeenCalledWith(
+      'That file is empty. Choose a file that has content.',
     );
   });
 });

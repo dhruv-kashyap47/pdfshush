@@ -979,7 +979,10 @@ describe('ink, check/cross and stamp objects', () => {
     );
     const saved = await doc.save({ useObjectStreams: false });
     await expect(validateExport(saved, 1)).resolves.toBeUndefined();
-    expect(pdfContainsText(saved, 'APPROVED')).toBe(true);
+    expect(pdfContainsText(saved, 'Approved')).toBe(true);
+    // The label is drawn as stored, not uppercased by the engine: "Approved"
+    // must survive as <417070726F766564>, not <415050524F564544>.
+    expect(contentOf(saved)).toContain('417070726F766564');
     // pdf-lib draws a rectangle as a closed four-point path, not the `re`
     // shorthand; the stroke is the border and `h` is the close-path operator.
     expect(contentOf(saved)).toMatch(/\bh\b/);

@@ -35,6 +35,7 @@ describe('clampToPage', () => {
 
   it('repairs non-finite coordinates', () => {
     expect(clampToPage({ x: Number.NaN, y: 30, width: 10, height: 10 }, page).x).toBe(0);
+    expect(clampToPage({ x: 10, y: 10, width: Number.NaN, height: 10 }, page).x).toBe(10);
   });
 });
 
