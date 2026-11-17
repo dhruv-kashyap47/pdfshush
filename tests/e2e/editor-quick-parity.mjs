@@ -168,6 +168,22 @@ async function main() {
       `${Math.round(before?.x ?? 0)} → ${Math.round(after?.x ?? 0)}`,
     );
 
+    // ---- keyboard path + accessible names ---------------------------------
+    check(
+      'the stamp tool has an accessible name',
+      ((await page.getByTestId('editor-tool-stamp').getAttribute('aria-label')) ?? '').length > 0,
+      (await page.getByTestId('editor-tool-stamp').getAttribute('aria-label')) ?? '',
+    );
+    await page.getByTestId('editor-page').first().focus();
+    await page.keyboard.press('m');
+    await page.keyboard.press('Enter');
+    await waitFor(
+      async () => (await page.getByTestId('editor-object-stamp').count()) === 3,
+      10_000,
+      'stamp placed from the keyboard',
+    );
+    check('M + Enter places a stamp without a mouse', true);
+
     // ---- zoom: typed 400%, then fit page ----------------------------------
     const zoom = page.getByTestId('editor-zoom-level');
     await zoom.fill('400');
