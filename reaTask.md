@@ -870,7 +870,18 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 
 ---
 
-## 10. Risks
+## 10. Branch and release safety
+
+- All seven sprints live on **`rea-uplift`**, pushed to `origin/rea-uplift` after each sprint.
+- **Never commit directly to `main`** for this uplift. `main` stays at the production commit until the final gate.
+- Do not open a pull request or merge to `main` until all seven sprints and Gate D are complete.
+- Production deploys from `main`; the feature branch is a safe backup and does not affect the live site.
+- The reference tree `rea ihpdf/` is gitignored and must never be committed.
+- Every sprint starts from the previous sprint's tip on `rea-uplift`; no rebases or force-pushes.
+
+---
+
+## 11. Risks
 
 | Risk | Mitigation |
 | --- | --- |
@@ -888,7 +899,7 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 
 ---
 
-## 11. Changelog
+## 12. Changelog
 
 | Date | Change |
 | --- | --- |
