@@ -73,8 +73,12 @@ function streamBytes(stream: unknown): Uint8Array | null {
 
 function resourcesDict(context: PDFContext, page: PDFPage): PDFDict | null {
   try {
-    const node = page.node as unknown as { Resources?: () => unknown };
-    const value = node.Resources?.();
+    const node = page.node as unknown as {
+      Resources?: () => unknown;
+      normalizedEntries?: () => { Resources?: unknown };
+    };
+    // Inherited resources are legal; check the normalised entries first.
+    const value = node.normalizedEntries?.().Resources ?? node.Resources?.();
     const dict = value ? context.lookup(value as never) : null;
     return dict instanceof PDFDict ? dict : null;
   } catch {

@@ -2940,10 +2940,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setLeaveIntent(null);
     if (!intent) return;
     if (intent === 'change-file') {
-      // Open the native picker while the input is still mounted, then clear the
-      // editor. The chosen file is handled by the idle-stage dropzone path.
+      // Keep the editor mounted while the native picker is open. If the user
+      // cancels, nothing is lost; if they choose a file, handleFiles performs
+      // the reset with the new document in hand. Resetting first used to unmount
+      // the input before the picker returned, dropping the chosen file.
       pdfInputRef.current?.click();
-      resetAll();
       return;
     }
     if (intent === 'close' || intent === 'start-over') {

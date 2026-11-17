@@ -304,7 +304,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** harness self-test.
 
 ### G-04 — Validated job-level strategy
-- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-17 — `TextEngineStrategy = 'auto' | 'native-only'`; job validates and echoes it; engine rejects unknown values; `native-only` refuses the content-stream fallback (tests).
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-17 — `TextEngineStrategy = 'auto' | 'native-only'`; job validates and echoes it; engine rejects unknown values; `native-only` refuses every non-native outcome (tests).
 - **Scope:** `TextEditJobOptions.strategy`; validation error on unknown; echo the strategy in the report; keep the current path default until Gate C.
 - **Anchor:** `jobs/textEdit.job.ts:20–31`, `textedit/engine.ts:653`, `types.ts`.
 - **Done when:** both strategies run the same fixture; the report names the one used.
@@ -511,7 +511,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** unit mapping; E2E empty/truncated.
 
 ### S-06 — Data-loss path guards
-- **Pri:** P0 · **Size:** S · **Now:** ~80% — Change file, Start over, Back and in-app link clicks share one confirmation sheet with intent-specific copy; `editor-cancel-save.mjs` proves each path keeps the document. Browser back/forward still relies on `beforeunload`, not a route blocker.
+- **Pri:** P0 · **Size:** S · **Now:** ~80% — Change file, Start over, Back and in-app link clicks share one confirmation sheet with intent-specific copy; Change file keeps the editor mounted until the picker returns; `editor-cancel-save.mjs` proves each path keeps the document. Browser back/forward still relies on `beforeunload`, not a route blocker.
 - **Why:** "Change file" and "Start over" bypass the dirty confirm and drop edits; route navigation has no guard; only Back confirms.
 - **Scope:** route both through the confirm; SPA navigation guard; keep `beforeunload`; test with unsaved edits.
 - **Anchor:** `edit-pdf-tool.tsx:2535–2549, 2864–2870, 2923–2924, 3638–3682`.
@@ -857,7 +857,7 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 
 | Metric | Baseline source | Gate A | Gate B | Gate C | Gate D |
 | --- | --- | --- | --- | --- | --- |
-| Unit tests | `pnpm test` — 579 pass + 1 expected fail (pdf-core), 211 (web) on 2026-11-17 | | | | |
+| Unit tests | `pnpm test` — 580 pass + 1 expected fail (pdf-core), 211 (web) on 2026-11-17 | | | | |
 | Editor E2E | `smoke`, `text-edit`, `text-model` | | | | |
 | Export p50 (10-page text edit) | new benchmark | | | | |
 | Export p95 (120-page) | `long-120page.pdf` | | | | |
@@ -896,4 +896,5 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-17 | v2 after deep reads: 62 cards; corrected statuses (E-05/E-06/E-08 partial, X-06 nearly done, X-04 test/doc, O engine half done, G tasks partial); added E-00, S-06, C-13, C-14, O-03; declined synthetic bold; rewrote T-01/T-02/T-06/T-07, O-02, X-01/X-02/X-03; added 9 decisions, sprint order, measured baselines caveat, three-category provenance. |
 | 2026-11-17 | Owner decisions locked (D1–D17): hybrid copy, foundation-first, TJ kerns + Tj→TJ, real native formatting, text-layer OCR + page provenance, **fontkit added**, raster fallback, explicit redaction roles, draft autosave on, Tz 40–250%, build snapping, metadata + forms/outlines/labels, cross-browser last. Added F-01; count 63. |
 | 2026-11-17 | G-01 landed: `licenses/rea-ihpdf-NOTICE.md`, derived-code header convention, `scripts/check-provenance.mjs`, `pnpm test:provenance`, CI step; positive + negative control verified. |
-| 2026-11-17 | **Sprint 1 landed.** G-01/G-04/E-00/X-06 complete; G-02/G-03/F-01/E-10/S-06 partial. Added provenance gate; validated `TextEngineStrategy`; object roles + batch create; fontkit 2.0.12 with document-programme extraction/embedding; text-surgery + golden harnesses; leave-confirmation sheet; cancel E2E. Evidence: typecheck all packages, 577+1 pdf-core, 211 web, build + bundle boundary, text-model/text-edit/keyboard/editor-unmount/editor-cancel green. |
+| 2026-11-17 | **Sprint 1 landed.** G-01/G-04/E-00/X-06 complete; G-02/G-03/F-01/E-10/S-06 partial. Added provenance gate; validated `TextEngineStrategy`; object roles + batch create; fontkit 2.0.12 with document-programme extraction/embedding; text-surgery + golden harnesses; leave-confirmation sheet; cancel E2E. Evidence: typecheck all packages, 580+1 pdf-core, 211 web, build + bundle boundary, text-model/text-edit/keyboard/editor-unmount/editor-cancel green. |
+| 2026-11-17 | **Sprint 1 bug pass.** Fixed Change-file discarding the picker before it returned (input now stays mounted until a file is chosen); font discovery now follows inherited page resources; `native-only` now refuses every non-native outcome, not just the content-stream pass; Hono advisories patched via workspace overrides (`pnpm audit` clean, MCP 19/19). |
