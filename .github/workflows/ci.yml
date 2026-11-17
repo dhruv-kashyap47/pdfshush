@@ -38,6 +38,8 @@ jobs:
 
       - run: pnpm typecheck
 
+      - run: pnpm test:provenance
+
       - run: pnpm test
 
       # `pnpm build` is the web build; `test:bundle` scans the chunks it emits.

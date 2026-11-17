@@ -26,6 +26,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
@@ -366,7 +367,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   /** Redaction review confirmation: never run the destructive job without it. */
   const [confirmRedact, setConfirmRedact] = useState(false);
   /** Mobile back/close guard: leaving mid-edit must not silently drop changes. */
-  const [confirmExit, setConfirmExit] = useState(false);
+  const [leaveIntent, setLeaveIntent] = useState<
+    'close' | 'change-file' | 'start-over' | { navigate: string } | null
+  >(null);
+  const navigate = useNavigate();
   /** Phone properties sheet. Closed by default so the canvas keeps its height. */
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   /** Page rail multi-selection (organise mode). */
@@ -1154,22 +1158,26 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const objectCount = editor.doc.objects.length;
   const atObjectLimit = objectCount >= LIMITS.tool.maxEditObjects;
 
-  const createObject = useCallback(
-    (object: EditorObject) => {
-      if (atObjectLimit) {
+  const createObjects = useCallback(
+    (objects: EditorObject[]) => {
+      if (objects.length === 0) return;
+      if (objectCount + objects.length > LIMITS.tool.maxEditObjects) {
         toast.error(`This document already has ${LIMITS.tool.maxEditObjects.toLocaleString()} objects`);
         return;
       }
-      editor.apply((doc) => ({ ...doc, objects: [...doc.objects, object] }));
-      setSelectedId(object.id);
+      editor.apply((doc) => ({ ...doc, objects: [...doc.objects, ...objects] }));
+      const last = objects[objects.length - 1] ?? null;
+      setSelectedId(last?.id ?? null);
       setTextSelection(null);
       setSelectedTextBlock(null);
-      // A fresh mark should not slam a half-screen properties sheet over the
-      // page the user is annotating; the context bar already carries its quick
-      // controls, and Properties is one tap away.
       setMobileInspectorOpen(false);
     },
-    [atObjectLimit, editor.apply],
+    [objectCount, editor.apply],
+  );
+
+  const createObject = useCallback(
+    (object: EditorObject) => createObjects([object]),
+    [createObjects],
   );
 
   const patchObject = useCallback(
@@ -1312,22 +1320,29 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           | 'localized-reconstruction'
           | 'manual-review'
           | undefined;
+        let fontKey: string | undefined;
         if (capability?.likelyScanned) {
           strategy = 'manual-review';
         } else if (capability && capability.textObjects.length > 0) {
           const normalized = (value: string): string => value.replace(/\s+/gu, ' ').trim();
-          const matched = layout.lines
-            .filter((line) => paragraph.lineIds.includes(line.id))
-            .every((line) =>
-              capability.textObjects.some(
-                (object) => normalized(object.text) === normalized(line.text),
-              ),
-            );
-          if (!matched) strategy = 'localized-reconstruction';
+          const paragraphLines = layout.lines.filter((line) =>
+            paragraph.lineIds.includes(line.id),
+          );
+          const matches = paragraphLines.map((line) =>
+            capability.textObjects.find(
+              (object) => normalized(object.text) === normalized(line.text),
+            ),
+          );
+          if (!matches.every(Boolean)) {
+            strategy = 'localized-reconstruction';
+          } else {
+            fontKey = matches.find((match) => match)?.font?.baseName;
+          }
         }
         const built = buildParagraphEditObjects(paragraph, layout, mutation.text, {
           makeId: newObjectId,
           ...(strategy ? { strategy } : {}),
+          ...(fontKey ? { fontKey } : {}),
         });
         additions.push(...built.whiteouts);
         if (built.textObject) additions.push(built.textObject);
@@ -1788,12 +1803,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     });
   }, []);
 
-  /** Rect objects are the review geometry for the redaction pipeline. */
+  /** Redaction marks are review geometry explicitly tagged by the tool. */
   const redactMarks = useMemo(
     () =>
       editor.doc.objects.filter(
         (object): object is Extract<EditorObject, { kind: 'rect' | 'ellipse' }> =>
-          object.kind === 'rect',
+          object.kind === 'rect' && object.role === 'redaction',
       ),
     [editor.doc.objects],
   );
@@ -1911,6 +1926,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         additions.push({
           id: newObjectId(),
           kind: 'rect',
+          role: 'redaction',
           pageIndex: region.pageIndex,
           x: region.x,
           y: region.y,
@@ -1926,7 +1942,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         return;
       }
       if (additions.length > 0) {
-        editor.apply((doc) => ({ ...doc, objects: [...doc.objects, ...additions] }));
+        createObjects(additions);
       }
       toast.success(
         `AI proposed ${additions.length} area${additions.length === 1 ? '' : 's'} from ${outcome.offered} text runs. Review, then redact.`,
@@ -1940,6 +1956,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       findAbort.current = null;
     }
   }, [
+    createObjects,
     editor,
     effectiveRedactAiMode,
     findingSensitive,
@@ -2548,6 +2565,49 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     return () => window.removeEventListener('beforeunload', handler);
   }, [stage, editor.doc, editor.pageOrderDirty, paragraphEdit, pageOrderDirty]);
 
+  const dirty = editorIsDirty({
+    doc: editor.doc,
+    saved: savedDocRef.current,
+    paragraphEditActive: paragraphEdit !== null,
+    pageOrderDirty: isOrganize && pageOrderDirty,
+    redactMarkCount: isRedact ? redactMarks.length : 0,
+  });
+
+  /**
+   * In-app route changes must ask before discarding edits. The editor lives in a
+   * portal above the SPA, so a plain header/footer link would otherwise replace
+   * the route and unmount every object without a prompt. Capture-phase click
+   * interception covers those links; the explicit Change file / Start over /
+   * Back paths use the same confirmation sheet.
+   *
+   * This hook must stay above the result-panel early return: hooks cannot move
+   * behind a conditional render.
+   */
+  const leaveDirtyRef = useRef(false);
+  leaveDirtyRef.current = dirty || aiChangeCount > 0;
+  useEffect(() => {
+    if (stage !== 'editing' || !info) return;
+    const onClick = (event: MouseEvent) => {
+      if (!leaveDirtyRef.current) return;
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest('a[href]');
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      if (anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) {
+        return;
+      }
+      event.preventDefault();
+      setLeaveIntent({ navigate: `${url.pathname}${url.search}${url.hash}` });
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [stage, info]);
+
   /* -------------------------------------------------------------- views */
 
   const showingResult =
@@ -2792,13 +2852,6 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     Object.keys(editor.doc.formValues).length > 0 ||
     (isOrganize && pageOrderDirty) ||
     (isRedact && redactMarks.length > 0);
-  const dirty = editorIsDirty({
-    doc: editor.doc,
-    saved: savedDocRef.current,
-    paragraphEditActive: paragraphEdit !== null,
-    pageOrderDirty: isOrganize && pageOrderDirty,
-    redactMarkCount: isRedact ? redactMarks.length : 0,
-  });
   const assistantActive = mode === 'ai' || tool === 'ai';
   const pageCount = displayPages.length || info?.pageCount || 0;
   const saveLabel = isOrganize
@@ -2863,13 +2916,73 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   /** Close the document; unsaved work gets an explicit, reversible gate. */
   const requestExit = () => {
     if (dirty || aiChangeCount > 0) {
-      setConfirmExit(true);
+      setLeaveIntent('close');
       return;
     }
     resetAll();
   };
+  const requestChangeFile = () => {
+    if (dirty || aiChangeCount > 0) {
+      setLeaveIntent('change-file');
+      return;
+    }
+    pdfInputRef.current?.click();
+  };
+  const requestStartOver = () => {
+    if (dirty || aiChangeCount > 0) {
+      setLeaveIntent('start-over');
+      return;
+    }
+    resetAll();
+  };
+  const confirmLeave = () => {
+    const intent = leaveIntent;
+    setLeaveIntent(null);
+    if (!intent) return;
+    if (intent === 'change-file') {
+      // Open the native picker while the input is still mounted, then clear the
+      // editor. The chosen file is handled by the idle-stage dropzone path.
+      pdfInputRef.current?.click();
+      resetAll();
+      return;
+    }
+    if (intent === 'close' || intent === 'start-over') {
+      resetAll();
+      return;
+    }
+    resetAll();
+    navigate(intent.navigate);
+  };
+  const leaveCopy =
+    leaveIntent === 'change-file'
+      ? {
+          title: 'Open a different PDF?',
+          body: 'Your edits to this document will be discarded. Save the current file first if you want to keep them.',
+          action: 'Discard and choose a file',
+          testId: 'editor-confirm-change-file',
+        }
+      : leaveIntent === 'start-over'
+        ? {
+            title: 'Start over with this PDF?',
+            body: 'This clears every text edit, mark and page change from the current document. Save first if you want a copy.',
+            action: 'Discard changes and start over',
+            testId: 'editor-confirm-start-over',
+          }
+        : leaveIntent && typeof leaveIntent === 'object'
+          ? {
+              title: 'Leave this document?',
+              body: 'Your unsaved edits will be discarded when you leave this page. Save first if you want to keep them.',
+              action: 'Discard and leave',
+              testId: 'editor-confirm-navigate',
+            }
+          : {
+              title: 'Close this document?',
+              body: 'You have unsaved changes. Closing now discards them and returns to the file picker; save first to keep the verified copy.',
+              action: 'Discard and close',
+              testId: 'editor-confirm-exit',
+            };
   const selectionLabel = selectedObject
-    ? isRedact && selectedObject.kind === 'rect'
+    ? selectedObject.role === 'redaction'
       ? 'Redaction mark selected'
       : `${selectedObject.kind[0]!.toUpperCase()}${selectedObject.kind.slice(1)} selected`
     : textSelection
@@ -2920,8 +3033,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             saveLabel={saveLabel}
             showSave={!isAi || hasEdits}
             onSave={() => void onSave()}
-            onChangeFile={() => pdfInputRef.current?.click()}
-            onReset={resetAll}
+            onChangeFile={requestChangeFile}
+            onReset={requestStartOver}
             onBack={requestExit}
             modes={
               initialMode === 'sign'
@@ -3333,7 +3446,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                           onClick={() =>
                             editor.apply((doc) => ({
                               ...doc,
-                              objects: doc.objects.filter((object) => object.kind !== 'rect'),
+                              objects: doc.objects.filter((object) => object.role !== 'redaction'),
                             }))
                           }
                         >
@@ -3635,13 +3748,13 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             </div>
           ) : null}
 
-          {confirmExit ? (
+          {leaveIntent ? (
             <div
               className="editor-confirm-layer"
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   event.stopPropagation();
-                  setConfirmExit(false);
+                  setLeaveIntent(null);
                 }
               }}
             >
@@ -3655,26 +3768,20 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                   <ChevronLeft className="size-4" />
                 </span>
                 <h2 id="editor-exit-title" className="editor-confirm-title">
-                  Close this document?
+                  {leaveCopy.title}
                 </h2>
-                <p className="editor-confirm-copy">
-                  You have unsaved changes. Closing now discards them and returns to the file
-                  picker; saving first keeps the verified copy.
-                </p>
+                <p className="editor-confirm-copy">{leaveCopy.body}</p>
                 <div className="editor-confirm-actions">
-                  <Button variant="ghost" size="sm" autoFocus onClick={() => setConfirmExit(false)}>
+                  <Button variant="ghost" size="sm" autoFocus onClick={() => setLeaveIntent(null)}>
                     Keep editing
                   </Button>
                   <Button
                     variant="destructive"
                     size="sm"
-                    data-testid="editor-confirm-exit"
-                    onClick={() => {
-                      setConfirmExit(false);
-                      resetAll();
-                    }}
+                    data-testid={leaveCopy.testId}
+                    onClick={confirmLeave}
                   >
-                    Discard and close
+                    {leaveCopy.action}
                   </Button>
                 </div>
               </div>

@@ -23,7 +23,7 @@ describe('editor capability registry', () => {
 
   test('redaction exposes only selection and the destructive mark', () => {
     expect(toolsForMode('redact').map((tool) => tool.id)).toEqual(['select', 'redact']);
-    expect(toolDef('redact').capability.export).toBe('redact');
+    expect(toolDef('redact').capability.produces).toBe('region');
   });
 
   test('page organisation does not offer document markup', () => {

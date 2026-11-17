@@ -69,8 +69,6 @@ export interface ToolCapability {
   controls: ReadonlyArray<'type' | 'mark' | 'shape' | 'pages' | 'ai' | 'redact'>;
   /** Whether changes made by this tool enter the object undo history. */
   history: boolean;
-  /** Export pipeline selected when the user saves with this tool active. */
-  export: 'edit' | 'redact' | 'organize' | 'ai';
 }
 
 export interface EditorToolDef {
@@ -101,7 +99,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'v',
     group: 'edit',
     icon: MousePointer2,
-    capability: { produces: 'object', controls: [], history: true, export: 'edit' },
+    capability: { produces: 'object', controls: [], history: true },
   },
   {
     id: 'text',
@@ -109,7 +107,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 't',
     group: 'edit',
     icon: Type,
-    capability: { produces: 'text', controls: CONTROLS.type, history: true, export: 'edit' },
+    capability: { produces: 'text', controls: CONTROLS.type, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -118,7 +116,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'a',
     group: 'edit',
     icon: Sparkles,
-    capability: { produces: 'none', controls: CONTROLS.ai, history: true, export: 'ai' },
+    capability: { produces: 'none', controls: CONTROLS.ai, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -127,7 +125,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'i',
     group: 'insert',
     icon: ImagePlus,
-    capability: { produces: 'object', controls: [], history: true, export: 'edit' },
+    capability: { produces: 'object', controls: [], history: true },
     modes: ['edit', 'sign'],
   },
   {
@@ -135,7 +133,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Insert signature',
     group: 'insert',
     icon: PenLine,
-    capability: { produces: 'object', controls: [], history: true, export: 'edit' },
+    capability: { produces: 'object', controls: [], history: true },
     modes: ['edit', 'sign'],
   },
   {
@@ -144,7 +142,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'h',
     group: 'markup',
     icon: Highlighter,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -152,7 +150,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Strike through',
     group: 'markup',
     icon: Strikethrough,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -160,7 +158,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Underline',
     group: 'markup',
     icon: Underline,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -168,7 +166,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Whiteout, a cosmetic cover',
     group: 'markup',
     icon: Eraser,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -176,7 +174,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Rectangle',
     group: 'shape',
     icon: Square,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -184,7 +182,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Ellipse',
     group: 'shape',
     icon: Circle,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -192,7 +190,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Line',
     group: 'shape',
     icon: Minus,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -200,7 +198,7 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Arrow',
     group: 'shape',
     icon: ArrowRight,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true, export: 'edit' },
+    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -213,7 +211,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
       produces: 'region',
       controls: CONTROLS.redact,
       history: true,
-      export: 'redact',
     },
     modes: ['redact'],
   },

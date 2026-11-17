@@ -23,6 +23,7 @@ import {
   inspectDocumentCapabilities,
   readFontCharcodes,
   loadPdfiumModule,
+  textEditJob,
   verifyTextEdits,
   verifyExportArtifact,
   type EditorObject,
@@ -676,9 +677,74 @@ describe('content-stream replacement', () => {
     expect(result.outcomes[0]!.mode).toBe('content-stream');
     expect(result.contentStream).toBe(1);
     expect(result.inPlace).toBe(0);
+    expect(result.strategy).toBe('auto');
     const text = await pageText(result.bytes, 0);
     expect(text).toContain('Stream Edit');
     expect(text).not.toContain('Hello World');
+  });
+
+  it('native-only refuses the content-stream fallback instead of silently applying it', async () => {
+    const source = await makeTextFixture();
+    await expect(
+      editPdfText(
+        source,
+        {
+          strategy: 'native-only',
+          edits: [
+            {
+              id: 'stream-refused',
+              pageIndex: 0,
+              find: 'Hello World',
+              replace: 'Stream Edit',
+              box: { x: 40, y: 30, width: 260, height: 40 },
+              strategy: 'content-stream',
+            },
+          ],
+        },
+        testContext(),
+      ),
+    ).rejects.toBeInstanceOf(TextEditUnsafeError);
+  });
+
+  it('native-only succeeds when every edit is a real text-object rewrite', async () => {
+    const source = await makeTextFixture();
+    const result = await editPdfText(
+      source,
+      {
+        strategy: 'native-only',
+        edits: [{ id: 'native-ok', pageIndex: 0, find: 'Hello World', replace: 'Native Only' }],
+      },
+      testContext(),
+    );
+    expect(result.strategy).toBe('native-only');
+    expect(result.inPlace).toBe(1);
+    expect(await pageText(result.bytes, 0)).toContain('Native Only');
+  });
+
+  it('rejects an unknown engine strategy at the engine boundary', async () => {
+    const source = await makeTextFixture();
+    await expect(
+      editPdfText(
+        source,
+        {
+          // Deliberately outside the union; the job also validates this.
+          strategy: 'v2-please' as never,
+          edits: [{ id: 'x', pageIndex: 0, find: 'Hello World', replace: 'Hi' }],
+        },
+        testContext(),
+      ),
+    ).rejects.toBeInstanceOf(TextEditUnsafeError);
+  });
+
+  it('the job validator rejects an unknown strategy before any work starts', () => {
+    const result = textEditJob.validate({
+      files: [{ name: 'a.pdf', data: new Uint8Array([0x25, 0x50, 0x44, 0x46]) }],
+      options: { edits: [], strategy: 'fastest' as never },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues[0]?.message).toContain('Unknown text engine strategy');
+    }
   });
 
   it('keeps both replacements and the bytes between them when two edits target one page', async () => {

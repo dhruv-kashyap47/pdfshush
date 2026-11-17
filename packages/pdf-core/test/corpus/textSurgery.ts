@@ -1,0 +1,158 @@
+/**
+ * Text-surgery fixtures (G-02).
+ *
+ * Each fixture is generated at test time so it stays portable and hash-stable
+ * (no timestamps, no machine fonts). They target the cases the current
+ * content-stream path cannot express: partial-word removal, kerned TJ arrays,
+ * rotated glyphs, text inside a Form XObject, and an unclosed clip.
+ *
+ * The manifest is intentionally explicit: a fixture without a stated failure it
+ * guards is not worth keeping.
+ */
+
+import {
+  PDFDocument,
+  PDFName,
+  StandardFonts,
+  type PDFRef,
+} from '@cantoo/pdf-lib';
+
+export type TextSurgeryFixtureKind =
+  | 'partial-word'
+  | 'tj-kern'
+  | 'rotated'
+  | 'xobject-text'
+  | 'unclosed-clip';
+
+export interface TextSurgeryFixture {
+  kind: TextSurgeryFixtureKind;
+  description: string;
+  guards: string;
+  bytes: Uint8Array;
+  expectText: string[];
+}
+
+export const TEXT_SURGERY_MANIFEST: ReadonlyArray<
+  Pick<TextSurgeryFixture, 'kind' | 'description' | 'guards' | 'expectText'>
+> = [
+  {
+    kind: 'partial-word',
+    description: 'One Tj string with a word that must be edited mid-run.',
+    guards: 'C-03/C-04: removed glyphs must not shift the kept glyphs after them.',
+    expectText: ['INVOICE 2026-0042'],
+  },
+  {
+    kind: 'tj-kern',
+    description: 'A TJ array with explicit kerning numbers between words.',
+    guards: 'C-04: removing a word must preserve the numeric adjustments around it.',
+    expectText: ['INVOICE', '2026', '0042'],
+  },
+  {
+    kind: 'rotated',
+    description: 'Glyphs drawn with a 90-degree text matrix.',
+    guards: 'C-10: glyph quads and replacement matrices must respect rotation.',
+    expectText: ['ROTATED'],
+  },
+  {
+    kind: 'xobject-text',
+    description: 'Text inside a Form XObject invoked with Do.',
+    guards: 'C-14: text the stream path cannot reach must warn, not report success.',
+    expectText: ['IN XOBJECT'],
+  },
+  {
+    kind: 'unclosed-clip',
+    description: 'A page content stream that opens a clip and never closes it.',
+    guards: 'C-06: appended replacement text must not be clipped away.',
+    expectText: ['CLIPPED'],
+  },
+];
+
+async function baseDocument(): Promise<{
+  doc: PDFDocument;
+  font: Awaited<ReturnType<PDFDocument['embedFont']>>;
+}> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  return { doc, font };
+}
+
+/** Replace the page content and resource table with a raw stream. */
+function rawPage(
+  doc: PDFDocument,
+  fontRef: PDFRef,
+  content: string,
+  extraResources: Record<string, unknown> = {},
+): void {
+  const page = doc.addPage([400, 300]);
+  const context = doc.context;
+  const contents = context.flateStream(content);
+  page.node.set(PDFName.of('Contents'), context.register(contents));
+  const resources = context.obj({
+    Font: { F1: fontRef },
+    ...extraResources,
+  });
+  page.node.set(PDFName.of('Resources'), resources);
+}
+
+export async function buildTextSurgeryFixture(
+  kind: TextSurgeryFixtureKind,
+): Promise<TextSurgeryFixture> {
+  const meta = TEXT_SURGERY_MANIFEST.find((entry) => entry.kind === kind);
+  if (!meta) throw new Error(`Unknown fixture ${kind}`);
+  const { doc, font } = await baseDocument();
+
+  switch (kind) {
+    case 'partial-word':
+      rawPage(
+        doc,
+        font.ref,
+        'BT /F1 18 Tf 1 0 0 1 40 240 Tm (INVOICE 2026-0042) Tj ET\n',
+      );
+      break;
+    case 'tj-kern':
+      rawPage(
+        doc,
+        font.ref,
+        'BT /F1 18 Tf 1 0 0 1 40 240 Tm [(INVOICE) -250 (2026) -250 (0042)] TJ ET\n',
+      );
+      break;
+    case 'rotated':
+      rawPage(
+        doc,
+        font.ref,
+        'BT /F1 18 Tf 0 1 -1 0 240 40 Tm (ROTATED) Tj ET\n',
+      );
+      break;
+    case 'xobject-text': {
+      const form = doc.context.flateStream(
+        'BT /F1 16 Tf 40 200 Td (IN XOBJECT) Tj ET\n',
+        {
+          Type: 'XObject',
+          Subtype: 'Form',
+          BBox: [0, 0, 400, 300],
+          Resources: { Font: { F1: font.ref } },
+        },
+      );
+      const formRef = doc.context.register(form);
+      rawPage(
+        doc,
+        font.ref,
+        'q 1 0 0 1 0 0 cm /X1 Do Q\n',
+        { XObject: { X1: formRef } },
+      );
+      break;
+    }
+    case 'unclosed-clip':
+      rawPage(
+        doc,
+        font.ref,
+        'q 0 0 400 300 re W n\nBT /F1 18 Tf 1 0 0 1 40 240 Tm (CLIPPED) Tj ET\n',
+      );
+      break;
+  }
+
+  return {
+    ...meta,
+    bytes: await doc.save({ useObjectStreams: false }),
+  };
+}

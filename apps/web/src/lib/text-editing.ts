@@ -346,6 +346,8 @@ export interface ParagraphEditObjectOptions {
   lineHeightRatio?: number;
   /** Capability-planned strategy for the native save path. */
   strategy?: 'native-object' | 'content-stream' | 'localized-reconstruction' | 'manual-review';
+  /** BaseFont/FamilyName of the paragraph's document font, when known. */
+  fontKey?: string;
 }
 
 export interface ParagraphEditObjects {
@@ -394,6 +396,7 @@ export function buildParagraphEditObjects(
   const whiteouts: EditorObject[] = covers.map((box) => ({
     id: options.makeId(),
     kind: 'whiteout',
+    role: 'decoration',
     pageIndex: paragraph.pageIndex,
     x: box.x - pad,
     y: box.y - pad,
@@ -458,6 +461,7 @@ export function buildParagraphEditObjects(
   const textObject: EditTextObject = {
     id: options.makeId(),
     kind: 'text',
+    role: 'content',
     pageIndex: paragraph.pageIndex,
     x: paragraph.bbox.x,
     y: paragraph.bbox.y,
@@ -471,6 +475,7 @@ export function buildParagraphEditObjects(
     color: '#111827',
     align,
     native,
+    ...(options.fontKey ? { fontKey: options.fontKey } : {}),
   };
   return { whiteouts, textObject };
 }

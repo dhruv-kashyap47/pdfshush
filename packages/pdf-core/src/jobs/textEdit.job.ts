@@ -12,7 +12,7 @@
 import type { JobDefinition } from '../job.js';
 import { LIMITS } from '../limits.js';
 import type { EditorObject } from '../ops/edit.js';
-import { defaultPdfiumEnvironment, editPdfText } from '../textedit/engine.js';
+import { defaultPdfiumEnvironment, editPdfText, TEXT_ENGINE_STRATEGIES, type TextEngineStrategy } from '../textedit/engine.js';
 import type { TextEdit, TextEditOutcome, TextEditVerification } from '../textedit/types.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
@@ -28,6 +28,8 @@ export type TextEditJobOptions = {
   outputName?: string;
   /** Render edited pages and compare unchanged pixels. Default true. */
   verifyVisual?: boolean;
+  /** Engine strategy; defaults to `auto`. Unknown values are rejected. */
+  strategy?: import('../textedit/engine.js').TextEngineStrategy;
 };
 
 export interface TextEditJobInput {
@@ -42,6 +44,7 @@ export interface TextEditJobReport {
   fallback: number;
   manualReview: number;
   usedNativeEngine: boolean;
+  strategy: TextEngineStrategy;
   verification: TextEditVerification;
   warnings: string[];
 }
@@ -74,6 +77,13 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         ],
       };
     }
+    const strategy = input.options?.strategy;
+    if (strategy !== undefined && !TEXT_ENGINE_STRATEGIES.includes(strategy)) {
+      return {
+        ok: false,
+        issues: [{ message: `Unknown text engine strategy "${String(strategy)}"` }],
+      };
+    }
     return { ok: true };
   },
 
@@ -96,6 +106,7 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         ...(options.formValues ? { formValues: options.formValues } : {}),
         outputName: name,
         ...(options.verifyVisual !== undefined ? { verifyVisual: options.verifyVisual } : {}),
+        ...(options.strategy ? { strategy: options.strategy } : {}),
       },
       ctx,
       defaultPdfiumEnvironment(),
@@ -116,6 +127,7 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         fallback: result.fallback,
         manualReview: result.manualReview,
         usedNativeEngine: result.usedNativeEngine,
+        strategy: result.strategy,
         verification: result.verification,
         warnings: result.warnings,
       },

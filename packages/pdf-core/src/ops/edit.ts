@@ -24,9 +24,12 @@ import {
 import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS, formatBytes } from '../limits.js';
 import { pageGeom, viewRectToPdf, viewToPdf, displaySize, type PageGeom } from './geometry.js';
+import { collectFontPrograms, DocumentFontResolver } from './fontPrograms.js';
 import { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './textMetrics.js';
 
 export { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './textMetrics.js';
+
+export type EditObjectRole = 'content' | 'decoration' | 'redaction';
 
 export interface EditObjectBase {
   id: string;
@@ -37,6 +40,14 @@ export interface EditObjectBase {
   y: number;
   width: number;
   height: number;
+  /**
+   * What the object is for. `content` is a normal edit (text, image, shape);
+   * `decoration` is markup (highlight/underline/strikeout/whiteout); `redaction`
+   * is review geometry for the destructive redaction pipeline. The redaction
+   * pipeline must never infer this from the shape: a decorative rectangle is
+   * not a redaction mark. Absent means `content` for older documents.
+   */
+  role?: EditObjectRole;
 }
 
 export type EditorTextFontFamily = 'helvetica' | 'times' | 'courier';
@@ -88,6 +99,12 @@ export interface EditTextObject extends EditObjectBase {
   inPlace?: { find: string; box: { x: number; y: number; width: number; height: number }; coverId?: string };
   /** Multi-line paragraph edit intent for the native reflow path. */
   native?: EditTextNativePlan;
+  /**
+   * BaseFont / FamilyName of the document font this text should use when the
+   * editor can identify it. The draw path tries the embedded programme first,
+   * then a standard face, then fails loudly rather than mangling glyphs.
+   */
+  fontKey?: string;
 }
 
 export interface EditImageObject extends EditObjectBase {
@@ -258,6 +275,10 @@ export function validateEditObjects(
     if (typeof kind !== 'string' || !kinds.has(kind)) {
       throw new Error(`Unknown object kind "${String(kind)}"`);
     }
+    const role = (object as { role?: unknown }).role;
+    if (role !== undefined && !['content', 'decoration', 'redaction'].includes(role as string)) {
+      throw new Error(`${at} (${kind}): role must be content, decoration or redaction`);
+    }
     if (typeof object.id !== 'string' || object.id.length === 0) {
       throw new Error(`${at} (${kind}): every edit object needs an id`);
     }
@@ -328,8 +349,16 @@ export function validateEditObjects(
         if (text.italic !== undefined && typeof text.italic !== 'boolean') {
           throw new Error(`${at} (text): italic must be a boolean`);
         }
+        if (text.fontKey !== undefined) {
+          if (typeof text.fontKey !== 'string' || text.fontKey.length === 0 || text.fontKey.length > 200) {
+            throw new Error(`${at} (text): fontKey must be a non-empty string under 200 characters`);
+          }
+        }
         assertHexColor(at, kind, 'color', text.color);
-        assertEncodable(at, text.text);
+        // A document font programme can encode glyphs the standard-14 faces
+        // cannot. The draw path verifies the programme actually covers the
+        // text; only fontless text is rejected here.
+        if (text.fontKey === undefined) assertEncodable(at, text.text);
         break;
       }
       case 'image': {
@@ -525,13 +554,28 @@ export async function applyEdits(
   // key for the same reason (and so italic/bold variants are embedded once).
   const imageCache = new Map<string, PDFImage>();
   const fontCache = new Map<string, PDFFont>();
+  const fontPages = new Set(
+    objects.flatMap((object) =>
+      object.kind === 'text' && object.fontKey ? [object.pageIndex] : [],
+    ),
+  );
+  const documentFonts =
+    fontPages.size > 0
+      ? new DocumentFontResolver(
+          doc,
+          collectFontPrograms(
+            doc,
+            [...fontPages].map((index) => pages[index]).filter((page): page is PDFPage => Boolean(page)),
+          ),
+        )
+      : undefined;
 
   for (let i = 0; i < objects.length; i += 1) {
     ctx.throwIfAborted();
     const object = objects[i]!;
     const page = pages[object.pageIndex]!;
     const geom = geomFor(object.pageIndex);
-    await drawObject(page, geom, object, { imageCache, fontCache });
+    await drawObject(page, geom, object, { imageCache, fontCache, documentFonts });
     progress.step(i, objects.length, 'Applying edits');
   }
 }
@@ -541,6 +585,8 @@ interface FontSet {
   fontCache: Map<string, PDFFont>;
   /** mime + content hash → embedded image, so repeats cost nothing. */
   imageCache: Map<string, PDFImage>;
+  /** Document programmes extracted from the source, when a text object asks for one. */
+  documentFonts?: DocumentFontResolver;
 }
 
 async function drawObject(
@@ -614,14 +660,33 @@ async function drawObject(
 async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, fonts: FontSet): Promise<void> {
   if (object.text.length === 0) return;
   const fontFamily = object.fontFamily ?? 'helvetica';
-  const font = await embedStandardFont(page.doc, fonts.fontCache, fontFamily, Boolean(object.bold), Boolean(object.italic));
+  const standard = await embedStandardFont(page.doc, fonts.fontCache, fontFamily, Boolean(object.bold), Boolean(object.italic));
+  let font = standard;
+  if (object.fontKey && fonts.documentFonts) {
+    const documentFont = await fonts.documentFonts.embed(object.fontKey);
+    if (documentFont && canEncodeDocumentText(documentFont, object.text)) font = documentFont;
+  }
   if (!font) return;
   const fontSize = clamp(object.fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
   const color = parseHexColor(object.color, rgb(0.07, 0.07, 0.07));
   const angle = degrees(displayAngle(geom));
   const align = object.align ?? 'left';
 
-  const lines = wrapTextToWidth(font, object.text, fontSize, Math.max(1, object.width));
+  let lines = wrapTextToWidth(font, object.text, fontSize, Math.max(1, object.width));
+  const chosenCanDrawLines =
+    font === standard
+      ? findUnencodable(lines.join('\n')) === undefined
+      : canEncodeDocumentText(font, lines.join('\n'));
+  if (!chosenCanDrawLines) {
+    if (font !== standard && standard && findUnencodable(object.text) === undefined) {
+      font = standard;
+      lines = wrapTextToWidth(font, object.text, fontSize, Math.max(1, object.width));
+    } else {
+      throw new Error(
+        `The document font for "${object.text.slice(0, 40)}" cannot encode this text, and no standard font can draw it.`,
+      );
+    }
+  }
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]!;
@@ -770,6 +835,20 @@ export async function validateExport(bytes: Uint8Array, expectedPages: number): 
   if (pages !== expectedPages) {
     throw new Error(`Export validation failed: expected ${expectedPages} pages, found ${pages}`);
   }
+}
+
+function canEncodeDocumentText(font: PDFFont, text: string): boolean {
+  for (const char of text) {
+    if (char === '\r' || char === '\n' || char === '\t') continue;
+    try {
+      const encoded = font.encodeText(char).toString().replace(/[<>]/g, '');
+      // Glyph 0 is .notdef: the font parsed, but cannot draw this character.
+      if (encoded.length === 0 || /^0+$/.test(encoded)) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 async function embedStandardFont(

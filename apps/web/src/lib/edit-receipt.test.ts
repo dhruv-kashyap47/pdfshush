@@ -23,6 +23,7 @@ function report(overrides: Partial<TextEditJobReport> = {}): TextEditJobReport {
     fallback: 0,
     manualReview: 0,
     usedNativeEngine: false,
+    strategy: 'auto',
     verification: { ok: true, checks: [{ name: 'reopened', ok: true, detail: 'reopened' }] },
     warnings: [],
     ...overrides,

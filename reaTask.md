@@ -1,0 +1,899 @@
+# reaTask.md — ihatepdf parity + engine uplift (v2)
+
+> **Status:** active · **Created:** 2026-11-17 · **Rewritten:** 2026-11-17 after deep reads of both codebases
+> **Sources:** `rea ihpdf/` (reference clone + its research), `packages/pdf-core`, `apps/web`
+> **Owner:** pdfshush · **Task count:** 63 · **Gates:** A–D
+
+**North star:** make pdfshush's editor and engine the best in the world — real in-place text fidelity, the fastest local edit loop, honest receipts, and zero document bytes leaving the browser.
+
+**Permission:** the project owner has authorised copying from `rea ihpdf`. Copy with confidence, but record provenance (§2.4). The reference is a behavioural source, not an architecture to inherit: its shell is a 1,815-line component with dead model fields and at least two silent data-loss paths.
+
+**What v2 changes:** the first version treated the reference as a port target. It is not. `removal.ts` drops glyph advances, the native paragraph path ignores overlay style, OCR rebuilds the document, and several "not started" tasks are already 50–85% built. See §2.5 and §11.
+
+---
+
+## 0. How to use this file
+
+### Status legend
+
+| Mark | Meaning |
+| --- | --- |
+| `[ ]` | not started |
+| `[~]` | partial; the card names what exists |
+| `[x]` | done, acceptance criteria met with test evidence |
+| `[!]` | blocked; write the blocker on the card |
+| `[–]` | declined; write the reason on the card |
+
+### Task card fields
+
+- **Pri:** P0 = blocks the phase, P1 = next release, P2 = polish.
+- **Size:** S ≤ 1 day, M = 2–4 days, L = 5–10 days, XL = > 10 days.
+- **Now:** measured current state from the deep read (percentage + what exists).
+- **Source:** reference behaviour, or "invented" when the target only advertises it.
+- **Anchor:** exact files/functions to touch.
+- **Done when:** observable acceptance, not code written.
+- **Tests:** the minimum evidence.
+
+### Common definition of done
+
+1. `pnpm -r typecheck` green.
+2. `pnpm test` green, including new unit tests.
+3. The relevant browser E2E green; download reopened and checked.
+4. Export round-trip: page count/size preserved, untouched-page text unchanged, expected text present/absent.
+5. No new origin; `pnpm test:bundle` still shows 0 engines in the main chunk.
+6. Keyboard path + accessible name for everything clickable.
+7. Any fidelity drop appears in the receipt with a stable code.
+8. `PLAN.md` and this file's changelog updated in the same PR.
+
+### Update protocol
+
+- Update status only from test evidence.
+- At the end of a session: status board, one changelog row, next task at the top.
+- Record copied files in §2.4 the moment they land.
+
+---
+
+## 1. Non-negotiables
+
+1. **No silent fidelity loss.** Substitution, rasterisation and covering all get stable receipt codes.
+2. **No half-rewritten stream.** Any parse anomaly falls back with a warning; never emit a partial stream.
+3. **No new document egress.** No fetch/XHR with document bytes; no filename or text in logs.
+4. **Main bundle stays engine-free.** No pdf-lib/pdf.js/PDFium/Tesseract via UI imports.
+5. **Server tier stays parked.**
+6. **Memory is bounded.** Canvases, workers, object URLs, ink points, drafts all have caps and teardown.
+7. **Redaction claims are earned.** Only the redaction pipeline may say "redacted".
+8. **Accessibility is part of done.**
+9. **No destructive migration.** Drafts/receipts keep loading across schema versions.
+10. **Copy with provenance.** Three categories, not one (§2.4).
+11. **Engine switches are explicit.** A job-level strategy option must reject unknown values, not silently demote.
+12. **No new font dependency without a decision.** `@cantoo/fontkit` is absent; document-font re-embedding is a separate project.
+13. **Redaction marks are typed.** No new rect-like object may enter the redaction set by shape alone.
+
+---
+
+## 2. Baseline, provenance, and what is real
+
+### 2.1 What we have (verified in this deep read)
+
+**Engine (`packages/pdf-core`)**
+- PDFium native text editing: whole-run replacement and deletion, multi-line paragraph reflow with document metrics, atomic create/remove, layout collision checks (`textedit/engine.ts`, `textedit/pdfium.ts`).
+- Strategy ladder: native → verification demotion → content-stream fallback → overlay; fail-closed final artifact gate (`engine.ts:859+`).
+- Content-stream fallback is narrower than v1 implied: tracks only `Tf`, **simple fonts only**, exactly one matching show operator, single-string `TJ` only, no deletion, no metrics, no text matrix; `BI` throws `UnsupportedStream` (`textedit/contentStream.ts:74–277, 392–569`).
+- Charcode maps: ToUnicode, `/Encoding` + `/Differences`, base encodings; Type0 deliberately has no encoding map (`textedit/charcodes.ts`).
+- Verification: page count, sizes, annotation count, font resources, text present/absent, pixel diff outside edited regions (`textedit/exportVerify.ts:176+`, `verify.ts:70+`).
+- Object export: text/image/whiteout/highlight/strikeout/underline/rect/ellipse/line/arrow; strict validation; WinAnsi-only text (`ops/edit.ts:124–129, 233–381, 546–612`).
+- OCR: full pipeline + worker pool + same-origin data + verification, but it **rebuilds** the document (`ocr/ocr.ts:57–120`, `jobs/ocr.job.ts`).
+- Redaction: raster-first rebuild + independent verifier (`redact/`).
+- Fontkit is now installed (`@cantoo/fontkit` 2.0.12, F-01). The engine extracts embedded programmes from page resources and re-embeds them in the overlay path; the editor still needs to pass the paragraph's `fontKey` (T-06).
+
+**Editor (`apps/web`)**
+- One shared workspace for edit/sign/redact/organize, lazy chunk (`components/tools/edit-pdf-tool.tsx`).
+- Snapshot undo/redo with 250-step cap (`lib/editor-state.ts`), object + paragraph editing, selection model, form widgets.
+- Text UX: native textarea paragraph editor; commit builds per-line whiteouts + a text object + a native plan (`lib/text-editing.ts:384–476`).
+- **Native export ignores overlay x/y/width/fontSize/bold/italic/colour/align.** `applyLayoutEdit` uses the source paragraph's geometry, font, size and fill colour (`textedit/engine.ts:386–607`). Moving/styling the overlay affects preview and fallback only.
+- Chrome: tool rail, context bar, inspector, page rail (duplicate/delete/reorder; **no rotate**), status bar with progress + cancel.
+- No find/replace, no drafts/recovery, no ink/check/cross/date/stamp, no snapping, no object clipboard.
+- Signature trim exists but **capture stores full canvas dimensions**, so placement stretches to the pad aspect (`signature-pad-dialog.tsx:394–434`); no upload tab.
+- Zoom: fit width, keys, 25–200%, non-editable readout (`edit-pdf-tool.tsx:223–226, 962–990`).
+- Redaction marks are **every `rect` object** (`edit-pdf-tool.tsx:1792–1799`), and "clear all" deletes every rect (`:3333–3338`).
+- Receipts appear only when `totalEdits > 0 || warnings.length > 0`; object-only exports get none (`edit-pdf-tool.tsx:2753–2760`).
+- Progress/cancel already terminates and respawns the worker (`job-pool.ts:116–131`).
+- Metadata: `updateMetadata:false` throughout, so Info likely survives edit/text-edit; untested. Compose preserves only title/author/subject/keywords.
+
+### 2.2 What the reference contributes
+
+| Contribution | Verdict |
+| --- | --- |
+| Per-glyph removal architecture + text-state machine | valuable, **incomplete** (no advance compensation) |
+| Font metrics resolver + base-14 AFM tables | valuable; the AFM generator is the reusable part |
+| `Tz` fit + word-by-word drawing | valuable; the target's 40–250% window and per-word fit are better references |
+| Paragraph overlay UX details | valuable as behaviour, not code |
+| Pen/check/cross/date/stamp/find/OCR/session utilities | useful small ports |
+| Editor shell | behavioural reference only; do not inherit |
+| Export cancel/validation | **worse than ours**; do not port |
+
+### 2.3 What we already do better
+
+Continuous scroll + lazy rasters, PDFium native rewriting, verification gates, forms/bookmarks, redaction verifier, worker pool with real cancel, keyboard/a11y baseline, offline/PWA, no analytics, no CDN.
+
+### 2.4 Provenance ledger
+
+Three categories must stay separate:
+
+| Category | Meaning | Example |
+| --- | --- | --- |
+| **(a) studied, not copied** | target bundles read for behaviour | `rea ihpdf/research/ihatepdf/assets/images.pretty.js` |
+| **(b) copied** | code moved into pdfshush | `rea ihpdf/src/engine/export/removal.ts` → `packages/pdf-core/src/textedit/removal.ts` |
+| **(c) generated data** | tables derived from specs/tools | AFM widths from pdf-lib StandardFonts |
+
+| Date | Category | Source | Destination | Changes | Covering test |
+| --- | --- | --- | --- | --- | --- |
+| 2026-11-17 | — | planning only | — | — | — |
+
+Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files carry: `Derived from rea ihpdf/<path> (owner-authorised); modified for pdfshush.`
+
+### 2.5 Corrections to the v1 plan
+
+| v1 claim | Reality | Fix |
+| --- | --- | --- |
+| `removal.ts` is a per-glyph engine to copy | It drops removed advances; trailing glyphs shift | C-04 is new algorithm work |
+| C-04 can port `"` handling | `"` drops `Tw`/`Tc` when all glyphs are removed | explicit transitions task |
+| C-02 is a port | no ToUnicode/Differences/CID/CMap/Type3 policy | new metrics work |
+| C-01 can use the clone lexer | flat tokens, `indexOf('ID')` heuristic | use target arg-stack parser |
+| C-09 synthetic bold/italic needed | no fontkit today; after F-01 a document font may lack a bold/italic face | **deferred into T-06/F-01**, not declined |
+| T-01 = delete overlay objects | native rewrite already destroyed the original | reverse edit |
+| T-02/T-06/T-07 are UI work | native path ignores overlay style/position | engine work |
+| O-02 = reuse `ocr` job | `ocrDocument` rebuilds the document | new text-layer job |
+| O-03 provenance is easy | model has no colour/source; render mode only in PDFium | decide page-level |
+| X-04 is implementation | metadata mostly preserved, untested | test + doc + doc-level objects |
+| X-06 is not started | progress/cancel/worker termination done | add assertion, close |
+| E-05/E-06/E-08 are not started | 50–60% built | narrow scopes |
+| S-05 is not started | 70% central taxonomy | add 3 codes |
+| G-02..G-05 are not started | partial fixtures/strategy/gates exist | extend, don't rebuild |
+| Unit baseline 1,528 | `PLAN.md` snapshot, not re-verified in this read | re-run before quoting |
+| Editor page rail rotates | no rotate exposed | correct §2.1 |
+| Object-only export gets a receipt | it does not | X-02 |
+| Redaction safety | every `rect` is a redaction mark | E-00 |
+
+---
+
+## 3. Decision record (locked 2026-11-17)
+
+| # | Decision | Answer | Affects |
+| --- | --- | --- | --- |
+| D1 | Removed-glyph advance compensation | **`TJ` kerns + `Tj → TJ` conversion** | C-03/C-04 |
+| D2 | Job-level engine strategy | validated `strategy`; unknown = error; echo in report | G-04/C-12 |
+| D3 | OCR integration shape | **text-layer-only job**; keep `ocr` for the standalone tool | O-02/O-03 |
+| D4 | OCR provenance granularity | **page-level** from the capability snapshot | O-04 |
+| D5 | Font strategy | **add `@cantoo/fontkit` now**; embed document fonts; licence notice + bundle gate | F-01/T-06/C-08/C-09 |
+| D6 | Redaction mark discriminator | **explicit `role` field** (`decoration\|redaction\|content`) | E-00/E-04 |
+| D7 | Revert semantics | `ParagraphEditRecord` + reverse `TextEdit`, not object deletion | T-01 |
+| D8 | Dirty-edit coverage | every dirty edit has geometry, or warns/refuses | C-13 |
+| D9 | Native paragraph formatting | **real** size/colour/bold/italic/align; warn when "Original" cannot be honoured | T-06/F-01 |
+| D10 | Copy policy | **hybrid**: pure algorithms verbatim with provenance headers; integration rewritten in pdfshush style | G-01/all |
+| D11 | Build order | **foundation → parity → UX → engine → OCR/trust → hardening** | §7 |
+| D12 | `Tz` fit window | **40–250%**, target parity, with a readability warning outside 70–140% | C-08 |
+| D13 | Draft autosave | **on by default**, 60 MB cap, visible notice, Restore/Discard | S-03/S-04 |
+| D14 | Snapping | **build it**; label "invented" in the parity report | E-07/H-08 |
+| D15 | Preservation scope | **metadata + `/AcroForm`, outlines, page labels** | X-04 |
+| D16 | Cross-browser/mobile timing | **after parity + engine**, closed at Gate D | H-05/H-06 |
+| D17 | Missing-glyph policy | **rasterise the word + warn** | C-09 |
+
+---
+
+## 4. Status board
+
+### 4.1 Phase summary
+
+| Phase | Theme | Tasks | Done | Partial | Status |
+| --- | --- | --- | --- | --- | --- |
+| 0 | Safety rails, corpus, provenance, fonts | G-01..G-05, F-01 | 2 | 4 | `[~]` |
+| 1 | Editor capability parity | E-00..E-10 | 1 | 5 | `[~]` |
+| 2 | Text editing UX | T-01..T-07 | 0 | 1 | `[~]` |
+| 3 | Search, recovery, data-loss guards | S-01..S-06 | 0 | 2 | `[~]` |
+| 4 | Content-stream surgery | C-01..C-14 | 0 | 3 | `[~]` |
+| 5 | OCR inside the editor | O-01..O-05 | 0 | 2 | `[~]` |
+| 6 | Export trust and metadata | X-01..X-06 | 1 | 3 | `[~]` |
+| 7 | Hardening and parity sweep | H-01..H-08 | 0 | 4 | `[~]` |
+
+**Queue:** G-01 → G-02 → G-04 → E-00 → E-10 → S-06 → E-01..E-04 → T/S quick wins → C-core → O → X → H.
+**Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1.
+
+### 4.2 Full board
+
+| ID | Task | Pri | Size | Now | Status |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Provenance + NOTICE + copy header | P0 | S | done | `[x]` |
+| G-02 | Corpus v2 (partial-word, Type3, CFF, XObject, clip) | P0 | M | ~50% | `[~]` |
+| G-03 | Golden export harness | P0 | M | ~70% | `[~]` |
+| G-04 | Validated job-level strategy | P0 | S | done | `[x]` |
+| G-05 | Guardrail scripts | P0 | S | ~60% | `[~]` |
+| F-01 | Fontkit adoption + document-font embedding | P0 | L | ~85% | `[~]` |
+| E-00 | Object role discriminator + batch create | P0 | S | done | `[x]` |
+| E-01 | Pen / ink tool | P1 | M | 0% | `[ ]` |
+| E-02 | Check / cross marks | P1 | S | 0% | `[ ]` |
+| E-03 | Date stamp | P1 | S | 0% | `[ ]` |
+| E-04 | Stamp presets | P1 | S | 0% | `[ ]` |
+| E-05 | Signature crop/aspect/upload | P1 | S | ~60% | `[~]` |
+| E-06 | Fit page + percent + 400% | P1 | S | ~60% | `[~]` |
+| E-07 | Snap guides + Alt bypass | P1 | M | 0% | `[ ]` |
+| E-08 | Object clipboard + clamp | P1 | S | ~60% | `[~]` |
+| E-09 | Insert pages from PDF | P2 | M | ~20% | `[~]` |
+| E-10 | Rail/inspector integration + capability truth | P0 | S | ~70% | `[~]` |
+| T-01 | Revert paragraph via reverse edit | P1 | M | 0% | `[ ]` |
+| T-02 | Move paragraph with plan offsets | P1 | M | 0% | `[ ]` |
+| T-03 | Detection details drawer | P1 | M | 0% | `[ ]` |
+| T-04 | Outline detected text | P2 | S | 0% | `[ ]` |
+| T-05 | Inline editing legibility | P1 | L | ~40% | `[~]` |
+| T-06 | Formatting that reaches native | P1 | L | ~30% | `[~]` |
+| T-07 | Rotate text block | P2 | M | 0% | `[ ]` |
+| S-01 | Find & replace engine | P1 | M | 0% | `[ ]` |
+| S-02 | Find & replace UI | P1 | S | 0% | `[ ]` |
+| S-03 | Draft autosave + `resetTo` | P1 | M | 0% | `[ ]` |
+| S-04 | Restore/discard banner | P1 | S | 0% | `[ ]` |
+| S-05 | Error taxonomy completion | P1 | S | ~70% | `[~]` |
+| S-06 | Data-loss path guards | P0 | S | ~80% | `[~]` |
+| C-01 | Lexer + emitter v2 | P0 | M | ~20% | `[~]` |
+| C-02 | Glyph metrics + AFM + ToUnicode | P0 | M | ~5% | `[~]` |
+| C-03 | Per-glyph quad removal | P0 | M | 0% | `[ ]` |
+| C-04 | Advance compensation + transitions | P0 | M | 0% | `[ ]` |
+| C-05 | Partial-run deletion | P1 | S | ~60% | `[~]` |
+| C-06 | Stream isolation (`q…Q`) | P0 | S | 0% | `[ ]` |
+| C-07 | Leftover-cover policy | P1 | S | ~15% | `[~]` |
+| C-08 | `Tz` fit + word-by-word | P1 | M | 0% | `[ ]` |
+| C-09 | Raster-word fallback | P1 | L | 0% | `[ ]` |
+| C-10 | Rotated glyph text | P1 | S | ~35% | `[~]` |
+| C-11 | Ink colour model + sampling | P2 | M | 0% | `[ ]` |
+| C-12 | Post-write verification completion | P0 | M | ~75% | `[~]` |
+| C-13 | Edit coverage invariant | P0 | S | 0% | `[ ]` |
+| C-14 | XObject/Type3/inline-image honesty | P0 | S | 0% | `[ ]` |
+| O-01 | Scan affordance | P1 | S | ~50% engine | `[~]` |
+| O-02 | Text-layer-only OCR job | P0 | M | 0% | `[ ]` |
+| O-03 | OCR layout + confidence return | P1 | M | 0% | `[ ]` |
+| O-04 | Editor provenance + banner | P1 | S | 0% | `[ ]` |
+| O-05 | OCR cache/teardown/privacy | P1 | S | ~60% | `[~]` |
+| X-01 | Warning code registry | P1 | M | 0% | `[ ]` |
+| X-02 | Receipt stats + object-only receipt | P1 | M | ~35% | `[~]` |
+| X-03 | Untouched-page fingerprints | P1 | M | ~15% | `[~]` |
+| X-04 | Metadata + document-level preservation | P1 | M | ~85% | `[~]` |
+| X-05 | Download guard | P1 | S | 0% | `[ ]` |
+| X-06 | Progress/cancel assertion | P2 | S | done | `[x]` |
+| H-01 | Keyboard parity + unified registry | P2 | M | ~60% | `[~]` |
+| H-02 | Accessibility for new controls | P1 | M | ~70% baseline | `[~]` |
+| H-03 | Editor performance ceilings | P2 | M | 0% | `[ ]` |
+| H-04 | Fuzz lexer/emitter | P0 | M | 0% | `[ ]` |
+| H-05 | Firefox + Safari | P2 | M | 0% | `[ ]` |
+| H-06 | Touch/mobile for new tools | P2 | M | ~40% | `[~]` |
+| H-07 | Help copy + discoverability | P2 | S | ~60% | `[~]` |
+| H-08 | Parity report | P1 | S | 0% | `[ ]` |
+
+---
+
+## 5. Phases and task cards
+
+## Phase 0 — Safety rails, corpus, provenance
+
+### G-01 — Provenance, notice, copy header
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-17
+- **Why:** the reference has no licence file; the owner authorised copying, so the audit trail is ours to keep.
+- **Scope:** `licenses/rea-ihpdf-NOTICE.md`; three-category ledger (§2.4); header convention; `pnpm test:provenance` + CI step. **D10 copy policy:** pure algorithms may be copied verbatim with headers; anything touching our engine or UI is rewritten in pdfshush style.
+- **Anchor:** `licenses/rea-ihpdf-NOTICE.md`; `scripts/check-provenance.mjs`; `.github/workflows/ci.yml`.
+- **Done when:** every copied file appears in the ledger and carries the header; the check fails if it is removed.
+- **Tests:** positive run + planted negative control (verified 2026-11-17).
+
+### G-02 — Corpus v2
+- **Pri:** P0 · **Size:** M · **Now:** ~50% — `test/corpus/textSurgery.ts` builds partial-word, kerned-TJ, rotated, Form-XObject and unclosed-clip fixtures with a named failure each; `textCorpus.test.ts` proves they load and extract. Type3/CFF/inline-image/non-Identity CMap still missing.
+- **Why:** C-03/C-04 will shift glyphs silently without fixtures that catch it.
+- **Scope (add only what is missing):**
+  - partial-word removal with kerning before/after the removed run;
+  - `Tj`, `TJ` with numbers, `'`, `"`, `T*` transitions;
+  - simple with `/Widths`; base-14 without; Type0 `/W`+`/DW` Identity; non-Identity CMap; Type3 `FontMatrix`;
+  - embedded subset, CFF/OTF, non-embedded custom;
+  - 90/180/270 glyph rotation; ligatures; RTL; whitespace-only runs;
+  - inline images; unclosed clip; text inside Form XObject; nested arrays/dicts; malformed/truncated;
+  - untouched-page text fingerprint; duplicate page; inserted page.
+- **Anchor:** `packages/pdf-core/test/fixtures/`, `test/pdf-audit/fixtures/`, a manifest with purpose + hash.
+- **Done when:** each fixture states the failure it guards; hashes are platform-stable (no timestamps, vendored fonts).
+- **Tests:** generator runs in CI; corpus loads.
+
+### G-03 — Golden export harness
+- **Pri:** P0 · **Size:** M · **Now:** ~70% — `test/golden.ts` checks page count/size, contains/absent and untouched-page text; `golden.test.ts` proves a native replacement and a negative control. Pixel diff remains in `verifyExportArtifact`, not the harness.
+- **Scope:** input + edit plan → export → assert page count/size/rotation, untouched-page text hash, removed spans absent, expected text present, pixel diff, independent-reader open. Replace the self-attested `validation.opens: true` pattern with a real re-open.
+- **Anchor:** `textedit/exportVerify.ts`, `test/`, a new `scripts/corpus.mjs`.
+- **Done when:** one command prints pass/fail + diffs; a deliberately wrong edit fails.
+- **Tests:** harness self-test.
+
+### G-04 — Validated job-level strategy
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-17 — `TextEngineStrategy = 'auto' | 'native-only'`; job validates and echoes it; engine rejects unknown values; `native-only` refuses the content-stream fallback (tests).
+- **Scope:** `TextEditJobOptions.strategy`; validation error on unknown; echo the strategy in the report; keep the current path default until Gate C.
+- **Anchor:** `jobs/textEdit.job.ts:20–31`, `textedit/engine.ts:653`, `types.ts`.
+- **Done when:** both strategies run the same fixture; the report names the one used.
+- **Tests:** unknown strategy rejected; old path still selectable.
+
+### G-05 — Guardrail scripts
+- **Pri:** P0 · **Size:** S · **Now:** ~60% — `bundle-boundary.mjs`, `offline.mjs`, CSP tests exist.
+- **Scope:** extend to drafts/new tools; assert no document text/filename in logs; negative tests. Note the reference's CDN OCR fetch as the anti-pattern this gate catches.
+- **Anchor:** `tests/bundle-boundary.mjs`, `tests/e2e/offline.mjs`, `lib/csp.ts`.
+- **Done when:** a deliberately planted violation fails each check.
+- **Tests:** negative CI run.
+
+### F-01 — Fontkit adoption + document-font embedding
+- **Pri:** P0 · **Size:** L · **Now:** ~85% — `@cantoo/fontkit` 2.0.12 installed; `ops/fontPrograms.ts` extracts embedded programmes and re-embeds subset→full; `EditTextObject.fontKey` skips the WinAnsi refusal; the editor now attaches the matched PDFium BaseFont on paragraph commit; tests cover Greek through `applyEdits` and `text-edit`. Remaining: receipt names the strategy (X-02).
+- **Decision:** D5. The owner chose to add `@cantoo/fontkit` now, so "Original" font and fewer substitutions are in scope.
+- **Scope:**
+  - Add `@cantoo/fontkit` to `packages/pdf-core`; register it where pdf-lib documents are created/loaded for editing (`ops/edit.ts`, `textedit`).
+  - Extract the document font programme (PDFium `FPDFFont_*` data path or pdf-lib descriptor) and embed it for overlay and native draw paths, subset first then full.
+  - Fallback chain: embedded document font → standard-14 → warned raster (C-09).
+  - Subsetting/full-embed failure surfaces a stable warning code; never silently substitute.
+  - **Licensing:** UI/receipt notices that embedding a document's font is the user's responsibility.
+  - **Bundle gate:** fontkit must stay in the worker/engine chunks; main chunk unchanged; measure added asset size.
+- **Anchor:** `packages/pdf-core/package.json`; `textedit/fonts.ts`; `ops/edit.ts:775–819`; `apps/web/src/workers/job-worker.ts`; `tests/bundle-boundary.mjs`.
+- **Done when:** a fixture using a non-standard embedded font exports with that font (or a warned fallback); CFF/OTF path tested; main chunk has zero fontkit; receipt names the font strategy.
+- **Tests:** unit TTF/OTF/CFF embedding + subset/full failures; corpus fixture; bundle negative test.
+
+---
+
+## Phase 1 — Editor capability parity
+
+### E-00 — Object role discriminator + batch create
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-17 — explicit `role: content|decoration|redaction`; redaction set filters on the role; AI proposals and the redact tool tag marks; `createObjects` is one undo step and is used by AI batch additions; tests cover role validation.
+- **Why:** redaction treats every `rect` as a mark and "clear all" deletes all rects (`edit-pdf-tool.tsx:1792–1799, 3333–3338`). Stamps/check boxes would become destructive redaction marks.
+- **Scope:** explicit `role: 'decoration'|'redaction'|'content'` (or a typed mark discriminator); migrate existing rects to `content`; `redactMarks` filters on the role; add `onCreateMany` so a multi-part object is one undo step.
+- **Anchor:** `ops/edit.ts:124–129, 233–381`, `editor-tools.ts:65–74`, `edit-pdf-tool.tsx:1792–1799`, `editor-state.ts:48–80`.
+- **Done when:** a stamp/check rect never appears in the redaction set; a batch create is one undo step; old documents load with `content`.
+- **Tests:** unit role mapping + redaction set; E2E redaction clear-all with a stamp present.
+
+### E-01 — Pen / ink tool
+- **Pri:** P1 · **Size:** M · **Now:** 0%; `DEFAULT_COLORS.ink` exists but unused.
+- **Source:** `PageSurface.tsx:100–142`, `exporter.ts:445–457`.
+- **Scope:** `ink` object with points; sample at 0.6 pt; cap/simplify; local state while drawing, one `apply` on release; render polyline; export vector segments with round caps/joins; inspector colour/width/opacity/duplicate/delete.
+- **Anchor:** `ops/edit.ts` union + validation + `drawObject`; `editor-page.tsx:151–226, 961–1102`; `editor-tools.ts`; `editor-inspector.tsx:45–69`; `editor-chrome.tsx ToolContext`; `KEY_TOOLS` in `edit-pdf-tool.tsx:190`.
+- **Done when:** stroke survives as vectors, no raster image, one undo step, point count bounded.
+- **Tests:** unit simplification/bounds/cap; E2E draw/export/reopen.
+
+### E-02 — Check / cross marks
+- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Scope:** one object kind (`check`/`cross` or `mark`+shape), two stroked lines, 34×34 default, colour/width, one undo step.
+- **Anchor:** same as E-01; do **not** implement as two `line` objects.
+- **Done when:** vector export, text extraction unchanged, role = content.
+- **Tests:** unit draw; E2E place/export.
+
+### E-03 — Date stamp
+- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Scope:** `Intl.DateTimeFormat` long date, text object, editable after placement, size/colour. **WinAnsi constraint:** pin locale or fall back to a WinAnsi-safe format with a warning.
+- **Anchor:** `ops/dates.ts` is metadata-only; add `lib/stamp-date.ts`; `objectForTool`; inspector.
+- **Done when:** locale output matches; export extracts the date; non-WinAnsi fallback warns.
+- **Tests:** unit formatter (en-GB/en-US/ar-EG); E2E.
+
+### E-04 — Stamp presets
+- **Pri:** P1 · **Size:** S · **Now:** 0% (preset names/colours exist in `stamp-mark-tool.tsx:19–26`)
+- **Source:** target presets are raster; our vector+text version is an improvement — record it in H-08.
+- **Scope:** APPROVED/PAID/DRAFT/FINAL/CONFIDENTIAL/REJECTED/VOID; one object (box + bold label), editable text, vector export, role = content.
+- **Anchor:** E-00/E-01 anchors; preset catalogue reuse.
+- **Done when:** each preset is one click, one undo step, never a redaction mark.
+- **Tests:** catalogue unit; E2E one preset + redaction isolation.
+
+### E-05 — Signature crop, aspect, upload
+- **Pri:** P1 · **Size:** S · **Now:** ~60%; trim exists, capture dims are wrong, no upload.
+- **Source:** `App.tsx:1768–1811` (crop, no alpha ramp) — improve it.
+- **Scope:** store trimmed bounds (or read PNG header); alpha ramp from luminance instead of a hard 242 threshold; add upload tab; keep aspect on placement; pure helper + tests.
+- **Anchor:** `signature-pad-dialog.tsx:88, 394–434, 815–840`; `signature-assets.ts:95–128`; `signature-export.ts:231–298`; `edit-pdf-tool.tsx:2080–2089`.
+- **Done when:** a 3:1 pad with a wide signature places without stretching; photo on white yields transparent ink.
+- **Tests:** synthetic image pixel test; aspect unit; E2E sign/export.
+
+### E-06 — Fit page, percent entry, 400%
+- **Pri:** P1 · **Size:** S · **Now:** ~60%; fit width, keys, 25–200%, span readout.
+- **Scope:** fit-page using width+height; editable numeric readout (commit on Enter/blur); raise to 400% with raster-cap awareness; update mobile HUD; fix the unused `onZoomChange` prop.
+- **Anchor:** `edit-pdf-tool.tsx:223–226, 962–990, 3177–3186`; `editor-chrome.tsx:581, 736–742, 1548`.
+- **Done when:** landscape page centres; typed percent works; 400% downsamples safely without loops.
+- **Tests:** unit fit/clamp; E2E.
+
+### E-07 — Snap guides + Alt bypass
+- **Pri:** P1 · **Size:** M · **Now:** 0%; **no behavioural source** (target advertises only) — mark as invented.
+- **Scope:** pure `snap.ts` (page edges/centres, other objects, threshold in px→pt), guides, Alt bypass, sub-point move for snapping (today `moveLive` rounds to integers), one undo step.
+- **Anchor:** `edit-pdf-tool.tsx:1196–1214`; `editor-page.tsx:441–442`; new `lib/snap.ts`; CSS guides.
+- **Done when:** guides appear only on snap; Alt disables; no drift.
+- **Tests:** unit snap math + Alt; E2E drag near edge.
+
+### E-08 — Object clipboard, duplicate, clamp
+- **Pri:** P1 · **Size:** S · **Now:** ~60%; Ctrl+D +8,+8, arrows 1/10, text clipboard only.
+- **Scope:** Ctrl+C/X/V for objects, +12,+12 paste, page clamp shared with signature placement, Cmd variants, no off-page exports.
+- **Anchor:** `edit-pdf-tool.tsx:1630–1693, 2464–2498`; `ops/edit.ts:287–299`.
+- **Done when:** copy/paste keeps style and lands on the page; keyboard-only loop works.
+- **Tests:** unit offset/clamp; E2E.
+
+### E-09 — Insert pages from another PDF
+- **Pri:** P2 · **Size:** M · **Now:** ~20%; engine `organize` supports multi-file, UI is single-file.
+- **Scope:** compose `[current, extra]`, replace bytes, re-inspect, remap `pageIndex` on objects, `pageOrder`, `native.beforeLines`, `paragraphObjectIds`; progress.
+- **Anchor:** `jobs/organize.job.ts`, `ops/compose.ts`, `edit-pdf-tool.tsx:400, 563–662, 877–954`.
+- **Done when:** inserted pages appear; all edits survive; export order matches rail.
+- **Tests:** unit remap; E2E insert + edit + export.
+
+### E-10 — Rail/inspector integration + capability truth
+- **Pri:** P0 · **Size:** S · **Now:** ~70% — dead `ToolCapability.export`, `saveStatus` and session `dirty` removed; tool registry is the single source for rail order/labels; new kinds still land with E-01..E-04.
+- **Sequence:** before E-01..E-04.
+- **Scope:** registry entries, context controls, inspector titles/icons (exhaustive records), status labels, `KEY_TOOLS`; either wire `ToolCapability.export` into `onSave` or delete it; fix `editor-tools.test.ts` expectations.
+- **Anchor:** `editor-tools.ts:97–220`; `editor-inspector.tsx:45–69`; `editor-chrome.tsx ToolContext`; `edit-pdf-tool.tsx:190, 2123–2134`.
+- **Done when:** every rail entry produces something; no dead capability; tests updated.
+- **Tests:** unit registry + exact mode lists; E2E smoke every entry.
+
+---
+
+## Phase 2 — Text editing UX
+
+### T-01 — Revert paragraph via reverse edit
+- **Pri:** P1 · **Size:** M · **Now:** 0%; v1's design is unsound.
+- **Why:** a successful native rewrite has already removed the original glyphs; deleting whiteout+text restores nothing.
+- **Scope:** `ParagraphEditRecord {paragraphId,pageIndex,before,after,plan,objectIds}` persisted in `EditorDoc` or a side map; Revert = one `apply` that removes objects **and** queues a reverse `TextEdit` (`find: after`, `replace: before`, reversed layout) on the next save; if the reverse fails, warn and keep the replacement.
+- **Anchor:** `lib/text-editing.ts:384–476`; `edit-pdf-tool.tsx:1297–1357, 2178–2237`; `editor-state.ts`.
+- **Done when:** edit → revert → export yields original text (or an explicit warning); one undo step.
+- **Tests:** unit record + reverse plan; E2E edit/revert/export bytes.
+
+### T-02 — Move paragraph with plan offsets
+- **Pri:** P1 · **Size:** M · **Now:** 0%; moving the object changes preview only.
+- **Scope:** dx/dy patches the text object **and** `native.reflow.x/firstBaselineY` plus covers by the same delta; keep `beforeLines` at the original match anchor; clamp; surface engine refusal near page edges.
+- **Anchor:** `text-editing.ts:426–432`; `textedit/engine.ts:398–410, 444–446, 458–460`; inspector.
+- **Done when:** native export draws at the moved position; original removal policy documented; refusal surfaced.
+- **Tests:** unit offset; E2E move + export + text position.
+
+### T-03 — Detection details drawer
+- **Pri:** P1 · **Size:** M · **Now:** 0%; structure panel is confidence facets, not per-paragraph details.
+- **Scope:** per-paragraph panel: bbox, line count, baseline, font family/label, size, rotation, bold/italic, confidence, role, page text layer, colour (when C-11 lands), source (page-level until D4), post-save strategy/outcome. Copy-to-clipboard.
+- **Anchor:** `document/types.ts:194–215`; `capabilities.ts:103–158`; `textedit/types.ts:174–186`; `editor-inspector.tsx`; `export-receipt.tsx:39–48`.
+- **Done when:** panel matches model exactly; post-save outcome maps back to the paragraph.
+- **Tests:** unit formatter; E2E on a fixture.
+
+### T-04 — Outline detected text
+- **Pri:** P2 · **Size:** S · **Now:** 0%
+- **Scope:** debug prop on `text-layer.tsx`; block/paragraph/line outlines; labels on hover; `pointer-events-none`; off by default; excluded from export.
+- **Done when:** toggling never affects selection/export; works at 25–400%.
+- **Tests:** E2E toggle + screenshot; overlay math.
+
+### T-05 — Inline editing legibility
+- **Pri:** P1 · **Size:** L · **Now:** ~40%; textarea works, opaque `bg-white/95`, no mask, no live preview.
+- **Source:** target transparent text + caret + deleted-line mask; the clone has only transparent text.
+- **Scope:** raster visible under the editor; per-line cover preview for lines that will be removed; caret contrast; live width/line-height using exporter metrics; no layout shift.
+- **Anchor:** `text-layer.tsx:531–566, 645–691`; `editor-page.tsx:971`; `editor-shared.css`.
+- **Done when:** typing looks like editing the page; stale glyphs never show; screenshot diff passes at 100% and 400%.
+- **Tests:** visual E2E; unit mask geometry.
+
+### T-06 — Formatting that reaches native
+- **Pri:** P1 · **Size:** L · **Now:** ~30%; object controls exist, native export ignores them.
+- **Scope:** D9 is **make it real**. Add size/colour/bold/italic/align to `TextLayoutEdit`; teach `applyLayoutEdit` font loading (F-01), synthetic bold/italic when the embedded face has none, colour, and alignment. "Original" uses the embedded document font; if it cannot be reproduced, warn with a code.
+- **Anchor:** `textedit/types.ts:67–73`; `engine.ts:517–596`; `ops/edit.ts:614–650`; `editor-inspector.tsx:275–367`; `editor-chrome.tsx:973–1068`.
+- **Done when:** the controls are true on the native path; justify works or is removed; substitution/synthetic is receipted.
+- **Tests:** unit plan style mapping; E2E format + export + font/warning.
+
+### T-07 — Rotate text block
+- **Pri:** P2 · **Size:** M · **Now:** 0%; rotated paragraphs are refused at edit start.
+- **Scope:** if native rotation is supported: add angle to plan types, matrix placement, collision checks; else keep refusal and add rotation only to overlay/fallback with a warning. UI numeric + 15° snap.
+- **Anchor:** `ops/edit.ts:71–91`; `engine.ts:533`; `edit-pdf-tool.tsx:1425–1430`; `editor-inspector.tsx`.
+- **Done when:** promoted behaviour is documented; extraction and verification pass.
+- **Tests:** 90/180/270 fixtures.
+
+---
+
+## Phase 3 — Search, recovery, data-loss guards
+
+### S-01 — Find & replace engine
+- **Pri:** P1 · **Size:** M · **Now:** 0%
+- **Scope:** pure module over `PageLayout`; case-insensitive with an explicit folding map or documented limit; matches over `paragraph.text` (body offsets), snippets; replace via `mutateParagraphText` to respect list markers; failed-layout retry (today a failed page is marked fetched forever); one undo step.
+- **Anchor:** new `packages/pdf-core/src/document/search.ts`; `lib/text-editing.ts:487–530`; `edit-pdf-tool.tsx:760–766, 1359–1365`.
+- **Done when:** replace-all on 3 pages updates only matches; pages that failed to load are retried or reported.
+- **Tests:** unit overlaps/case/newlines/unicode; integration with export.
+
+### S-02 — Find & replace UI
+- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Scope:** Ctrl/Cmd+F after the typing guard; input/replace/count/next/prev/jump/replace-all; scroll to page; highlight via existing selection rects; live region; Escape ownership; search without capability inspection to avoid the 40-page cost.
+- **Anchor:** `edit-pdf-tool.tsx:993–1007, 1986–1992, 2371–2531`; `text-layer.tsx:629–643`; `editor-chrome.tsx:1466–1471`.
+- **Done when:** keyboard-only find/replace on 40 pages, no position loss.
+- **Tests:** E2E keyboard + screenshot.
+
+### S-03 — Draft autosave + `resetTo`
+- **Pri:** P1 · **Size:** M · **Now:** 0%
+- **Scope:** `DRAFTS_STORE`, DB v4 additive; `editor-state.resetTo(doc)` that establishes a new baseline (no empty doc on the undo stack); persist bytes, name/size/lastModified, `EditorDoc` (objects incl. image bytes + native plans), pageOrder, currentPage, zoom, mode/tool, saved baseline, `paragraphObjectIds`; debounce; 60 MB cap; QuotaExceeded visible; validate `TextEdit.layout` on restore; commit in-flight paragraph edits before save.
+- **Anchor:** `lib/idb.ts:15–37`; `lib/editor-state.ts`; `lib/editor-session.ts`; new `lib/editor-draft.ts`; `edit-pdf-tool.tsx:2156–2174`.
+- **Done when:** reload restores exact text; first undo does not erase it; re-editing a restored paragraph does not duplicate covers.
+- **Tests:** unit serialise/migrate/validate; E2E reload.
+
+### S-04 — Restore/discard banner
+- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Scope:** match by name+size+lastModified; Restore hydrates; Discard deletes; keyboard/a11y; banner in the idle stage; clear on successful export if chosen.
+- **Anchor:** `edit-pdf-tool.tsx:3755–3767`; `editor-chrome.tsx`; reuse dialog pattern `:3592–3636`.
+- **Done when:** both paths explicit; no stale draft after Discard.
+- **Tests:** E2E reload → restore/discard.
+
+### S-05 — Error taxonomy completion
+- **Pri:** P1 · **Size:** S · **Now:** ~70%; 12 codes + copy + tests exist.
+- **Scope:** add `empty`, `not-a-pdf`, `out-of-memory`; stop collapsing them into `damaged`/`too-large`; update copy/retry/tests.
+- **Anchor:** `lib/job-errors.ts:23–260`.
+- **Done when:** the error corpus shows intended messages.
+- **Tests:** unit mapping; E2E empty/truncated.
+
+### S-06 — Data-loss path guards
+- **Pri:** P0 · **Size:** S · **Now:** ~80% — Change file, Start over, Back and in-app link clicks share one confirmation sheet with intent-specific copy; `editor-cancel-save.mjs` proves each path keeps the document. Browser back/forward still relies on `beforeunload`, not a route blocker.
+- **Why:** "Change file" and "Start over" bypass the dirty confirm and drop edits; route navigation has no guard; only Back confirms.
+- **Scope:** route both through the confirm; SPA navigation guard; keep `beforeunload`; test with unsaved edits.
+- **Anchor:** `edit-pdf-tool.tsx:2535–2549, 2864–2870, 2923–2924, 3638–3682`.
+- **Done when:** no user path silently discards edits.
+- **Tests:** E2E change-file/start-over/nav with unsaved edits.
+
+---
+
+## Phase 4 — Content-stream surgery
+
+> **Gate C applies.** Do not default v2 until G-02, G-03, C-12, C-13 and D1 are green. Land C-01..C-04, C-06, C-12..C-14 as one coherent unit; C-08..C-11 can follow.
+
+### C-01 — Lexer + emitter v2
+- **Pri:** P0 · **Size:** M · **Now:** ~20%; spans exist, no emitter, `BI` throws, no round-trip.
+- **Scope:** use the target's arg-stack parser as the model; names `#xx`, literal/hex strings, arrays/dicts, inline images, comments, spans; **emit** untouched tokens byte-identically; new module.
+- **Anchor:** `research/ihatepdf/assets/images.pretty.js:1300–1379`; `textedit/contentStream.ts:74–277`; new `textedit/stream/lexer.ts`.
+- **Done when:** tokenise→emit round-trip is byte-identical on the corpus; `BI` handled, not thrown.
+- **Tests:** adversarial snippet corpus; round-trip; H-04 later.
+
+### C-02 — Glyph metrics, ToUnicode, AFM
+- **Pri:** P0 · **Size:** M · **Now:** ~5% (only PDFium `FPDFFont_GetGlyphWidth`).
+- **Scope:** Type0 `/W`+`/DW`; simple `/FirstChar`+`/Widths`; Type3 `/FontMatrix`; base-14 AFM tables; `/MissingWidth`; ToUnicode, `/Encoding`+`/Differences`, CID→GID; `byteLength` and `reliable` flags. Non-Identity Type0 must be `reliable:false` until proven.
+- **Anchor:** `removal.ts:657–776`; `widths.generated.ts`; `textedit/charcodes.ts`.
+- **Done when:** widths match PDF.js within tolerance; guessing is flagged.
+- **Tests:** per-font tables; reliability negatives.
+
+### C-03 — Per-glyph quad removal
+- **Pri:** P0 · **Size:** M · **Now:** 0%
+- **Scope:** text state `Tm/Tlm/CTM/Tf/Tz/Tc/Tw/TL/Ts/rise`; q/Q text-state save/restore; glyph advances; quads; rect expansion ~0.4 pt; AABB vs rotated-quad policy; kept bytes; removed count.
+- **Anchor:** `removal.ts:228–443`; new `textedit/removal.ts`.
+- **Done when:** only target glyphs disappear; no neighbour movement **after C-04**.
+- **Tests:** partial-word fixtures; pixel diff.
+
+### C-04 — Advance compensation + transitions (**critical**)
+- **Pri:** P0 · **Size:** M · **Now:** 0%; the reference is wrong here.
+- **Scope:**
+  - each removed advance becomes a `TJ` kern (`-(advance/1000)*size` style, in the right space);
+  - convert `Tj` → `TJ` when a removal splits the string;
+  - `'`/`"` re-emit line move + `Tw`/`Tc` even when all glyphs are removed;
+  - empty `TJ` keeps the advance or emits a compensating number;
+  - `formatNum` precision that does not round small kerns to zero.
+- **Anchor:** target `images.pretty.js:1475–1486`; `removal.ts:379–443, 618–626`.
+- **Done when:** removing a mid-word glyph leaves every kept glyph at its original x; pixel diff outside the removed box is 0.
+- **Tests:** partial-word fixture with kerns before/after; each operator variant.
+
+### C-05 — Partial-run deletion
+- **Pri:** P1 · **Size:** S · **Now:** ~60%; whole-object deletion works natively; stream deletion refused.
+- **Scope:** use C-03/C-04 for partial deletion; keep native whole-object deletion; deletion never degrades to a cosmetic cover without a warning.
+- **Anchor:** `engine.ts:721–741, 1028–1039`; `contentStream.ts:442–451`.
+- **Done when:** deleting a word inside a run removes only it; extraction absence verified.
+- **Tests:** fixture; E2E delete.
+
+### C-06 — Stream isolation
+- **Pri:** P0 · **Size:** S · **Now:** 0%
+- **Scope:** wrap original content in `q … Q` before appending draws; test an unclosed clip; preserve state.
+- **Anchor:** `contentStream.ts:557–561`; `ops/edit.ts` draw path.
+- **Done when:** appended text/objects render even when the source leaves a clip active.
+- **Tests:** unclosed-clip fixture; pixel diff.
+
+### C-07 — Leftover-cover policy
+- **Pri:** P1 · **Size:** S · **Now:** ~15%; covers come from the UI, engine cannot tell policy from user whiteout.
+- **Scope:** explicit `policy:'leftover-cover'` marker (or engine-generated patch); only when removal reports complete; smallest patch; receipt code; never redaction language; coloured-background limitation documented.
+- **Anchor:** `textedit/engine.ts`; `ops/edit.ts`; `edit-receipt.ts`.
+- **Done when:** patch invisible on white pages; absent on coloured backgrounds; receipt names the policy.
+- **Tests:** pixel diff; receipt assertion.
+
+### C-08 — `Tz` fit + word-by-word
+- **Pri:** P1 · **Size:** M · **Now:** 0%
+- **Scope:** D12 = **40–250%**, per-line fit; warn outside 70–140% readability; `setCharacterSqueeze`; word-by-word when U+0020 is not encodable; measure with C-02 metrics; avoid double spaces in extraction.
+- **Anchor:** `exporter.ts:268–353`; `ops/edit.ts drawText`.
+- **Done when:** right edge preserved without unreadable squeeze; extraction clean.
+- **Tests:** 39/40/250/251% boundaries; extraction.
+
+### C-09 — Raster-word fallback
+- **Pri:** P1 · **Size:** L · **Now:** 0%; non-WinAnsi is refused at validation.
+- **Scope:** render the smallest run via a clipped page region **in the worker** from source bytes (do not ship rasters to the worker); embed PNG; bypass `assertEncodable` for that run; receipt `glyph-rasterised`; verifier must not expect that text. F-01 reduces how often this happens but does not remove it: document fonts can lack glyphs, and inserted text uses standard faces.
+- **Anchor:** `ops/edit.ts:408–429, 614–650`; `render/renderPage.ts`; `exportVerify.ts`; `job-worker.ts:143` transfer depth.
+- **Done when:** appearance preserved, warned, not claimed selectable.
+- **Tests:** exotic-glyph fixture; receipt; pixel diff.
+
+### C-10 — Rotated glyph text
+- **Pri:** P1 · **Size:** S · **Now:** ~35%; page `/Rotate` works; glyph rotation does not.
+- **Scope:** add `rotationDeg` to plan types; per-line placement via `projectPoint`; aligned collision boxes; or interim refusal with a warning until supported.
+- **Anchor:** `textedit/types.ts:42–73`; `engine.ts:386–607, 533`; `document/geometry.ts:325`.
+- **Done when:** 90/180/270 fixtures remove/replace correctly, or are refused explicitly.
+- **Tests:** rotation fixtures; extraction.
+
+### C-11 — Ink colour model + sampling
+- **Pri:** P2 · **Size:** M · **Now:** 0%; model has no colour, UI hard-codes `#111827`.
+- **Scope:** add colour to `TextTypography`; populate from fill operators when possible, else subsampled raster sampling with paper/antialias rejection, per-block cache and a page budget; feed `EditTextObject.color`.
+- **Anchor:** `document/types.ts:50`; `render/textRuns.ts`; `text-editing.ts:471`; `edit-pdf-tool.tsx:1602`; `renderPageToCanvas`.
+- **Done when:** coloured text is detected without a first-paint stall; sampling budget measured.
+- **Tests:** synthetic canvases; timing.
+
+### C-12 — Post-write verification completion
+- **Pri:** P0 · **Size:** M · **Now:** ~75%
+- **Scope:** untouched-page text fingerprints input vs output; rotation comparison; extend the pixel gate to stream-path edits missing `box`; on mismatch, discard the rewrite and fall back with a warning (currently refuses); keep fail-closed for redaction.
+- **Anchor:** `textedit/exportVerify.ts:176–342`; `verify.ts:70+`; `engine.ts:991–1026, 1154+`.
+- **Done when:** a sabotaged rewrite is caught, fallback succeeds with a warning, untouched pages match exactly.
+- **Tests:** negative stream fixture; untouched-page hash.
+
+### C-13 — Edit coverage invariant
+- **Pri:** P0 · **Size:** S · **Now:** 0% (class of bug is live in the reference and possible here)
+- **Why:** export must never silently drop a dirty edit because its block/layout is missing.
+- **Scope:** assert every dirty/native edit has required geometry and a matchable target; otherwise warn (`edit-unresolved`) or refuse; ensure all edited pages are hydrated before export, not just visited ones.
+- **Anchor:** `ops/edit.ts` validation; `textedit/engine.ts:819+`; `edit-pdf-tool.tsx:2178–2237`; `ensureRuns` `:710–770`.
+- **Done when:** edit page 1 → visit page 2 → export works; a missing block produces a warning, never silence.
+- **Tests:** multi-page edit/export; deliberately missing layout.
+
+### C-14 — XObject/Type3/inline-image honesty
+- **Pri:** P0 · **Size:** S · **Now:** 0%; `BI` → manual-review; no `Do` recursion; Type3 unreachable in stream path.
+- **Scope:** detect text inside Form XObjects; set `complete:false` + `stream-incomplete` code; no false success. Full recursion is a later task.
+- **Anchor:** `contentStream.ts:272, 604–606`; `removal.ts:604–606`.
+- **Done when:** a text-in-XObject fixture warns instead of claiming removal.
+- **Tests:** fixture; receipt code.
+
+---
+
+## Phase 5 — OCR inside the editor
+
+> **Blocking design:** `ocrDocument` rebuilds pages as rasters. Do not call it mid-session (D3).
+
+### O-01 — Scan affordance
+- **Pri:** P1 · **Size:** S · **Now:** ~50% engine; UI has only status text.
+- **Scope:** per-page "This page is a scan — read it with OCR?" when `likelyScanned`; mark already-OCR'd pages; no automatic run.
+- **Anchor:** `capabilities.ts:143`; `jobs/textRuns.job.ts:85–98`; `edit-pdf-tool.tsx:2882–2888`.
+- **Done when:** detection is instant; no false positive on vector-only pages.
+- **Tests:** unit classification; E2E scanned fixture.
+
+### O-02 — Text-layer-only OCR job
+- **Pri:** P0 · **Size:** M · **Now:** 0%
+- **Scope:** new job that appends an invisible text layer to existing pages (pdf-lib `drawText` + invisible render mode), leaving original bytes/pages/objects intact; keep `ocr` for the standalone tool. Progress, cancel, page cap.
+- **Anchor:** `jobs/ocr.job.ts`; `ocr/ocr.ts:143–183`; `ocr/draw.ts:17`; registry/slugs.
+- **Done when:** OCR on page 3 does not invalidate page 1 objects or paragraph IDs.
+- **Tests:** job unit; editor integration E2E.
+
+### O-03 — OCR layout + confidence return
+- **Pri:** P1 · **Size:** M · **Now:** 0% (job returns counts only)
+- **Scope:** return per-page words/lines/paragraphs/confidence (or re-extract via text-runs and map); expose mean and per-block confidence; define the paragraph↔OCR mapping (D4).
+- **Anchor:** `ocr/layout.ts:90–160`; `jobs/ocr.job.ts:28–41`; `textedit/types.ts`.
+- **Done when:** the editor can mark OCR paragraphs with confidence without guessing.
+- **Tests:** unit payload; E2E banner values.
+
+### O-04 — Editor provenance + banner
+- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Scope:** confidence banner, page-level provenance, detection details, editable OCR paragraphs; "check the text" copy.
+- **Anchor:** `document/types.ts`; `edit-pdf-tool.tsx`; `editor-chrome.tsx`; `structure-panel.tsx`.
+- **Done when:** provenance is honest at page level; editing/export works.
+- **Tests:** E2E OCR → edit → export.
+
+### O-05 — Cache, teardown, privacy
+- **Pri:** P1 · **Size:** S · **Now:** ~60% elsewhere; editor path untested.
+- **Scope:** same-origin model data; terminate on close; revoke URLs; in-editor privacy copy; teardown test.
+- **Anchor:** `workers/ocr-engine.ts`; `edit-pdf-tool.tsx resetAll`; `tests/e2e/ocr.mjs`.
+- **Done when:** closing the document leaves no worker/blob; no off-origin request.
+- **Tests:** teardown + network assertion.
+
+---
+
+## Phase 6 — Export trust and metadata
+
+### X-01 — Warning code registry
+- **Pri:** P1 · **Size:** M · **Now:** 0%; warnings are free-text strings across four report types; `edit.job` has none.
+- **Scope:** `WarningCode` union + `{code, detail, message}`; activate `JobWarnings`; migrate text-edit/OCR/redaction (and add edit); dedupe by code+detail, cap 40; receipt keys by code+detail; keep a compatibility accessor if needed.
+- **Anchor:** `job.ts:68`; `textEdit.job.ts:38–47`; `ocr.job.ts:40`; `redact/types.ts:74`; `engine.ts:1016–1078`; `edit-receipt.ts:142`; `export-receipt.tsx:105`.
+- **Done when:** every warning path emits a code; tests updated; no string-only consumer remains.
+- **Tests:** dedupe/cap; receipt snapshot; job type tests.
+
+### X-02 — Receipt stats + object-only receipt
+- **Pri:** P1 · **Size:** M · **Now:** ~35%; no stats, object-only exports get no receipt, "no verification" contradicts the footer.
+- **Scope:** pages, chars removed, objects drawn, fonts embedded/substituted, glyphs rasterised, OCR pages, strategy, verification verdict; render a receipt for object-only exports; remove the contradiction.
+- **Anchor:** `ops/edit.ts applyEdits` (return counts); `engine.ts`; `textEdit.job.ts`; `edit-receipt.ts`; `export-receipt.tsx`; `edit-pdf-tool.tsx:2753–2760`.
+- **Done when:** stats come from the job result, not guesses; every export has a receipt.
+- **Tests:** unit mapping; E2E text + object exports.
+
+### X-03 — Untouched-page fingerprints
+- **Pri:** P1 · **Size:** M · **Now:** ~15%; only edited regions are visually compared.
+- **Scope:** build the untouched set from edits + objects (a markup page is not untouched); hash page text/metadata input vs output; block on mismatch with an explicit "download anyway" warning path.
+- **Anchor:** `exportVerify.ts:26–52, 90–136`; `verify.ts:70–100`; `edit-pdf-tool.tsx` download gating.
+- **Done when:** a broken untouched page is blocked; markup-only pages are not false positives.
+- **Tests:** negative fixture; markup export.
+
+### X-04 — Metadata + document-level preservation
+- **Pri:** P1 · **Size:** M · **Now:** ~85% likely true for edit, untested; compose partial.
+- **Scope:** test title/author/subject/keywords/creation date through edit and text-edit; widen `InspectOutput.metadata`; extend compose to preserve dates/creator/producer; document the Producer/Creator convention. D15 acceptance: **metadata + `/AcroForm`, outlines and page labels** survive edit/export. `/OCProperties` and tagged structure are out of scope this cycle.
+- **Anchor:** `ops/pages.ts:47–65`; `ops/metadata.ts:61–71`; `ops/dates.ts:60–98`; `jobs/inspect.job.ts:10–21`; `ops/compose.ts`.
+- **Done when:** round-trip tests prove it; doc-level objects survive.
+- **Tests:** metadata assertions; forms/outline fixtures.
+
+### X-05 — Download guard
+- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Scope:** disable Save when no changes, with explanation; guard `onSave`; keep redact/organize preconditions.
+- **Anchor:** `editor-chrome.tsx:211–223`; `edit-pdf-tool.tsx:2115, 2790–2801`; `editor-dirty.ts:25–35`.
+- **Done when:** no-change export is impossible via UI.
+- **Tests:** unit + E2E.
+
+### X-06 — Progress/cancel assertion
+- **Pri:** P2 · **Size:** S · **Now:** done 2026-11-17 — `job-pool.stats()` (workers, busy, busySlugs, queued) behind an opt-in `__PDFSHUSH_TEST__` probe; `editor-cancel-save.mjs` proves the text-edit worker is gone, nothing is queued, edits survive and save is available again.
+- **Scope:** only the test: cancel export → worker terminated/respawned, edits intact, state idle; optionally clearer step labels.
+- **Anchor:** `job-pool.ts:116–131`; `editor-chrome.tsx:1480–1499`; `use-job-runner.ts`.
+- **Done when:** the assertion exists; mark `[x]`.
+- **Tests:** E2E cancel + worker count.
+
+---
+
+## Phase 7 — Hardening and parity sweep
+
+### H-01 — Keyboard parity + unified registry
+- **Pri:** P2 · **Size:** M · **Now:** ~60%; two registries diverge; find/clipboard/snap missing.
+- **Scope:** one source of truth for shortcuts; add find, object clipboard, Alt snap; shortcuts dialog generated from the real map; E2E every shortcut.
+- **Anchor:** `editor-tools.ts`; `edit-pdf-tool.tsx:190–198, 2371–2531`; `keyboard.mjs`.
+- **Done when:** dialog cannot drift; suite covers all.
+- **Tests:** E2E keyboard.
+
+### H-02 — Accessibility for new controls
+- **Pri:** P1 · **Size:** M · **Now:** ~70% baseline; new tools uncovered.
+- **Scope:** enumerate new controls; live regions for find/OCR; roving tabindex in rail; guide/caret contrast; axe with paragraph editor, find panel, ink and mobile sheet open.
+- **Anchor:** `a11y.mjs:150–190`; `editor-chrome.tsx`; `text-layer.tsx`.
+- **Done when:** no new violations; keyboard-only full loop.
+- **Tests:** axe + keyboard E2E.
+
+### H-03 — Editor performance ceilings
+- **Pri:** P2 · **Size:** M · **Now:** 0% for editor edits.
+- **Scope:** 100-page text edit, 10k-point ink, content-stream throughput, page warm-up incl. capability inspection; publish ceilings in `tests/benchmarks`.
+- **Anchor:** `m5-0-baseline.mjs`; `m5-4-ceilings.mjs`; `long-120page.pdf`.
+- **Done when:** numbers in repo; CI regression margin.
+- **Tests:** benchmark script.
+
+### H-04 — Fuzz lexer/emitter
+- **Pri:** P0 · **Size:** M · **Now:** 0%
+- **Scope:** tokeniser + emitter + apply path; fixed seeds; asserts no crash/hang/invalid stream and fallback on failure.
+- **Anchor:** `textedit/contentStream.ts`; new `textedit/stream/*`; test harness.
+- **Done when:** seeded fuzz runs in CI.
+- **Tests:** fuzz harness.
+
+### H-05 — Firefox + Safari
+- **Pri:** P2 · **Size:** M · **Now:** 0% for editor.
+- **Scope:** pointer capture/touch-action, IndexedDB quotas, OffscreenCanvas in workers, Tesseract worker, canvas area, clipboard permissions.
+- **Anchor:** E2E config; `edit-pdf-tool.tsx` touch paths.
+- **Done when:** per-feature results recorded; unsupported combos gated.
+- **Tests:** cross-browser suite.
+
+### H-06 — Touch/mobile for pen, snap, find
+- **Pri:** P2 · **Size:** M · **Now:** ~40% baseline; new tools absent; no responsive E2E.
+- **Scope:** pointer capture, palm rejection heuristics, hit targets, bottom-sheet find, no scroll trap while drawing; responsive suite.
+- **Anchor:** `edit-pdf-tool.tsx:1064–1109, 3135–3200`; `editor-page.tsx:607–615`; new E2E.
+- **Done when:** phone checks green for new tools.
+- **Tests:** responsive E2E.
+
+### H-07 — Help copy + discoverability
+- **Pri:** P2 · **Size:** S · **Now:** ~60%
+- **Scope:** per-tool help, shortcut sheet, limitations for whiteout/substitution/stream fallback; fix the misleading Text-tool hint (paragraph editing requires Select).
+- **Anchor:** `editor-chrome.tsx:812–971`; `lib/text-model-limits.ts`; tooltips.
+- **Done when:** every new tool has a one-line explanation.
+- **Tests:** copy review + snapshot.
+
+### H-08 — Parity report
+- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Scope:** matrix of all 62 tasks vs `rea ihpdf/research/ihatepdf/feature-matrix.md`: reproduced, improved, invented, declined, remaining risk. Note that the target matrix is absent from this repo.
+- **Done when:** linked from README; every `[x]` cites evidence.
+- **Tests:** docs link check.
+
+---
+
+## 6. Declined / do not port
+
+| Item | Why |
+| --- | --- |
+| Synthetic bold/italic | **Not declined, deferred**: F-01 makes document fonts embeddable, and some lack a bold/italic face. Implement inside T-06 when the embedded face has no matching style. |
+| Reference editor shell | dead fields, silent edit loss, no cancel, single page |
+| Reference export cancel/validation | worse than ours; self-attested `opens:true` |
+| Microsoft Clarity / CDN assets | privacy and supply chain |
+| Whiteout as redaction | text remains |
+| Metadata clobbering | we preserve |
+| `?` for missing glyphs | use warned raster fallback |
+| Main-thread export | keep workers |
+| Shape-based redaction marks | use explicit roles |
+| Automatic OCR on load | user-initiated, local, disclosed |
+
+---
+
+## 7. Sprint order
+
+| Sprint | Contents | Gate |
+| --- | --- | --- |
+| 1 — Foundation | G-01, G-02, G-04, F-01, E-00, E-10, S-06, X-06 assertion | A (start) |
+| 2 — Quick parity | E-01, E-02, E-03, E-04, E-05, E-06, E-08, T-04, S-05 | A |
+| 3 — Text UX + search | T-01, T-02, T-03, T-05, T-06 (UI half), S-01, S-02, S-03, S-04 | B |
+| 4 — Engine core | C-01, C-02, C-03, C-04, C-06, C-12, C-13, C-14, G-03 | C |
+| 5 — Fidelity | C-05, C-07, C-08, C-09, C-10, C-11, T-06 (engine half), T-07, E-07, E-09 | C |
+| 6 — OCR + trust | O-01..O-05, X-01..X-05, H-04 | D |
+| 7 — Hardening | H-01, H-02, H-03, H-05, H-06, H-07, H-08 | D |
+
+---
+
+## Sprint 1 close (2026-11-17)
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| G-01 | `[x]` | NOTICE, header convention, `check-provenance.mjs`, CI step, negative control |
+| G-02 | `[~]` | `textSurgery.ts` + `textCorpus.test.ts`: partial-word, TJ-kern, rotated, Form XObject, unclosed clip |
+| G-03 | `[~]` | `golden.ts` + `golden.test.ts`: page count/size, contains/absent, untouched-page text, negative control |
+| G-04 | `[x]` | `TextEngineStrategy`, job validation, report echo, `native-only` refusal tests |
+| F-01 | `[~]` | fontkit 2.0.12, `fontPrograms.ts`, `fontKey` on paragraph commit, Greek round-trip tests |
+| E-00 | `[x]` | typed roles, redaction filter, AI batch create, role validation tests |
+| E-10 | `[~]` | dead `export`/save-state removed; new kinds still land with E-01..E-04 |
+| S-06 | `[~]` | one confirmation sheet for Change file / Start over / Back / in-app links; E2E keeps the document |
+| X-06 | `[x]` | opt-in pool stats; `editor-cancel-save.mjs` proves terminate, no queue, edits survive |
+
+**Still open before Sprint 2:** G-02's Type3/CFF/inline-image/non-Identity fixtures; G-03's pixel table; F-01 receipt naming; S-06 browser back/forward route blocking; E-10's new object kinds. None blocks the foundation gate for the current feature set.
+
+---
+
+## 8. Release gates
+
+### Gate A — Foundation + parity
+- G-01/02/04, F-01, E-00, E-10, S-06 complete.
+- Pen, check/cross, date, stamps, signature, zoom, clipboard E2E green.
+- No new console errors; bundle boundary green; no silent discard path.
+
+### Gate B — Text UX + recovery
+- T-01..T-06 (agreed scope), S-01..S-04 complete.
+- Formatting/revert/move round-trip honest.
+- Find 40 pages within budget; draft restore survives reload and first undo.
+- `text-edit`, `text-model`, `keyboard`, `a11y` still green.
+
+### Gate C — Stream v2 safe to default
+- C-01..C-04, C-06, C-07, C-12, C-13, C-14 green on the corpus.
+- Removed spans absent; untouched pages text-identical; glyphs after removal do not move.
+- Sabotaged stream falls back with a warning.
+- Only then default; old path removable in a later release.
+
+### Gate D — Ship
+- O, X, H complete.
+- Cross-browser recorded; perf ceilings in CI; redaction verifier still green; no egress.
+- Parity report published.
+
+---
+
+## 9. Measurement plan
+
+Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
+
+| Metric | Baseline source | Gate A | Gate B | Gate C | Gate D |
+| --- | --- | --- | --- | --- | --- |
+| Unit tests | `pnpm test` — 579 pass + 1 expected fail (pdf-core), 211 (web) on 2026-11-17 | | | | |
+| Editor E2E | `smoke`, `text-edit`, `text-model` | | | | |
+| Export p50 (10-page text edit) | new benchmark | | | | |
+| Export p95 (120-page) | `long-120page.pdf` | | | | |
+| 10 s ink point count | new benchmark | | | | |
+| Find 40 pages | new benchmark | | | | |
+| Page warm-up incl. capabilities | new benchmark | | | | |
+| Main chunk size | `test:bundle` | | | | |
+| Fontkit bundle delta (worker) | `test:bundle` | | | | |
+| Engines in main | 0 | 0 | 0 | 0 | 0 |
+
+---
+
+## 10. Risks
+
+| Risk | Mitigation |
+| --- | --- |
+| Stream rewrite shifts glyphs | C-04 + C-12 + G-03 + Gate C |
+| Dirty edit silently dropped | C-13 + S-06 + multi-page E2E |
+| New object becomes redaction mark | E-00 + E-04 isolation test |
+| Native style ignored while UI looks editable | T-06 decision + receipt copy |
+| Draft restore erases on first undo / duplicates covers | `resetTo` + persist `paragraphObjectIds` |
+| OCR rebuild invalidates session | O-02 text-layer-only job |
+| Raster fallback hides text | explicit code + verifier + receipt |
+| Font metrics wrong | reliability flag + cover/warn |
+| Autosave leaks storage | cap + visible notice + Discard |
+| Cross-package warning refactor breaks tools | X-01 sequenced with type tests |
+| Fontkit adds size, licensing and CFF failure modes | F-01 bundle gate + subset/full fallback + licence notice + CFF fixture |
+
+---
+
+## 11. Changelog
+
+| Date | Change |
+| --- | --- |
+| 2026-11-17 | v1 created: 57 cards, feature list, gates. |
+| 2026-11-17 | v2 after deep reads: 62 cards; corrected statuses (E-05/E-06/E-08 partial, X-06 nearly done, X-04 test/doc, O engine half done, G tasks partial); added E-00, S-06, C-13, C-14, O-03; declined synthetic bold; rewrote T-01/T-02/T-06/T-07, O-02, X-01/X-02/X-03; added 9 decisions, sprint order, measured baselines caveat, three-category provenance. |
+| 2026-11-17 | Owner decisions locked (D1–D17): hybrid copy, foundation-first, TJ kerns + Tj→TJ, real native formatting, text-layer OCR + page provenance, **fontkit added**, raster fallback, explicit redaction roles, draft autosave on, Tz 40–250%, build snapping, metadata + forms/outlines/labels, cross-browser last. Added F-01; count 63. |
+| 2026-11-17 | G-01 landed: `licenses/rea-ihpdf-NOTICE.md`, derived-code header convention, `scripts/check-provenance.mjs`, `pnpm test:provenance`, CI step; positive + negative control verified. |
+| 2026-11-17 | **Sprint 1 landed.** G-01/G-04/E-00/X-06 complete; G-02/G-03/F-01/E-10/S-06 partial. Added provenance gate; validated `TextEngineStrategy`; object roles + batch create; fontkit 2.0.12 with document-programme extraction/embedding; text-surgery + golden harnesses; leave-confirmation sheet; cancel E2E. Evidence: typecheck all packages, 577+1 pdf-core, 211 web, build + bundle boundary, text-model/text-edit/keyboard/editor-unmount/editor-cancel green. |

@@ -708,6 +708,19 @@ describe('edit object validation (hostile input)', () => {
       validateEditObjects([{ ...shape, id: 'r1', strokeWidth: Number.NaN } as EditorObject], 1),
     ).toThrow(/stroke width/);
   });
+
+  it('accepts explicit object roles and rejects an unknown role', () => {
+    const shape = { kind: 'rect', pageIndex: 0, x: 10, y: 10, width: 50, height: 40 } as const;
+    expect(() =>
+      validateEditObjects([{ ...shape, id: 'r1', role: 'redaction' } as EditorObject], 1),
+    ).not.toThrow();
+    expect(() =>
+      validateEditObjects([{ ...shape, id: 'r1', role: 'decoration' } as EditorObject], 1),
+    ).not.toThrow();
+    expect(() =>
+      validateEditObjects([{ ...shape, id: 'r1', role: 'secret' } as unknown as EditorObject], 1),
+    ).toThrow(/role must be content, decoration or redaction/);
+  });
 });
 
 describe('image pixel probing', () => {

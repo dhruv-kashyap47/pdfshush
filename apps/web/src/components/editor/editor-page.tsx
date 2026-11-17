@@ -140,6 +140,9 @@ function normalizeRect(x1: number, y1: number, x2: number, y2: number): Rect {
 
 /** Screen-reader description for an overlay object, read before selection. */
 export function describeEditorObject(object: EditorObject): string {
+  if (object.role === 'redaction') {
+    return `Redaction area, page ${object.pageIndex + 1}, x ${Math.round(object.x)}, y ${Math.round(object.y)}`;
+  }
   const kind = object.kind === 'text' ? 'Text' : object.kind.charAt(0).toUpperCase() + object.kind.slice(1);
   const content =
     object.kind === 'text'
@@ -148,7 +151,7 @@ export function describeEditorObject(object: EditorObject): string {
   return `${kind} object${content}, page ${object.pageIndex + 1}, x ${Math.round(object.x)}, y ${Math.round(object.y)}`;
 }
 
-function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorObject | null {  const base = { id: newObjectId(), pageIndex, ...rect };
+function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorObject | null {  const base = { id: newObjectId(), pageIndex, ...rect, role: 'content' as const };
   switch (tool) {
     case 'text':
       return {
@@ -169,6 +172,7 @@ function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorO
       return {
         ...base,
         kind: tool,
+        role: 'decoration',
         ...(tool === 'highlight' ? { color: DEFAULT_COLORS.highlight } : {}),
         width: Math.max(rect.width, 20),
         height: Math.max(rect.height, 8),
@@ -189,6 +193,7 @@ function objectForTool(tool: EditorTool, pageIndex: number, rect: Rect): EditorO
       return {
         ...base,
         kind: 'rect',
+        role: 'redaction',
         fill: '#000000',
         stroke: '#b91c1c',
         strokeWidth: 1,

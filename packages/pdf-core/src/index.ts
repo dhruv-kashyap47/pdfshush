@@ -83,12 +83,15 @@ export {
   wrapTextToWidth,
   parseHexColor,
 } from './ops/edit.js';
+export { collectFontPrograms, DocumentFontResolver, normalizeFontKey } from './ops/fontPrograms.js';
+export type { DocumentFontProgram, FontProgramFormat } from './ops/fontPrograms.js';
 // Dependency-free so the editor can style its textarea without pulling pdf-lib
 // into the main browser bundle.
 export { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './ops/textMetrics.js';
 export type {
   EditorObject,
   EditObjectBase,
+  EditObjectRole,
   EditTextObject,
   EditTextNativePlan,
   EditImageObject,
@@ -378,12 +381,14 @@ export {
   applyNativeTextEdits,
   defaultPdfiumEnvironment,
   editPdfText,
+  TEXT_ENGINE_STRATEGIES,
 } from './textedit/engine.js';
 export type {
   NativeTextEditResult,
   PdfiumEnvironment,
   TextEditOptions,
   TextEditRunResult,
+  TextEngineStrategy,
 } from './textedit/engine.js';
 export { PdfiumTextDocument } from './textedit/pdfium.js';
 export type {

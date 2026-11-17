@@ -222,6 +222,19 @@ export class JobPool {
     }
   }
 
+  /** Read-only counters for teardown tests. */
+  stats(): { workers: number; busy: number; busySlugs: string[]; queued: number } {
+    const busySlugs = this.slots
+      .map((slot) => slot.job?.slug)
+      .filter((slug): slug is string => Boolean(slug));
+    return {
+      workers: this.slots.length,
+      busy: busySlugs.length,
+      busySlugs,
+      queued: this.queue.length,
+    };
+  }
+
   /** For tests / teardown. Pending jobs must be rejected, not left hanging. */
   dispose(): void {
     for (const slot of this.slots) {
@@ -237,3 +250,14 @@ export class JobPool {
 
 /** App-wide singleton: one pool for every tool. */
 export const jobPool = new JobPool();
+
+// Opt-in test probe. It is installed only when the E2E harness sets the flag
+// before the module loads, so the production surface is unchanged.
+if (
+  typeof window !== 'undefined' &&
+  (window as { __PDFSHUSH_TEST__?: boolean }).__PDFSHUSH_TEST__
+) {
+  (window as { __pdfshushPool?: { stats: () => ReturnType<JobPool['stats']> } }).__pdfshushPool = {
+    stats: () => jobPool.stats(),
+  };
+}

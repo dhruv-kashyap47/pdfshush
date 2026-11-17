@@ -22,8 +22,6 @@ import {
   type EditorToolDef,
 } from '@/lib/editor-tools';
 
-export type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
-
 export interface EditorSession {
   readonly mode: EditorMode;
   readonly tool: EditorTool;
@@ -58,11 +56,6 @@ export interface EditorSession {
   undo: ReturnType<typeof useEditorDoc>['undo'];
   redo: ReturnType<typeof useEditorDoc>['redo'];
   reset: ReturnType<typeof useEditorDoc>['reset'];
-
-  readonly saveStatus: SaveStatus;
-  setSaveStatus(status: SaveStatus): void;
-  readonly dirty: boolean;
-  setDirty(dirty: boolean): void;
 }
 
 /**
@@ -82,8 +75,6 @@ export function useEditorSession(mode: EditorMode, pageCount = 0): EditorSession
     Array.from({ length: pageCount }, (_, index) => index),
   );
   const [pageOrderDirty, setPageOrderDirty] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [dirty, setDirty] = useState(false);
   const baselineOrder = useRef<number[]>(Array.from({ length: pageCount }, (_, i) => i));
 
   const setTool = useCallback((next: EditorTool) => {
@@ -143,9 +134,5 @@ export function useEditorSession(mode: EditorMode, pageCount = 0): EditorSession
     undo: editor.undo,
     redo: editor.redo,
     reset: editor.reset,
-    saveStatus,
-    setSaveStatus,
-    dirty,
-    setDirty,
   };
 }

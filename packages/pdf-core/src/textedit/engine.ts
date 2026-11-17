@@ -67,7 +67,20 @@ export interface TextEditOptions {
   outputName?: string;
   /** Render edited pages and compare unchanged pixels. Default true. */
   verifyVisual?: boolean;
+  /**
+   * Job-level engine strategy. `auto` is the verified ladder (native, then the
+   * content-stream fallback, then the declared overlay). `native-only` refuses
+   * the content-stream fallback, so a caller can demand genuine text-object
+   * rewriting or an explicit failure. Unknown values are rejected by the job
+   * validator; the engine guards again for direct callers.
+   */
+  strategy?: TextEngineStrategy;
 }
+
+/** The engine strategies a job may request. */
+export type TextEngineStrategy = 'auto' | 'native-only';
+
+export const TEXT_ENGINE_STRATEGIES: readonly TextEngineStrategy[] = ['auto', 'native-only'];
 
 /** Result of the PDFium pass alone, before any verification or overlay. */
 export interface NativeTextEditResult {
@@ -95,6 +108,8 @@ export interface TextEditRunResult {
   manualReview: number;
   /** True when at least one edit went through PDFium. */
   usedNativeEngine: boolean;
+  /** The strategy this run actually used. */
+  strategy: TextEngineStrategy;
   verification: TextEditVerification;
   warnings: string[];
   name: string;
@@ -865,6 +880,12 @@ export async function editPdfText(
 ): Promise<TextEditRunResult> {
   const edits = options.edits ?? [];
   const warnings: string[] = [];
+  const strategy = options.strategy ?? 'auto';
+  if (!TEXT_ENGINE_STRATEGIES.includes(strategy)) {
+    throw new TextEditUnsafeError([
+      { kind: 'invalid-edit', detail: `unknown text engine strategy "${String(strategy)}"` },
+    ]);
+  }
   assertEditsValid(edits);
 
   const overlayObjects = options.objects ?? [];
@@ -883,6 +904,7 @@ export async function editPdfText(
       fallback: 0,
       manualReview: 0,
       usedNativeEngine: false,
+      strategy,
       verification: { ok: true, checks: [] },
       warnings,
       name: options.outputName ?? 'edited.pdf',
@@ -988,7 +1010,7 @@ export async function editPdfText(
       edit!.replace.length > 0
     );
   });
-  if (contentCandidates.length > 0) {
+  if (contentCandidates.length > 0 && strategy === 'auto') {
     try {
       const stream = await applyContentStreamEdits(
         workingBytes,
@@ -1035,6 +1057,21 @@ export async function editPdfText(
           detail: `edit "${outcome.id}" deletes text that could not be removed in place (${outcome.reason}); refusing to cover it cosmetically`,
         },
       ]);
+    }
+  }
+
+  // `native-only` is a strict promise: no content-stream rewrite and no overlay.
+  // If any edit could not be rewritten as a real text object, fail instead of
+  // quietly turning it into a painted replacement.
+  if (strategy === 'native-only') {
+    const nonNative = outcomes.filter((outcome) => outcome.mode !== 'in-place');
+    if (nonNative.length > 0) {
+      throw new TextEditUnsafeError(
+        nonNative.map((outcome) => ({
+          kind: 'unresolvable' as const,
+          detail: `native-only strategy: edit "${outcome.id}" (${outcome.mode}${outcome.reason ? `: ${outcome.reason}` : ''}) is not a native text-object rewrite`,
+        })),
+      );
     }
   }
 
@@ -1188,6 +1225,7 @@ export async function editPdfText(
     fallback,
     manualReview,
     usedNativeEngine: inPlace > 0 || contentStream > 0,
+    strategy,
     verification,
     warnings,
     name: options.outputName ?? 'edited.pdf',
