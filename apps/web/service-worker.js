@@ -36,11 +36,12 @@ const CACHE = `${CACHE_PREFIX}${BUILD_ID}`;
 const PRECACHE = [
   '/',
   '/index.html',
-  '/favicon.svg',
+  '/favicon.ico',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-maskable-512.png',
+  '/icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -94,7 +95,7 @@ function isCacheableAsset(url) {
     // The OCR language model: same-origin, versioned by the dependency, and
     // ~11 MB, so a reload must not fetch it again.
     url.pathname.startsWith('/tessdata/') ||
-    url.pathname === '/favicon.svg' ||
+    url.pathname === '/favicon.ico' ||
     url.pathname === '/manifest.webmanifest'
   );
 }

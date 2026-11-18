@@ -36,17 +36,17 @@
 
     <!--
       Order matters for what a crawler can read. Google Search does not accept
-      SVG favicons, and a site that offers only /favicon.svg falls back to the
-      generic globe in results. /favicon.ico is a real 4-size icon
-      (scripts/gen-favicon.mjs), the PNGs cover the "larger than 48px" advice,
-      and the SVG stays last for crisp browser tabs.
+      SVG favicons, so the ICO is the one file that has to be real: it is a
+      4-size icon with PNG payloads (scripts/gen-icons.mjs), which every current
+      browser, crawler and desktop shortcut reads. The PNGs cover the larger
+      favicon surfaces, and the mark is a painting rather than a vector, so
+      there is no SVG to offer.
     -->
     <link rel="icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <!--
       Both spellings are needed. The unprefixed name is the standard one, and
       Chrome logs a deprecation warning for a document that declares only the

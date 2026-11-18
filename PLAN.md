@@ -725,6 +725,46 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-11-18 - The supplied "ps" artwork becomes the icon set, and the service worker learns to notice an icon-only deploy.**
+
+  **One master, five outputs.** The brand artwork arrives as a 2752x1536 painting, not a vector, so
+  there is nothing to trace: the card was cropped at its measured bounds (821,213)-(1931,1324) and
+  resampled once to `apps/web/src/assets/brand/favicon-master.png` (512px, the largest size any
+  icon is drawn at). `scripts/gen-icons.mjs` derives everything from that file — the 4-frame
+  `favicon.ico` (16/32/48/64, PNG payloads), `icon-192`, `icon-512`, `icon-maskable-512` and the
+  180px `apple-touch-icon` — so a future repaint is one command and cannot leave the tab, the
+  installed app and the iOS home screen on three different marks. The corner is a proportion
+  (193/1110, measured on the artwork), not a pixel count, so it stays the same shape at 16px.
+
+  **`favicon.svg` is retired, not replaced.** The previous mark was drawn as SVG. This one is a
+  painting with its own light and grain; wrapping the PNG in an `<svg>` would keep a URL alive at
+  the cost of shipping the bytes twice and pretending to be scalable. The ICO is the file that has
+  to be real (Google Search accepts no SVG favicon and asks for `/favicon.ico` unprompted), the PNGs
+  cover the larger surfaces, and `index.html` now says why there is no third format.
+
+  **Masked surfaces get the card's own edge, not a guessed colour.** A launcher crops the icon to
+  its own shape and iOS paints black behind transparency, so both need an opaque square. Drawing a
+  second, flat plate behind the card produced a visible tile-inside-a-tile. The generator instead
+  grows the surrounding pixels out of the card's own boundary, ring by ring, then blurs that field
+  and redraws the card sharp on top: the padding *is* the colour the card ends on. The card is
+  scaled to 0.95 and the monogram (0.66 of the card) therefore sits inside the 80% maskable safe
+  circle, corner to corner.
+
+  **A real bug fell out of this.** `sw.js` names its cache after a hash of the emitted bundle keys,
+  and public files are copied to `dist` rather than emitted — so a deploy that repaints an icon or
+  edits the manifest changes no bundle key, produces a byte-identical `sw.js`, never installs, and
+  leaves an installed app serving the previous artwork from a cache-first `/icons/` route for good.
+  The build hash now also feeds the bytes of the six shell files the worker caches; a missing one is
+  itself a distinct input. The precache list and the cacheable-URL test moved from `/favicon.svg` to
+  `/favicon.ico` plus the apple-touch icon.
+
+  **Verified.** `pnpm -r typecheck` green; unit suites: web 217, api 243, mcp 19, ai-agent 152,
+  ai-provider 375, pdf-core 563 (+1 expected fail); production build with 63 prerendered routes and
+  a `sw.js` carrying a real build id; bundle boundary ok; the offline/privacy E2E green against the
+  built preview (manifest, icons, cache version, offline merge); and in Chromium every declared icon
+  link resolves and decodes at its stated size — ico 64, png 192, png 512, apple-touch 180 — with no
+  failed request.
+
 - **2026-11-18 - Dark is the only theme; the hero gets its soft-focus grade, testimonials get gold stars, and the agent button learns to answer the cursor.**
 
   **The light theme is gone, end to end.** `<html>` now carries `class="dark"` statically in
