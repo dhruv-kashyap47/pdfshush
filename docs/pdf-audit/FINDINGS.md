@@ -894,7 +894,9 @@ tests:
 - The 60 sweep failure groups caused by the marketing footer reveal
   (`apps/web/src/components/layout/footer.tsx:135`, only `useReveal()` call site
   `apps/web/src/pages/home.tsx:14`) are recorded in `BASELINE.md`. That is a web
-  UI regression, not part of the PDF engine.
+  UI regression, not part of the PDF engine. **Resolved 2026-11-18
+  (`a64e388`)**: the observer is armed at the app shell for every route; the
+  footer wordmark now reveals on non-home pages.
 - The "Setting up fake worker." pdf.js message is expected inside the job worker
   (`apps/web/src/workers/job-worker.ts:33-41`).
 - Arabic text appearing reordered after extraction is pdf.js visual-order output,

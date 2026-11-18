@@ -50,16 +50,35 @@ function cspPlugin(extraOrigins: readonly string[]): Plugin {
  * names. The asset names are content hashes, so the cache version changes
  * exactly when the build does; a deploy can never serve a stale engine from the
  * previous cache.
+ *
+ * The hash also covers the public shell files that the worker caches under a
+ * stable name. Those are copied to `dist` rather than emitted into the bundle,
+ * so a repainted icon or an edited manifest changes no bundle key at all; with
+ * the bundle keys alone the new worker would be byte-identical to the old one,
+ * never install, and leave an installed app on the previous artwork.
  */
 function serviceWorkerPlugin(): Plugin {
+  const SHELL_FILES = [
+    'favicon.ico',
+    'manifest.webmanifest',
+    'icons/icon-192.png',
+    'icons/icon-512.png',
+    'icons/icon-maskable-512.png',
+    'icons/apple-touch-icon.png',
+  ];
+
   return {
     name: 'pdfshush-service-worker',
     apply: 'build',
     generateBundle(_options, bundle) {
-      const buildId = createHash('sha256')
-        .update(Object.keys(bundle).sort().join('\n'))
-        .digest('hex')
-        .slice(0, 12);
+      const hash = createHash('sha256').update(Object.keys(bundle).sort().join('\n'));
+      for (const file of SHELL_FILES) {
+        const absolute = path.resolve(rootDir, 'public', file);
+        // A missing shell file must not fail the build; `no file` is still a
+        // distinct input, so its removal changes the id too.
+        hash.update(existsSync(absolute) ? readFileSync(absolute) : Buffer.from(file));
+      }
+      const buildId = hash.digest('hex').slice(0, 12);
       const source = readFileSync(path.resolve(rootDir, 'service-worker.js'), 'utf8');
       this.emitFile({
         type: 'asset',

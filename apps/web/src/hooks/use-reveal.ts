@@ -8,8 +8,13 @@ import { useEffect } from 'react';
  *
  * Usage in JSX: add `data-reveal` (and optionally `data-reveal-delay="150"`)
  * to any element. The animation classes in index.css will do the rest.
+ *
+ * The hook queries the DOM once per effect run, so pass a `rearmKey` that
+ * changes whenever new [data-reveal] content mounts (the app shell passes
+ * the router pathname). Without it, elements rendered after the effect ran
+ * — on another route, or inside lazy content — would never be observed.
  */
-export function useReveal(rootSelector?: string) {
+export function useReveal(rootSelector?: string, rearmKey?: string) {
   useEffect(() => {
     const root = rootSelector
       ? document.querySelector(rootSelector)
@@ -41,5 +46,5 @@ export function useReveal(rootSelector?: string) {
     targets.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
-  }, [rootSelector]);
+  }, [rootSelector, rearmKey]);
 }

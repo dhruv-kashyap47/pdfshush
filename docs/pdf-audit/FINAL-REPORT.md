@@ -223,6 +223,13 @@ would change the reveal contract for every page. A follow-up should either make
 sweep wait for the observer. Until then the sweep is red for 60 known groups
 plus a flaky 61st.
 
+**Follow-up (2026-11-18, `a64e388`).** The 60 deterministic groups are fixed:
+`useReveal` is now armed at the app shell for every route, so the footer
+wordmark reveals on non-home pages. The flaky on-`/` case above is a different
+race (an element scrolled past before the observer's callback runs); the
+observer still attaches in an effect, so that timing note stands, and the
+sweep-waits-for-the-observer-or-reveal-above-the-fold follow-up is still open.
+
 ---
 
 ## 5. Before / after metrics (120-page fixture)

@@ -734,6 +734,93 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-11-18 - The supplied "ps" artwork becomes the icon set, and the service worker learns to notice an icon-only deploy.**
+
+  **One master, five outputs.** The brand artwork arrives as a 2752x1536 painting, not a vector, so
+  there is nothing to trace: the card was cropped at its measured bounds (821,213)-(1931,1324) and
+  resampled once to `apps/web/src/assets/brand/favicon-master.png` (512px, the largest size any
+  icon is drawn at). `scripts/gen-icons.mjs` derives everything from that file — the 4-frame
+  `favicon.ico` (16/32/48/64, PNG payloads), `icon-192`, `icon-512`, `icon-maskable-512` and the
+  180px `apple-touch-icon` — so a future repaint is one command and cannot leave the tab, the
+  installed app and the iOS home screen on three different marks. The corner is a proportion
+  (193/1110, measured on the artwork), not a pixel count, so it stays the same shape at 16px.
+
+  **`favicon.svg` is retired, not replaced.** The previous mark was drawn as SVG. This one is a
+  painting with its own light and grain; wrapping the PNG in an `<svg>` would keep a URL alive at
+  the cost of shipping the bytes twice and pretending to be scalable. The ICO is the file that has
+  to be real (Google Search accepts no SVG favicon and asks for `/favicon.ico` unprompted), the PNGs
+  cover the larger surfaces, and `index.html` now says why there is no third format.
+
+  **Masked surfaces get the card's own edge, not a guessed colour.** A launcher crops the icon to
+  its own shape and iOS paints black behind transparency, so both need an opaque square. Drawing a
+  second, flat plate behind the card produced a visible tile-inside-a-tile. The generator instead
+  grows the surrounding pixels out of the card's own boundary, ring by ring, then blurs that field
+  and redraws the card sharp on top: the padding *is* the colour the card ends on. The card is
+  scaled to 0.95 and the monogram (0.66 of the card) therefore sits inside the 80% maskable safe
+  circle, corner to corner.
+
+  **A real bug fell out of this.** `sw.js` names its cache after a hash of the emitted bundle keys,
+  and public files are copied to `dist` rather than emitted — so a deploy that repaints an icon or
+  edits the manifest changes no bundle key, produces a byte-identical `sw.js`, never installs, and
+  leaves an installed app serving the previous artwork from a cache-first `/icons/` route for good.
+  The build hash now also feeds the bytes of the six shell files the worker caches; a missing one is
+  itself a distinct input. The precache list and the cacheable-URL test moved from `/favicon.svg` to
+  `/favicon.ico` plus the apple-touch icon.
+
+  **Verified.** `pnpm -r typecheck` green; unit suites: web 217, api 243, mcp 19, ai-agent 152,
+  ai-provider 375, pdf-core 563 (+1 expected fail); production build with 63 prerendered routes and
+  a `sw.js` carrying a real build id; bundle boundary ok; the offline/privacy E2E green against the
+  built preview (manifest, icons, cache version, offline merge); and in Chromium every declared icon
+  link resolves and decodes at its stated size — ico 64, png 192, png 512, apple-touch 180 — with no
+  failed request.
+
+- **2026-11-18 - Dark is the only theme; the hero gets its soft-focus grade, testimonials get gold stars, and the agent button learns to answer the cursor.**
+
+  **The light theme is gone, end to end.** `<html>` now carries `class="dark"` statically in
+  `index.html`, the dark reference is the one `:root` token set, and the whole light surface was
+  deleted rather than hidden: `ThemeProvider`, the mode toggle, the theme context and the two
+  hooks, the `pdfshush-theme` storage key and the pre-paint theme script. `index.css` lost its
+  porcelain-and-emerald section and every `:root:not(.dark)` rule; `studio.css` and
+  `editor-shared.css` promoted their dark token blocks into `:root` and dropped the light twins.
+  The day hero plate and the light band plate (stem-4) are deleted with their assets; the
+  `prefers-color-scheme` first-frame rules, the light PWA manifest colours, the light prerender
+  pre-shell and the light OG cards are all dark now (59 cards regenerated). Because the surviving
+  rules consume the exact values the `.dark` block already painted, dark mode is pixel-identical
+  to the reference, and every `dark:` utility still resolves because the class sits on `<html>`.
+  A stale `pdfshush-theme: light` value in a visitor's storage is inert: nothing reads the key.
+  The layout sweep now runs one dark pass instead of seeding a theme per context.
+
+  **The Greek plate is graded soft-focus.** The night harbour sits behind the type as ambient
+  moonlight: `blur(6px)` on desktop (4px base), with the desktop brightness/contrast grade
+  untouched. `blur()` samples past the element edge, so the plate is oversized to `-16px` (2.5x
+  the radius) to keep the frame boundary clean, and carries `data-bleed` so the layout sweep knows
+  the overshoot is clipped by the section and is not page overflow.
+
+  **Testimonials carry golden star ratings.** Each entry has an optional whole-star rating; the
+  card renders one five-star row above the quote, gold (`oklch(0.83 0.155 86)`) with one whisper
+  of glow, and empty stars outlined so a 4 reads at a glance. The row is a single image to
+  assistive tech ("N out of 5 stars") with every glyph `aria-hidden`; ratings outside 0-5 clamp.
+  Sample data is 5,5,5,4,5,5 and the data file still says to replace it with real feedback before
+  launch. The old "no ratings" assertion became star tests (label, clamp, unrated cards).
+
+  **The "Wire up an agent" button answers the cursor.** A soft emerald sheen crosses its face once
+  per hover or focus, it lifts 1px with an accent border, the terminal icon pops with a slight
+  turn, and a press scales it to 0.985. Transform/opacity only, no shadow (invisible on black),
+  with a local reduced-motion block pinning the lift, press, sheen and icon; the blinking cursor
+  and the label carry the affordance unchanged.
+
+  **Verified, not claimed.** `pnpm -r typecheck` green; unit suites: web 217, api 243, mcp 19,
+  ai-agent 152, ai-provider 375, pdf-core 563 (+1 expected fail); production build with 63
+  prerendered routes (55 in the sitemap) and a real `sw.js` build id (the `__BUILD_ID__`
+  placeholder is replaced); bundle boundary ok; and against the built preview the reach,
+  accessibility, keyboard and offline/privacy E2E suites all pass, with the layout sweep clean
+  across 6 breakpoints x 6 routes. Computed-style probes on the built site confirmed the 6px hero
+  filter, 29 gold stars across six rows, and the hovered button's `translateY(-1px)` with the
+  sheen at its end state. The performance gate passes in its CI mode (tool-ready p95 603 ms
+  against the 1500 ms public spec); the local ratified mode lands 8 ms over its 583 ms ceiling on
+  this machine, and its per-route rows show the three AI tool pages set the tail (603-610 ms)
+  while the changed home route measures 274 ms.
+
 - **2026-11-13 - The frontend ships on Cloudflare Pages. The server tier is parked, on purpose.**
 
   The owner set a hard constraint — **₹0/month, no credit card, no paid infrastructure** — and that
@@ -7387,3 +7474,111 @@ A read-through of the new surface found and fixed these before close:
 
 
 
+## 38. Frontend bug pass and dead-code sweep (2026-11-18)
+
+### 38.1 The reveal bug - the shell owns the observer
+
+`useReveal()` was called only from `pages/home.tsx`, so the shared footer's
+`[data-reveal]` wordmark stayed at `opacity: 0` on every other route: the
+observer was armed on `/` and nowhere else. The hook now takes a `rearmKey`,
+and `App.tsx` arms it at the shell (`RevealArmer`, keyed on `pathname`), so a
+navigation queries the freshly mounted tree and lazy route chunks are covered
+too. `pages/home.tsx` no longer owns the observer.
+
+Verified on `/trust`, `/tools/merge-pdf`, `/account`, `/workflows` and
+`/verify`: the wordmark receives `data-revealed` and transitions to opacity 1.
+A Playwright measurement that showed the transition frozen at `currentTime: 0`
+was headless frame throttling, not the app - with a rAF loop keeping frames
+ticking, the same transition completes normally.
+
+### 38.2 Motion contract in the MCP dialog
+
+The showcase button's cursor blink was an `anime.js` `loop: true`, a
+violation of the contract in `lib/motion.ts` (ambient loops live in CSS, where
+the reduced-motion fallback nullifies them). It is now `.mcp-cursor` in
+`index.css`: 1040 ms, `cubic-bezier(0.455, 0.03, 0.515, 0.955)` (the inOutQuad
+twin of the old easing), settling at opacity 1 under reduced motion. The
+dialog's entrance and round-trip timelines now `cancel()` on cleanup instead
+of `pause()`: four open/close cycles leave the page's animation count
+unchanged.
+
+### 38.3 Catalog filters are toggle buttons
+
+The filter chips declared `role="tablist"`/`role="tab"` plus `aria-selected`
+but had no tab panels and no arrow-key model. They are `aria-pressed` buttons
+now (one results area filtering in place), and the `tool-tab` CSS keys on
+`[aria-pressed='true']`.
+
+### 38.4 Dead code removed (usage-verified)
+
+- `components/dot-pattern.tsx` (three exports, zero importers).
+- `ui/navigation-menu.tsx`, `ui/collapsible.tsx`, `ui/tabs.tsx`,
+  `ui/toggle.tsx`, `ui/separator.tsx`, and the five `@radix-ui` deps only
+  they imported.
+- `index.css`: the chart and sidebar token layers and the
+  `.sidebar-none-mode` rules; the unused glass tokens (`--porcelain-glass`,
+  `--porcelain-glass-strong`, `--porcelain-sunk`, `--hairline-glass`); the
+  doc-demo primitives (`.doc-page` through `.thinking-dot`); `.card-lift`;
+  `.showcase-swap`; and the two `.hero-copy::before` media selectors that
+  styled a pseudo-element never given `content`.
+- `public/`: `hero/greek-light-mode.png`, `brand/stem-2.png`,
+  `brand/pindown-tree.mp4` and its poster, and `pdfshush-wordmark.svg`. The
+  originals stay in the gitignored `/logo/`, and the hero/logo comments now
+  say so.
+
+Kept deliberately: `--hero-proof-wash*` (consumed by the light
+`.hero-backdrop-wash`), the light day-plate layering (intentional, per the L2
+comments), the no-JS FOUC fallback, the `.brand-mark` base rule, and the
+"48 client tools" copy (51 live minus api/mcp/workflows).
+
+The one non-obvious survivor is `data-bleed`: it looks inert from
+`apps/web/src`, but `tests/sweep.mjs` reads `el.closest('[data-bleed]')` to
+exempt the band's settle zoom and the studio waves from overflow reporting. It
+stays, and both call sites now say why. The testimonial marquee's masked track
+needed the same exemption and now carries it too: the social-proof merge had
+left the sweep failing on 12 groups for an oversized track its viewport clips
+(`overflow=0`, no page scroll). `feature-loop` was the only truly inert class,
+and it was removed.
+
+### 38.5 Verification
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Typecheck | `pnpm --filter @pdfshush/web typecheck` | pass |
+| Unit | `pnpm --filter @pdfshush/web test` | 211 passed |
+| Build | `pnpm --filter @pdfshush/web build` | pass, 63 routes prerendered |
+| Smoke | `node tests/e2e/smoke.mjs` | ALL CHECKS PASSED |
+| Accessibility | `node tests/e2e/a11y.mjs` | all routes clean |
+| Reach | `node tests/e2e/reach.mjs` | all checks passed |
+| Offline | `node tests/e2e/offline.mjs` | ok |
+| Sweep | `node tests/sweep.mjs http://localhost:4173` | clean, 6 breakpoints x 2 themes x 6 routes |
+
+The smoke suite's mega-menu hover is now scoped to the header nav
+(`getByRole('navigation', { name: 'Main' })`), because the catalog filter is a
+second "All Tools" button on the page.
+
+### 38.6 The update banner's Reload action always resolves
+
+The banner's Reload called `activateWaiting`, which posted `SKIP_WAITING` to the
+waiting worker and waited for `controllerchange` to reload. Nothing else
+happened on any other outcome: a worker that never acknowledged the message, a
+dropped message, or a browser that does not deliver the event left the page on
+the old shell with a button that looked dead. The action now has a defined
+outcome on every path:
+
+- the waiting worker acknowledges: `controllerchange` reloads, as before;
+- the waiting worker does not acknowledge within 3 s: `hardReload()` from
+  `build-recovery.ts` unregisters the stale worker, clears the app caches and
+  fetches the fresh build (a plain reload could be served by the old worker
+  again);
+- the announced registration has no waiting worker left (accepted in another
+  tab, or dropped): `hardReload()` directly.
+
+The banner also owns the pending state: the button disables and reads
+`Reloading…` with `aria-busy="true"` until the navigation happens, and it
+re-enables after 8 s if the browser kept the page (an unsaved-work prompt was
+cancelled). `service-worker-update.test.ts` pins the success path, the 3 s
+fallback, and both stale-registration paths. Verified end-to-end against the
+preview: the normal update navigates immediately, and a worker patched to
+ignore `SKIP_WAITING` ("Reloading…", then `?__build=…`) still lands on the new
+build.

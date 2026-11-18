@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { Star } from 'lucide-react';
 import {
   enabledTestimonials,
   initialsFor,
@@ -34,6 +35,10 @@ function Marquee({ speed, reverse = false, label, children }: MarqueeProps) {
       role="group"
       aria-label={label}
       tabIndex={0}
+      /* The track is intentionally wider than the viewport: the viewport clips
+         and masks it, so it can never cause page-level overflow. `data-bleed`
+         is the sweep's marker for deliberately clipped art (tests/sweep.mjs). */
+      data-bleed
     >
       <div className="sp-marquee__viewport">
         <div
@@ -52,12 +57,36 @@ function Marquee({ speed, reverse = false, label, children }: MarqueeProps) {
   );
 }
 
+/**
+ * One five-star row, filled to the testimonial's rating. The row is a single
+ * image to assistive tech ("5 out of 5 stars") because five decorative glyphs
+ * would otherwise be read as five separate unlabelled graphics. Whole stars
+ * only; a rating outside 0–5 is clamped rather than trusted.
+ */
+function Stars({ rating }: { rating: number }) {
+  const filled = Math.max(0, Math.min(5, Math.round(rating)));
+
+  return (
+    <span className="sp-stars" role="img" aria-label={`${filled} out of 5 stars`}>
+      {Array.from({ length: 5 }, (_, index) => (
+        <Star
+          key={index}
+          aria-hidden="true"
+          className={`sp-star${index < filled ? ' sp-star--filled' : ''}`}
+        />
+      ))}
+    </span>
+  );
+}
+
 function TestimonialCard({ testimonial, width }: { testimonial: Testimonial; width: number }) {
   return (
     <li
       className="sp-card"
       style={{ '--sp-card-width': `${width}px` } as CSSProperties}
     >
+      {typeof testimonial.rating === 'number' ? <Stars rating={testimonial.rating} /> : null}
+
       <blockquote className="sp-quote">
         <p>“{testimonial.quote}”</p>
       </blockquote>

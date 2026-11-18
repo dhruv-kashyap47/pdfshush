@@ -136,7 +136,7 @@ describe('testimonial render', () => {
     expect(markup).not.toContain('<img');
   });
 
-  it('does not render sample banners, company names, logos, stats or ratings', () => {
+  it('does not render sample banners, company names, logos or aggregate claims', () => {
     const markup = render(content(SIX));
 
     expect(markup).not.toContain('sp-badge');
@@ -144,7 +144,47 @@ describe('testimonial render', () => {
     expect(markup).not.toContain('Organizations using');
     expect(markup).not.toContain('sp-logos');
     expect(markup).not.toContain('sp-stats');
+    expect(markup).not.toContain('Trusted by');
     expect(markup).not.toContain('Rated');
+  });
+
+  it('renders one accessible five-star row per rated card', () => {
+    const markup = render(
+      content([
+        testimonial('a', { rating: 5 }),
+        testimonial('b', { rating: 4 }),
+        testimonial('c'),
+      ]),
+    );
+    const accessible = markup.replace(
+      /<ul class="sp-marquee__group sp-marquee__group--dup"[\s\S]*?<\/ul>/g,
+      '',
+    );
+
+    expect(accessible.match(/class="sp-stars"/g)).toHaveLength(2);
+    expect(accessible).toContain('aria-label="5 out of 5 stars"');
+    expect(accessible).toContain('aria-label="4 out of 5 stars"');
+    // Ten glyphs across the two rated rows: nine gold, one outlined. (Lucide
+    // prefixes its own `lucide lucide-star` classes, so match the class token.)
+    expect(accessible.match(/sp-star(?:\s|")/g)).toHaveLength(10);
+    expect(accessible.match(/sp-star--filled/g)).toHaveLength(9);
+  });
+
+  it('clamps a rating outside 0–5 and hides every glyph behind the row label', () => {
+    const markup = render(
+      content([testimonial('a', { rating: 9 }), testimonial('b', { rating: -2 })]),
+    );
+    const accessible = markup.replace(
+      /<ul class="sp-marquee__group sp-marquee__group--dup"[\s\S]*?<\/ul>/g,
+      '',
+    );
+
+    expect(accessible).toContain('aria-label="5 out of 5 stars"');
+    expect(accessible).toContain('aria-label="0 out of 5 stars"');
+    expect(accessible.match(/sp-star--filled/g)).toHaveLength(5);
+    // Ten decorative star glyphs, every one hidden from assistive tech.
+    expect(accessible.match(/<svg/g)).toHaveLength(10);
+    expect(accessible.match(/aria-hidden="true"/g)?.length).toBeGreaterThanOrEqual(10);
   });
 
   it('renders nothing when every testimonial is disabled', () => {
@@ -163,5 +203,8 @@ describe('testimonial render', () => {
     expect(reduced).toContain('animation: none');
     expect(reduced).toContain('display: none');
     expect(reduced).toContain('mask-image: none');
+    // The gold rating row and its tokens ship with the stylesheet.
+    expect(css).toContain('.sp-star--filled');
+    expect(css).toContain('--sp-star-gold');
   });
 });

@@ -1,17 +1,15 @@
 /**
  * The page's one deliberate poster moment between the catalog and the pitch:
- * a full-bleed brand strip with one plate per theme. stem-3 is white dots on
- * black for dark mode; stem-4 is black dots on pale paper for light mode.
- * Both share the same 1854×848 composition, so the folder, wordmark and peak
- * geometry never shift when the theme flips. The crop is deliberate: the dot
- * peaks run past the frame edges while the folder and wordmark hold dead
- * centre. No scrim, no credit line; the type sits in the void below.
+ * a full-bleed brand strip. stem-3 is white dots on black, the one plate the
+ * dark-only site serves: the folder, wordmark and peak geometry hold dead
+ * centre while the dot peaks run past the frame edges. The crop is
+ * deliberate. No scrim, no credit line; the type sits in the void below.
  *
  * The plate is alive in normal scrolling, not just on a refresh: the one-time
  * settle zoom arms the first time the band enters the viewport, and a shallow
  * scroll-linked drift on a wrapper layer gives the dot field depth against
- * the page (transform-only). The light plate multiplies its off-white paper
- * into --background so there is no visible panel edge on either theme.
+ * the page (transform-only). The plate's own canvas *is* the page ground, so
+ * there is no visible panel edge at all.
  */
 import { useEffect, useRef } from 'react';
 import { prefersReducedMotion } from '@/lib/motion';
@@ -84,26 +82,13 @@ export function DocumentBand() {
         ref={plateRef}
         className={`band-plate ${reducedMotion ? '' : 'will-change-transform'}`}
       >
-        {/* Light mode gets the inverted plate. Multiply lets its off-white
-            paper background dissolve into --background, so the band has no
-            visible rectangle and the wording below shares the same ground. */}
-        <picture className="block dark:hidden">
-          <source srcSet="/brand/stem-4.webp" type="image/webp" />
-          <img
-            src="/brand/stem-4.png"
-            width={1854}
-            height={848}
-            alt="The pdfshush mark: a blue folder with its wordmark, held between two halftone peaks drawn in dark dots on a pale background"
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            draggable={false}
-            data-bleed
-            className="band-photo hidden h-[320px] w-full object-cover sm:block sm:h-[440px] lg:h-[500px]"
-            style={{ objectPosition: '50% 46%' }}
-          />
-        </picture>
-        <picture className="hidden dark:block">
+        {/* The dark plate is the one and only plate: the site is dark-only and
+            the strip paints pure black, so it melts into --background with no
+            visible rectangle and the wording below shares the same ground.
+            `data-bleed` is read by tests/sweep.mjs: the settle zoom scales the
+            photo past the viewport and the plate clips it, so it must not be
+            reported as page overflow. */}
+        <picture>
           <img
             src="/brand/stem-3.png"
             width={1854}

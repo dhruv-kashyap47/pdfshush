@@ -191,7 +191,13 @@ async function main() {
     await page.getByRole('heading', { level: 1 }).first().isVisible(),
     await page.getByRole('heading', { level: 1 }).first().innerText(),
   );
-  await page.getByRole('button', { name: /All Tools/ }).hover();
+  // The catalog filter chips are plain toggle buttons (aria-pressed), so
+  // "All Tools" is no longer unique on this page; scope the hover to the header
+  // nav's mega-menu trigger.
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('button', { name: /All Tools/ })
+    .hover();
   const megaVisible = await waitFor(
     async () => (await page.getByText('Bates Numbering').count()) > 0,
     10_000,
@@ -1062,7 +1068,10 @@ async function main() {
   // session no matter how many jobs the user completed.
   console.log('\n18. Recent history');
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: /All Tools/ }).hover();
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('button', { name: /All Tools/ })
+    .hover();
   const recentItems = page.locator('p:text-is("Recent")').locator('xpath=following-sibling::ul[1]/li');
   const recentCount = await waitFor(
     async () => {
@@ -1112,7 +1121,10 @@ async function main() {
   await page.getByRole('button', { name: /Merge 2 files/ }).click();
   await page.getByText('merged.pdf').first().waitFor({ timeout: 60_000 });
   await page.goto(BASE, { waitUntil: 'networkidle' }); // straight away, no settle
-  await page.getByRole('button', { name: /All Tools/ }).hover();
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('button', { name: /All Tools/ })
+    .hover();
   const newestRecent = await waitFor(
     async () =>
       page

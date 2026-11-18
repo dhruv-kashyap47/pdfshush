@@ -14,23 +14,6 @@ import { animateUI, dur, EASE, prefersReducedMotion } from '@/lib/motion';
  * competing with the document.
  */
 
-function useResolvedDark() {
-  const [dark, setDark] = useState(
-    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark'),
-  );
-
-  useEffect(() => {
-    const root = document.documentElement;
-    const sync = () => setDark(root.classList.contains('dark'));
-    sync();
-    const observer = new MutationObserver(sync);
-    observer.observe(root, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
-
-  return dark;
-}
-
 /** Phones get fewer ray-march steps and a lower pixel ratio. */
 function useCompact() {
   const [compact, setCompact] = useState(
@@ -53,7 +36,6 @@ interface StudioWavesProps {
 }
 
 export function StudioWaves({ className }: StudioWavesProps) {
-  const dark = useResolvedDark();
   const compact = useCompact();
   const still = prefersReducedMotion();
   const motion = useMotionScope();
@@ -138,9 +120,9 @@ export function StudioWaves({ className }: StudioWavesProps) {
       <div ref={driftRef} className="studio-waves-drift">
         <GradientWaves
           lightMode={false}
-          horizonColor={dark ? '#07241a' : '#08271c'}
-          waveColor={dark ? '#0e5540' : '#12533d'}
-          crestColor={dark ? '#b6efd4' : '#f0d3a0'}
+          horizonColor="#07241a"
+          waveColor="#0e5540"
+          crestColor="#b6efd4"
           backgroundColor="transparent"
           speed={0.34}
           amplitude={3.2}

@@ -7,6 +7,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .sp-section {
+  --sp-star-gold: oklch(0.83 0.155 86);
+  --sp-star-dim: oklch(1 0 0 / 24%);
   overflow: hidden;
   padding-block: 4rem;
   background: var(--background);
@@ -136,6 +138,35 @@
   border-radius: var(--radius-xl);
   background: var(--card);
   color: var(--card-foreground);
+}
+
+/* ── Ratings ────────────────────────────────────────────────────────────── */
+
+/* Gold on the dark card: warm and saturated, with one whisper of glow so the
+   row reads as a rating rather than as five grey glyphs at 15px. The empty
+   stars are outlined, not filled dim, so a 4 reads at a glance. */
+.sp-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  margin-bottom: 0.85rem;
+}
+
+.sp-star {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  flex: none;
+  color: var(--sp-star-dim);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+}
+
+.sp-star--filled {
+  color: var(--sp-star-gold);
+  fill: currentColor;
+  stroke: none;
+  filter: drop-shadow(0 1px 5px oklch(0.83 0.155 86 / 0.3));
 }
 
 .sp-quote {

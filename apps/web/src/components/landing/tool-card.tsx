@@ -11,13 +11,10 @@ interface ToolCardProps {
  * the card; no pictorial element tops it. Availability is a plain word on the
  * right. Hover is a tone step, not a lift-off glow or an outline.
  *
- * The markup is shared by both themes, and so is every geometric decision in
- * it — padding, the gap between rows, the type sizes, the radius, the
- * availability mark. Light mode changes only the surface, the hairline and
- * the shadow (see `.tool-card` in index.css), so a card is exactly as tall
- * and as wide in light mode as it is in dark mode. The hairline is drawn
- * with an inset ring rather than a border for the same reason: a border
- * would add two pixels to the box and break the parity.
+ * The hairline is drawn with an inset ring rather than a border: a border
+ * would add two pixels to the box, and the card's geometry (padding, the
+ * gap between rows, the type sizes, the radius, the availability mark) is
+ * the one thing that must never move.
  */
 export function ToolCard({ tool, compact = false }: ToolCardProps) {
   return (

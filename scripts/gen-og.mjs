@@ -66,35 +66,37 @@ function wrap(ctx, text, maxWidth) {
 function drawCard({ name, lead, category, live }) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fbfaf8';
+  /* The site is dark-only; the card matches its near-black ground, the same
+     palette the prerendered no-JS shell paints. */
+  ctx.fillStyle = '#0c0a09';
   ctx.fillRect(0, 0, W, H);
 
   // Hairline frame and an accent bar; the card has to read at 300 px wide.
-  ctx.strokeStyle = '#ded9d2';
+  ctx.strokeStyle = '#292524';
   ctx.lineWidth = 2;
   ctx.strokeRect(28, 28, W - 56, H - 56);
-  ctx.fillStyle = live ? '#0f766e' : '#a16207';
+  ctx.fillStyle = live ? '#5eead4' : '#fbbf24';
   ctx.fillRect(28, 28, 12, H - 56);
 
-  ctx.fillStyle = '#1c1917';
+  ctx.fillStyle = '#f5f5f4';
   ctx.font = '700 44px "Segoe UI", Helvetica, Arial, sans-serif';
   ctx.fillText('pdfshush', 78, 118);
 
-  ctx.fillStyle = '#57534e';
+  ctx.fillStyle = '#a8a29e';
   ctx.font = '500 24px "Segoe UI", Helvetica, Arial, sans-serif';
   ctx.fillText(category.toUpperCase(), 78, 160);
 
-  ctx.fillStyle = '#1c1917';
+  ctx.fillStyle = '#f5f5f4';
   ctx.font = '700 72px "Segoe UI", Helvetica, Arial, sans-serif';
   const lines = wrap(ctx, name, 1000);
   lines.slice(0, 3).forEach((line, index) => ctx.fillText(line, 78, 300 + index * 84));
 
-  ctx.fillStyle = '#44403c';
+  ctx.fillStyle = '#d6d3d1';
   ctx.font = '400 30px "Segoe UI", Helvetica, Arial, sans-serif';
   const leadLines = wrap(ctx, lead, 1000).slice(0, 2);
   leadLines.forEach((line, index) => ctx.fillText(line, 78, 520 + index * 40));
 
-  ctx.fillStyle = live ? '#0f766e' : '#a16207';
+  ctx.fillStyle = live ? '#5eead4' : '#fbbf24';
   ctx.font = '600 24px "Segoe UI", Helvetica, Arial, sans-serif';
   ctx.fillText(live ? 'Runs in your browser. Nothing is uploaded.' : 'Not built — the honest reason is on the page.', 78, 588);
 

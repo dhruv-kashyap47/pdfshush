@@ -1,6 +1,7 @@
 /**
  * Sample testimonial content. Replace these entries with real user feedback
- * before launch.
+ * before launch. The ratings are authored sample data too: attach a rating
+ * only to a review you can point at.
  */
 
 export interface Testimonial {
@@ -10,6 +11,8 @@ export interface Testimonial {
   name: string;
   /** Optional generic role, e.g. "Accountant". Never a company name. */
   role?: string;
+  /** Whole stars, 1–5. Omitted renders no stars for that card. */
+  rating?: number;
   enabled: boolean;
 }
 
@@ -25,6 +28,7 @@ export const socialProof: SocialProofContent = {
         'Merged a month of receipts on a train with no signal. The file never left the laptop.',
       name: 'Tom B.',
       role: 'Accountant',
+      rating: 5,
       enabled: true,
     },
     {
@@ -33,6 +37,7 @@ export const socialProof: SocialProofContent = {
         'Compressed a scanned reading pack before a seminar. No sign-up screen, no watermark.',
       name: 'Priya N.',
       role: 'Law student',
+      rating: 5,
       enabled: true,
     },
     {
@@ -41,6 +46,7 @@ export const socialProof: SocialProofContent = {
         'I pull one page out of a deck as a JPG almost every week. It takes a few seconds.',
       name: 'Dev K.',
       role: 'Designer',
+      rating: 5,
       enabled: true,
     },
     {
@@ -48,6 +54,7 @@ export const socialProof: SocialProofContent = {
       quote: 'Reordered a handout between classes. Drag, drop, download, done.',
       name: 'Hana T.',
       role: 'Teacher',
+      rating: 4,
       enabled: true,
     },
     {
@@ -55,6 +62,7 @@ export const socialProof: SocialProofContent = {
       quote: 'Our guest Wi-Fi blocks half the internet. This still opens the file.',
       name: 'Noor A.',
       role: 'Office manager',
+      rating: 5,
       enabled: true,
     },
     {
@@ -62,6 +70,7 @@ export const socialProof: SocialProofContent = {
       quote: 'Combined three versions of a lease into one file before a call.',
       name: 'Luis F.',
       role: 'Property manager',
+      rating: 5,
       enabled: true,
     },
   ],
