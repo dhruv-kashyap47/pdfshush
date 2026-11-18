@@ -239,10 +239,10 @@ html {
 }
 .hero-backdrop-image {
   position: absolute;
-  /* Oversized well past the blur radius (2x plus margin) so the soft-focus
+  /* Oversized well past the blur radius (2.5x plus margin) so the soft-focus
      filter never samples past the element edge and bleeds into a darkened
      frame boundary. */
-  inset: -18px;
+  inset: -16px;
   object-fit: cover;
   user-select: none;
   -webkit-user-drag: none;
@@ -250,7 +250,7 @@ html {
   object-position: 80% 30%;
 }
 .hero-backdrop-image--night {
-  filter: blur(6px) saturate(1.01) brightness(0.98) contrast(1.04);
+  filter: blur(4px) saturate(1.01) brightness(0.98) contrast(1.04);
   object-position: 80% 24%;
 }
 @media (min-width: 640px) {
@@ -337,7 +337,7 @@ html {
       fights the lamps and moored boats. */
 @media (min-width: 1024px) {
   .hero-backdrop-image--night {
-    filter: blur(8px) saturate(1.1) brightness(1.06) contrast(1.05);
+    filter: blur(6px) saturate(1.1) brightness(1.06) contrast(1.05);
   }
   .hero-backdrop-wash {
     background-image: linear-gradient(
@@ -558,6 +558,60 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   animation: mcpCursorBlink 1040ms cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
 }
 
+/* ── MCP showcase button: the hero's third door ─────────────────────────────
+   It answers the cursor and never moves on its own: a soft sheen crosses the
+   face once per hover or focus, the button lifts a hair and its border warms
+   to the accent, and the terminal icon pops with a slight turn. Transform +
+   opacity only, no shadow (invisible on the black ground, so it would be
+   noise). The local reduced-motion block at the bottom pins every part. */
+.mcp-agent-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+/* The sheen is a band parked outside the right edge; hover carries it across
+   the face once, then it settles out of view again. */
+.mcp-agent-button::before {
+  content: '';
+  position: absolute;
+  inset: -45% -25%;
+  z-index: -1;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    color-mix(in oklab, var(--primary) 18%, transparent) 50%,
+    transparent 62%
+  );
+  opacity: 0;
+  transform: translate3d(-55%, 0, 0);
+  transition:
+    opacity 90ms ease,
+    transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mcp-agent-button:hover::before,
+.mcp-agent-button:focus-visible::before {
+  opacity: 1;
+  transform: translate3d(55%, 0, 0);
+}
+.mcp-agent-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+}
+.mcp-agent-button:active {
+  transform: translateY(0) scale(0.985);
+}
+.mcp-agent-button__icon {
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mcp-agent-button:hover .mcp-agent-button__icon,
+.mcp-agent-button:focus-visible .mcp-agent-button__icon {
+  transform: scale(1.1) rotate(-4deg);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    REDUCED MOTION — full fallback
    All moving things freeze gracefully; content remains visible.
@@ -585,6 +639,21 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   .motion-gate {
     opacity: 1 !important;
     transform: none !important;
+  }
+  /* The agent button: no lift, no press scale, no sheen — the label and the
+     (steady) cursor carry the whole affordance. */
+  .mcp-agent-button,
+  .mcp-agent-button:hover,
+  .mcp-agent-button:active {
+    transform: none;
+  }
+  .mcp-agent-button::before {
+    display: none;
+  }
+  .mcp-agent-button__icon,
+  .mcp-agent-button:hover .mcp-agent-button__icon,
+  .mcp-agent-button:focus-visible .mcp-agent-button__icon {
+    transform: none;
   }
 }
 

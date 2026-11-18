@@ -769,7 +769,9 @@ function DialogPanels({
 /**
  * The hero affordance: a real button that opens the console. Its terminal
  * cursor blinks via CSS (`.mcp-cursor`), so reduced motion gets a steady,
- * fully visible cursor without any JS involvement.
+ * fully visible cursor without any JS involvement. A sheen crosses the face
+ * once per hover or focus (`.mcp-agent-button` in index.css) — the button
+ * answers the cursor, it never moves on its own.
  */
 export function McpShowcaseButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
@@ -780,9 +782,9 @@ export function McpShowcaseButton({ className }: { className?: string }) {
         variant="outline"
         size="lg"
         onClick={() => setOpen(true)}
-        className={`h-11 rounded-md px-5 text-sm font-medium shadow-none ${className ?? ''}`}
+        className={`mcp-agent-button h-11 rounded-md px-5 text-sm font-medium shadow-none ${className ?? ''}`}
       >
-        <Terminal className="mr-2 h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+        <Terminal className="mcp-agent-button__icon mr-2 h-4 w-4 text-cyan-600 dark:text-cyan-400" />
         Wire up an agent
         <span
           aria-hidden
