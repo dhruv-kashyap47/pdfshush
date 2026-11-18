@@ -7252,3 +7252,112 @@ Session-5 comparison: 1496/0/8/117 -> 1523/0/1/119; round-trip 15 -> 17;
 render 10/1 -> 11/1; share walkthrough 17 -> 18; sweep 61 -> 60 (baseline).
 Nothing regressed. Details: `FINDINGS.md` "Session 6 evidence",
 `FINAL-REPORT.md` session-6 addendum.
+
+## 37. Frontend bug pass and dead-code sweep (2026-11-18)
+
+### 37.1 The reveal bug - the shell owns the observer
+
+`useReveal()` was called only from `pages/home.tsx`, so the shared footer's
+`[data-reveal]` wordmark stayed at `opacity: 0` on every other route: the
+observer was armed on `/` and nowhere else. The hook now takes a `rearmKey`,
+and `App.tsx` arms it at the shell (`RevealArmer`, keyed on `pathname`), so a
+navigation queries the freshly mounted tree and lazy route chunks are covered
+too. `pages/home.tsx` no longer owns the observer.
+
+Verified on `/trust`, `/tools/merge-pdf`, `/account`, `/workflows` and
+`/verify`: the wordmark receives `data-revealed` and transitions to opacity 1.
+A Playwright measurement that showed the transition frozen at `currentTime: 0`
+was headless frame throttling, not the app - with a rAF loop keeping frames
+ticking, the same transition completes normally.
+
+### 37.2 Motion contract in the MCP dialog
+
+The showcase button's cursor blink was an `anime.js` `loop: true`, a
+violation of the contract in `lib/motion.ts` (ambient loops live in CSS, where
+the reduced-motion fallback nullifies them). It is now `.mcp-cursor` in
+`index.css`: 1040 ms, `cubic-bezier(0.455, 0.03, 0.515, 0.955)` (the inOutQuad
+twin of the old easing), settling at opacity 1 under reduced motion. The
+dialog's entrance and round-trip timelines now `cancel()` on cleanup instead
+of `pause()`: four open/close cycles leave the page's animation count
+unchanged.
+
+### 37.3 Catalog filters are toggle buttons
+
+The filter chips declared `role="tablist"`/`role="tab"` plus `aria-selected`
+but had no tab panels and no arrow-key model. They are `aria-pressed` buttons
+now (one results area filtering in place), and the `tool-tab` CSS keys on
+`[aria-pressed='true']`.
+
+### 37.4 Dead code removed (usage-verified)
+
+- `components/dot-pattern.tsx` (three exports, zero importers).
+- `ui/navigation-menu.tsx`, `ui/collapsible.tsx`, `ui/tabs.tsx`,
+  `ui/toggle.tsx`, `ui/separator.tsx`, and the five `@radix-ui` deps only
+  they imported.
+- `index.css`: the chart and sidebar token layers and the
+  `.sidebar-none-mode` rules; the unused glass tokens (`--porcelain-glass`,
+  `--porcelain-glass-strong`, `--porcelain-sunk`, `--hairline-glass`); the
+  doc-demo primitives (`.doc-page` through `.thinking-dot`); `.card-lift`;
+  `.showcase-swap`; and the two `.hero-copy::before` media selectors that
+  styled a pseudo-element never given `content`.
+- `public/`: `hero/greek-light-mode.png`, `brand/stem-2.png`,
+  `brand/pindown-tree.mp4` and its poster, and `pdfshush-wordmark.svg`. The
+  originals stay in the gitignored `/logo/`, and the hero/logo comments now
+  say so.
+
+Kept deliberately: `--hero-proof-wash*` (consumed by the light
+`.hero-backdrop-wash`), the light day-plate layering (intentional, per the L2
+comments), the no-JS FOUC fallback, the `.brand-mark` base rule, and the
+"48 client tools" copy (51 live minus api/mcp/workflows).
+
+The one non-obvious survivor is `data-bleed`: it looks inert from
+`apps/web/src`, but `tests/sweep.mjs` reads `el.closest('[data-bleed]')` to
+exempt the band's settle zoom and the studio waves from overflow reporting. It
+stays, and both call sites now say why. The testimonial marquee's masked track
+needed the same exemption and now carries it too: the social-proof merge had
+left the sweep failing on 12 groups for an oversized track its viewport clips
+(`overflow=0`, no page scroll). `feature-loop` was the only truly inert class,
+and it was removed.
+
+### 37.5 Verification
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Typecheck | `pnpm --filter @pdfshush/web typecheck` | pass |
+| Unit | `pnpm --filter @pdfshush/web test` | 211 passed |
+| Build | `pnpm --filter @pdfshush/web build` | pass, 63 routes prerendered |
+| Smoke | `node tests/e2e/smoke.mjs` | ALL CHECKS PASSED |
+| Accessibility | `node tests/e2e/a11y.mjs` | all routes clean |
+| Reach | `node tests/e2e/reach.mjs` | all checks passed |
+| Offline | `node tests/e2e/offline.mjs` | ok |
+| Sweep | `node tests/sweep.mjs http://localhost:4173` | clean, 6 breakpoints x 2 themes x 6 routes |
+
+The smoke suite's mega-menu hover is now scoped to the header nav
+(`getByRole('navigation', { name: 'Main' })`), because the catalog filter is a
+second "All Tools" button on the page.
+
+### 37.6 The update banner's Reload action always resolves
+
+The banner's Reload called `activateWaiting`, which posted `SKIP_WAITING` to the
+waiting worker and waited for `controllerchange` to reload. Nothing else
+happened on any other outcome: a worker that never acknowledged the message, a
+dropped message, or a browser that does not deliver the event left the page on
+the old shell with a button that looked dead. The action now has a defined
+outcome on every path:
+
+- the waiting worker acknowledges: `controllerchange` reloads, as before;
+- the waiting worker does not acknowledge within 3 s: `hardReload()` from
+  `build-recovery.ts` unregisters the stale worker, clears the app caches and
+  fetches the fresh build (a plain reload could be served by the old worker
+  again);
+- the announced registration has no waiting worker left (accepted in another
+  tab, or dropped): `hardReload()` directly.
+
+The banner also owns the pending state: the button disables and reads
+`Reloading…` with `aria-busy="true"` until the navigation happens, and it
+re-enables after 8 s if the browser kept the page (an unsaved-work prompt was
+cancelled). `service-worker-update.test.ts` pins the success path, the 3 s
+fallback, and both stale-registration paths. Verified end-to-end against the
+preview: the normal update navigates immediately, and a worker patched to
+ignore `SKIP_WAITING` ("Reloading…", then `?__build=…`) still lands on the new
+build.

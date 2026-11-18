@@ -130,7 +130,10 @@ export function AiCover({
 
   return (
     <div ref={rootRef} className="studio-cover studio-plate">
-      <div className="studio-cover-waves" aria-hidden>
+      {/* data-bleed is read by tests/sweep.mjs: the waves are deliberately
+          scaled past the viewport and clipped by the cover, so they must not
+          be reported as page overflow. */}
+      <div className="studio-cover-waves" aria-hidden data-bleed>
         <StudioWaves />
       </div>
 

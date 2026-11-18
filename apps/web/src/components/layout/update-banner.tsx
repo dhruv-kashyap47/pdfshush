@@ -19,6 +19,7 @@ import {
 
 export function UpdateBanner() {
   const [available, setAvailable] = useState(() => getWaitingServiceWorker() !== null);
+  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     // Read once after mount as well: the worker may have started waiting between
@@ -28,17 +29,30 @@ export function UpdateBanner() {
     return subscribeServiceWorkerUpdate(sync);
   }, []);
 
+  // The action normally navigates within a frame or two. If the browser kept
+  // the page (an unsaved-work prompt was cancelled), the control must become
+  // pressable again instead of staying in "Reloading…" forever.
+  useEffect(() => {
+    if (!applying) return;
+    const id = window.setTimeout(() => setApplying(false), 8_000);
+    return () => window.clearTimeout(id);
+  }, [applying]);
+
   if (!available) return null;
 
   return (
     <div
       role="status"
       aria-live="polite"
+      aria-busy={applying}
       className="update-banner border-b border-primary/20 bg-primary/[0.06]"
       data-testid="update-banner"
     >
       <div className="mx-auto flex max-w-7xl items-center gap-2.5 px-4 py-2 text-xs sm:gap-3 sm:px-6 sm:text-sm lg:px-8">
-        <RefreshCw className="size-3.5 shrink-0 text-primary sm:size-4" aria-hidden />
+        <RefreshCw
+          className={`size-3.5 shrink-0 text-primary sm:size-4 ${applying ? 'motion-safe:animate-spin' : ''}`}
+          aria-hidden
+        />
         <p className="min-w-0 flex-1 leading-snug">
           <span className="font-medium text-foreground">
             <span className="sm:hidden">Update ready.</span>
@@ -52,9 +66,13 @@ export function UpdateBanner() {
           type="button"
           size="sm"
           className="h-9 shrink-0 rounded-full px-3 text-xs sm:h-8"
-          onClick={applyServiceWorkerUpdate}
+          disabled={applying}
+          onClick={() => {
+            setApplying(true);
+            applyServiceWorkerUpdate();
+          }}
         >
-          Reload
+          {applying ? 'Reloading…' : 'Reload'}
         </Button>
       </div>
     </div>

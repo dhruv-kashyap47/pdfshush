@@ -34,6 +34,10 @@ function Marquee({ speed, reverse = false, label, children }: MarqueeProps) {
       role="group"
       aria-label={label}
       tabIndex={0}
+      /* The track is intentionally wider than the viewport: the viewport clips
+         and masks it, so it can never cause page-level overflow. `data-bleed`
+         is the sweep's marker for deliberately clipped art (tests/sweep.mjs). */
+      data-bleed
     >
       <div className="sp-marquee__viewport">
         <div

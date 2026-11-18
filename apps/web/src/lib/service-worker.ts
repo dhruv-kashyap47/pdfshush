@@ -10,6 +10,8 @@
  * previous service worker could hand an open tool page assets from two builds.
  */
 
+import { hardReload } from '@/lib/build-recovery';
+
 const SW_URL = '/sw.js';
 
 export interface ServiceWorkerStatus {
@@ -61,11 +63,18 @@ function announceWaiting(registration: ServiceWorkerRegistration): void {
  * Tells the waiting worker to take over, then reloads once it controls the page.
  * The `controllerchange` listener is registered before the message so a fast
  * activation cannot reload twice or miss the event.
+ *
+ * A waiting worker that never acknowledges `SKIP_WAITING` (an older build, a
+ * browser that drops the message, Safari's slow activation) would leave the
+ * page on the old shell with a Reload button that looks dead. After a short
+ * grace period the action stops waiting for the worker and takes the hardened
+ * path instead: drop the stale worker and its caches, then fetch the fresh
+ * build. The button therefore always resolves.
  */
 export function activateWaiting(registration: ServiceWorkerRegistration): void {
   const waiting = registration.waiting;
   if (!waiting) {
-    window.location.reload();
+    void hardReload();
     return;
   }
   let reloaded = false;
@@ -79,12 +88,22 @@ export function activateWaiting(registration: ServiceWorkerRegistration): void {
     { once: true },
   );
   waiting.postMessage({ type: 'SKIP_WAITING' });
+  setTimeout(() => {
+    if (reloaded) return;
+    reloaded = true;
+    void hardReload();
+  }, 3_000);
 }
 
-/** `UpdateBanner`'s action: activate the waiting build, or reload if it vanished. */
+/**
+ * `UpdateBanner`'s action: activate the waiting build. When the announced
+ * registration has no worker left to activate (another tab already accepted
+ * it, or the registration was dropped), still take the hardened reload path so
+ * the click cannot be a no-op.
+ */
 export function applyServiceWorkerUpdate(): void {
   if (waitingUpdate) activateWaiting(waitingUpdate);
-  else window.location.reload();
+  else void hardReload();
 }
 
 /**

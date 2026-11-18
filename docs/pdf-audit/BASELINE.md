@@ -128,6 +128,13 @@ rendered on all of them. This is a pre-existing marketing-chrome regression on
 ENGINE/RENDER finding. It is recorded here so the baseline is honest and so a
 future sweep run against the same tree is not mistaken for a PDF bug.
 
+**Resolved (2026-11-18, `a64e388`).** The observer now lives at the app shell
+(`App.tsx` `RevealArmer`, keyed on the router pathname) instead of inside
+`pages/home.tsx`, so every route arms it. Verified on `/trust`,
+`/tools/merge-pdf`, `/account`, `/workflows` and `/verify`: the footer wordmark
+receives `data-revealed` and transitions to opacity 1. The evidence above is
+kept as the session's record.
+
 ## Dev log noise
 
 `dev2.log` (repo root, pre-existing) contains 584 `ECONNREFUSED` lines, all from

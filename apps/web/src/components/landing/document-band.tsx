@@ -86,7 +86,10 @@ export function DocumentBand() {
       >
         {/* Light mode gets the inverted plate. Multiply lets its off-white
             paper background dissolve into --background, so the band has no
-            visible rectangle and the wording below shares the same ground. */}
+            visible rectangle and the wording below shares the same ground.
+            `data-bleed` is read by tests/sweep.mjs: the settle zoom scales the
+            photo past the viewport and the plate clips it, so it must not be
+            reported as page overflow. */}
         <picture className="block dark:hidden">
           <source srcSet="/brand/stem-4.webp" type="image/webp" />
           <img
@@ -98,6 +101,7 @@ export function DocumentBand() {
             fetchPriority="high"
             decoding="async"
             draggable={false}
+            data-bleed
             className="band-photo hidden h-[320px] w-full object-cover sm:block sm:h-[440px] lg:h-[500px]"
             style={{ objectPosition: '50% 46%' }}
           />
@@ -111,6 +115,7 @@ export function DocumentBand() {
             loading="lazy"
             decoding="async"
             draggable={false}
+            data-bleed
             className="band-photo hidden h-[320px] w-full object-cover sm:block sm:h-[440px] lg:h-[500px]"
             style={{ objectPosition: '50% 46%' }}
           />
