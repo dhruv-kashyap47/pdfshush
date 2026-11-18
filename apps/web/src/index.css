@@ -227,7 +227,9 @@ html {
 /* ── 2b. Cinematic hero artwork (Greek backdrop) ────────────────────────── */
 /* One decorative plate: the night scene. The site is dark-only, so there is
    no theme swap, no second asset and no first-frame guesswork — the plate
-   paints unconditionally. */
+   paints unconditionally. It is graded soft-focus: the harbour scene reads
+   as ambient moonlight behind the type, not as a photograph competing
+   with it. */
 .hero-backdrop {
   position: absolute;
   inset: 0;
@@ -237,8 +239,10 @@ html {
 }
 .hero-backdrop-image {
   position: absolute;
-  /* Slightly oversized so the softening filter never bleeds at the edges. */
-  inset: -2px;
+  /* Oversized well past the blur radius (2x plus margin) so the soft-focus
+     filter never samples past the element edge and bleeds into a darkened
+     frame boundary. */
+  inset: -18px;
   object-fit: cover;
   user-select: none;
   -webkit-user-drag: none;
@@ -246,7 +250,7 @@ html {
   object-position: 80% 30%;
 }
 .hero-backdrop-image--night {
-  filter: blur(1.4px) saturate(1.01) brightness(0.98) contrast(1.04);
+  filter: blur(6px) saturate(1.01) brightness(0.98) contrast(1.04);
   object-position: 80% 24%;
 }
 @media (min-width: 640px) {
@@ -324,7 +328,7 @@ html {
     );
 }
 /* Desktop refinement (≥1024px only — phone and tablet keep the values above):
-   1. the plate gains brightness and richness,
+   1. the plate gains brightness, richness and one more step of soft focus,
    2. the text-side wash thins out past the copy column so more of the artwork
       reads through, while the stops under the copy stay nearly as strong,
    3. the bottom dissolve starts mid-section instead of hugging the very foot
@@ -333,7 +337,7 @@ html {
       fights the lamps and moored boats. */
 @media (min-width: 1024px) {
   .hero-backdrop-image--night {
-    filter: blur(1.4px) saturate(1.1) brightness(1.06) contrast(1.05);
+    filter: blur(8px) saturate(1.1) brightness(1.06) contrast(1.05);
   }
   .hero-backdrop-wash {
     background-image: linear-gradient(

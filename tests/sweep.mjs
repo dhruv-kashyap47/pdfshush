@@ -75,7 +75,8 @@ for (const [width, height] of VIEWPORTS) {
       const offenders = [];
       for (const el of document.querySelectorAll('body *')) {
         // `data-bleed` marks art that is deliberately scaled past the
-        // viewport and clipped by an ancestor (the landing band's settle
+        // viewport and clipped by an ancestor (the soft-focus hero plate's
+        // blur overscan, the landing band's settle
         // animation, the testimonial marquee's masked track). It cannot
         // cause page-level overflow; the parent clips.
         if (el.closest('[data-bleed]')) continue;

@@ -161,7 +161,10 @@ export function HeroSection() {
       {/* Cinematic Greek plate — purely decorative. The site is dark-only, so
           the night scene is the one and only plate; it descends from the
           brand's own `logo/greek dark mode.png` (the untouched original stays
-          in the gitignored /logo/ directory). */}
+          in the gitignored /logo/ directory). The plate is graded soft-focus
+          and deliberately oversized past the frame so the blur never bleeds
+          at the edges; `data-bleed` tells tests/sweep.mjs the overshoot is
+          clipped by the section and is not page overflow. */}
       <div className="hero-backdrop" aria-hidden="true">
         {/* The plate is desktop-only. <source media> prevents phones and
             tablets from downloading a decorative image that the layout hides;
@@ -176,6 +179,7 @@ export function HeroSection() {
             src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
             alt=""
             draggable={false}
+            data-bleed
             decoding="async"
             loading="lazy"
             className="hero-backdrop-image hero-backdrop-image--night"
