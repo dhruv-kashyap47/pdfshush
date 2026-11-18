@@ -1,10 +1,11 @@
 /**
  * Responsive sweep (not a gate).
  *
- * Loads a set of routes at every breakpoint the brief calls out, in both themes,
- * and reports horizontal overflow, unrevealed scroll-reveal blocks, and any
- * text node rendered at a size/contrast that is obviously out of range. This is
- * the check that catches a layout regression without eyeballing six screenshots.
+ * Loads a set of routes at every breakpoint the brief calls out — the site is
+ * dark-only, so there is exactly one theme to sweep — and reports horizontal
+ * overflow, unrevealed scroll-reveal blocks, and any text node rendered at a
+ * size/contrast that is obviously out of range. This is the check that catches
+ * a layout regression without eyeballing six screenshots.
  *
  *   node tests/sweep.mjs [baseUrl]
  */
@@ -37,90 +38,87 @@ const browser = await chromium.launch({ channel: 'msedge' });
   await probe.close();
 }
 
-for (const theme of ['light', 'dark']) {
-  for (const [width, height] of VIEWPORTS) {
-    const context = await browser.newContext({ viewport: { width, height }, colorScheme: theme });
-    await context.addInitScript((t) => localStorage.setItem('pdfshush-theme', t), theme);
-    const page = await context.newPage();
-    const errors = [];
-    page.on('pageerror', (e) => errors.push(String(e)));
+for (const [width, height] of VIEWPORTS) {
+  const context = await browser.newContext({ viewport: { width, height }, colorScheme: 'dark' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
 
-    for (const route of ROUTES) {
-      await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle' });
-      await page.evaluate(async () => {
-        // The app sets `scroll-behavior: smooth`, so window.scrollTo() starts an
-        // animation that the next call interrupts. A fast sweep then never
-        // reaches the bottom and reports live sections as unrevealed. The sweep
-        // is about layout, not motion, so scroll instantly for its duration.
-        const html = document.documentElement;
-        const previous = html.style.scrollBehavior;
-        html.style.scrollBehavior = 'auto';
-        try {
-          const step = Math.round(window.innerHeight * 0.8);
-          for (let y = 0; y < html.scrollHeight; y += step) {
-            window.scrollTo(0, y);
-            await new Promise((r) => setTimeout(r, 130));
-          }
-          // One extra beat at the bottom so the last blocks can intersect.
-          window.scrollTo(0, html.scrollHeight);
-          await new Promise((r) => setTimeout(r, 300));
-        } finally {
-          html.style.scrollBehavior = previous;
-          window.scrollTo(0, 0);
-          await new Promise((r) => setTimeout(r, 300));
+  for (const route of ROUTES) {
+    await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle' });
+    await page.evaluate(async () => {
+      // The app sets `scroll-behavior: smooth`, so window.scrollTo() starts an
+      // animation that the next call interrupts. A fast sweep then never
+      // reaches the bottom and reports live sections as unrevealed. The sweep
+      // is about layout, not motion, so scroll instantly for its duration.
+      const html = document.documentElement;
+      const previous = html.style.scrollBehavior;
+      html.style.scrollBehavior = 'auto';
+      try {
+        const step = Math.round(window.innerHeight * 0.8);
+        for (let y = 0; y < html.scrollHeight; y += step) {
+          window.scrollTo(0, y);
+          await new Promise((r) => setTimeout(r, 130));
         }
-      });
-
-      const report = await page.evaluate(() => {
-        const doc = document.documentElement;
-        const offenders = [];
-        for (const el of document.querySelectorAll('body *')) {
-          // `data-bleed` marks art that is deliberately scaled past the
-          // viewport and clipped by an ancestor (the landing band's settle
-          // animation, the testimonial marquee's masked track). It cannot
-          // cause page-level overflow; the parent clips.
-          if (el.closest('[data-bleed]')) continue;
-          const r = el.getBoundingClientRect();
-          if (r.width === 0 || r.height === 0) continue;
-          if (r.right > window.innerWidth + 2 && getComputedStyle(el).position !== 'fixed') {
-            const scroller = el.closest('[data-slot="scroll-area"], .overflow-x-auto, .overflow-auto');
-            if (!scroller) {
-              offenders.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]} right=${Math.round(r.right)}`);
-            }
-          }
-        }
-        // A `data-reveal` block hidden by the responsive shell (display:none)
-        // never intersects, so it is not an unrevealed-content bug. Only count
-        // blocks that are actually rendered and still waiting to appear.
-        const unrevealed = [...document.querySelectorAll('[data-reveal]:not([data-revealed])')].filter((el) => {
-          const style = getComputedStyle(el);
-          const rect = el.getBoundingClientRect();
-          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-        }).length;
-        return {
-          overflow: doc.scrollWidth - window.innerWidth,
-          unrevealed,
-          offenders: offenders.slice(0, 4),
-        };
-      });
-
-      const bad = report.overflow > 1 || report.unrevealed > 0 || report.offenders.length > 0;
-      if (bad) {
-        problems += 1;
-        console.log(
-          `[FAIL] ${theme} ${width} ${route}  overflow=${report.overflow} unrevealed=${report.unrevealed}` +
-            (report.offenders.length ? ` offenders=${report.offenders.join(', ')}` : ''),
-        );
+        // One extra beat at the bottom so the last blocks can intersect.
+        window.scrollTo(0, html.scrollHeight);
+        await new Promise((r) => setTimeout(r, 300));
+      } finally {
+        html.style.scrollBehavior = previous;
+        window.scrollTo(0, 0);
+        await new Promise((r) => setTimeout(r, 300));
       }
-    }
-    if (errors.length) {
+    });
+
+    const report = await page.evaluate(() => {
+      const doc = document.documentElement;
+      const offenders = [];
+      for (const el of document.querySelectorAll('body *')) {
+        // `data-bleed` marks art that is deliberately scaled past the
+        // viewport and clipped by an ancestor (the landing band's settle
+        // animation, the testimonial marquee's masked track). It cannot
+        // cause page-level overflow; the parent clips.
+        if (el.closest('[data-bleed]')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        if (r.right > window.innerWidth + 2 && getComputedStyle(el).position !== 'fixed') {
+          const scroller = el.closest('[data-slot="scroll-area"], .overflow-x-auto, .overflow-auto');
+          if (!scroller) {
+            offenders.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ')[0]} right=${Math.round(r.right)}`);
+          }
+        }
+      }
+      // A `data-reveal` block hidden by the responsive shell (display:none)
+      // never intersects, so it is not an unrevealed-content bug. Only count
+      // blocks that are actually rendered and still waiting to appear.
+      const unrevealed = [...document.querySelectorAll('[data-reveal]:not([data-revealed])')].filter((el) => {
+        const style = getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      }).length;
+      return {
+        overflow: doc.scrollWidth - window.innerWidth,
+        unrevealed,
+        offenders: offenders.slice(0, 4),
+      };
+    });
+
+    const bad = report.overflow > 1 || report.unrevealed > 0 || report.offenders.length > 0;
+    if (bad) {
       problems += 1;
-      console.log(`[FAIL] ${theme} ${width} page errors: ${errors.slice(0, 2).join(' | ')}`);
+      console.log(
+        `[FAIL] ${width} ${route}  overflow=${report.overflow} unrevealed=${report.unrevealed}` +
+          (report.offenders.length ? ` offenders=${report.offenders.join(', ')}` : ''),
+      );
     }
-    await context.close();
   }
+  if (errors.length) {
+    problems += 1;
+    console.log(`[FAIL] ${width} page errors: ${errors.slice(0, 2).join(' | ')}`);
+  }
+  await context.close();
 }
 
 await browser.close();
-console.log(problems === 0 ? '=== sweep: clean across 6 breakpoints x 2 themes x 6 routes ===' : `=== sweep: ${problems} problem group(s) ===`);
+console.log(problems === 0 ? '=== sweep: clean across 6 breakpoints x 6 routes ===' : `=== sweep: ${problems} problem group(s) ===`);
 process.exit(problems === 0 ? 0 : 1);

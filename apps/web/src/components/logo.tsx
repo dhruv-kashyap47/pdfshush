@@ -4,7 +4,7 @@ interface LogoProps {
 
 /**
  * The pdfshush wordmark, drawn inline so it inherits the theme's ink colour:
- * deep charcoal on ivory in light mode, warm white on black in dark mode.
+ * warm white on the dark-only site's black ground.
  * The artwork is drawn from the brand's wordmark (the original SVG stays in
  * the gitignored /logo/ directory) — the paths and letterforms are unchanged,
  * only the way they are filled moved from a flattened image to live text.

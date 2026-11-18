@@ -6,42 +6,13 @@
    ends. Deliberately quieter than the rest of the site — the page is the loudest
    thing in the room.
 
-   Geometry: 12px panels, 1px hairlines, 2–8px controls. Colour: the site's warm
-   porcelain / true-black ground, with emerald reserved for the commit action,
+   Geometry: 12px panels, 1px hairlines, 2–8px controls. Colour: the site's
+   true-black ground, with emerald reserved for the commit action,
    the active folio and a citation. Amber and rose appear only as meaning
    (a pending mark, a refusal), never as decoration.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --studio-raised: var(--card);
-  --studio-wash: var(--muted);
-  --studio-hairline: var(--border);
-  --studio-lead: var(--muted-foreground);
-  --studio-mat: var(--muted);
-  --studio-paper: #fffefb;
-  --studio-paper-shadow:
-    0 1px 1px oklch(0.32 0.02 70 / 0.05),
-    0 10px 24px -18px oklch(0.32 0.02 70 / 0.3),
-    0 36px 64px -42px oklch(0.32 0.02 70 / 0.24);
-}
-
-.studio {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-:root:not(.dark) {
-  --studio-raised: oklch(0.996 0.0025 92);
-  --studio-wash: oklch(0.957 0.006 88);
-  --studio-mat: oklch(0.936 0.0065 88);
-  --studio-hairline: oklch(0.886 0.008 85 / 0.9);
-  --studio-lead: oklch(0.4 0.008 65);
-  --studio-paper: #fffefb;
-}
-
-.dark {
   --studio-raised: oklch(0.105 0 0);
   --studio-wash: oklch(0.155 0 0);
   --studio-mat: oklch(0.082 0 0);
@@ -52,6 +23,13 @@
     0 0 0 1px oklch(0 0 0 / 45%),
     0 18px 48px -24px oklch(0 0 0 / 80%),
     0 46px 90px -60px oklch(0 0 0 / 90%);
+}
+
+.studio {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .studio :focus-visible {
@@ -128,9 +106,8 @@
 }
 
 /* ── Plates ────────────────────────────────────────────────────────────────
-   The frontispiece and the receipt share one deep field. The ivory type and the
-   lit sea are the same in both themes; only the crest warms in light mode. This
-   is the deliberate dark chapter of an otherwise porcelain product. */
+   The frontispiece and the receipt share one deep field: the ivory type and
+   the lit sea sit on near-black, the deliberate dark chapter of the page. */
 
 .studio-plate {
   --plate-ground: #06130e;
@@ -147,11 +124,6 @@
   border-radius: 14px;
   background: var(--plate-ground);
   color: var(--plate-ink);
-}
-
-:root:not(.dark) .studio-plate {
-  --plate-ground: #07160f;
-  --plate-line: rgba(245, 242, 232, 0.16);
 }
 
 /* ── Frontispiece ────────────────────────────────────────────────────────── */
@@ -437,16 +409,6 @@
   border: 1px solid var(--studio-hairline);
   border-radius: 12px;
   background: var(--studio-raised);
-  box-shadow: 0 1px 2px oklch(0 0 0 / 8%), 0 26px 54px -36px oklch(0 0 0 / 32%);
-}
-
-:root:not(.dark) .studio-setup {
-  border-color: var(--hairline-sand);
-  background: var(--porcelain);
-  box-shadow: var(--shadow-float);
-}
-
-.dark .studio-setup {
   box-shadow: 0 20px 54px -34px oklch(0 0 0 / 85%);
 }
 
@@ -1524,13 +1486,9 @@
   border: 1px solid color-mix(in oklab, oklch(0.72 0.15 72) 40%, transparent);
   border-radius: 5px;
   background: color-mix(in oklab, oklch(0.72 0.15 72) 8%, transparent);
-  color: oklch(0.44 0.11 62);
+  color: oklch(0.83 0.12 78);
   font-size: 10px;
   line-height: 1.45;
-}
-
-.dark .studio-blocked {
-  color: oklch(0.83 0.12 78);
 }
 
 .studio-blocked-row {
@@ -1699,10 +1657,6 @@
 .studio-segment-btn.is-active {
   background: var(--studio-raised);
   color: var(--foreground);
-  box-shadow: 0 1px 2px oklch(0.32 0.02 70 / 0.08);
-}
-
-.dark .studio-segment-btn.is-active {
   box-shadow: 0 1px 2px oklch(0 0 0 / 50%);
 }
 
@@ -2125,12 +2079,6 @@
 }
 
 /* ── First-run overlay ───────────────────────────────────────────────────── */
-
-:root:not(.dark) .studio-welcome {
-  border-color: var(--hairline-sand);
-  background: var(--porcelain);
-  box-shadow: var(--shadow-float);
-}
 
 .studio-welcome .font-serif {
   font-weight: 400;

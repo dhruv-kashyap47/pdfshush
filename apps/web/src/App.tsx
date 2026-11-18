@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SiteFooter } from '@/components/layout/footer';
@@ -134,28 +133,26 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="pdfshush-theme">
-      <AuthProvider>
-        <BrowserRouter>
-          <PageReadyMark />
-          <RouteScroll />
-          <div className="flex min-h-svh flex-col bg-background text-foreground">
-            <a
-              href="#main"
-              className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:outline-2 focus:outline-offset-2 focus:outline-ring focus:ring-2 focus:ring-ring/50"
-            >
-              Skip to content
-            </a>
-            <SiteHeader />
-            <UpdateBanner />
-            <main id="main" tabIndex={-1} className="flex-1 outline-none">
-              <AppRoutes />
-            </main>
-            <SiteFooter />
-            <Toaster position="bottom-right" richColors closeButton />
-          </div>
-        </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <BrowserRouter>
+        <PageReadyMark />
+        <RouteScroll />
+        <div className="flex min-h-svh flex-col bg-background text-foreground">
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:outline-2 focus:outline-offset-2 focus:outline-ring focus:ring-2 focus:ring-ring/50"
+          >
+            Skip to content
+          </a>
+          <SiteHeader />
+          <UpdateBanner />
+          <main id="main" tabIndex={-1} className="flex-1 outline-none">
+            <AppRoutes />
+          </main>
+          <SiteFooter />
+          <Toaster position="bottom-right" richColors closeButton />
+        </div>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

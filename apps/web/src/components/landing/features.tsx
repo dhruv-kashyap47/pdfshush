@@ -85,7 +85,7 @@ export function FeaturesSection() {
 
           <figure className="hidden lg:col-span-5 lg:block" data-reveal data-reveal-delay="120">
             {/* One deliberate loop, no caption: the section's second visual.
-                One drawing, inked for paper or for light; the frame never moves. */}
+                One drawing, inked as emitted light; the frame never moves. */}
             <AsciiLoop />
           </figure>
         </div>
