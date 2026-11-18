@@ -56,6 +56,7 @@ export interface EditorSession {
   undo: ReturnType<typeof useEditorDoc>['undo'];
   redo: ReturnType<typeof useEditorDoc>['redo'];
   reset: ReturnType<typeof useEditorDoc>['reset'];
+  resetTo: ReturnType<typeof useEditorDoc>['resetTo'];
 }
 
 /**
@@ -134,5 +135,6 @@ export function useEditorSession(mode: EditorMode, pageCount = 0): EditorSession
     undo: editor.undo,
     redo: editor.redo,
     reset: editor.reset,
+    resetTo: editor.resetTo,
   };
 }

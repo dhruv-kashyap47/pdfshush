@@ -79,6 +79,7 @@ export interface EditorPageProps {
   onCreate: (object: EditorObject) => void;
   onSeedReplace: (run: TextRun) => void;
   onTextBlockSelect: (blockId: string | null) => void;
+  onParagraphFocus?: (paragraphId: string | null) => void;
   onParagraphEdit: (
     paragraphId: string,
     selection: { start: number; end: number } | null,
@@ -807,6 +808,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             claimedTextBoxes={claimedTextBoxes}
             debugOutline={props.debugOutline ?? false}
             onBlockSelect={props.onTextBlockSelect}
+            onParagraphFocus={props.onParagraphFocus}
             onParagraphEdit={props.onParagraphEdit}
             onSelectionChange={props.onTextSelectionChange}
             onTextInput={props.onParagraphTextInput}
@@ -1077,6 +1079,16 @@ function ObjectView({
           : `editor-object-${object.kind}`
       }
       data-object-id={object.id}
+      data-object-x={object.x}
+      data-object-y={object.y}
+      data-native-x={
+        object.kind === 'text' && object.native ? object.native.reflow.x : undefined
+      }
+      data-native-baseline={
+        object.kind === 'text' && object.native
+          ? object.native.reflow.firstBaselineY
+          : undefined
+      }
       role={editing || selected ? 'group' : interactive ? 'button' : 'img'}
       tabIndex={interactive && !editing ? 0 : -1}
       aria-label={describeEditorObject(object)}

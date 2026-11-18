@@ -13,11 +13,12 @@
  */
 
 export const DB_NAME = 'pdfshush';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const RECENT_STORE = 'recent';
 export const WORKFLOW_STORE = 'workflows';
 export const SIGNATURE_STORE = 'signatures';
+export const DRAFT_STORE = 'drafts';
 
 function upgrade(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains(RECENT_STORE)) {
@@ -33,6 +34,11 @@ function upgrade(db: IDBDatabase): void {
     const store = db.createObjectStore(SIGNATURE_STORE, { keyPath: 'id' });
     // Newest-first reads (the saved-signature strip) and the cap trim both use it.
     store.createIndex('createdAt', 'createdAt');
+  }
+  if (!db.objectStoreNames.contains(DRAFT_STORE)) {
+    const store = db.createObjectStore(DRAFT_STORE, { keyPath: 'id' });
+    // The idle restore banner only needs the newest draft.
+    store.createIndex('updatedAt', 'updatedAt');
   }
 }
 

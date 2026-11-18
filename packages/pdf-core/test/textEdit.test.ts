@@ -566,6 +566,29 @@ describe('native multi-line reflow', () => {
     expect(runs[0]!.filter((run) => run.y < 200).length).toBeGreaterThanOrEqual(3);
   });
 
+  it('moves a rewritten paragraph to the requested origin', async () => {
+    const source = await makeReflowFixture();
+    const { edit } = await layoutEditFor(source, 'Moved paragraph starts here');
+    const beforeRuns = await extractTextRuns(source, [0]);
+    const before = beforeRuns[0]!.find((run) => run.text.includes('Reflow'))!;
+    edit.layout!.reflow.moved = true;
+    edit.layout!.reflow.x = before.x + 80;
+    edit.layout!.reflow.firstBaselineY =
+      (edit.layout!.reflow.firstBaselineY ?? 0) + 50;
+
+    const result = await editPdfText(source, { edits: [edit] }, testContext());
+    expect(result.outcomes[0]!.mode).toBe('in-place');
+    const runs = await extractTextRuns(result.bytes, [0]);
+    const moved = runs[0]!.find((run) => run.text.includes('Moved paragraph'))!;
+    expect(moved.x).toBeGreaterThan(before.x + 60);
+    expect(moved.y).toBeGreaterThan(before.y + 30);
+    // The untouched neighbour must not move with it.
+    const neighbourBefore = beforeRuns[0]!.find((run) => run.text.includes('KEEP THIS'))!;
+    const neighbourAfter = runs[0]!.find((run) => run.text.includes('KEEP THIS'))!;
+    expect(Math.abs(neighbourAfter.x - neighbourBefore.x)).toBeLessThan(0.6);
+    expect(Math.abs(neighbourAfter.y - neighbourBefore.y)).toBeLessThan(0.6);
+  });
+
   it('removes extra original lines when the paragraph becomes shorter', async () => {
     const source = await makeReflowFixture();
     const { edit } = await layoutEditFor(source, 'Short.');

@@ -574,7 +574,7 @@ export class PdfiumTextDocument {
     }
   }
 
-  private setObjectMatrix(objPtr: number, matrix: PdfiumMatrix): boolean {
+  setObjectMatrix(objPtr: number, matrix: PdfiumMatrix): boolean {
     const out = this.alloc(24);
     try {
       for (let index = 0; index < 6; index += 1) {
@@ -584,6 +584,23 @@ export class PdfiumTextDocument {
     } finally {
       this.free(out);
     }
+  }
+
+  /**
+   * Move one text object's baseline origin to a display-space point while
+   * keeping its scale, rotation and skew. The native reflow path only rewrites
+   * glyphs; a moved paragraph needs this extra step or the replacement would
+   * snap back to the original matrix.
+   */
+  setObjectOrigin(
+    pageIndex: number,
+    objPtr: number,
+    point: { x: number; y: number },
+  ): boolean {
+    const matrix = this.objectMatrix(objPtr);
+    if (!matrix) return false;
+    const [x, y] = this.viewPointToPdf(pageIndex, point);
+    return this.setObjectMatrix(objPtr, [matrix[0], matrix[1], matrix[2], matrix[3], x, y]);
   }
 
   /**

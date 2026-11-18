@@ -12,16 +12,21 @@ import { PageInteractionModel } from '@pdfshush/pdf-core';
 import {
   bodySelectionToDisplay,
   buildParagraphEditObjects,
+  buildReverseParagraphEdit,
   cssFontStack,
+  displayTextForBody,
   mutateParagraphText,
+  offsetNativePlan,
   paragraphDisplayPrefix,
   paragraphDisplayText,
   paragraphLineHeightRatio,
   paragraphSelectionState,
+  paragraphStyleDiff,
   resolveClickCount,
   resolvedFontFamily,
   selectionFromAnchors,
   wordSelectionAt,
+  type ParagraphEditRecord,
 } from './text-editing';
 
 const typography: TextTypography = {
@@ -347,5 +352,119 @@ describe('text mutations', () => {
       'XX',
     );
     expect(mutations[0]?.text).toBe('• XXem');
+  });
+});
+
+describe('paragraph style truth (T-06 UI half)', () => {
+  it('reports each style field that differs from the original paragraph', () => {
+    const { paragraph: entry } = twoLineParagraph();
+    const base = {
+      fontSize: entry.typography.fontSize,
+      bold: entry.typography.bold,
+      italic: entry.typography.italic,
+      fontFamily: 'helvetica' as const,
+      color: '#111827',
+      align: 'left' as const,
+    };
+    expect(paragraphStyleDiff(entry, base).any).toBe(false);
+
+    const bold = paragraphStyleDiff(entry, { ...base, bold: true });
+    expect(bold.bold).toBe(true);
+    expect(bold.labels).toContain('bold');
+
+    const sized = paragraphStyleDiff(entry, { ...base, fontSize: 18 });
+    expect(sized.size).toBe(true);
+
+    const coloured = paragraphStyleDiff(entry, { ...base, color: '#dc2626' });
+    expect(coloured.color).toBe(true);
+
+    const aligned = paragraphStyleDiff(entry, { ...base, align: 'center' });
+    expect(aligned.align).toBe(true);
+
+    const serif = paragraphStyleDiff(entry, { ...base, fontFamily: 'times' });
+    expect(serif.family).toBe(true);
+
+    expect(
+      paragraphStyleDiff(entry, { ...base, bold: true, color: '#dc2626', align: 'right' }).labels,
+    ).toEqual(['bold', 'colour', 'alignment']);
+  });
+});
+
+describe('native plan movement (T-02)', () => {
+  it('moves only the reflow origin, never the original line anchors', () => {
+    const { page, paragraph: entry } = twoLineParagraph();
+    const built = buildParagraphEditObjects(entry, page, 'Hello world again', {
+      makeId: () => 'id',
+    });
+    const plan = built.textObject!.native!;
+    const moved = offsetNativePlan(plan, 12, -8);
+    expect(moved.reflow.x).toBe(plan.reflow.x + 12);
+    expect(moved.reflow.firstBaselineY).toBe(plan.reflow.firstBaselineY - 8);
+    expect(moved.beforeLines).toEqual(plan.beforeLines);
+    expect(offsetNativePlan(plan, 0, 0)).toBe(plan);
+  });
+});
+
+describe('paragraph records and revert (T-01)', () => {
+  it('keeps a list marker when re-attaching body text', () => {
+    const { paragraph: entry } = twoLineParagraph();
+    const list = {
+      ...entry,
+      text: 'Hello world again',
+      list: {
+        ordered: false,
+        level: 1,
+        marker: '•',
+        body: 'Hello world again',
+        indentPt: 0,
+      },
+    };
+    expect(displayTextForBody(list, 'Hello world again')).toBe('• Hello world again');
+    expect(displayTextForBody(entry, 'Just text')).toBe('Just text');
+  });
+
+  it('builds a reverse edit for a single-line replacement', () => {
+    const plan = {
+      paragraphId: 'p1',
+      before: 'Original words',
+      after: 'Replacement',
+      beforeLines: [{ text: 'Original words', box: box(72, 100, 100, 12) }],
+      reflow: { width: 100, lineHeight: 12, firstBaselineY: 110, x: 72 },
+    };
+    const record: ParagraphEditRecord = {
+      pageIndex: 0,
+      paragraphId: 'p1',
+      before: 'Original words',
+      after: 'Replacement',
+      objectIds: ['a'],
+      plan,
+      styled: false,
+      savedAt: 1,
+    };
+    expect(buildReverseParagraphEdit(record, () => 'reverse-1')).toEqual({
+      id: 'reverse-1',
+      pageIndex: 0,
+      find: 'Replacement',
+      replace: 'Original words',
+    });
+  });
+
+  it('refuses to guess a multi-line reverse edit', () => {
+    const record: ParagraphEditRecord = {
+      pageIndex: 0,
+      paragraphId: 'p1',
+      before: 'Line one\nLine two',
+      after: 'Line one changed',
+      objectIds: ['a'],
+      plan: {
+        before: 'Line one\nLine two',
+        after: 'Line one changed',
+        beforeLines: [],
+        reflow: { width: 100, lineHeight: 12, firstBaselineY: 110, x: 72 },
+      },
+      styled: false,
+      savedAt: 1,
+    };
+    expect(buildReverseParagraphEdit(record, () => 'reverse-1')).toBeNull();
   });
 });

@@ -76,8 +76,17 @@ export interface EditTextNativePlan {
     firstBaselineY: number;
     x: number;
     maxLines?: number;
+    /** The replacement was deliberately moved; native rewrite follows it. */
+    moved?: boolean;
   };
   strategy?: 'native-object' | 'content-stream' | 'localized-reconstruction' | 'manual-review';
+  /**
+   * The replacement carries styling the native reflow path cannot reproduce yet
+   * (size/colour/bold/italic/alignment/family). The editor demotes the edit to
+   * the overlay path so the requested style is what the user gets, and the
+   * export report says it was drawn as an overlay rather than rewritten.
+   */
+  styled?: boolean;
 }
 
 export interface EditTextObject extends EditObjectBase {

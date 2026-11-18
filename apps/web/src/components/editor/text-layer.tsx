@@ -60,6 +60,8 @@ export interface TextLayerProps {
   debugOutline?: boolean;
 
   onBlockSelect: (blockId: string | null) => void;
+  /** The paragraph under the last pointer/keyboard focus, for detection details. */
+  onParagraphFocus?: (paragraphId: string | null) => void;
   onParagraphEdit: (
     paragraphId: string,
     selection: { start: number; end: number } | null,
@@ -344,6 +346,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
     const blockId = paragraphToBlock.get(paragraph.id) ?? null;
     p.onBlockSelect(blockId);
     p.onSelectionChange(paragraphSelectionState(p.model, p.layout.index, paragraph.id));
+    p.onParagraphFocus?.(paragraph.id);
     setKeyboardParagraphId(paragraph.id);
   };
 
@@ -360,6 +363,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       setKeyboardParagraphId(null);
       propsRef.current.onSelectionChange(null);
       propsRef.current.onBlockSelect(null);
+      propsRef.current.onParagraphFocus?.(null);
       return;
     }
     if (event.key === 'Enter' && current >= 0) {
@@ -398,11 +402,13 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       // Add Text draw. Hover is cleared so a stale outline does not linger.
       cancelPendingDoubleClick();
       setHover({ blockId: null, paragraphId: null, lineId: null });
+      p.onParagraphFocus?.(null);
       clickRef.current = null;
       return;
     }
 
     const blockId = hit.block?.id ?? paragraphToBlock.get(paragraph.id) ?? null;
+    p.onParagraphFocus?.(paragraph.id);
     const tracker = resolveClickCount(clickRef.current, {
       time: event.timeStamp || Date.now(),
       x: event.clientX,
@@ -507,6 +513,20 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
   const editingRatio = editingParagraph
     ? paragraphLineHeightRatio(editingParagraph, layout)
     : 1.2;
+  /**
+   * The original lines the commit will cover. Showing the same white cover the
+   * export will paint makes the editor WYSIWYG: the stale glyphs disappear as
+   * soon as the paragraph is opened, while the rest of the page raster stays
+   * visible. Only these lines are masked -- never the whole paragraph box.
+   */
+  const editingCovers = useMemo(() => {
+    if (!editingParagraph) return [] as { id: string; bbox: BBox }[];
+    const ids = new Set(editingParagraph.lineIds);
+    return layout.lines.filter((line) => ids.has(line.id)).map((line) => ({
+      id: line.id,
+      bbox: line.bbox,
+    }));
+  }, [editingParagraph, layout.lines]);
 
   useEffect(() => {
     // Reset the guard when the session ends. Like the object textarea, clearing
@@ -551,7 +571,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
         top: editingParagraph.bbox.y * zoom,
         width:
           Math.max(
-            editingParagraph.bbox.width + editingParagraph.typography.fontSize * 0.6,
+            editingParagraph.bbox.width + editingParagraph.typography.fontSize * 1.2,
             40,
           ) * zoom,
         minHeight:
@@ -732,6 +752,23 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
         )),
       )}
 
+      {editingParagraph
+        ? editingCovers.map((cover) => (
+            <div
+              key={`paragraph-cover-${cover.id}`}
+              className="editor-paragraph-cover absolute"
+              data-testid="editor-paragraph-cover"
+              aria-hidden
+              style={{
+                left: Math.max(0, (cover.bbox.x - 1.2) * zoom),
+                top: Math.max(0, (cover.bbox.y - 1.2) * zoom),
+                width: Math.max(1, (cover.bbox.width + 2.4) * zoom),
+                height: Math.max(1, (cover.bbox.height + 2.4) * zoom),
+              }}
+            />
+          ))
+        : null}
+
       {editingParagraph && editing && editorStyle ? (
         <textarea
           key={`${editing.paragraphId}:${editing.token}`}
@@ -742,8 +779,19 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
           aria-label="Edit paragraph text"
           data-testid="editor-paragraph-input"
           data-paragraph-id={editing.paragraphId}
-          className="absolute resize-none overflow-hidden rounded-[2px] border border-blue-500/70 bg-white/95 text-left text-neutral-900 outline-none transition-shadow focus:border-blue-600 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.18)]"
-          style={{ ...editorStyle, boxSizing: 'border-box', padding: 0, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+          className="absolute resize-none overflow-hidden rounded-[2px] border border-transparent text-left text-neutral-900 outline-none focus:outline-none"
+          style={{
+            ...editorStyle,
+            boxSizing: 'border-box',
+            padding: 0,
+            margin: 0,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            background: 'transparent',
+            color: '#111827',
+            caretColor: '#1d4ed8',
+            zIndex: 2,
+          }}
           onFocus={(event) => {
             focusedWhileEditing.current = true;
             const max = event.target.value.length;

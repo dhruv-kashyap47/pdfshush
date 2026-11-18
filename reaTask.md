@@ -189,14 +189,14 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | --- | --- | --- | --- | --- | --- |
 | 0 | Safety rails, corpus, provenance, fonts | G-01..G-05, F-01 | 2 | 4 | `[~]` |
 | 1 | Editor capability parity | E-00..E-10 | 8 | 2 | `[~]` |
-| 2 | Text editing UX | T-01..T-07 | 1 | 1 | `[~]` |
-| 3 | Search, recovery, data-loss guards | S-01..S-06 | 1 | 1 | `[~]` |
+| 2 | Text editing UX | T-01..T-07 | 5 | 1 | `[~]` |
+| 3 | Search, recovery, data-loss guards | S-01..S-06 | 5 | 1 | `[~]` |
 | 4 | Content-stream surgery | C-01..C-14 | 0 | 3 | `[~]` |
 | 5 | OCR inside the editor | O-01..O-05 | 0 | 2 | `[~]` |
 | 6 | Export trust and metadata | X-01..X-06 | 1 | 3 | `[~]` |
 | 7 | Hardening and parity sweep | H-01..H-08 | 0 | 4 | `[~]` |
 
-**Queue:** Sprint 2 complete → T-01 → T-02 → T-03 → T-05 → T-06 (UI half) → S-01 → S-02 → S-03 → S-04 → C-core → O → X → H.
+**Queue:** Sprint 3 complete → Sprint 4 (C-01..C-04, C-06, C-12..C-14, G-03) → C-core → O → X → H.
 **Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1.
 
 ### 4.2 Full board
@@ -220,17 +220,17 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | E-08 | Object clipboard + clamp | P1 | S | done | `[x]` |
 | E-09 | Insert pages from PDF | P2 | M | ~20% | `[~]` |
 | E-10 | Rail/inspector integration + capability truth | P0 | S | ~70% | `[~]` |
-| T-01 | Revert paragraph via reverse edit | P1 | M | 0% | `[ ]` |
-| T-02 | Move paragraph with plan offsets | P1 | M | 0% | `[ ]` |
-| T-03 | Detection details drawer | P1 | M | 0% | `[ ]` |
+| T-01 | Revert paragraph via reverse edit | P1 | M | done | `[x]` |
+| T-02 | Move paragraph with plan offsets | P1 | M | done | `[x]` |
+| T-03 | Detection details drawer | P1 | M | done | `[x]` |
 | T-04 | Outline detected text | P2 | S | done | `[x]` |
-| T-05 | Inline editing legibility | P1 | L | ~40% | `[~]` |
-| T-06 | Formatting that reaches native | P1 | L | ~30% | `[~]` |
+| T-05 | Inline editing legibility | P1 | L | done | `[x]` |
+| T-06 | Formatting that reaches native | P1 | L | UI half done (Sprint 3); native styling in Sprint 5 | `[~]` |
 | T-07 | Rotate text block | P2 | M | 0% | `[ ]` |
-| S-01 | Find & replace engine | P1 | M | 0% | `[ ]` |
-| S-02 | Find & replace UI | P1 | S | 0% | `[ ]` |
-| S-03 | Draft autosave + `resetTo` | P1 | M | 0% | `[ ]` |
-| S-04 | Restore/discard banner | P1 | S | 0% | `[ ]` |
+| S-01 | Find & replace engine | P1 | M | done | `[x]` |
+| S-02 | Find & replace UI | P1 | S | done | `[x]` |
+| S-03 | Draft autosave + `resetTo` | P1 | M | done | `[x]` |
+| S-04 | Restore/discard banner | P1 | S | done | `[x]` |
 | S-05 | Error taxonomy completion | P1 | S | done | `[x]` |
 | S-06 | Data-loss path guards | P0 | S | ~80% | `[~]` |
 | C-01 | Lexer + emitter v2 | P0 | M | ~20% | `[~]` |
@@ -422,22 +422,24 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 ## Phase 2 — Text editing UX
 
 ### T-01 — Revert paragraph via reverse edit
-- **Pri:** P1 · **Size:** M · **Now:** 0%; v1's design is unsound.
+- **Pri:** P1 · **Size:** M · **Now:** done 2026-11-18 — record in `EditorDoc`, one-step revert from inspector/details, reverse builder for rewritten sources.
 - **Why:** a successful native rewrite has already removed the original glyphs; deleting whiteout+text restores nothing.
 - **Scope:** `ParagraphEditRecord {paragraphId,pageIndex,before,after,plan,objectIds}` persisted in `EditorDoc` or a side map; Revert = one `apply` that removes objects **and** queues a reverse `TextEdit` (`find: after`, `replace: before`, reversed layout) on the next save; if the reverse fails, warn and keep the replacement.
 - **Anchor:** `lib/text-editing.ts:384–476`; `edit-pdf-tool.tsx:1297–1357, 2178–2237`; `editor-state.ts`.
 - **Done when:** edit → revert → export yields original text (or an explicit warning); one undo step.
+  - **Correction (2026-11-18):** pdfshush always saves from the original source bytes, so a normal revert only removes the replacement and covers — there is no rewritten source to reverse. The record + `buildReverseParagraphEdit` are still implemented for the future in-place-source case, and the builder refuses multi-line guesses. E2E proves the exported original returns.
 - **Tests:** unit record + reverse plan; E2E edit/revert/export bytes.
 
 ### T-02 — Move paragraph with plan offsets
-- **Pri:** P1 · **Size:** M · **Now:** 0%; moving the object changes preview only.
+- **Pri:** P1 · **Size:** M · **Now:** done 2026-11-18 — object + native origin move together; engine repositions rewritten objects; unit + E2E origin proofs.
 - **Scope:** dx/dy patches the text object **and** `native.reflow.x/firstBaselineY` plus covers by the same delta; keep `beforeLines` at the original match anchor; clamp; surface engine refusal near page edges.
+  - **Correction (2026-11-18):** covers deliberately stay at the original lines. Moving them with the replacement would uncover the glyphs they exist to hide. Only the replacement origin and its native reflow move; per-line indentation is preserved when the matrix is repositioned.
 - **Anchor:** `text-editing.ts:426–432`; `textedit/engine.ts:398–410, 444–446, 458–460`; inspector.
 - **Done when:** native export draws at the moved position; original removal policy documented; refusal surfaced.
 - **Tests:** unit offset; E2E move + export + text position.
 
 ### T-03 — Detection details drawer
-- **Pri:** P1 · **Size:** M · **Now:** 0%; structure panel is confidence facets, not per-paragraph details.
+- **Pri:** P1 · **Size:** M · **Now:** done 2026-11-18 — per-paragraph drawer with every model fact, page capability, post-save outcome and copy.
 - **Scope:** per-paragraph panel: bbox, line count, baseline, font family/label, size, rotation, bold/italic, confidence, role, page text layer, colour (when C-11 lands), source (page-level until D4), post-save strategy/outcome. Copy-to-clipboard.
 - **Anchor:** `document/types.ts:194–215`; `capabilities.ts:103–158`; `textedit/types.ts:174–186`; `editor-inspector.tsx`; `export-receipt.tsx:39–48`.
 - **Done when:** panel matches model exactly; post-save outcome maps back to the paragraph.
@@ -450,7 +452,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** E2E toggle + screenshot; overlay math.
 
 ### T-05 — Inline editing legibility
-- **Pri:** P1 · **Size:** L · **Now:** ~40%; textarea works, opaque `bg-white/95`, no mask, no live preview.
+- **Pri:** P1 · **Size:** L · **Now:** done 2026-11-18 — transparent editor, opaque per-line covers, caret contrast, exporter width/leading; pixel-diff E2E at 100% plus 400% geometry checks.
 - **Source:** target transparent text + caret + deleted-line mask; the clone has only transparent text.
 - **Scope:** raster visible under the editor; per-line cover preview for lines that will be removed; caret contrast; live width/line-height using exporter metrics; no layout shift.
 - **Anchor:** `text-layer.tsx:531–566, 645–691`; `editor-page.tsx:971`; `editor-shared.css`.
@@ -458,7 +460,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** visual E2E; unit mask geometry.
 
 ### T-06 — Formatting that reaches native
-- **Pri:** P1 · **Size:** L · **Now:** ~30%; object controls exist, native export ignores them.
+- **Pri:** P1 · **Size:** L · **Now:** UI half done 2026-11-18 — style diff demotes to overlay with a receipt, style survives re-edit; native style application is the Sprint 5 half.
 - **Scope:** D9 is **make it real**. Add size/colour/bold/italic/align to `TextLayoutEdit`; teach `applyLayoutEdit` font loading (F-01), synthetic bold/italic when the embedded face has none, colour, and alignment. "Original" uses the embedded document font; if it cannot be reproduced, warn with a code.
 - **Anchor:** `textedit/types.ts:67–73`; `engine.ts:517–596`; `ops/edit.ts:614–650`; `editor-inspector.tsx:275–367`; `editor-chrome.tsx:973–1068`.
 - **Done when:** the controls are true on the native path; justify works or is removed; substitution/synthetic is receipted.
@@ -476,28 +478,28 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 ## Phase 3 — Search, recovery, data-loss guards
 
 ### S-01 — Find & replace engine
-- **Pri:** P1 · **Size:** M · **Now:** 0%
+- **Pri:** P1 · **Size:** M · **Now:** done 2026-11-18 — `document/search.ts`, offset-preserving folding, replacement + missing-page report; unit suite.
 - **Scope:** pure module over `PageLayout`; case-insensitive with an explicit folding map or documented limit; matches over `paragraph.text` (body offsets), snippets; replace via `mutateParagraphText` to respect list markers; failed-layout retry (today a failed page is marked fetched forever); one undo step.
 - **Anchor:** new `packages/pdf-core/src/document/search.ts`; `lib/text-editing.ts:487–530`; `edit-pdf-tool.tsx:760–766, 1359–1365`.
 - **Done when:** replace-all on 3 pages updates only matches; pages that failed to load are retried or reported.
 - **Tests:** unit overlaps/case/newlines/unicode; integration with export.
 
 ### S-02 — Find & replace UI
-- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Pri:** P1 · **Size:** S · **Now:** done 2026-11-18 — Ctrl/Cmd+F panel, case/word, next/prev, jump list, replace-all; 40-page search 735–966 ms.
 - **Scope:** Ctrl/Cmd+F after the typing guard; input/replace/count/next/prev/jump/replace-all; scroll to page; highlight via existing selection rects; live region; Escape ownership; search without capability inspection to avoid the 40-page cost.
 - **Anchor:** `edit-pdf-tool.tsx:993–1007, 1986–1992, 2371–2531`; `text-layer.tsx:629–643`; `editor-chrome.tsx:1466–1471`.
 - **Done when:** keyboard-only find/replace on 40 pages, no position loss.
 - **Tests:** E2E keyboard + screenshot.
 
 ### S-03 — Draft autosave + `resetTo`
-- **Pri:** P1 · **Size:** M · **Now:** 0%
+- **Pri:** P1 · **Size:** M · **Now:** done 2026-11-18 — IndexedDB v4 drafts, 1.2 s debounce, 60 MB cap, validated restore, fresh baseline.
 - **Scope:** `DRAFTS_STORE`, DB v4 additive; `editor-state.resetTo(doc)` that establishes a new baseline (no empty doc on the undo stack); persist bytes, name/size/lastModified, `EditorDoc` (objects incl. image bytes + native plans), pageOrder, currentPage, zoom, mode/tool, saved baseline, `paragraphObjectIds`; debounce; 60 MB cap; QuotaExceeded visible; validate `TextEdit.layout` on restore; commit in-flight paragraph edits before save.
 - **Anchor:** `lib/idb.ts:15–37`; `lib/editor-state.ts`; `lib/editor-session.ts`; new `lib/editor-draft.ts`; `edit-pdf-tool.tsx:2156–2174`.
 - **Done when:** reload restores exact text; first undo does not erase it; re-editing a restored paragraph does not duplicate covers.
 - **Tests:** unit serialise/migrate/validate; E2E reload.
 
 ### S-04 — Restore/discard banner
-- **Pri:** P1 · **Size:** S · **Now:** 0%
+- **Pri:** P1 · **Size:** S · **Now:** done 2026-11-18 — idle banner with file/time/count, Restore/Discard, cleared on save; E2E across reloads.
 - **Scope:** match by name+size+lastModified; Restore hydrates; Discard deletes; keyboard/a11y; banner in the idle stage; clear on successful export if chosen.
 - **Anchor:** `edit-pdf-tool.tsx:3755–3767`; `editor-chrome.tsx`; reuse dialog pattern `:3592–3636`.
 - **Done when:** both paths explicit; no stale draft after Discard.
@@ -845,6 +847,26 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 
 ---
 
+## Sprint 3 close (2026-11-18)
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| T-01 | `[x]` | `ParagraphEditRecord` now lives inside `EditorDoc`, so undo/redo restores the record with its objects. Revert removes the replacement + covers in one `apply` (one undo step) and is offered from the block inspector and the detection-details drawer. Because saves always read the original source, object removal is a true revert; `buildReverseParagraphEdit` covers the future rewritten-source case and refuses a multi-line guess. E2E `text-ux` proves edit → revert → export keeps the original text and drops the replacement. |
+| T-02 | `[x]` | Dragging a paragraph object moves its native reflow origin with it; the save derives `moved` from the object vs chain-anchored `beforeLines`. Engine `TextLayoutEdit.reflow.moved` repositions rewritten objects through `FPDFPageObj_SetMatrix` (new `setObjectOrigin`), preserving per-line indentation. Unit test proves a moved rewrite changes extraction x/y while the untouched neighbour does not move; E2E asserts the exported text origin (x 72→142, baseline 770→715.2). |
+| T-03 | `[x]` | New `editor-paragraph-details.tsx`: page/box/lines/baseline/font/size/rotation/weight/style/role/confidence/text layer/colour/source/char-spacing/paragraph id, plus the post-save outcome for that paragraph id. Copy-to-clipboard, back/edit/revert actions, keyboard labelled. Reachable from the text-block inspector; outcomes are cleared when the paragraph changes. |
+| T-05 | `[x]` | Inline editor is transparent over the page; each original line gets an opaque cover preview (the same geometry the commit will whiteout); caret is explicit; width/line-height use the exporter ratio (1.2em padding shared with `buildParagraphEditObjects`). E2E checks masking, transparency and caret at 100%, a screenshot diff of editing vs committed state inside a 3×3 sub-pixel alignment (mean 6.5), and cover/transparency/height at 400%. |
+| T-06 | `[~]` | **UI half landed.** Inspector/context formatting is now honest: `paragraphStyleDiff` marks the native plan `styled`, the save demotes a styled paragraph to the overlay path explicitly (`localized-reconstruction`) instead of silently keeping the document's font, and the receipt says "Drawn over the original" with the recoverable-original warning. Re-editing keeps the style already chosen. Native style application remains Sprint 5 (engine half). |
+| S-01 | `[x]` | New dependency-free `document/search.ts`: offset-preserving case folding, whole-word matching, overlapping matches, reading-order traversal, line mapping, snippets, right-to-left replacement and missing-page reporting. Unit suite covers folding/whole-word/overlap/replacement/list markers. Failed text-run chunks are retried per chunk (not per document) and reported. |
+| S-02 | `[x]` | Ctrl/Cmd+F (also from the paragraph textarea), find/replace inputs, case/whole-word toggles, count, next/prev, jump list, replace-all and Escape ownership. Search reads the existing layouts only (`includeCapabilities:false`) and excludes PDFium capability work. 40-page search measured **735–966 ms** in this environment; results highlight through the existing selection rects. |
+| S-03 | `[x]` | IndexedDB `drafts` store (DB v4) + `editor-draft.ts`: source bytes, objects (image payloads included), native plans, records, page order, page/zoom/mode/tool and dirty order. Debounced 1.2 s autosave, 60 MB cap, `QuotaExceeded` visible, strict schema/shape validation on restore, `editor-state.resetTo` establishes a fresh baseline so the first undo cannot erase the draft. In-flight paragraph text is folded into the draft snapshot without closing the textarea. |
+| S-04 | `[x]` | Idle banner names the file, save time and edit count, with Restore/Discard; Restore opens the draft bytes through the normal inspect path and hydrates; Discard deletes through reloads; successful export clears the draft. E2E covers reload -> restore -> first undo -> reload -> discard -> reload. |
+
+**Verification:** `pnpm typecheck` green (all packages); `pnpm test` — pdf-core **601 passed + 1 expected fail**, web **295**, api **243**, mcp **19**, ai-agent **152**, ai-provider **375**; `pnpm build` green; `pnpm test:bundle` main chunk 153.3 kB with 0 engines; `pnpm test:provenance` clean. Browser suites green against the dev stack: new `text-ux` **44/44** (revert, move, styling, find/replace, 40-page find, 100%/400% legibility, draft restore/discard), plus `text-model`, `text-edit`, `editor-quick-parity`, `signature-upload`, `sign`; preview suites `keyboard`, `a11y`, `editor-cancel-save` green.
+
+**Still open before Sprint 4:** T-06's native styling half (Sprint 5), T-07 rotation, E-07 snapping, E-09 insert pages, E-10 rail/capability truth, S-06 browser back/forward route blocking. None blocks Gate B for the agreed Sprint 3 scope.
+
+---
+
 ## 8. Release gates
 
 ### Gate A — Foundation + parity
@@ -877,12 +899,12 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 
 | Metric | Baseline source | Gate A | Gate B | Gate C | Gate D |
 | --- | --- | --- | --- | --- | --- |
-| Unit tests | `pnpm test` — 580 pass + 1 expected fail (pdf-core), 211 (web) on 2026-11-17 | | | | |
-| Editor E2E | `smoke`, `text-edit`, `text-model` | | | | |
+| Unit tests | `pnpm test` — 601 pass + 1 expected fail (pdf-core), 295 (web) on 2026-11-18 | | | | |
+| Editor E2E | `smoke`, `text-edit`, `text-model`, `text-ux` | | | | |
 | Export p50 (10-page text edit) | new benchmark | | | | |
 | Export p95 (120-page) | `long-120page.pdf` | | | | |
 | 10 s ink point count | new benchmark | | | | |
-| Find 40 pages | new benchmark | | | | |
+| Find 40 pages | `tests/e2e/text-ux.mjs` | | 735–966 ms (dev, this machine) | | |
 | Page warm-up incl. capabilities | new benchmark | | | | |
 | Main chunk size | `test:bundle` | | | | |
 | Fontkit bundle delta (worker) | `test:bundle` | | | | |
@@ -931,3 +953,5 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-17 | **Sprint 1 bug pass.** Fixed Change-file discarding the picker before it returned (input now stays mounted until a file is chosen); font discovery now follows inherited page resources; `native-only` now refuses every non-native outcome, not just the content-stream pass; Hono advisories patched via workspace overrides (`pnpm audit` clean, MCP 19/19). |
 | 2026-11-17 | **Sprint 2 landed.** E-01/E-02/E-03/E-04/E-05/E-06/E-08/T-04/S-05 complete: vector ink + check/cross/stamp object kinds, date stamp, signature upload with luminance alpha + trimmed aspect, 400%/typed/fit-page zoom, object clipboard with shared page clamp, detected-text outline debug layer, and `empty`/`not-a-pdf`/`out-of-memory` error codes. New pure libs `ink`, `stamp-date`, `stamp-presets`, `object-placement`, `zoom` with unit tests; E2E `editor-quick-parity` + `signature-upload`. PDF-core 586+1 expected fail, web 280, build/bundle/provenance green, text-edit/text-model/keyboard/a11y/sign E2E green. |
 | 2026-11-17 | **Sprint 2 bug pass.** Copies no longer duplicate paragraph rewrite intents (`lib/object-copy.ts`); signature placement keeps the exact ink aspect and adopted assets read the PNG IHDR (repairs pre-trim records); redaction styling/test ids use the explicit role, not a black-rect shape; `not-a-pdf` copy no longer repeats itself; `no data` no longer mislabels a truncated xref as empty; richer headlines survive `sentence()`; zero-byte files get the empty-file copy before the engine; invalid Dates no longer throw the date formatter; stamp labels draw as stored (uppercasing `µ` produced Greek Mu after validation); stamp text is height-clamped; fit page falls back to width in a zero-height viewport; paste at the object limit is no longer silent; zoom keeps a live announcement; upload decode is guarded after close; uploaded signatures are recorded as `uploaded` in the audit note and asset list, not `drawn`. PDF-core 586+1 expected fail, web 280; all E2E suites rerun green. |
+| 2026-11-18 | **Sprint 3 landed.** T-01/T-02/T-03/T-05 complete; T-06 UI half; S-01/S-02/S-03/S-04 complete. Paragraph records moved into the snapshot (undo-safe revert), native reflow gained `moved` + matrix repositioning, a detection-details drawer, transparent inline editing with per-line covers, a pure search engine and panel, and IndexedDB draft autosave/restore. New `document/search.ts`, `lib/editor-draft.ts`, `editor-find-panel.tsx`, `editor-paragraph-details.tsx`, `tests/e2e/text-ux.mjs` (44 checks). Unit: pdf-core 601+1 expected fail, web 295; build/bundle/provenance green; text-model/text-edit/editor-parity/signature-upload/sign/keyboard/a11y/editor-cancel all green. 40-page find 735–966 ms. |
+| 2026-11-18 | **Sprint 3 bug pass.** Moved reflow no longer runs away (delta measured inside the update against the same snapshot) and the engine now repositions rewritten objects instead of snapping back; opaque line covers remove stale-glyph ghosting; re-editing a paragraph keeps its chosen style; search folds a paragraph's committed text so a re-run does not quote removed words; failed text-run chunks are retried individually; draft records no longer duplicate object-id maps (records own their ids); replace-all applies edits right-to-left. |

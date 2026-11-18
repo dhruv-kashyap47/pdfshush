@@ -88,6 +88,10 @@ jobs:
       - run: pnpm test:perf
       - run: pnpm test:e2e:a11y
       - run: pnpm test:e2e:keyboard
+      - name: Text UX, find/replace and draft recovery
+        run: pnpm test:e2e:text-ux
+        env:
+          E2E_BASE_URL: http://localhost:4173
       - run: pnpm test:e2e:verify
       - run: pnpm test:e2e:reach
       - run: pnpm test:e2e:offline

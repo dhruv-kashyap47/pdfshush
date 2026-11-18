@@ -56,6 +56,13 @@ export interface TextReflowRequest {
   maxLines?: number;
   /** Horizontal offset of every line from the paragraph origin. */
   x?: number;
+  /**
+   * True when the replacement is deliberately drawn somewhere other than the
+   * original line boxes. The native path then moves the rewritten objects to
+   * the requested origin; without it, an in-place rewrite keeps the document's
+   * own matrix (which is exactly what a text-only edit wants).
+   */
+  moved?: boolean;
 }
 
 /**

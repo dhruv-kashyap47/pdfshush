@@ -14,11 +14,18 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { LIMITS, type EditorObject } from '@pdfshush/pdf-core';
+import type { ParagraphEditRecord } from '@/lib/text-editing';
 
 export interface EditorDoc {
   objects: EditorObject[];
   /** AcroForm values keyed by field name; changed live (not undoable per key). */
   formValues: Record<string, string | boolean>;
+  /**
+   * Paragraph-level edit records. They live inside the snapshot so undo/redo
+   * restores the details drawer and Revert availability with the objects they
+   * describe. Absent means "no paragraph edits".
+   */
+  paragraphRecords?: ParagraphEditRecord[];
 }
 
 export const EMPTY_EDITOR_DOC: EditorDoc = { objects: [], formValues: {} };
@@ -107,6 +114,17 @@ export function useEditorDoc() {
     setHistory({ doc: EMPTY_EDITOR_DOC, past: [], future: [] });
   }, []);
 
+  /**
+   * Installs a restored document as the session baseline.
+   *
+   * Unlike `apply`, this pushes nothing: the restored state is the first state,
+   * so the first Ctrl+Z must not erase the draft and leave an empty editor.
+   */
+  const resetTo = useCallback((doc: EditorDoc) => {
+    txSnapshot.current = null;
+    setHistory({ doc, past: [], future: [] });
+  }, []);
+
   return {
     doc: history.doc,
     canUndo: history.past.length > 0,
@@ -118,5 +136,6 @@ export function useEditorDoc() {
     undo,
     redo,
     reset,
+    resetTo,
   } as const;
 }

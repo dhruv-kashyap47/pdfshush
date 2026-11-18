@@ -602,6 +602,18 @@ function applyLayoutEdit(
         (charcodes !== null && doc.setCharcodes(first.ptr, charcodes)) ||
         doc.setText(first.ptr, replacement);
       if (!written) throw new LayoutMutationError('PDFium refused to rewrite a reflowed line');
+      if (edit.layout!.reflow.moved) {
+        // Rewriting glyphs does not change the object's matrix. A moved
+        // paragraph therefore has to be repositioned explicitly, preserving
+        // each line's relative indentation from the first line.
+        const line = edit.layout!.beforeLines[index]?.box;
+        const firstLine = edit.layout!.beforeLines[0]?.box;
+        const lineX = metrics.x + (line && firstLine ? line.x - firstLine.x : 0);
+        const baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
+        if (!doc.setObjectOrigin(pageIndex, first.ptr, { x: lineX, y: baselineY })) {
+          throw new LayoutMutationError('PDFium refused to move a reflowed line');
+        }
+      }
       const tails = target.members.slice(1);
       noteConsumedFonts(doc, tails.map((tail) => tail.ptr), consumedFonts);
       const failed = tails.filter((tail) => !doc.removeObject(pageIndex, tail.ptr));

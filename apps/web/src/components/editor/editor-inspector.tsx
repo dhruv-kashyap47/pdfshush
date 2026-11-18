@@ -373,6 +373,17 @@ export function EditorInspector({
                   onPick={(color) => onPatch({ color: color ?? '#111827' })}
                 />
               </div>
+
+              {object.native?.styled ? (
+                <p
+                  className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+                  data-testid="inspector-native-style-note"
+                >
+                  Styled paragraph text exports as an overlay so your size, weight, colour and
+                  alignment are kept. The original words stay selectable underneath until the
+                  native styling path lands; the export receipt names the overlay.
+                </p>
+              ) : null}
             </>
           ) : null}
 

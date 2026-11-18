@@ -338,7 +338,7 @@ export interface ParagraphEditObjectOptions {
   makeId: () => string;
   /** Minimum text box width in points. Defaults to 40. */
   minWidth?: number;
-  /** Extra horizontal room so a reflowed last line is not clipped. Defaults to 0.6em. */
+  /** Extra horizontal room so a reflowed last line is not clipped. Defaults to 1.2em. */
   widthPaddingFactor?: number;
   /** Padding around each line whiteout, in points. Defaults to 1.2. */
   coverPadding?: number;
@@ -407,7 +407,7 @@ export function buildParagraphEditObjects(
   const typography = paragraph.typography;
   const fontSize = Math.min(72, Math.max(4, Math.round(typography.fontSize * 2) / 2));
   const lineHeightRatio = options.lineHeightRatio ?? paragraphLineHeightRatio(paragraph, layout);
-  const widthPadding = fontSize * (options.widthPaddingFactor ?? 0.6);
+  const widthPadding = fontSize * (options.widthPaddingFactor ?? 1.2);
   const width = Math.max(options.minWidth ?? 40, paragraph.bbox.width + widthPadding);
   const lineHeight = fontSize * lineHeightRatio;
   const firstLine = lines[0];
@@ -545,4 +545,136 @@ export function selectionRects(selection: TextSelectionState | null): BBox[] {
   const rects: BBox[] = [];
   for (const range of selection.ranges) rects.push(...range.rects);
   return rects;
+}
+
+/* ------------------------------------------------------- paragraph records */
+
+/** The colour a freshly built paragraph replacement uses when none is chosen. */
+export const DEFAULT_TEXT_COLOR = '#111827';
+
+/**
+ * One committed paragraph edit.
+ *
+ * The record is the source of truth for "this paragraph was changed". It keeps
+ * the native plan and the overlay objects together so the inspector can offer a
+ * real revert, and so a draft can restore both without re-deriving them.
+ */
+export interface ParagraphEditRecord {
+  pageIndex: number;
+  paragraphId: string;
+  /** Display text before the edit (list marker included). */
+  before: string;
+  /** Display text after the edit. */
+  after: string;
+  /** Overlay objects this edit owns (covers plus the replacement text). */
+  objectIds: string[];
+  /** Native reflow intent carried by the replacement object. */
+  plan: EditTextNativePlan;
+  /** True when the edit's style is currently served by the overlay path. */
+  styled: boolean;
+  /** Timestamp of the commit, for drafts and the details drawer. */
+  savedAt: number;
+}
+
+/** Style fields the paragraph replacement can change from the original. */
+export interface ParagraphStyleDiff {
+  size: boolean;
+  bold: boolean;
+  italic: boolean;
+  family: boolean;
+  color: boolean;
+  align: boolean;
+  any: boolean;
+  /** Human-readable field names, for the inspector note and receipt copy. */
+  labels: string[];
+}
+
+function normalizedAlign(alignment: Paragraph['alignment']): 'left' | 'center' | 'right' {
+  return alignment === 'center' || alignment === 'right' ? alignment : 'left';
+}
+
+/**
+ * Which of the replacement object's style fields differ from the original
+ * paragraph. This is what decides whether the native plan can honestly be used:
+ * the engine's reflow keeps the document's own font, size, colour and alignment,
+ * so a difference must be demoted to the overlay until the native style path
+ * lands (T-06 engine half).
+ */
+export function paragraphStyleDiff(
+  paragraph: Paragraph,
+  object: Pick<EditTextObject, 'fontSize' | 'bold' | 'italic' | 'fontFamily' | 'color' | 'align'>,
+): ParagraphStyleDiff {
+  const originalSize = Math.round(paragraph.typography.fontSize * 2) / 2;
+  const size = Math.abs(object.fontSize - originalSize) > 0.26;
+  const bold = Boolean(object.bold) !== paragraph.typography.bold;
+  const italic = Boolean(object.italic) !== paragraph.typography.italic;
+  const family = (object.fontFamily ?? 'helvetica') !== resolvedFontFamily(paragraph.typography);
+  const color = (object.color ?? DEFAULT_TEXT_COLOR) !== DEFAULT_TEXT_COLOR;
+  const align = (object.align ?? 'left') !== normalizedAlign(paragraph.alignment);
+  const labels: string[] = [];
+  if (size) labels.push('size');
+  if (bold) labels.push(bold ? 'bold' : 'weight');
+  if (italic) labels.push(italic ? 'italic' : 'upright');
+  if (family) labels.push('font family');
+  if (color) labels.push('colour');
+  if (align) labels.push('alignment');
+  return { size, bold, italic, family, color, align, any: labels.length > 0, labels };
+}
+
+/**
+ * Moves a paragraph's native reflow origin by `dx`/`dy`.
+ *
+ * `beforeLines` deliberately stay at the original anchor: they identify the
+ * glyphs to remove and the fallback covers must keep hiding them where they
+ * are. Only the replacement's origin moves.
+ */
+export function offsetNativePlan(
+  plan: EditTextNativePlan,
+  dx: number,
+  dy: number,
+): EditTextNativePlan {
+  if (dx === 0 && dy === 0) return plan;
+  return {
+    ...plan,
+    reflow: {
+      ...plan.reflow,
+      x: plan.reflow.x + dx,
+      firstBaselineY: plan.reflow.firstBaselineY + dy,
+    },
+  };
+}
+
+/** Body text plus the paragraph's list marker, ready for the overlay editor. */
+export function displayTextForBody(paragraph: Paragraph, body: string): string {
+  if (!paragraph.list) return body;
+  const marker = paragraph.list.marker.trim();
+  if (!marker) return body;
+  return `${marker} ${body}`.trimEnd();
+}
+
+/**
+ * A reverse edit for a source whose bytes have already been rewritten.
+ *
+ * pdfshush saves from the *original* source every time, so a normal revert only
+ * removes overlay objects. This builder exists for the one case where the
+ * session's source is an exported artifact (a future in-place workflow): the
+ * engine then needs a genuine edit putting the original text back. It returns
+ * null when the replacement spans objects the engine could not match in one
+ * pass, and the caller must warn instead of silently keeping the replacement.
+ */
+export function buildReverseParagraphEdit(
+  record: ParagraphEditRecord,
+  makeId: () => string,
+): { id: string; pageIndex: number; find: string; replace: string } | null {
+  // The native path can reverse a single text object exactly. Multi-line
+  // replacements are refused rather than guessed at; nothing here pretends the
+  // original is back when it cannot be.
+  const after = record.plan.after;
+  if (after.includes('\n') || record.before.includes('\n')) return null;
+  return {
+    id: makeId(),
+    pageIndex: record.pageIndex,
+    find: after,
+    replace: record.before,
+  };
 }

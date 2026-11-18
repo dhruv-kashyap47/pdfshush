@@ -43,6 +43,7 @@ import {
   RotateCcw,
   Save,
   Scan,
+  Search,
   SendToBack,
   ShieldAlert,
   SlidersHorizontal,
@@ -603,6 +604,8 @@ export interface EditorContextBarProps {
   /** AI-only summary. */
   aiChangeCount?: number;
   onOpenAssistant?: () => void;
+  /** Opens the find & replace panel (Ctrl/Cmd+F). */
+  onFind?: () => void;
 }
 
 export function EditorContextBar(props: EditorContextBarProps) {
@@ -639,6 +642,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
     onRestoreOrder,
     aiChangeCount = 0,
     onOpenAssistant,
+    onFind,
   } = props;
 
   return (
@@ -683,6 +687,16 @@ export function EditorContextBar(props: EditorContextBarProps) {
             onClick={onOpenInspector}
           >
             <SlidersHorizontal className="size-3.5" />
+          </ContextIcon>
+        ) : null}
+        {onFind ? (
+          <ContextIcon
+            label="Find and replace (Ctrl+F)"
+            testId="editor-find-open"
+            disabled={disabled}
+            onClick={onFind}
+          >
+            <Search className="size-3.5" />
           </ContextIcon>
         ) : null}
         <ContextIcon label="Undo (Ctrl+Z)" testId="editor-undo" disabled={!canUndo} onClick={onUndo}>

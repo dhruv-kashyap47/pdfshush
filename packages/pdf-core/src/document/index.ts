@@ -160,6 +160,22 @@ export type {
 export { computeStructureConfidence } from './confidence.js';
 
 export {
+  foldText,
+  isWordCharacter,
+  searchSnippet,
+  matchedLineIds,
+  findInLayouts,
+  replaceMatches,
+  searchDocument,
+} from './search.js';
+export type {
+  SearchOptions,
+  SearchMatch,
+  SearchReplacement,
+  SearchSummary,
+} from './search.js';
+
+export {
   TextEditSession,
   previousCodePointIndex,
   nextCodePointIndex,

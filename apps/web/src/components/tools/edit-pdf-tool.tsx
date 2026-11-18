@@ -43,10 +43,14 @@ import {
 import {
   JobAbortedError,
   LIMITS,
+  PageInteractionModel,
   TextEditSession,
+  findInLayouts,
   rasterWidthWithinBudget,
+  replaceMatches,
   timeoutForPageCount,
   type EditorObject,
+  type EditTextNativePlan,
   type EditTextObject,
   type FormWidgetInfo,
   type InspectOutput,
@@ -56,8 +60,10 @@ import {
   type PageTextCapability,
   type Paragraph,
   type RedactJobOutput,
+  type SearchMatch,
   type TextEdit,
   type TextEditJobOutput,
+  type TextEditOutcome,
   type TextRun,
   type TextRunsOutput,
   type ThumbnailsOutput,
@@ -94,6 +100,8 @@ import {
 } from '@/lib/ai/settings';
 import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
 import { EditorInspector } from '@/components/editor/editor-inspector';
+import { EditorParagraphDetails } from '@/components/editor/editor-paragraph-details';
+import { EditorFindPanel } from '@/components/editor/editor-find-panel';
 import { ExportReceipt } from '@/components/editor/export-receipt';
 import { StructurePanel } from '@/components/editor/structure-panel';
 import { EditorPage } from '@/components/editor/editor-page';
@@ -140,9 +148,16 @@ import {
 import {
   bodySelectionToDisplay,
   buildParagraphEditObjects,
+  displayTextForBody,
   mutateParagraphText,
+  offsetNativePlan,
   paragraphDisplayText,
+  paragraphDisplayPrefix,
   paragraphEditKey,
+  paragraphLineHeightRatio,
+  paragraphStyleDiff,
+  selectionFromAnchors,
+  type ParagraphEditRecord,
   type ParagraphEditState,
   type ParagraphTextMutation,
   type TextSelectionState,
@@ -150,6 +165,17 @@ import {
 import { recordRecent } from '@/tools/recent';
 import { TEXT_MODEL_LIMITS } from '@/lib/text-model-limits';
 import { totalEdits } from '@/lib/edit-receipt';
+import {
+  DRAFT_DEBOUNCE_MS,
+
+  DRAFT_SCHEMA,
+  DRAFT_STORE_KEY,
+  deleteDraft,
+  draftSignature,
+  loadDraft,
+  saveDraft,
+  type StoredDraft,
+} from '@/lib/editor-draft';
 import type { SignatureCapture } from '@/components/signature/signature-pad-dialog';
 
 /**
@@ -248,6 +274,7 @@ function isAbort(error: unknown): boolean {
 interface PageBinding {
   onSeedReplace: (run: TextRun) => void;
   onTextBlockSelect: (blockId: string | null) => void;
+  onParagraphFocus: (paragraphId: string | null) => void;
   onParagraphEdit: (
     paragraphId: string,
     selection: { start: number; end: number } | null,
@@ -375,6 +402,31 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     blockId: string;
   } | null>(null);
   const [paragraphEdit, setParagraphEdit] = useState<ParagraphEditState | null>(null);
+  /** Paragraph under the last click, for the detection-details drawer. */
+  const [focusedParagraph, setFocusedParagraph] = useState<{
+    pageIndex: number;
+    paragraphId: string;
+  } | null>(null);
+  /** True while the inspector is showing per-paragraph detection details. */
+  const [paragraphDetailsOpen, setParagraphDetailsOpen] = useState(false);
+  /** Post-save outcome keyed by `pageIndex:paragraphId`. */
+  const [lastOutcomes, setLastOutcomes] = useState<Record<string, TextEditOutcome>>({});
+  /** Find & replace state. Layouts answer the query; no second parser. */
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [findReplacement, setFindReplacement] = useState('');
+  const [findCase, setFindCase] = useState(false);
+  const [findWholeWord, setFindWholeWord] = useState(false);
+  const [findMatches, setFindMatches] = useState<SearchMatch[]>([]);
+  const [findActive, setFindActive] = useState(0);
+  const [findSearching, setFindSearching] = useState(false);
+  const [findFailedPages, setFindFailedPages] = useState<number[]>([]);
+  const [findError, setFindError] = useState<string | null>(null);
+  /** The newest autosaved draft, or the one the idle banner offers. */
+  const [draft, setDraft] = useState<StoredDraft | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [draftRestoring, setDraftRestoring] = useState(false);
   /** Redaction review confirmation: never run the destructive job without it. */
   const [confirmRedact, setConfirmRedact] = useState(false);
   /** Mobile back/close guard: leaving mid-edit must not silently drop changes. */
@@ -454,8 +506,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     layout: PageLayout;
     pageIndex: number;
   } | null>(null);
-  /** Objects created for each paragraph edit, so a re-edit replaces its own. */
-  const paragraphObjectIds = useRef(new Map<string, string[]>());
+  /** Source bytes kept for draft autosave; cleared with the document. */
+  const sourceBytesRef = useRef<Uint8Array | null>(null);
+  /** Draft write serialisation, so two debounced writes cannot interleave. */
+  const draftWriteSeq = useRef(0);
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** A document over the cap stays too large for the session. */
+  const draftDisabled = useRef(false);
+  /** Search request generation; a stale query must not replace newer results. */
+  const findSequence = useRef(0);
   const editToken = useRef(0);
   const textSelectionRef = useRef(textSelection);
   textSelectionRef.current = textSelection;
@@ -473,6 +532,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const rasterActive = useRef(0);
   const runsFetched = useRef(new Set<number>());
   const runsInflight = useRef(new Set<number>());
+  const capabilitiesFetched = useRef(new Set<number>());
+  const runFailures = useRef(new Map<number, number>());
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pendingImageRef = useRef<{ pageIndex: number; x: number; y: number } | null>(null);
 
@@ -726,67 +787,86 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
   /* --------------------------------------------------------- text runs */
 
-  const ensureRuns = useCallback(async (indexes: number[]): Promise<void> => {
-    const file = fileRef.current;
-    const generation = docGeneration.current;
-    const wanted = indexes.filter(
-      (index) => !runsFetched.current.has(index) && !runsInflight.current.has(index),
-    );
-    if (!file || wanted.length === 0) return;
-    for (const index of wanted) runsInflight.current.add(index);
-    try {
-      for (let offset = 0; offset < wanted.length; offset += RUN_PAGE_CHUNK) {
-        const chunk = wanted.slice(offset, offset + RUN_PAGE_CHUNK);
-        const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
-        const result = await jobPool.run<TextRunsOutput>('text-runs', input, {
-          pageIndexes: chunk,
-          // One pdf.js pass produces both the legacy runs (click-to-replace
-          // fallback) and the structured layout the text overlay uses.
-          includeLayout: true,
-          // PDFium capability inspection runs alongside the layout so the
-          // editor can say "native", "OCR layer" or "scan/review" before a save.
-          includeCapabilities: true,
-        });
-        // Runs belong to the document they were read from; writing them into a
-        // newer one would let "click to replace" quote a different PDF.
-        if (generation !== docGeneration.current) return;
-        setRunsByPage((prev) => ({
-          ...prev,
-          ...Object.fromEntries(chunk.map((page, i) => [page, result.runs[i] ?? []])),
-        }));
-        if (result.layouts) {
-          setLayoutsByPage((prev) => {
-            const next = { ...prev };
-            chunk.forEach((page, i) => {
-              const layout = result.layouts?.[i];
-              if (layout) next[page] = layout;
-            });
-            return next;
+  const ensureRuns = useCallback(
+    async (indexes: number[], options: { capabilities?: boolean } = {}): Promise<void> => {
+      const file = fileRef.current;
+      const generation = docGeneration.current;
+      const wantCapabilities = options.capabilities ?? true;
+      const wanted = indexes.filter((index) => {
+        if (runsInflight.current.has(index)) return false;
+        if (!runsFetched.current.has(index)) return true;
+        return wantCapabilities && !capabilitiesFetched.current.has(index);
+      });
+      if (!file || wanted.length === 0) return;
+      for (const index of wanted) runsInflight.current.add(index);
+      try {
+        for (let offset = 0; offset < wanted.length; offset += RUN_PAGE_CHUNK) {
+          const chunk = wanted.slice(offset, offset + RUN_PAGE_CHUNK);
+          try {
+          // Capability inspection is PDFium work. Find & replace asks for
+          // layouts only, so a 40-page search does not pay for font and object
+          // inspection it will never read.
+          const includeCapabilities =
+            wantCapabilities && chunk.some((page) => !capabilitiesFetched.current.has(page));
+          const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
+          const result = await jobPool.run<TextRunsOutput>('text-runs', input, {
+            pageIndexes: chunk,
+            // One pdf.js pass produces both the legacy runs (click-to-replace
+            // fallback) and the structured layout the text overlay uses.
+            includeLayout: true,
+            includeCapabilities,
           });
-        }
-        if (result.capabilities) {
-          setCapabilitiesByPage((prev) => {
-            const next = { ...prev };
-            chunk.forEach((page, i) => {
-              const capability = result.capabilities?.[i];
-              if (capability) next[page] = capability;
+          // Runs belong to the document they were read from; writing them into a
+          // newer one would let "click to replace" quote a different PDF.
+          if (generation !== docGeneration.current) return;
+          setRunsByPage((prev) => ({
+            ...prev,
+            ...Object.fromEntries(chunk.map((page, i) => [page, result.runs[i] ?? []])),
+          }));
+          if (result.layouts) {
+            setLayoutsByPage((prev) => {
+              const next = { ...prev };
+              chunk.forEach((page, i) => {
+                const layout = result.layouts?.[i];
+                if (layout) next[page] = layout;
+              });
+              layoutsByPageRef.current = next;
+              return next;
             });
-            return next;
-          });
+          }
+          if (result.capabilities) {
+            setCapabilitiesByPage((prev) => {
+              const next = { ...prev };
+              chunk.forEach((page, i) => {
+                const capability = result.capabilities?.[i];
+                if (capability) next[page] = capability;
+              });
+              capabilitiesByPageRef.current = next;
+              return next;
+            });
+          }
+          for (const index of chunk) {
+            runsFetched.current.add(index);
+            runFailures.current.delete(index);
+            if (result.capabilities) capabilitiesFetched.current.add(index);
+          }
+          } catch {
+            // Only this chunk failed. The rest of the document must still load,
+            // and a failed page stays retryable until the small budget is spent.
+            if (generation !== docGeneration.current) return;
+            for (const index of chunk) {
+              const failures = (runFailures.current.get(index) ?? 0) + 1;
+              runFailures.current.set(index, failures);
+              if (failures >= 2) runsFetched.current.add(index);
+            }
+          }
         }
-        for (const index of chunk) runsFetched.current.add(index);
+      } finally {
+        for (const index of wanted) runsInflight.current.delete(index);
       }
-    } catch {
-      // Runs only power the "click text to replace it" affordance; the text
-      // tool still adds new boxes without them. Mark them settled either way so
-      // a persistent failure is not retried on every scroll.
-      if (generation === docGeneration.current) {
-        for (const index of wanted) runsFetched.current.add(index);
-      }
-    } finally {
-      for (const index of wanted) runsInflight.current.delete(index);
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Indirection so `ensureRaster` can stay referentially stable while still
   // calling the latest `ensureRuns`.
@@ -819,9 +899,14 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setSelectedTextBlock(null);
     setParagraphEdit(null);
     paragraphEditRef.current = null;
-    paragraphObjectIds.current.clear();
+    paragraphEditRef.current = null;
+    setLastOutcomes({});
+    setFocusedParagraph(null);
+    setParagraphDetailsOpen(false);
     runsFetched.current.clear();
     runsInflight.current.clear();
+    capabilitiesFetched.current.clear();
+    runFailures.current.clear();
     rasterRequested.current.clear();
     rasterPending.current.clear();
     rasterFailures.current.clear();
@@ -840,6 +925,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setInfo(null);
     fileRef.current = null;
     infoRef.current = null;
+    sourceBytesRef.current = null;
     setStage('idle');
     setSelectedId(null);
     setEditingId(null);
@@ -857,6 +943,20 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setAuditNoteError(null);
     setConfirmRedact(false);
     setSelectedPages(new Set());
+    setFindOpen(false);
+    setFindMatches([]);
+    setFindError(null);
+    setFindFailedPages([]);
+    if (draftTimer.current !== undefined) {
+      clearTimeout(draftTimer.current);
+      draftTimer.current = undefined;
+    }
+    void deleteDraft();
+    draftWriteSeq.current += 1;
+    draftDisabled.current = false;
+    setDraft(null);
+    setDraftError(null);
+    setDraftSavedAt(null);
     setAiMarkers([]);
     setAiChangedPages([]);
     setAiChangeCount(0);
@@ -893,7 +993,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     [],
   );
 
-  const handleFiles = async (incoming: File[]) => {
+  const handleFiles = async (incoming: File[], restore?: StoredDraft) => {
     if (incoming.length === 0) {
       resetAll();
       return;
@@ -907,6 +1007,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     // A second selection while the first is still inspecting must not have its
     // results overwritten by the slower of the two.
     const request = ++loadSequence.current;
+    if (!restore) {
+      // Choosing a different file discards the previous document's draft; the
+      // confirmed change-file sheet already told the user so.
+      draftWriteSeq.current += 1;
+      void deleteDraft();
+    }
     setStage('preparing');
     // The read can reject (a file that turned unreadable between the picker
     // and the read); left unguarded it stranded stage='preparing' and kept the
@@ -916,6 +1022,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       setStage('idle');
       return;
     }
+    // Keep one copy of the source for draft autosave. The worker transfer
+    // detaches `input` buffers, so this slice must happen before the run.
+    const draftBytes = restore ? new Uint8Array(restore.bytes) : input[0]!.data.slice();
     const outcome = await inspectRunner.run(input);
     if (request !== loadSequence.current) return; // superseded by a newer pick
     if (!outcome.ok) {
@@ -958,12 +1067,44 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setFiles(incoming);
     fileRef.current = file;
     infoRef.current = doc;
+    sourceBytesRef.current = draftBytes;
+    draftDisabled.current = false;
     setInfo(doc);
     setStage('editing');
     setSelectedId(null);
     setEditingId(null);
     setCurrentPage(0);
     pendingImageRef.current = null;
+    if (restore) {
+      // Hydrate the autosaved session on top of the freshly inspected source.
+      // `resetTo` installs the restored document as the baseline, so the first
+      // Ctrl+Z cannot erase the draft and leave an empty editor.
+      editor.resetTo(restore.doc);
+      const validOrder =
+        restore.pageOrder.length === doc.pageCount &&
+        restore.pageOrder.every((index) => index >= 0 && index < doc.pageCount);
+      if (validOrder) editor.setPageOrder(restore.pageOrder);
+      const page = Math.min(
+        Math.max(0, restore.currentPage),
+        Math.max(0, doc.pageCount - 1),
+      );
+      setCurrentPage(page);
+      zoomTouchedRef.current = true;
+      setZoom(clampZoom(restore.zoom));
+      setMode(restore.mode);
+      setTool(restore.tool);
+      setLastOutcomes({});
+      savedDocRef.current = null;
+      setDraft(restore);
+      setDraftSavedAt(restore.updatedAt);
+      setDraftError(null);
+      setDraftRestoring(false);
+    } else {
+      setDraft(null);
+      setDraftSavedAt(null);
+      setDraftError(null);
+      setDraftRestoring(false);
+    }
     // First batch up front; deeper pages load when they scroll into view.
     const eager = Math.min(WARM_RASTER_PAGES, doc.pageCount);
     for (let index = 0; index < eager; index += 1) void ensureRaster(index);
@@ -1255,11 +1396,43 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const patchObject = useCallback(
     (patch: Record<string, unknown>) => {
       if (!selectedId) return;
+      const source = editorDocRef.current.objects.find((object) => object.id === selectedId);
+      if (!source) return;
+      const next = { ...source, ...patch } as EditorObject;
+      let nextRecords: ParagraphEditRecord[] | null = null;
+      if (next.kind === 'text' && next.native?.paragraphId) {
+        const layout = layoutsByPageRef.current[next.pageIndex];
+        const paragraph = layout?.paragraphs.find(
+          (candidate) => candidate.id === next.native!.paragraphId,
+        );
+        if (layout && paragraph) {
+          // T-06 (UI half): the engine's native reflow keeps the document's own
+          // size, weight, colour and alignment. If the user asks for a different
+          // style, say so in the plan so the save can use the overlay path and
+          // the receipt can name it -- never silently ignore the control.
+          const diff = paragraphStyleDiff(paragraph, next);
+          const ratio = paragraphLineHeightRatio(paragraph, layout);
+          next.native = {
+            ...next.native,
+            styled: diff.any,
+            reflow: {
+              ...next.native.reflow,
+              lineHeight: Math.max(1, next.fontSize * ratio),
+            },
+          };
+          const key = paragraphEditKey(next.pageIndex, paragraph.id);
+          const records = editorDocRef.current.paragraphRecords ?? [];
+          nextRecords = records.map((record) =>
+            paragraphEditKey(record.pageIndex, record.paragraphId) === key
+              ? { ...record, plan: next.native!, styled: diff.any }
+              : record,
+          );
+        }
+      }
       editor.apply((doc) => ({
         ...doc,
-        objects: doc.objects.map((object) =>
-          object.id === selectedId ? ({ ...object, ...patch } as EditorObject) : object,
-        ),
+        ...(nextRecords ? { paragraphRecords: nextRecords } : {}),
+        objects: doc.objects.map((object) => (object.id === selectedId ? next : object)),
       }));
     },
     [selectedId, editor.apply],
@@ -1275,12 +1448,51 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
   const moveLive = useCallback(
     (id: string, x: number, y: number) => {
-      editor.live((doc) => ({
-        ...doc,
-        objects: doc.objects.map((object) => (object.id === id ? { ...object, x, y } : object)),
-      }));
+      const source = editorDocRef.current.objects.find((object) => object.id === id);
+      const box = pageBoxFor(source?.pageIndex ?? 0);
+      // Keep every gesture inside the page. A paragraph also carries a native
+      // reflow origin; moving the object without it would make the export snap
+      // back to where the glyphs were removed (T-02).
+      const clampedX = Math.max(0, Math.min(box.width - (source?.width ?? 0), x));
+      const clampedY = Math.max(0, Math.min(box.height - (source?.height ?? 0), y));
+      editor.live((doc) => {
+        // The delta is measured inside the updater, against the same snapshot
+        // that is being changed. Measuring it against a possibly stale ref made
+        // a held drag run away by adding the cumulative distance twice.
+        const target = doc.objects.find((object) => object.id === id);
+        const dx = clampedX - (target?.x ?? clampedX);
+        const dy = clampedY - (target?.y ?? clampedY);
+        const moved = doc.objects.map((object) => {
+          if (object.id !== id) return object;
+          if (object.kind === 'text' && object.native) {
+            return {
+              ...object,
+              x: clampedX,
+              y: clampedY,
+              native: offsetNativePlan(object.native, dx, dy),
+            };
+          }
+          return { ...object, x: clampedX, y: clampedY };
+        });
+        const key =
+          target?.kind === 'text' && target.native?.paragraphId
+            ? paragraphEditKey(target.pageIndex, target.native.paragraphId)
+            : null;
+        const paragraphRecords = key
+          ? (doc.paragraphRecords ?? []).map((record) =>
+              paragraphEditKey(record.pageIndex, record.paragraphId) === key
+                ? { ...record, plan: offsetNativePlan(record.plan, dx, dy) }
+                : record,
+            )
+          : doc.paragraphRecords;
+        return {
+          ...doc,
+          objects: moved,
+          ...(paragraphRecords ? { paragraphRecords } : {}),
+        };
+      });
     },
-    [editor.live],
+    [editor.live, pageBoxFor],
   );
 
   const resizeLive = useCallback(
@@ -1378,6 +1590,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     // ambiguous. Clicking empty page space also lands here with `null`.
     setTextSelection(null);
     setSelectedTextBlock(null);
+    setFocusedParagraph(null);
+    setParagraphDetailsOpen(false);
   }, []);
 
   /* ------------------------------------------------------ structured text */
@@ -1386,21 +1600,27 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
    * Applies paragraph mutations to a snapshot, replacing any objects a previous
    * edit of the same paragraph produced.
    *
-   * This is the single place text edits enter the overlay document. Commit,
-   * cut, paste and Delete all go through it, so they all become one undo step
-   * and a paragraph can be edited repeatedly without stacking whiteouts.
+   * `buildParagraphMutationObjects` is the pure half: draft autosave needs the
+   * same objects without touching the live editor's bookkeeping. `append` adds
+   * the ids/records only once the document is certain to receive them.
    */
-  const appendMutationObjects = useCallback(
-    (doc: EditorDoc, mutations: readonly ParagraphTextMutation[]): EditorDoc | null => {
+  const buildParagraphMutationObjects = useCallback(
+    (
+      doc: EditorDoc,
+      mutations: readonly ParagraphTextMutation[],
+    ): { doc: EditorDoc; built: ParagraphEditRecord[]; removed: Set<string> } | null => {
       const additions: EditorObject[] = [];
       const removed = new Set<string>();
-      const pendingIds: Array<[string, string[]]> = [];
+      const builtRecords: ParagraphEditRecord[] = [];
       for (const mutation of mutations) {
         const layout = layoutsByPageRef.current[mutation.pageIndex];
         const paragraph = layout?.paragraphs.find((item) => item.id === mutation.paragraphId);
         if (!layout || !paragraph) continue;
         const key = paragraphEditKey(mutation.pageIndex, mutation.paragraphId);
-        for (const id of paragraphObjectIds.current.get(key) ?? []) removed.add(id);
+        const existingRecord = (doc.paragraphRecords ?? []).find(
+          (record) => paragraphEditKey(record.pageIndex, record.paragraphId) === key,
+        );
+        for (const id of existingRecord?.objectIds ?? []) removed.add(id);
         const capability = capabilitiesByPageRef.current[mutation.pageIndex];
         let strategy:
           | 'native-object'
@@ -1432,15 +1652,57 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           ...(strategy ? { strategy } : {}),
           ...(fontKey ? { fontKey } : {}),
         });
+        // Re-editing a paragraph keeps the style the user already chose. The
+        // builder always starts from the extracted typography, which is correct
+        // for a first edit but would silently reset a styled replacement on the
+        // second one.
+        if (existingRecord && built.textObject) {
+          const previous = doc.objects.find(
+            (object) =>
+              object.kind === 'text' && existingRecord.objectIds.includes(object.id),
+          );
+          if (previous?.kind === 'text') {
+            built.textObject.fontSize = previous.fontSize;
+            built.textObject.bold = previous.bold;
+            built.textObject.italic = previous.italic;
+            built.textObject.fontFamily = previous.fontFamily;
+            built.textObject.color = previous.color;
+            built.textObject.align = previous.align;
+            if (previous.fontKey) built.textObject.fontKey = previous.fontKey;
+            if (built.textObject.native) {
+              const diff = paragraphStyleDiff(paragraph, built.textObject);
+              const ratio = paragraphLineHeightRatio(paragraph, layout);
+              built.textObject.native = {
+                ...built.textObject.native,
+                styled: diff.any,
+                reflow: {
+                  ...built.textObject.native.reflow,
+                  lineHeight: Math.max(1, built.textObject.fontSize * ratio),
+                },
+              };
+            }
+          }
+        }
         additions.push(...built.whiteouts);
         if (built.textObject) additions.push(built.textObject);
-        pendingIds.push([
-          key,
-          [
-            ...built.whiteouts.map((object) => object.id),
-            ...(built.textObject ? [built.textObject.id] : []),
-          ],
-        ]);
+        const plan =
+          built.textObject?.native ??
+          (built.whiteouts[0] as { native?: EditTextNativePlan } | undefined)?.native;
+        if (plan) {
+          builtRecords.push({
+            pageIndex: mutation.pageIndex,
+            paragraphId: paragraph.id,
+            before: paragraphDisplayText(paragraph),
+            after: mutation.text,
+            objectIds: [
+              ...built.whiteouts.map((object) => object.id),
+              ...(built.textObject ? [built.textObject.id] : []),
+            ],
+            plan,
+            styled: Boolean(plan.styled),
+            savedAt: Date.now(),
+          });
+        }
       }
       if (additions.length === 0 && removed.size === 0) return null;
       const remaining = doc.objects.filter((object) => !removed.has(object.id));
@@ -1450,13 +1712,44 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         );
         return null;
       }
-      // Only record the new objects once the document is certain to receive
-      // them; otherwise a rejected edit would make the next edit try to remove
-      // ids that were never added.
-      for (const [key, ids] of pendingIds) paragraphObjectIds.current.set(key, ids);
-      return { ...doc, objects: [...remaining, ...additions] };
+      const records = [
+        ...(doc.paragraphRecords ?? []).filter(
+          (record) =>
+            !builtRecords.some(
+              (next) =>
+                paragraphEditKey(next.pageIndex, next.paragraphId) ===
+                paragraphEditKey(record.pageIndex, record.paragraphId),
+            ),
+        ),
+        ...builtRecords,
+      ];
+      return {
+        doc: { ...doc, objects: [...remaining, ...additions], paragraphRecords: records },
+        built: builtRecords,
+        removed,
+      };
     },
     [],
+  );
+
+  const appendMutationObjects = useCallback(
+    (doc: EditorDoc, mutations: readonly ParagraphTextMutation[]): EditorDoc | null => {
+      const built = buildParagraphMutationObjects(doc, mutations);
+      if (!built) return null;
+      if (built.built.length > 0) {
+        // A changed paragraph no longer has the outcome the last export
+        // reported; the details drawer must not quote a stale result.
+        setLastOutcomes((previous) => {
+          const next = { ...previous };
+          for (const record of built.built) {
+            delete next[paragraphEditKey(record.pageIndex, record.paragraphId)];
+          }
+          return next;
+        });
+      }
+      return built.doc;
+    },
+    [buildParagraphMutationObjects],
   );
 
   const applyTextMutations = useCallback(
@@ -1466,6 +1759,73 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     },
     [appendMutationObjects, editor.apply],
   );
+
+  /**
+   * Writes the crash-safe draft. An in-flight paragraph edit is folded into the
+   * *draft snapshot* (not the live document), so a reload restores the exact
+   * typed sentence without closing the textarea while the user is still typing.
+   */
+  const saveDraftSnapshot = useCallback(async () => {
+    const file = fileRef.current;
+    const bytes = sourceBytesRef.current;
+    if (!file || !bytes || draftDisabled.current || savingRef.current) return;
+    if (
+      editorDocRef.current.objects.length === 0 &&
+      Object.keys(editorDocRef.current.formValues).length === 0 &&
+      (editorDocRef.current.paragraphRecords ?? []).length === 0 &&
+      !editor.pageOrderDirty
+    ) {
+      return;
+    }
+    const sequence = ++draftWriteSeq.current;
+    let snapshot = editorDocRef.current;
+    const active = paragraphEditRef.current;
+    if (active) {
+      const text = active.session.text;
+      if (text !== active.baseline) {
+        const built = buildParagraphMutationObjects(snapshot, [
+          { pageIndex: active.pageIndex, paragraphId: active.paragraph.id, text },
+        ]);
+        if (built) snapshot = built.doc;
+      }
+    }
+    const updatedAt = Date.now();
+    const record: StoredDraft = {
+      id: DRAFT_STORE_KEY,
+      schema: DRAFT_SCHEMA,
+      updatedAt,
+      signature: draftSignature(file),
+      name: file.name,
+      size: file.size,
+      lastModified: file.lastModified,
+      bytes,
+      doc: snapshot,
+      pageOrder: editor.pageOrder,
+      currentPage,
+      zoom,
+      mode,
+      tool,
+      orderDirty: editor.pageOrderDirty,
+    };
+    const result = await saveDraft(record);
+    if (sequence !== draftWriteSeq.current) return;
+    if (result.ok) {
+      setDraft(record);
+      setDraftSavedAt(result.updatedAt);
+      setDraftError(null);
+    } else {
+      if (result.reason === 'too-large') draftDisabled.current = true;
+      setDraftError(result.message);
+    }
+  }, [
+    buildParagraphMutationObjects,
+    currentPage,
+    editor.pageOrder,
+    editor.pageOrderDirty,
+    mode,
+    tool,
+    zoom,
+  ]);
 
   const commitParagraphEdit = useCallback(
     (text?: string, paragraphId?: string, token?: number) => {
@@ -1491,9 +1851,17 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           text: finalText,
         },
       ]);
-      // The paragraph is now represented by an object; let the object inspector
-      // take over instead of showing two overlapping selections.
-      setSelectedTextBlock(null);
+      // The paragraph is now represented by an object; keep its block selected
+      // so the detection-details drawer and Revert stay reachable instead of
+      // dropping the user into an unrelated empty inspector.
+      setFocusedParagraph({ pageIndex: active.pageIndex, paragraphId: active.paragraph.id });
+      const block = active.layout.blocks.find((candidate) =>
+        candidate.paragraphIds.includes(active.paragraph.id),
+      );
+      setSelectedTextBlock(
+        block ? { pageIndex: active.pageIndex, blockId: block.id } : null,
+      );
+      setParagraphDetailsOpen(false);
     },
     [applyTextMutations],
   );
@@ -1503,9 +1871,80 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     if (paragraphId !== undefined) {
       if (!active || active.paragraph.id !== paragraphId || active.token !== token) return;
     }
+    const discardedText = Boolean(active && active.session.text !== active.baseline);
     paragraphEditRef.current = null;
     setParagraphEdit(null);
+    if (!discardedText) return;
+    // The draft may already contain the text that was just cancelled. Replace
+    // it with the committed document (or drop it when there is nothing else to
+    // recover), so a reload cannot resurrect discarded typing.
+    const doc = editorDocRef.current;
+    const hasWork =
+      doc.objects.length > 0 ||
+      (doc.paragraphRecords ?? []).length > 0 ||
+      editor.pageOrderDirty;
+    if (hasWork) {
+      void saveDraftSnapshot();
+    } else {
+      draftWriteSeq.current += 1;
+      void deleteDraft();
+      setDraft(null);
+      setDraftSavedAt(null);
+      setDraftError(null);
+    }
+  }, [editor.pageOrderDirty, saveDraftSnapshot]);
+
+  /**
+   * Reverts one committed paragraph edit.
+   *
+   * The editor always saves from the original source bytes, so removing the
+   * replacement and its covers is a true revert -- there is no rewritten source
+   * to undo. The record lives in the document snapshot, which makes the whole
+   * operation one undo step and restores the record on redo.
+   */
+  const revertParagraph = useCallback(
+    (pageIndex: number, paragraphId: string): boolean => {
+      const key = paragraphEditKey(pageIndex, paragraphId);
+      const record = (editorDocRef.current.paragraphRecords ?? []).find(
+        (candidate) => paragraphEditKey(candidate.pageIndex, candidate.paragraphId) === key,
+      );
+      if (!record) return false;
+      const ids = new Set(record.objectIds);
+      editor.apply((doc) => ({
+        ...doc,
+        objects: doc.objects.filter((object) => !ids.has(object.id)),
+        paragraphRecords: (doc.paragraphRecords ?? []).filter(
+          (candidate) => paragraphEditKey(candidate.pageIndex, candidate.paragraphId) !== key,
+        ),
+      }));
+      const active = paragraphEditRef.current;
+      if (active?.key === key) cancelParagraphEdit();
+      setLastOutcomes((previous) => {
+        const next = { ...previous };
+        delete next[key];
+        return next;
+      });
+      setSelectedId(null);
+      setTextSelection(null);
+      setSelectedTextBlock(null);
+      setParagraphDetailsOpen(true);
+      toast.success('Paragraph reverted to the original text.', {
+        description: 'The replacement and its covers were removed in one step.',
+      });
+      return true;
+    },
+    [cancelParagraphEdit, editor.apply],
+  );
+
+  const focusParagraph = useCallback((pageIndex: number, paragraphId: string | null) => {
+    setFocusedParagraph(paragraphId ? { pageIndex, paragraphId } : null);
+    setParagraphDetailsOpen(false);
   }, []);
+
+  const revertFocusedParagraph = useCallback(() => {
+    if (!focusedParagraph) return;
+    revertParagraph(focusedParagraph.pageIndex, focusedParagraph.paragraphId);
+  }, [focusedParagraph, revertParagraph]);
 
   /**
    * Opens the inline editor for one extracted paragraph.
@@ -1568,6 +2007,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       });
       setTextSelection(null);
       setSelectedId(null);
+      setFocusedParagraph({ pageIndex, paragraphId });
+      setParagraphDetailsOpen(false);
     },
     [commitParagraphEdit],
   );
@@ -1594,6 +2035,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const selectTextBlock = useCallback((pageIndex: number, blockId: string | null) => {
     setSelectedTextBlock(blockId ? { pageIndex, blockId } : null);
     if (blockId) setSelectedId(null);
+    else {
+      setFocusedParagraph(null);
+      setParagraphDetailsOpen(false);
+    }
   }, []);
 
   /** Deletes the current non-edit selection, used by Delete/Backspace and Cut. */
@@ -1652,6 +2097,188 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       toast.error('Could not read the clipboard.');
     }
   }, [replaceTextSelection]);
+
+  /* ------------------------------------------------------- find & replace */
+
+  /**
+   * Layouts with already-committed paragraph text applied.
+   *
+   * The extracted model is the immutable original, so a search run after an
+   * edit would otherwise quote words that are no longer on the page. Only the
+   * paragraph text is substituted; span geometry stays the extracted geometry,
+   * which is what the overlay still uses for hit testing.
+   */
+  const searchLayouts = useCallback((): Map<number, PageLayout> => {
+    const map = new Map<number, PageLayout>();
+    for (const [index, layout] of Object.entries(layoutsByPageRef.current)) {
+      map.set(Number(index), layout);
+    }
+    const records = editorDocRef.current.paragraphRecords ?? [];
+    if (records.length === 0) return map;
+    const overrides = new Map<number, Map<string, string>>();
+    for (const record of records) {
+      const page = overrides.get(record.pageIndex) ?? new Map<string, string>();
+      page.set(record.paragraphId, record.after);
+      overrides.set(record.pageIndex, page);
+    }
+    for (const [pageIndex, pageOverrides] of overrides) {
+      const layout = map.get(pageIndex);
+      if (!layout) continue;
+      map.set(pageIndex, {
+        ...layout,
+        paragraphs: layout.paragraphs.map((paragraph) => {
+          const after = pageOverrides.get(paragraph.id);
+          if (after === undefined) return paragraph;
+          return { ...paragraph, text: after.slice(paragraphDisplayPrefix(paragraph)) };
+        }),
+      });
+    }
+    return map;
+  }, []);
+
+  const selectionForMatch = useCallback((match: SearchMatch): TextSelectionState | null => {
+    const layout = layoutsByPageRef.current[match.pageIndex];
+    if (!layout) return null;
+    const paragraph = layout.paragraphs.find((candidate) => candidate.id === match.paragraphId);
+    if (!paragraph) return null;
+    const model = new PageInteractionModel(layout);
+    const max = paragraph.text.length;
+    const start = Math.max(0, Math.min(max, match.start));
+    const end = Math.max(start, Math.min(max, match.end));
+    return selectionFromAnchors(
+      model,
+      match.pageIndex,
+      { paragraphId: paragraph.id, offset: start },
+      { paragraphId: paragraph.id, offset: end },
+    );
+  }, []);
+
+  const jumpToFindMatch = useCallback(
+    (index: number) => {
+      if (findMatches.length === 0) return;
+      const wrapped = ((index % findMatches.length) + findMatches.length) % findMatches.length;
+      const match = findMatches[wrapped]!;
+      setFindActive(wrapped);
+      setTool('select');
+      setSelectedId(null);
+      setSelectedTextBlock(null);
+      goToPage(match.pageIndex);
+      setTextSelection(selectionForMatch(match));
+    },
+    [findMatches, goToPage, selectionForMatch, setTool],
+  );
+
+  const closeFind = useCallback(() => {
+    findSequence.current += 1;
+    setFindOpen(false);
+    setFindMatches([]);
+    setFindSearching(false);
+    setFindError(null);
+    setTextSelection(null);
+  }, []);
+
+  const openFind = useCallback(() => {
+    setFindOpen(true);
+    setTool('select');
+    setSelectedId(null);
+    setSelectedTextBlock(null);
+  }, [setTool]);
+
+  const replaceAllMatches = useCallback(() => {
+    if (findMatches.length === 0) return;
+    const replacements = replaceMatches(findMatches, findReplacement);
+    const mutations: ParagraphTextMutation[] = [];
+    for (const replacement of replacements) {
+      const layout = layoutsByPageRef.current[replacement.pageIndex];
+      const paragraph = layout?.paragraphs.find(
+        (candidate) => candidate.id === replacement.paragraphId,
+      );
+      if (!paragraph) continue;
+      mutations.push({
+        pageIndex: replacement.pageIndex,
+        paragraphId: replacement.paragraphId,
+        text: displayTextForBody(paragraph, replacement.text),
+      });
+    }
+    if (mutations.length === 0) return;
+    const count = findMatches.length;
+    applyTextMutations(mutations);
+    setFindMatches([]);
+    setFindActive(0);
+    setTextSelection(null);
+    toast.success(`Replaced ${count} occurrence${count === 1 ? '' : 's'}.`, {
+      description: 'One undo step. The search list refreshes against the edited text.',
+    });
+  }, [applyTextMutations, findMatches, findReplacement]);
+
+  // Search runs over the layouts the overlay already owns; it never asks PDFium
+  // for capability data (a 40-page search would otherwise pay for font/object
+  // inspection it does not read). Pages that failed stay retryable and are
+  // reported instead of being silently skipped.
+  useEffect(() => {
+    if (!findOpen) return undefined;
+    const query = findQuery;
+    if (query.length === 0) {
+      findSequence.current += 1;
+      setFindMatches([]);
+      setFindActive(0);
+      setFindSearching(false);
+      setFindError(null);
+      setFindFailedPages([]);
+      return undefined;
+    }
+    const sequence = ++findSequence.current;
+    let cancelled = false;
+    setFindSearching(true);
+    setFindError(null);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const pageCount = infoRef.current?.pageCount ?? 0;
+          if (pageCount > 0) {
+            await ensureRuns(
+              Array.from({ length: pageCount }, (_, index) => index),
+              { capabilities: false },
+            );
+          }
+          if (cancelled || sequence !== findSequence.current) return;
+          const layouts = searchLayouts();
+          const failed = Array.from({ length: pageCount }, (_, index) => index).filter(
+            (index) => !layouts.has(index),
+          );
+          setFindFailedPages(failed);
+          const matches = findInLayouts(layouts, query, {
+            caseSensitive: findCase,
+            wholeWord: findWholeWord,
+          });
+          setFindMatches(matches);
+          setFindActive(0);
+          setTextSelection(matches[0] ? selectionForMatch(matches[0]) : null);
+        } catch (error) {
+          if (!cancelled && sequence === findSequence.current) {
+            setFindError(error instanceof Error ? error.message : 'Search failed.');
+            setFindMatches([]);
+          }
+        } finally {
+          if (!cancelled && sequence === findSequence.current) setFindSearching(false);
+        }
+      })();
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    findOpen,
+    findQuery,
+    findCase,
+    findWholeWord,
+    ensureRuns,
+    searchLayouts,
+    selectionForMatch,
+    editor.doc.paragraphRecords,
+    layoutsByPage,
+  ]);
 
   // Leaving the text tools retires any transient selection. An open paragraph
   // editor unmounts with the overlay, so commit it rather than losing the last
@@ -2339,6 +2966,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     // job applies them only if the in-place rewrite does not work.
     const edits: TextEdit[] = [];
     const linked = new Set<string>();
+    /** Edit id → paragraph, so a save outcome can reach the details drawer. */
+    const editParagraphs = new Map<string, { pageIndex: number; paragraphId: string }>();
     // Paragraph edits carry a native reflow plan. Prefer PDFium (original font,
     // created/removed lines); the whiteouts + preview text are only the fallback.
     for (const object of snapshot.objects) {
@@ -2354,7 +2983,17 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       const ys = plan.beforeLines.map((line) => line.box.y);
       const rights = plan.beforeLines.map((line) => line.box.x + line.box.width);
       const bottoms = plan.beforeLines.map((line) => line.box.y + line.box.height);
-      edits.push({
+      // The object and its native reflow origin move together (see `moveLive`);
+      // the `moved` flag is what tells the engine to reposition the rewritten
+      // text objects instead of keeping their original matrices. The original
+      // beforeLines anchors stay fixed, so they are the reliable comparison.
+      const moved =
+        xs.length > 0 &&
+        object.kind === 'text' &&
+        (Math.abs(object.x - Math.min(...xs)) > 0.25 ||
+          Math.abs(object.y - Math.min(...ys)) > 0.25);
+      const reflow = moved ? { ...plan.reflow, moved: true } : plan.reflow;
+      const base: TextEdit = {
         id: object.id,
         pageIndex: object.pageIndex,
         find: plan.before,
@@ -2369,15 +3008,32 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
               },
             }
           : {}),
-        layout: {
-          ...(plan.paragraphId ? { paragraphId: plan.paragraphId } : {}),
-          ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
-          beforeLines: plan.beforeLines,
-          reflow: plan.reflow,
-        },
-        ...(plan.strategy ? { strategy: plan.strategy } : {}),
         ...(fallback.length > 0 ? { fallback } : {}),
-      });
+      };
+      if (plan.styled) {
+        // T-06 UI half: the native reflow would keep the document's original
+        // style. Rather than silently ignoring the controls, request the overlay
+        // path explicitly; the request carries the styled text object, and the
+        // receipt says it was drawn as an overlay.
+        edits.push({ ...base, strategy: 'localized-reconstruction' });
+      } else {
+        edits.push({
+          ...base,
+          layout: {
+            ...(plan.paragraphId ? { paragraphId: plan.paragraphId } : {}),
+            ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
+            beforeLines: plan.beforeLines,
+            reflow,
+          },
+          ...(plan.strategy ? { strategy: plan.strategy } : {}),
+        });
+      }
+      if (plan.paragraphId) {
+        editParagraphs.set(object.id, {
+          pageIndex: object.pageIndex,
+          paragraphId: plan.paragraphId,
+        });
+      }
       linked.add(object.id);
       for (const cover of covers) linked.add(cover.id);
     }
@@ -2436,6 +3092,24 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     // one's edits are still unsaved.
     if (fileRef.current === file && infoRef.current !== null) {
       savedDocRef.current = snapshot;
+      // The saved artifact now contains these outcomes; the details drawer can
+      // say what actually happened instead of predicting it.
+      const mapped: Record<string, TextEditOutcome> = {};
+      for (const result of report.outcomes) {
+        const target = editParagraphs.get(result.id);
+        if (target) {
+          mapped[paragraphEditKey(target.pageIndex, target.paragraphId)] = result;
+        }
+      }
+      setLastOutcomes(mapped);
+      // The export is the durable copy now; a stale draft must not offer to
+      // resurrect superseded edits on the next visit. Bump the write sequence
+      // first so an autosave already in flight cannot recreate it afterwards.
+      draftWriteSeq.current += 1;
+      void deleteDraft();
+      setDraft(null);
+      setDraftError(null);
+      setDraftSavedAt(null);
     }
     if (isSign) {
       // D2: the audit sidecar is produced here, entirely on the device, and
@@ -2539,6 +3213,23 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         (target!.tagName === 'INPUT' || target!.tagName === 'TEXTAREA' || target!.isContentEditable);
       const mod = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
+
+      // Find belongs to the document, not the focused field: Ctrl/Cmd+F opens
+      // it even from the paragraph textarea (where the browser's own find would
+      // search the DOM textarea, not the PDF).
+      if (mod && key === 'f') {
+        event.preventDefault();
+        openFind();
+        return;
+      }
+
+      // Escape closes Find first; the panel stops propagation when it owns the
+      // key itself, so this is the canvas/editor path.
+      if (event.key === 'Escape' && findOpen) {
+        event.preventDefault();
+        closeFind();
+        return;
+      }
 
       // Text editing keeps its native undo. Document-level undo while typing is
       // not merely surprising: text edits are applied with live (no history
@@ -2712,6 +3403,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     cutSelectedObject,
     pasteObject,
     mode,
+    findOpen,
+    openFind,
+    closeFind,
   ]);
 
   /* --------------------------------------------- unsaved-changes guard */
@@ -2740,16 +3434,88 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     redactMarkCount: isRedact ? redactMarks.length : 0,
   });
 
+  // Offer the last draft at idle. The banner is the only place that can restore
+  // it, so it loads once on mount and never fights a document being opened.
+  useEffect(() => {
+    let alive = true;
+    void loadDraft().then((value) => {
+      if (!alive || !value) return;
+      setDraft(value);
+      setDraftSavedAt(value.updatedAt);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Debounced autosave. Only a document with changes is worth a draft: opening
+  // a PDF and closing it again should not leave an autosave behind.
+  useEffect(() => {
+    if (stage !== 'editing' || !info) return undefined;
+    if (!dirty && !pageOrderDirty) return undefined;
+    if (draftTimer.current !== undefined) {
+      clearTimeout(draftTimer.current);
+      draftTimer.current = undefined;
+    }
+    draftTimer.current = setTimeout(() => {
+      draftTimer.current = undefined;
+      void saveDraftSnapshot();
+    }, DRAFT_DEBOUNCE_MS);
+    return () => {
+      if (draftTimer.current !== undefined) {
+        clearTimeout(draftTimer.current);
+        draftTimer.current = undefined;
+      }
+    };
+  }, [
+    stage,
+    info,
+    editor.doc,
+    editor.pageOrder,
+    currentPage,
+    zoom,
+    tool,
+    mode,
+    dirty,
+    pageOrderDirty,
+    saveDraftSnapshot,
+  ]);
+
   /**
-   * In-app route changes must ask before discarding edits. The editor lives in a
-   * portal above the SPA, so a plain header/footer link would otherwise replace
-   * the route and unmount every object without a prompt. Capture-phase click
-   * interception covers those links; the explicit Change file / Start over /
-   * Back paths use the same confirmation sheet.
-   *
-   * This hook must stay above the result-panel early return: hooks cannot move
-   * behind a conditional render.
+   * Restores the autosaved session through the same inspect path a fresh file
+   * takes, then hydrates the overlay document on top. Keeping one path means a
+   * restored draft is validated against the bytes that are actually opened.
    */
+  const restoreDraft = useCallback(async () => {
+    if (!draft || draftRestoring) return;
+    setDraftRestoring(true);
+    setDraftError(null);
+    try {
+      const file = new File([draft.bytes.slice()], draft.name, {
+        type: 'application/pdf',
+        lastModified: draft.lastModified,
+      });
+      await handleFiles([file], draft);
+    } catch (error) {
+      setDraftError(
+        error instanceof Error
+          ? `The draft could not be restored: ${error.message}`
+          : 'The draft could not be restored.',
+      );
+      setStage('idle');
+    } finally {
+      setDraftRestoring(false);
+    }
+  }, [draft, draftRestoring]);
+
+  const discardDraft = useCallback(async () => {
+    await deleteDraft();
+    setDraft(null);
+    setDraftError(null);
+    setDraftSavedAt(null);
+  }, []);
+
+
   const leaveDirtyRef = useRef(false);
   leaveDirtyRef.current = dirty || aiChangeCount > 0;
   useEffect(() => {
@@ -2818,6 +3584,27 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     .join(' ')
     .slice(0, 220);
 
+  const focusedLayout = focusedParagraph
+    ? layoutsByPage[focusedParagraph.pageIndex] ?? null
+    : null;
+  const focusedParagraphModel = focusedParagraph
+    ? focusedLayout?.paragraphs.find(
+        (paragraph) => paragraph.id === focusedParagraph.paragraphId,
+      ) ?? null
+    : null;
+  const focusedParagraphKey = focusedParagraph
+    ? paragraphEditKey(focusedParagraph.pageIndex, focusedParagraph.paragraphId)
+    : null;
+  const focusedRecord =
+    focusedParagraphKey !== null
+      ? (editor.doc.paragraphRecords ?? []).find(
+          (record) =>
+            paragraphEditKey(record.pageIndex, record.paragraphId) === focusedParagraphKey,
+        ) ?? null
+      : null;
+  const focusedOutcome =
+    focusedParagraphKey !== null ? lastOutcomes[focusedParagraphKey] ?? null : null;
+
   // The phone sheet follows the selection instead of pinning itself to the
   // canvas. It also retires on a workspace change, so no stale panel survives
   // a mode switch.
@@ -2850,6 +3637,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       map.set(page.index, {
         onSeedReplace: (run: TextRun) => seedReplace(page.index, run),
         onTextBlockSelect: (blockId: string | null) => selectTextBlock(page.index, blockId),
+        onParagraphFocus: (paragraphId: string | null) => focusParagraph(page.index, paragraphId),
         onParagraphEdit: (
           paragraphId: string,
           selection: { start: number; end: number } | null,
@@ -2875,6 +3663,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     info,
     seedReplace,
     selectTextBlock,
+    focusParagraph,
     startParagraphEdit,
     changeTextSelection,
     onImageRequested,
@@ -3301,7 +4090,44 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                 }}
                 aiChangeCount={aiChangeCount}
                 onOpenAssistant={() => setTool('ai')}
+                onFind={openFind}
               />
+
+              <EditorFindPanel
+                open={findOpen}
+                query={findQuery}
+                replacement={findReplacement}
+                caseSensitive={findCase}
+                wholeWord={findWholeWord}
+                matches={findMatches}
+                activeIndex={findActive}
+                searching={findSearching}
+                pagesSearched={Object.keys(layoutsByPage).length}
+                pagesMissing={findFailedPages.length}
+                failedPages={findFailedPages}
+                totalPages={info.pageCount}
+                error={findError}
+                disabled={saving}
+                onQueryChange={setFindQuery}
+                onReplacementChange={setFindReplacement}
+                onToggleCase={() => setFindCase((value) => !value)}
+                onToggleWholeWord={() => setFindWholeWord((value) => !value)}
+                onNext={() => jumpToFindMatch(findActive + 1)}
+                onPrev={() => jumpToFindMatch(findActive - 1)}
+                onJump={jumpToFindMatch}
+                onReplaceAll={replaceAllMatches}
+                onClose={closeFind}
+              />
+
+              {draftError ? (
+                <p
+                  className="shrink-0 border-b border-amber-300/60 bg-amber-50 px-3 py-1.5 text-[11px] text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+                  role="alert"
+                  data-testid="editor-draft-error"
+                >
+                  Autosave: {draftError}
+                </p>
+              ) : null}
 
               <div
                 className="editor-workspace"
@@ -3389,6 +4215,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         onCreate={createObject}
                         onSeedReplace={binding.onSeedReplace}
                         onTextBlockSelect={binding.onTextBlockSelect}
+                        onParagraphFocus={binding.onParagraphFocus}
                         onParagraphEdit={binding.onParagraphEdit}
                         onTextSelectionChange={binding.onTextSelectionChange}
                         onParagraphTextInput={handleParagraphTextInput}
@@ -3703,6 +4530,28 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         docked
                       />
                     </AnimatedContent>
+                  ) : !assistantActive &&
+                    paragraphDetailsOpen &&
+                    focusedParagraphModel &&
+                    focusedParagraph &&
+                    focusedLayout ? (
+                    <EditorParagraphDetails
+                      paragraph={focusedParagraphModel}
+                      layout={focusedLayout}
+                      capability={capabilitiesByPage[focusedParagraph.pageIndex] ?? null}
+                      record={focusedRecord}
+                      outcome={focusedOutcome}
+                      disabled={saving}
+                      onBack={() => setParagraphDetailsOpen(false)}
+                      onEdit={() =>
+                        startParagraphEdit(
+                          focusedParagraph.pageIndex,
+                          focusedParagraph.paragraphId,
+                          null,
+                        )
+                      }
+                      onRevert={revertFocusedParagraph}
+                    />
                   ) : !assistantActive && selectedBlockModel ? (
                     <div
                       className="flex h-full flex-col gap-3 overflow-auto px-4 py-4"
@@ -3723,19 +4572,49 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                           {selectedBlockPreview}
                         </p>
                       )}
-                      <Button
-                        type="button"
-                        size="sm"
-                        data-testid="editor-edit-block-text"
-                        disabled={selectedBlockParagraphs.length === 0}
-                        onClick={() => {
-                          const first = selectedBlockParagraphs[0];
-                          if (!first || !selectedTextBlock) return;
-                          startParagraphEdit(selectedTextBlock.pageIndex, first.id, null);
-                        }}
-                      >
-                        Edit text
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          data-testid="editor-edit-block-text"
+                          disabled={selectedBlockParagraphs.length === 0}
+                          onClick={() => {
+                            const first = selectedBlockParagraphs[0];
+                            if (!first || !selectedTextBlock) return;
+                            startParagraphEdit(selectedTextBlock.pageIndex, first.id, null);
+                          }}
+                        >
+                          Edit text
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          data-testid="editor-paragraph-details-open"
+                          disabled={
+                            !focusedParagraph ||
+                            !selectedBlockModel.paragraphIds.includes(
+                              focusedParagraph.paragraphId,
+                            ) ||
+                            !focusedParagraphModel
+                          }
+                          onClick={() => setParagraphDetailsOpen(true)}
+                        >
+                          Detection details
+                        </Button>
+                        {focusedRecord ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            data-testid="editor-paragraph-revert"
+                            disabled={saving}
+                            onClick={revertFocusedParagraph}
+                          >
+                            Revert edit
+                          </Button>
+                        ) : null}
+                      </div>
                       <p className="text-[11px] leading-relaxed text-muted-foreground">
                         Double-click a paragraph to edit it. Drag across text to select and copy.
                       </p>
@@ -3843,6 +4722,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                           <li>
                             <kbd>Ctrl</kbd> <kbd>0</kbd> Fit width <kbd>+</kbd> <kbd>-</kbd> Zoom
                           </li>
+                          <li>
+                            <kbd>Ctrl</kbd> <kbd>F</kbd> Find and replace
+                          </li>
                         </ul>
                       </div>
 
@@ -3902,6 +4784,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             toolHint={toolHint}
             objectCount={objectCount}
           />
+          <span className="sr-only" data-testid="editor-draft-saved" aria-live="polite">
+            {draftSavedAt ? 'Draft saved' : ''}
+          </span>
 
           {confirmRedact ? (
             <div
@@ -4030,50 +4915,108 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   return (
     <>
       {stage !== 'editing' && (
-        mode === 'ai' ? (
-          <div className="studio editor-ai-cover-shell" data-testid="editor-ai-cover">
-            <div className="studio-cover-wrap">
-              <AiCover
-                title={AI_EDIT_COPY.title}
-                lead={AI_EDIT_COPY.lead}
-                quote={AI_EDIT_COPY.quote}
-                marginTitle={AI_EDIT_COPY.marginTitle}
-                marks={AI_EDIT_COPY.marks}
-                onFiles={(next) => void handleFiles(next)}
-                note={AI_EDIT_COPY.note}
-              />
-              {stage === 'idle' && !redactAiUsable ? (
-                <AiSetupSection
-                  settings={redactAiSettings}
-                  mode={effectiveRedactAiMode}
-                  managedAvailable={redactAiManaged}
-                  onSave={saveCoverAiSettings}
-                  onModeChange={changeCoverAiMode}
-                  {...(storedKeyPresent(redactAiSettings) ? { onForget: forgetCoverAiKey } : {})}
-                />
-              ) : null}
-            </div>
-            {stage === 'preparing' && inspectState.status === 'running' && (
-              <div className="mt-4">
-                <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
+        <div className="space-y-4">
+          {draft ? (
+            <div
+              className="rounded-lg border bg-card px-4 py-3 shadow-sm"
+              role="status"
+              data-testid="editor-draft-banner"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Unsaved draft found</p>
+                  <p className="truncate text-xs text-muted-foreground" data-testid="editor-draft-meta">
+                    {draft.name}
+                    {draftSavedAt ? ` · saved ${new Date(draftSavedAt).toLocaleString()}` : ''}
+                    {` · ${draft.doc.objects.length} edit${draft.doc.objects.length === 1 ? '' : 's'}`}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-testid="editor-draft-restore"
+                    disabled={draftRestoring}
+                    onClick={() => void restoreDraft()}
+                  >
+                    {draftRestoring ? 'Restoring…' : 'Restore draft'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-testid="editor-draft-discard"
+                    disabled={draftRestoring}
+                    onClick={() => void discardDraft()}
+                  >
+                    Discard
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <FileDropzone
-              files={files}
-              onFiles={(next) => void handleFiles(next)}
-              disabled={stage === 'preparing'}
-              hint={isSign ? 'one PDF to sign' : 'one PDF to edit'}
-              multiple={false}
-            />
+              {draftError ? (
+                <p
+                  className="mt-2 text-xs leading-relaxed text-destructive"
+                  role="alert"
+                  data-testid="editor-draft-error"
+                >
+                  {draftError}
+                </p>
+              ) : (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Drafts are stored on this device only and are cleared when you save.
+                </p>
+              )}
+              <span className="sr-only" aria-live="polite">
+                {draftRestoring ? 'Restoring the draft.' : ''}
+              </span>
+            </div>
+          ) : null}
 
-            {stage === 'preparing' && inspectState.status === 'running' && (
-              <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
-            )}
-          </div>
-        )
+          {mode === 'ai' ? (
+            <div className="studio editor-ai-cover-shell" data-testid="editor-ai-cover">
+              <div className="studio-cover-wrap">
+                <AiCover
+                  title={AI_EDIT_COPY.title}
+                  lead={AI_EDIT_COPY.lead}
+                  quote={AI_EDIT_COPY.quote}
+                  marginTitle={AI_EDIT_COPY.marginTitle}
+                  marks={AI_EDIT_COPY.marks}
+                  onFiles={(next) => void handleFiles(next)}
+                  note={AI_EDIT_COPY.note}
+                />
+                {stage === 'idle' && !redactAiUsable ? (
+                  <AiSetupSection
+                    settings={redactAiSettings}
+                    mode={effectiveRedactAiMode}
+                    managedAvailable={redactAiManaged}
+                    onSave={saveCoverAiSettings}
+                    onModeChange={changeCoverAiMode}
+                    {...(storedKeyPresent(redactAiSettings) ? { onForget: forgetCoverAiKey } : {})}
+                  />
+                ) : null}
+              </div>
+              {stage === 'preparing' && inspectState.status === 'running' && (
+                <div className="mt-4">
+                  <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <FileDropzone
+                files={files}
+                onFiles={(next) => void handleFiles(next)}
+                disabled={stage === 'preparing'}
+                hint={isSign ? 'one PDF to sign' : 'one PDF to edit'}
+                multiple={false}
+              />
+
+              {stage === 'preparing' && inspectState.status === 'running' && (
+                <JobProgressPanel progress={inspectState.progress} onCancel={inspectRunner.cancel} />
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {editorView ? createPortal(editorView, document.body) : null}

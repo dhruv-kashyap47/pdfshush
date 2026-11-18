@@ -51,6 +51,37 @@ export async function extractText(bytes) {
   return text;
 }
 
+/**
+ * Text items with their PDF user-space origin (x from the left, y from the
+ * bottom). Used to prove a moved paragraph really moved, not just that its
+ * characters survived somewhere on the page.
+ */
+export async function extractTextItems(bytes) {
+  const pdfjs = await import(
+    new URL('../../apps/web/node_modules/pdfjs-dist/legacy/build/pdf.mjs', import.meta.url).href
+  );
+  const task = pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: false });
+  const doc = await task.promise;
+  const items = [];
+  for (let index = 1; index <= doc.numPages; index += 1) {
+    const page = await doc.getPage(index);
+    const content = await page.getTextContent();
+    for (const item of content.items) {
+      if (!('str' in item) || !item.str || !item.transform) continue;
+      items.push({
+        page: index,
+        text: item.str,
+        x: item.transform[4],
+        y: item.transform[5],
+        width: item.width ?? 0,
+        height: item.height ?? 0,
+      });
+    }
+  }
+  await task.destroy();
+  return items;
+}
+
 /** Polls `fn` until it returns something truthy, or throws after `timeoutMs`. */
 export async function waitFor(fn, timeoutMs = 45_000, label = 'condition') {
   const start = Date.now();
