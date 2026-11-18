@@ -7,6 +7,7 @@ import { SiteFooter } from '@/components/layout/footer';
 import { SiteHeader } from '@/components/layout/header';
 import { UpdateBanner } from '@/components/layout/update-banner';
 import { AuthProvider } from '@/hooks/use-auth';
+import { useReveal } from '@/hooks/use-reveal';
 import { AccountPage } from '@/pages/account';
 import { HomePage } from '@/pages/home';
 import { NotFoundPage } from '@/pages/not-found';
@@ -78,10 +79,25 @@ function RouteScroll() {
   return null;
 }
 
+/**
+ * Arms the scroll-reveal observer for the current route. It lives at the shell
+ * (not inside one page) because [data-reveal] appears in the shared footer,
+ * which renders on every route — arming it only on the home page left the
+ * footer wordmark at opacity 0 everywhere else. The pathname is passed as the
+ * hook's rearm key, so the DOM query re-runs after each navigation and picks up
+ * any new page's [data-reveal] blocks, including ones inside lazy chunks.
+ */
+function RevealArmer() {
+  const { pathname } = useLocation();
+  useReveal(undefined, pathname);
+  return null;
+}
+
 function AppRoutes() {
   const { pathname } = useLocation();
   return (
     <ErrorBoundary key={pathname}>
+      <RevealArmer />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route

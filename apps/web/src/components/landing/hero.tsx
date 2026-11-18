@@ -159,9 +159,9 @@ export function HeroSection() {
     // never tucked underneath it on a phone.
     <section className="hero-section relative overflow-hidden bg-background pb-16 pt-[4.75rem] sm:pb-24 sm:pt-20">
       {/* Cinematic Greek plates — purely decorative, theme decides which paints.
-          The light plate is the brand's own `logo/greek light mode.png`, served
-          byte for byte from /hero/greek-light-mode.png. Both plates live in the
-          DOM so switching themes is a pure class swap. */}
+          The light plate descends from the brand's own `logo/greek light mode.png`
+          (the untouched original stays in the gitignored /logo/ directory). Both
+          plates live in the DOM so switching themes is a pure class swap. */}
       <div className="hero-backdrop" aria-hidden="true">
         {/* The plate is desktop-only. <source media> prevents phones and
             tablets from downloading a decorative image that the layout hides;

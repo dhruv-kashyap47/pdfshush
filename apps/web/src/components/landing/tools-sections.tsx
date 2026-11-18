@@ -125,16 +125,18 @@ export function AllToolsSection() {
           </div>
         </div>
 
-        {/* Category filter tabs */}
-        <div className="mb-8 flex flex-wrap gap-2" role="tablist">
+        {/* Category filter buttons. These filter one results area in place
+            rather than swapping panels, so they are toggle buttons
+            (aria-pressed) per the ARIA authoring practices — the previous
+            tablist/tab roles pointed at panels that do not exist. */}
+        <div className="mb-8 flex flex-wrap gap-2">
           {CATEGORY_TABS.map((tab) => {
             const isSelected = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
-                role="tab"
-                aria-selected={isSelected}
+                aria-pressed={isSelected}
                 onClick={() => setActiveTab(tab.id)}
                 className={`tool-tab rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
                   isSelected

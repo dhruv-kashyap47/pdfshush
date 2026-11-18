@@ -7,11 +7,10 @@ import { FeaturesSection } from '@/components/landing/features';
 import { HeroSection } from '@/components/landing/hero';
 import { AllToolsSection, PopularToolsSection } from '@/components/landing/tools-sections';
 import { SocialProofSection } from '@/features/social-proof/social-proof';
-import { useReveal } from '@/hooks/use-reveal';
 
 export function HomePage() {
-  // Arms the IntersectionObserver that reveals every [data-reveal] block below.
-  useReveal();
+  // Scroll-reveal arming lives at the shell (App.tsx RevealArmer), which covers
+  // this page's [data-reveal] blocks plus the shared footer on every route.
 
   const { hash } = useLocation();
   // React Router does not scroll to a URL fragment after a pushState, so the

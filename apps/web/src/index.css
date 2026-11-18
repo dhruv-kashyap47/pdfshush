@@ -33,19 +33,6 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 :root {
@@ -115,19 +102,6 @@
   --border: oklch(0.898 0.008 85);
   --input: oklch(0.885 0.009 85);
   --ring: oklch(0.495 0.118 162);
-  --chart-1: oklch(0.6 0.13 152);
-  --chart-2: oklch(0.6 0.1 184);
-  --chart-3: oklch(0.45 0.06 227);
-  --chart-4: oklch(0.8 0.14 84);
-  --chart-5: oklch(0.72 0.15 60);
-  --sidebar: oklch(0.974 0.005 88);
-  --sidebar-foreground: oklch(0.205 0.005 60);
-  --sidebar-primary: oklch(0.235 0.006 60);
-  --sidebar-primary-foreground: oklch(0.985 0.003 92);
-  --sidebar-accent: oklch(0.955 0.007 88);
-  --sidebar-accent-foreground: oklch(0.235 0.006 60);
-  --sidebar-border: oklch(0.905 0.008 85);
-  --sidebar-ring: oklch(0.495 0.118 162);
 }
 
 .dark {
@@ -152,19 +126,6 @@
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.7 0.17 152);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.11 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.97 0 0);
-  --sidebar-accent: oklch(0.18 0 0);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.556 0 0);
   /* Dark counterparts of the light hero tokens. These mirror the values the
      dark-only rules already paint, so shared rules can consume one name in
      both themes without changing the approved dark reference. */
@@ -213,12 +174,7 @@
   /* Porcelain: the translucent ivory used by the nav bar, the hero console
      and the tiles that float over the Greek plate. */
   --porcelain: oklch(0.995 0.003 92);
-  --porcelain-glass: oklch(0.995 0.003 92 / 0.72);
-  --porcelain-glass-strong: oklch(0.995 0.003 92 / 0.9);
-  --porcelain-sunk: oklch(0.955 0.007 88 / 0.62);
-  /* A hairline that reads against a photograph is white; against ivory it is
-     warm sand. Two hairlines, because one cannot do both jobs. */
-  --hairline-glass: oklch(1 0 0 / 52%);
+  /* A hairline that reads against ivory is warm sand. */
   --hairline-sand: oklch(0.866 0.01 85 / 0.9);
   /* Shadows are warm, never neutral grey. Nothing rests with a shadow on it:
      these are for surfaces that genuinely float (menus, dialogs, the console). */
@@ -540,12 +496,12 @@
 }
 /* Catalog filter: the selected tab is a raised chip of warm sand, not a
    block of near-black. */
-:root:not(.dark) .tool-tab[aria-selected='true'] {
+:root:not(.dark) .tool-tab[aria-pressed='true'] {
   background-color: oklch(0.945 0.009 88);
   color: var(--foreground);
   box-shadow: inset 0 0 0 1px oklch(0.858 0.01 85 / 0.9);
 }
-:root:not(.dark) .tool-tab:not([aria-selected='true']):hover {
+:root:not(.dark) .tool-tab:not([aria-pressed='true']):hover {
   background-color: oklch(0.955 0.007 88 / 0.75);
   color: var(--foreground);
 }
@@ -648,25 +604,6 @@
 @media (-webkit-min-device-pixel-ratio: 1.5), (min-resolution: 144dpi) {
   body {
     -webkit-font-smoothing: subpixel-antialiased;
-  }
-}
-
-/* Fix for sidebar "none" mode height issue */
-.sidebar-none-mode [data-slot="sidebar"] {
-  height: 100vh !important;
-  min-height: 100vh !important;
-}
-
-/* Fix for right-side inset variant support */
-@media (min-width: 768px) {
-  /* Right sidebar inset variant - margin adjustments */
-  [data-side="right"][data-variant="inset"] ~ [data-slot="sidebar-inset"] {
-    margin-right: 0 !important;
-  }
-
-  /* Right sidebar inset variant - collapsed state margin */
-  [data-side="right"][data-variant="inset"][data-state="collapsed"] ~ [data-slot="sidebar-inset"] {
-    margin-right: 0.5rem !important;
   }
 }
 
@@ -1048,75 +985,6 @@ html {
   }
 }
 
-/* ── 2c. Document preview: real paper in both themes ────────────────────── */
-/* Application chrome stays dark; the simulated page is paper, exactly like a
-   desktop PDF viewer renders it. */
-.doc-page {
-  --doc-paper: oklch(0.998 0.003 95);
-  --doc-paper-edge: oklch(0.958 0.006 92);
-  --doc-ink: oklch(0.25 0.012 265);
-  --doc-ink-soft: oklch(0.46 0.012 265);
-  --doc-rule: oklch(0.25 0.012 265 / 12%);
-  --doc-mark: oklch(0.5 0.15 152);
-  --doc-mark-wash: oklch(0.62 0.17 152 / 11%);
-  position: relative;
-  overflow: hidden; /* clips the scan-line sweep and the rotated stamp */
-  color: var(--doc-ink);
-  background-image: linear-gradient(180deg, var(--doc-paper) 0%, var(--doc-paper-edge) 100%);
-  box-shadow:
-    0 24px 48px -32px oklch(0 0 0 / 38%),
-    0 2px 6px -4px oklch(0 0 0 / 20%);
-}
-.dark .doc-page {
-  --doc-paper: oklch(0.915 0.005 95);
-  --doc-paper-edge: oklch(0.878 0.007 92);
-  --doc-ink: oklch(0.21 0.012 265);
-  --doc-ink-soft: oklch(0.42 0.012 265);
-  --doc-rule: oklch(0.21 0.012 265 / 14%);
-  --doc-mark: oklch(0.44 0.14 152);
-  --doc-mark-wash: oklch(0.55 0.16 152 / 15%);
-  box-shadow:
-    0 28px 60px -34px oklch(0 0 0 / 85%),
-    0 2px 8px -6px oklch(0 0 0 / 55%);
-}
-.doc-body {
-  font-family: var(--font-doc);
-  font-kerning: normal;
-  color: var(--doc-ink);
-  text-wrap: pretty;
-}
-.doc-ruled {
-  border-top: 1px solid var(--doc-rule);
-}
-.doc-ink-soft {
-  color: var(--doc-ink-soft);
-}
-/* Numbered clauses hang their numeral in the margin, like a printed contract. */
-.doc-clause {
-  padding-left: 1.5rem;
-  text-indent: -1.5rem;
-}
-.doc-clause-title {
-  font-weight: 600;
-}
-/* Active text run: the editor highlight sits exactly on the document's text
-   edge and carries a crisp marker for the verified coordinates. */
-.doc-highlight {
-  border-left: 2px solid var(--doc-mark);
-  background-color: var(--doc-mark-wash);
-  padding: 0.5rem 0.75rem 0.6rem calc(1.5rem - 2px);
-}
-.doc-highlight-tag {
-  color: var(--doc-mark);
-}
-.doc-verify {
-  border-top: 1px solid var(--doc-rule);
-  color: var(--doc-ink-soft);
-}
-.doc-verify-icon {
-  color: var(--doc-mark);
-}
-
 /* The editing surface deliberately escapes the marketing-oriented tool frame.
    It is portalled to <body> while a document is open, below the persistent site
    header, and manages its own viewport-sized application layout. */
@@ -1242,120 +1110,6 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   }
 }
 
-/* ── 2c-c. Interactive demo primitives (anime.js drives all motion) ─────── */
-
-/* Flash overlay inside the active target run: cited-answer → document link.
-   anime controls its opacity; the base is invisible. */
-.doc-flash {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-color: var(--doc-mark);
-  opacity: 0;
-}
-
-/* Tracked-change primitives for the natural-language edit demo. The dashed
-   underline flags the planned run before anything is applied. */
-.doc-proposed {
-  border-bottom: 1.5px dashed var(--doc-mark);
-  padding-bottom: 1px;
-}
-/* The applied delta: what the model inserted, read like a tracked change. */
-.applied-delta {
-  display: inline-block;
-  font-weight: 600;
-  background-color: var(--doc-mark-wash);
-  padding: 0 2px;
-  border-radius: 2px;
-  color: var(--doc-mark);
-}
-/* Marker wash for "highlight" edits, like a real highlighter pen. */
-.applied-mark {
-  display: inline-block;
-  background-color: oklch(0.83 0.17 92 / 42%);
-  padding: 0 2px;
-  border-radius: 2px;
-  color: var(--doc-ink);
-}
-/* Strike line drawn over the replaced phrase (scaleX animated by anime). */
-.strike-line {
-  position: absolute;
-  left: -1px;
-  right: -1px;
-  top: 52%;
-  height: 1.5px;
-  background-color: currentColor;
-  opacity: 0.7;
-  transform: scaleX(0);
-  transform-origin: left center;
-}
-
-/* Burned redaction box: covers the original value (scaleX animated by anime,
-   left origin), so a "peek" can reveal what got destroyed underneath. */
-.redact-box {
-  position: absolute;
-  inset: -1px -3px;
-  border-radius: 2px;
-  background-color: oklch(0.16 0 0);
-  transform: scaleX(0);
-  transform-origin: left center;
-}
-.dark .redact-box {
-  background-color: oklch(0.09 0 0);
-}
-
-/* PII scan line: one pass over the paper while the engine "reads". */
-.scan-line {
-  position: absolute;
-  left: -6%;
-  right: -6%;
-  height: 2.75rem;
-  pointer-events: none;
-  opacity: 0;
-  background: linear-gradient(
-    to bottom,
-    oklch(0 0 0 / 0%),
-    oklch(0.577 0.245 27 / 12%) 44%,
-    oklch(0.577 0.245 27 / 20%) 56%,
-    oklch(0 0 0 / 0%)
-  );
-}
-
-/* Header stamp, slammed in by the "insert stamp" edit. Red ink on paper —
-   the paper is light in both themes, so one red works everywhere. */
-.stamp-chip {
-  display: inline-block;
-  color: oklch(0.577 0.2 27);
-  border: 1.5px solid currentColor;
-  border-radius: 3px;
-  padding: 2px 8px;
-  font-family: var(--font-doc);
-  font-size: 9.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  line-height: 1.4;
-  opacity: 0.85;
-}
-
-/* Assistant "thinking" dots. The only ambient loop the demo owns — the global
-   reduced-motion fallback nullifies it (dots settle at base opacity). */
-@keyframes thinkingDot {
-  0%, 72%, 100% { opacity: 0.3; transform: translateY(0); }
-  36% { opacity: 1; transform: translateY(-2px); }
-}
-.thinking-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 9999px;
-  background-color: currentColor;
-  opacity: 0.3;
-  animation: thinkingDot 1.15s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-.thinking-dot:nth-child(2) { animation-delay: 140ms; }
-.thinking-dot:nth-child(3) { animation-delay: 280ms; }
-
-
 /* ── 2c-b. Document band: the photograph settles once on entry. One gentle,
       one-time move (no loop) — the "moving picture" for the page. The take is
       armed only when the band first scrolls into view: fired at page load it
@@ -1376,38 +1130,24 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   mix-blend-mode: multiply;
 }
 
-/* ── 2d. Feature-tab swap: preview + assistant panel travel in together ──── */
-@keyframes showcaseSwap {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
+/* ── MCP showcase button: terminal cursor blink ──────────────────────────────
+   A CSS loop, not an anime loop — the motion contract keeps ambient loops out
+   of JS. Under reduced motion the global fallback above runs the animation
+   once at ~0ms and the cursor stays at its 100% keyframe: fully visible. */
+@keyframes mcpCursorBlink {
+  0%,
+  100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: scaleX(1);
+  }
+  50% {
+    opacity: 0.18;
+    transform: scaleX(0.55);
   }
 }
-.showcase-swap {
-  animation: showcaseSwap 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* ── 3. Card hover lift (supplements existing Tailwind hover) ───────────── */
-.card-lift {
-  transition:
-    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
-}
-.card-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px oklch(0 0 0 / 8%);
-}
-.dark .card-lift:hover {
-  box-shadow: 0 8px 32px oklch(0 0 0 / 55%);
-}
-/* Light mode lifts with a warm shadow, not a neutral one. */
-:root:not(.dark) .card-lift:hover {
-  box-shadow: 0 2px 4px oklch(0.42 0.025 70 / 0.05), 0 16px 32px -22px oklch(0.34 0.025 70 / 0.42);
+.mcp-cursor {
+  /* 1040ms mirrors the previous anime blink: 520ms each way, alternate. */
+  animation: mcpCursorBlink 1040ms cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1470,8 +1210,7 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
   .hero-backdrop,
   .hero-backdrop-image,
   .hero-backdrop-wash,
-  .hero-backdrop-scrim,
-  .hero-copy::before {
+  .hero-backdrop-scrim {
     display: none !important;
   }
   .hero-copy-field,
@@ -1589,8 +1328,7 @@ body.editor-app-active [data-sonner-toaster][data-y-position='bottom'] {
    strip that weakens both the picture and the copy, so the page becomes an
    editorial surface with the same components. */
 @media (min-width: 768px) and (max-width: 1023px) {
-  .hero-backdrop,
-  .hero-copy::before {
+  .hero-backdrop {
     display: none !important;
   }
   .hero-section {
