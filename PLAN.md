@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-11-13
+**Last updated:** 2026-11-18
 
 ---
 
@@ -724,6 +724,53 @@ never actually wired, and a stream with no error listener.*
 ---
 
 ## 8. Changelog
+
+- **2026-11-18 - Dark is the only theme; the hero gets its soft-focus grade, testimonials get gold stars, and the agent button learns to answer the cursor.**
+
+  **The light theme is gone, end to end.** `<html>` now carries `class="dark"` statically in
+  `index.html`, the dark reference is the one `:root` token set, and the whole light surface was
+  deleted rather than hidden: `ThemeProvider`, the mode toggle, the theme context and the two
+  hooks, the `pdfshush-theme` storage key and the pre-paint theme script. `index.css` lost its
+  porcelain-and-emerald section and every `:root:not(.dark)` rule; `studio.css` and
+  `editor-shared.css` promoted their dark token blocks into `:root` and dropped the light twins.
+  The day hero plate and the light band plate (stem-4) are deleted with their assets; the
+  `prefers-color-scheme` first-frame rules, the light PWA manifest colours, the light prerender
+  pre-shell and the light OG cards are all dark now (59 cards regenerated). Because the surviving
+  rules consume the exact values the `.dark` block already painted, dark mode is pixel-identical
+  to the reference, and every `dark:` utility still resolves because the class sits on `<html>`.
+  A stale `pdfshush-theme: light` value in a visitor's storage is inert: nothing reads the key.
+  The layout sweep now runs one dark pass instead of seeding a theme per context.
+
+  **The Greek plate is graded soft-focus.** The night harbour sits behind the type as ambient
+  moonlight: `blur(6px)` on desktop (4px base), with the desktop brightness/contrast grade
+  untouched. `blur()` samples past the element edge, so the plate is oversized to `-16px` (2.5x
+  the radius) to keep the frame boundary clean, and carries `data-bleed` so the layout sweep knows
+  the overshoot is clipped by the section and is not page overflow.
+
+  **Testimonials carry golden star ratings.** Each entry has an optional whole-star rating; the
+  card renders one five-star row above the quote, gold (`oklch(0.83 0.155 86)`) with one whisper
+  of glow, and empty stars outlined so a 4 reads at a glance. The row is a single image to
+  assistive tech ("N out of 5 stars") with every glyph `aria-hidden`; ratings outside 0-5 clamp.
+  Sample data is 5,5,5,4,5,5 and the data file still says to replace it with real feedback before
+  launch. The old "no ratings" assertion became star tests (label, clamp, unrated cards).
+
+  **The "Wire up an agent" button answers the cursor.** A soft emerald sheen crosses its face once
+  per hover or focus, it lifts 1px with an accent border, the terminal icon pops with a slight
+  turn, and a press scales it to 0.985. Transform/opacity only, no shadow (invisible on black),
+  with a local reduced-motion block pinning the lift, press, sheen and icon; the blinking cursor
+  and the label carry the affordance unchanged.
+
+  **Verified, not claimed.** `pnpm -r typecheck` green; unit suites: web 217, api 243, mcp 19,
+  ai-agent 152, ai-provider 375, pdf-core 563 (+1 expected fail); production build with 63
+  prerendered routes (55 in the sitemap) and a real `sw.js` build id (the `__BUILD_ID__`
+  placeholder is replaced); bundle boundary ok; and against the built preview the reach,
+  accessibility, keyboard and offline/privacy E2E suites all pass, with the layout sweep clean
+  across 6 breakpoints x 6 routes. Computed-style probes on the built site confirmed the 6px hero
+  filter, 29 gold stars across six rows, and the hovered button's `translateY(-1px)` with the
+  sheen at its end state. The performance gate passes in its CI mode (tool-ready p95 603 ms
+  against the 1500 ms public spec); the local ratified mode lands 8 ms over its 583 ms ceiling on
+  this machine, and its per-route rows show the three AI tool pages set the tail (603-610 ms)
+  while the changed home route measures 274 ms.
 
 - **2026-11-13 - The frontend ships on Cloudflare Pages. The server tier is parked, on purpose.**
 
