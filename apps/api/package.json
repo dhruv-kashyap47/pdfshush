@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@cantoo/fontkit": "^2.0.12",
     "@cantoo/pdf-lib": "^2.11.1",
     "@pdfshush/ai-agent": "workspace:*",
     "@pdfshush/ai-provider": "workspace:*",

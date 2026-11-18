@@ -47,7 +47,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
-| **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 295 |
+| **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 301 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -88,12 +88,13 @@ were not re-run**, so those checks stay unclaimed (§31.21), and `tests/e2e/sign
 checkout of `main`, so it is a pre-existing defect and not a claim of green here (§33.11).
 **2026-11-18 rea-uplift Sprint 3:** text UX/search/recovery landed on `rea-uplift` (T-01,
 T-02, T-03, T-05, S-01..S-04 complete; T-06 UI half). Fresh gates: typecheck all packages,
-pdf-core **601 pass + 1 expected fail**, web **295**, api 243, mcp 19, ai-agent 152,
-ai-provider 375; build + bundle boundary (main 153.3 kB, 0 engines) and provenance clean;
+pdf-core **601 pass + 1 expected fail**, web **301**, api 243, mcp 19, ai-agent 152,
+ai-provider 375; build + bundle boundary (main 150.4 kB, 0 engines) and provenance clean;
 new `test:e2e:text-ux` **44/44**, with `text-model`, `text-edit`, `editor-quick-parity`,
 `signature-upload`, `sign`, `keyboard`, `a11y` and `editor-cancel-save` green. 40-page find
 measured 735–966 ms on the dev stack. This is the branch evidence, not a re-run of the
-containerised gates.
+containerised gates. `rea-uplift` was then synced with `origin/main` (`30fde40`, the
+dark-only frontend) in merge `4390264`; `pnpm test:merge-clean` reports no conflicts.
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`

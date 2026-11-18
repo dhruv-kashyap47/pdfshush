@@ -562,11 +562,11 @@ async function main() {
   check('text box height matches its content', textBoxHeight > 15, `${textBoxHeight}px`);
 
   // Fit-width opening zoom, and relative zoom stepping from there.
-  const fitZoom = await page.getByTestId('editor-zoom-level').textContent();
+  const fitZoom = await page.getByTestId('editor-zoom-level').inputValue();
   await page.getByTestId('editor-zoom-out').click();
   const zoomedOut = await waitFor(
     async () => {
-      const level = await page.getByTestId('editor-zoom-level').textContent();
+      const level = await page.getByTestId('editor-zoom-level').inputValue();
       return level !== fitZoom ? level : null;
     },
     5_000,
