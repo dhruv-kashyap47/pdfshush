@@ -842,6 +842,20 @@ export function applyNativeTextEdits(
   }
 }
 
+/** C-13: no edit may vanish between the request and the outcome list. */
+function assertOutcomeCoverage(edits: readonly TextEdit[], outcomes: readonly TextEditOutcome[]): void {
+  const covered = new Set(outcomes.map((outcome) => outcome.id));
+  const missing = edits.filter((edit) => !covered.has(edit.id));
+  if (missing.length > 0) {
+    throw new TextEditUnsafeError(
+      missing.map((edit) => ({
+        kind: 'unresolvable' as const,
+        detail: `edit "${edit.id}" produced no outcome; refusing to export an edit that was silently dropped`,
+      })),
+    );
+  }
+}
+
 /** Validates every edit before any WASM work, so a bad request costs nothing. */
 function assertEditsValid(edits: TextEdit[]): void {
   const reasons: TextEditUnsafeReason[] = [];
@@ -859,6 +873,31 @@ function assertEditsValid(edits: TextEdit[]): void {
     seen.add(edit.id);
     if (edit.find.length === 0) {
       reasons.push({ kind: 'invalid-edit', detail: `edit "${edit.id}" has an empty find string` });
+    }
+    if (!Number.isInteger(edit.pageIndex) || edit.pageIndex < 0) {
+      reasons.push({
+        kind: 'invalid-edit',
+        detail: `edit "${edit.id}" targets page index ${edit.pageIndex}, which is not a non-negative integer`,
+      });
+    }
+    if (edit.box) {
+      const { x, y, width, height } = edit.box;
+      if (
+        ![x, y, width, height].every((value) => Number.isFinite(value)) ||
+        width <= 0 ||
+        height <= 0
+      ) {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `edit "${edit.id}" has an invalid box (${x}, ${y}, ${width}x${height})`,
+        });
+      }
+    }
+    if (edit.layout && edit.layout.beforeLines.length === 0) {
+      reasons.push({
+        kind: 'invalid-edit',
+        detail: `layout edit "${edit.id}" has no original lines to anchor against`,
+      });
     }
     if (
       edit.find.length > LIMITS.tool.maxTextEditChars ||
@@ -900,6 +939,17 @@ export async function editPdfText(
   }
   assertEditsValid(edits);
 
+  // C-13: every edit must carry enough geometry to be grounded, or say so. A
+  // text-only match is still attempted; the warning is what stops a silently
+  // dropped edit from looking like success.
+  for (const edit of edits) {
+    if (!edit.box && !edit.layout) {
+      warnings.push(
+        `edit-coverage: edit "${edit.id}" has no geometry; matching relies on its text alone`,
+      );
+    }
+  }
+
   const overlayObjects = options.objects ?? [];
 
   // Nothing to rewrite natively: skip PDFium entirely and go straight to the
@@ -939,6 +989,7 @@ export async function editPdfText(
 
   // Stage 2: reopen the serialized native bytes and look for each replacement.
   const outcomes: TextEditOutcome[] = native.outcomes.map((outcome) => ({ ...outcome }));
+  assertOutcomeCoverage(edits, outcomes);
   // Carrying `find` makes verification also confirm the original text was consumed,
   // not just that the replacement is present. A native write can be reported as a
   // success while leaving the original run intact (e.g. the replacement string
@@ -1018,8 +1069,7 @@ export async function editPdfText(
       outcome.mode === 'fallback' &&
       Boolean(edit) &&
       !edit!.layout &&
-      (edit!.strategy === undefined || edit!.strategy === 'content-stream') &&
-      edit!.replace.length > 0
+      (edit!.strategy === undefined || edit!.strategy === 'content-stream')
     );
   });
   if (contentCandidates.length > 0 && strategy === 'auto') {
@@ -1038,20 +1088,61 @@ export async function editPdfText(
           .filter((outcome) => outcome.mode === 'content-stream')
           .map((outcome) => [outcome.id, outcome] as const),
       );
+      let accepted = false;
       if (applied.size > 0) {
+        // C-12: a stream rewrite is only accepted after its own reopening check.
+        // A mismatch discards the rewrite and leaves those edits for the overlay,
+        // with a warning, instead of exporting a rewrite verification rejected.
+        const appliedEdits = edits.filter((edit) => applied.has(edit.id));
+        const streamCheck = await verifyTextEdits(stream.bytes, {
+          expectedPageCount: native.pageCount,
+          expectations: appliedEdits.map((edit) => ({
+            label: edit.id,
+            pageIndex: edit.pageIndex,
+            expect: edit.replace,
+            find: edit.find,
+          })),
+          original: workingBytes,
+          ...(password ? { password } : {}),
+        });
+        const failed = streamCheck.checks.filter(
+          (check) =>
+            !check.ok &&
+            (check.name.startsWith('replacement-present:') ||
+              check.name.startsWith('residual-original:')),
+        );
+        if (failed.length > 0) {
+          warnings.push(
+            `content-stream rewrite was discarded after verification: ${failed
+              .map((check) => check.detail)
+              .join('; ')}`,
+          );
+        } else {
+          accepted = true;
+        }
+      }
+      if (accepted) {
         workingBytes = stream.bytes;
         for (const outcome of outcomes) {
           const replacement = applied.get(outcome.id);
           if (!replacement) continue;
           outcome.mode = 'content-stream';
           outcome.fidelity = 'high';
+          if (replacement.box) outcome.box = replacement.box;
           delete outcome.reason;
         }
         warnings.push(
           `${applied.size} of ${edits.length} edits were written through the page content stream because no native text object could be rewritten.`,
         );
       } else {
-        warnings.push('content-stream fallback found no safely anchored show operator');
+        if (applied.size === 0) {
+          warnings.push('content-stream fallback found no safely anchored show operator');
+        } else {
+          warnings.push('content-stream fallback was not used because its rewrite did not survive verification');
+        }
+      }
+      if (!stream.complete) {
+        for (const limitation of stream.limitations) warnings.push(limitation);
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

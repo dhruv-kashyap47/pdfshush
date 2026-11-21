@@ -16,6 +16,8 @@ import { renderPageToCanvas } from '../render/renderPage.js';
 import { loadPdfForRender } from '../render/pdfjsRuntime.js';
 import type { CanvasFactory } from '../render/canvas.js';
 import { verifyTextEdits, type TextEditExpectation } from './verify.js';
+import { extractTextRuns } from '../render/textRuns.js';
+import { normalizeForMatch } from './text.js';
 import type { TextEditBox, TextEditCheck, TextEditVerification } from './types.js';
 
 export interface VisualEditRegion {
@@ -169,6 +171,16 @@ function add(check: TextEditCheck[], name: string, ok: boolean, detail: string):
   check.push({ name, ok, detail });
 }
 
+/** Small non-cryptographic fingerprint used to describe a text change. */
+function textFingerprint(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${hash.toString(16).padStart(8, '0')}:${text.length}`;
+}
+
 /**
  * Full artifact verification: structure, resources, text extraction and (when a
  * canvas exists) a rendered comparison outside the declared edit regions.
@@ -210,6 +222,20 @@ export async function verifyExportArtifact(
       return Math.abs(a.width - b.width) < 0.01 && Math.abs(a.height - b.height) < 0.01;
     });
   add(checks, 'page-geometry', sameSizes, 'page dimensions preserved');
+
+  // C-12: a /Rotate change moves every glyph on the page without touching its
+  // text, so geometry alone cannot catch it.
+  const sameRotation =
+    originalPages.length === outputPages.length &&
+    originalPages.every(
+      (page, index) => (page.getRotation().angle % 360) === (outputPages[index]!.getRotation().angle % 360),
+    );
+  add(
+    checks,
+    'page-rotation',
+    sameRotation,
+    sameRotation ? 'page rotation preserved' : 'page rotation changed',
+  );
 
   const originalAnnots = originalPages.reduce(
     (sum, page) => sum + (page.node.Annots()?.size() ?? 0),
@@ -262,6 +288,64 @@ export async function verifyExportArtifact(
   checks.push(...textVerification.checks);
 
   const editedRegions = options.editedRegions ?? [];
+
+  // C-12: pages no edit touched must extract exactly the same text as before.
+  // Page geometry, rotation and fonts are checked above; this is the check that
+  // catches a stream rewrite leaking into a neighbouring page or a global
+  // encoding/resource mutation.
+  const editedPages = new Set<number>();
+  for (const region of editedRegions) editedPages.add(region.pageIndex);
+  for (const expectation of options.expectations) editedPages.add(expectation.pageIndex);
+  const untouchedPages: number[] = [];
+  for (let index = 0; index < options.expectedPageCount; index += 1) {
+    if (!editedPages.has(index)) untouchedPages.push(index);
+  }
+  if (editedPages.size === 0) {
+    // Object-only exports and structural gates declare no text edit; there is no
+    // "untouched" page to compare, so do not invent a text assertion.
+    add(checks, 'untouched-pages', true, 'no text edit scope declared');
+  } else if (untouchedPages.length > 0) {
+    try {
+      const [originalRuns, outputRuns] = await Promise.all([
+        extractTextRuns(options.original, untouchedPages, undefined, options.password),
+        extractTextRuns(options.output, untouchedPages, undefined, options.password),
+      ]);
+      const join = (runs: Array<Array<{ text: string }>>): string[] =>
+        runs.map((page) => normalizeForMatch(page.map((run) => run.text).join('\n')));
+      const before = join(originalRuns);
+      const after = join(outputRuns);
+      let changed = 0;
+      untouchedPages.forEach((pageIndex, position) => {
+        const a = before[position] ?? '';
+        const b = after[position] ?? '';
+        const same = a === b;
+        if (!same) changed += 1;
+        add(
+          checks,
+          `untouched-page-text:page-${pageIndex + 1}`,
+          same,
+          same
+            ? `text unchanged (${textFingerprint(a)})`
+            : `text changed (${textFingerprint(a)} != ${textFingerprint(b)})`,
+        );
+      });
+      add(
+        checks,
+        'untouched-pages',
+        changed === 0,
+        `${untouchedPages.length - changed} of ${untouchedPages.length} untouched pages text-identical`,
+      );
+    } catch (error) {
+      add(
+        checks,
+        'untouched-pages',
+        false,
+        `could not compare untouched pages: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  } else {
+    add(checks, 'untouched-pages', true, 'every page has an edited region');
+  }
   const hasCanvas =
     Boolean(options.canvasFactory) ||
     typeof OffscreenCanvas !== 'undefined' ||

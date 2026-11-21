@@ -191,13 +191,13 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | 1 | Editor capability parity | E-00..E-10 | 8 | 2 | `[~]` |
 | 2 | Text editing UX | T-01..T-07 | 5 | 1 | `[~]` |
 | 3 | Search, recovery, data-loss guards | S-01..S-06 | 5 | 1 | `[~]` |
-| 4 | Content-stream surgery | C-01..C-14 | 0 | 3 | `[~]` |
+| 4 | Content-stream surgery | C-01..C-14 | 8 | 3 | `[~]` |
 | 5 | OCR inside the editor | O-01..O-05 | 0 | 2 | `[~]` |
 | 6 | Export trust and metadata | X-01..X-06 | 1 | 3 | `[~]` |
 | 7 | Hardening and parity sweep | H-01..H-08 | 0 | 4 | `[~]` |
 
-**Queue:** Sprint 3 complete → Sprint 4 (C-01..C-04, C-06, C-12..C-14, G-03) → C-core → O → X → H.
-**Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1.
+**Queue:** Sprint 4 complete → Sprint 5 (C-05, C-07, C-08..C-11, T-06 engine half, T-07, E-07, E-09) → O → X → H.
+**Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. Gate C additionally requires C-07 (Sprint 5).
 
 ### 4.2 Full board
 
@@ -205,7 +205,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Provenance + NOTICE + copy header | P0 | S | done | `[x]` |
 | G-02 | Corpus v2 (partial-word, Type3, CFF, XObject, clip) | P0 | M | ~50% | `[~]` |
-| G-03 | Golden export harness | P0 | M | ~70% | `[~]` |
+| G-03 | Golden export harness | P0 | M | done | `[x]` |
 | G-04 | Validated job-level strategy | P0 | S | done | `[x]` |
 | G-05 | Guardrail scripts | P0 | S | ~60% | `[~]` |
 | F-01 | Fontkit adoption + document-font embedding | P0 | L | ~85% | `[~]` |
@@ -233,20 +233,20 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | S-04 | Restore/discard banner | P1 | S | done | `[x]` |
 | S-05 | Error taxonomy completion | P1 | S | done | `[x]` |
 | S-06 | Data-loss path guards | P0 | S | ~80% | `[~]` |
-| C-01 | Lexer + emitter v2 | P0 | M | ~20% | `[~]` |
-| C-02 | Glyph metrics + AFM + ToUnicode | P0 | M | ~5% | `[~]` |
-| C-03 | Per-glyph quad removal | P0 | M | 0% | `[ ]` |
-| C-04 | Advance compensation + transitions | P0 | M | 0% | `[ ]` |
+| C-01 | Lexer + emitter v2 | P0 | M | done | `[x]` |
+| C-02 | Glyph metrics + AFM + ToUnicode | P0 | M | done | `[x]` |
+| C-03 | Per-glyph quad removal | P0 | M | done | `[x]` |
+| C-04 | Advance compensation + transitions | P0 | M | done | `[x]` |
 | C-05 | Partial-run deletion | P1 | S | ~60% | `[~]` |
-| C-06 | Stream isolation (`q…Q`) | P0 | S | 0% | `[ ]` |
+| C-06 | Stream isolation (`q…Q`) | P0 | S | done | `[x]` |
 | C-07 | Leftover-cover policy | P1 | S | ~15% | `[~]` |
 | C-08 | `Tz` fit + word-by-word | P1 | M | 0% | `[ ]` |
 | C-09 | Raster-word fallback | P1 | L | 0% | `[ ]` |
 | C-10 | Rotated glyph text | P1 | S | ~35% | `[~]` |
 | C-11 | Ink colour model + sampling | P2 | M | 0% | `[ ]` |
-| C-12 | Post-write verification completion | P0 | M | ~75% | `[~]` |
-| C-13 | Edit coverage invariant | P0 | S | 0% | `[ ]` |
-| C-14 | XObject/Type3/inline-image honesty | P0 | S | 0% | `[ ]` |
+| C-12 | Post-write verification completion | P0 | M | done | `[x]` |
+| C-13 | Edit coverage invariant | P0 | S | done | `[x]` |
+| C-14 | XObject/Type3/inline-image honesty | P0 | S | done | `[x]` |
 | O-01 | Scan affordance | P1 | S | ~50% engine | `[~]` |
 | O-02 | Text-layer-only OCR job | P0 | M | 0% | `[ ]` |
 | O-03 | OCR layout + confidence return | P1 | M | 0% | `[ ]` |
@@ -297,11 +297,11 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** generator runs in CI; corpus loads.
 
 ### G-03 — Golden export harness
-- **Pri:** P0 · **Size:** M · **Now:** ~70% — `test/golden.ts` checks page count/size, contains/absent and untouched-page text; `golden.test.ts` proves a native replacement and a negative control. Pixel diff remains in `verifyExportArtifact`, not the harness.
+- **Pri:** P0 · **Size:** M · **Now:** done 2026-11-21 — `test/golden.ts` now checks page count/size/**rotation**, contains/absent, untouched-page text **and a text fingerprint**, and reopens with pdf-lib + pdf.js. `pnpm test:corpus` runs the harness in one command and prints pass/fail plus the per-page diff. Pixel comparison remains in `verifyExportArtifact`, which the corpus/export gates invoke.
 - **Scope:** input + edit plan → export → assert page count/size/rotation, untouched-page text hash, removed spans absent, expected text present, pixel diff, independent-reader open. Replace the self-attested `validation.opens: true` pattern with a real re-open.
-- **Anchor:** `textedit/exportVerify.ts`, `test/`, a new `scripts/corpus.mjs`.
+- **Anchor:** `test/golden.ts`, `test/goldenCorpus.test.ts`, `scripts/corpus.mjs`; pixel diff in `textedit/exportVerify.ts`.
 - **Done when:** one command prints pass/fail + diffs; a deliberately wrong edit fails.
-- **Tests:** harness self-test.
+- **Tests:** harness self-test plus the corpus positive/negative controls.
 
 ### G-04 — Validated job-level strategy
 - **Pri:** P0 · **Size:** S · **Now:** done 2026-11-17 — `TextEngineStrategy = 'auto' | 'native-only'`; job validates and echoes it; engine rejects unknown values; `native-only` refuses every non-native outcome (tests).
@@ -527,28 +527,28 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 > **Gate C applies.** Do not default v2 until G-02, G-03, C-12, C-13 and D1 are green. Land C-01..C-04, C-06, C-12..C-14 as one coherent unit; C-08..C-11 can follow.
 
 ### C-01 — Lexer + emitter v2
-- **Pri:** P0 · **Size:** M · **Now:** ~20%; spans exist, no emitter, `BI` throws, no round-trip.
+- **Pri:** P0 · **Size:** M · **Now:** done 2026-11-21 — `stream/lexer.ts` round-trips every byte, parses arrays/dicts/inline images, and `parseOperations` groups operands; tests cover escapes, hex, comments, malformed tails and `BI`.
 - **Scope:** use the target's arg-stack parser as the model; names `#xx`, literal/hex strings, arrays/dicts, inline images, comments, spans; **emit** untouched tokens byte-identically; new module.
 - **Anchor:** `research/ihatepdf/assets/images.pretty.js:1300–1379`; `textedit/contentStream.ts:74–277`; new `textedit/stream/lexer.ts`.
 - **Done when:** tokenise→emit round-trip is byte-identical on the corpus; `BI` handled, not thrown.
 - **Tests:** adversarial snippet corpus; round-trip; H-04 later.
 
 ### C-02 — Glyph metrics, ToUnicode, AFM
-- **Pri:** P0 · **Size:** M · **Now:** ~5% (only PDFium `FPDFFont_GetGlyphWidth`).
+- **Pri:** P0 · **Size:** M · **Now:** done 2026-11-21 — `stream/metrics.ts` reads Type0 `/W`+`/DW`, simple `/Widths`, Type3 `/FontMatrix`, base-14 AFM tables and `/ToUnicode`/`/Encoding`; non-Identity CMaps and missing width sources are `reliable:false` with a reason.
 - **Scope:** Type0 `/W`+`/DW`; simple `/FirstChar`+`/Widths`; Type3 `/FontMatrix`; base-14 AFM tables; `/MissingWidth`; ToUnicode, `/Encoding`+`/Differences`, CID→GID; `byteLength` and `reliable` flags. Non-Identity Type0 must be `reliable:false` until proven.
 - **Anchor:** `removal.ts:657–776`; `widths.generated.ts`; `textedit/charcodes.ts`.
 - **Done when:** widths match PDF.js within tolerance; guessing is flagged.
 - **Tests:** per-font tables; reliability negatives.
 
 ### C-03 — Per-glyph quad removal
-- **Pri:** P0 · **Size:** M · **Now:** 0%
+- **Pri:** P0 · **Size:** M · **Now:** done 2026-11-21 — `stream/surgery.ts` tracks the text/graphics state, produces glyph quads and rewrites only the owning show operator; the corpus proves mid-`Tj` removal.
 - **Scope:** text state `Tm/Tlm/CTM/Tf/Tz/Tc/Tw/TL/Ts/rise`; q/Q text-state save/restore; glyph advances; quads; rect expansion ~0.4 pt; AABB vs rotated-quad policy; kept bytes; removed count.
 - **Anchor:** `removal.ts:228–443`; new `textedit/removal.ts`.
 - **Done when:** only target glyphs disappear; no neighbour movement **after C-04**.
 - **Tests:** partial-word fixtures; pixel diff.
 
 ### C-04 — Advance compensation + transitions (**critical**)
-- **Pri:** P0 · **Size:** M · **Now:** 0%; the reference is wrong here.
+- **Pri:** P0 · **Size:** M · **Now:** done 2026-11-21 — removed advances become `TJ` kerns in the operator's own space, `Tj → TJ` splits safely, `'`/`"` re-emit their line move/spacing, and four-decimal formatting keeps small kerns. `partial-word`, `tj-kern` and a fully removed `'` run prove kept glyphs/next line do not move.
 - **Scope:**
   - each removed advance becomes a `TJ` kern (`-(advance/1000)*size` style, in the right space);
   - convert `Tj` → `TJ` when a removal splits the string;
@@ -567,7 +567,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** fixture; E2E delete.
 
 ### C-06 — Stream isolation
-- **Pri:** P0 · **Size:** S · **Now:** 0%
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-21 — `ops/edit.ts` wraps source content in `q … Q`, handles pdf-lib flate content streams and resets the cached writable stream; the unclosed-clip fixture exports with appended draws outside the source scope.
 - **Scope:** wrap original content in `q … Q` before appending draws; test an unclosed clip; preserve state.
 - **Anchor:** `contentStream.ts:557–561`; `ops/edit.ts` draw path.
 - **Done when:** appended text/objects render even when the source leaves a clip active.
@@ -609,14 +609,14 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** synthetic canvases; timing.
 
 ### C-12 — Post-write verification completion
-- **Pri:** P0 · **Size:** M · **Now:** ~75%
+- **Pri:** P0 · **Size:** M · **Now:** done 2026-11-21 — untouched-page text fingerprints and `/Rotate` comparison added; a stream rewrite is discarded with a warning when its own reopen check fails; stream outcomes carry a glyph box for the visual gate.
 - **Scope:** untouched-page text fingerprints input vs output; rotation comparison; extend the pixel gate to stream-path edits missing `box`; on mismatch, discard the rewrite and fall back with a warning (currently refuses); keep fail-closed for redaction.
 - **Anchor:** `textedit/exportVerify.ts:176–342`; `verify.ts:70+`; `engine.ts:991–1026, 1154+`.
 - **Done when:** a sabotaged rewrite is caught, fallback succeeds with a warning, untouched pages match exactly.
 - **Tests:** negative stream fixture; untouched-page hash.
 
 ### C-13 — Edit coverage invariant
-- **Pri:** P0 · **Size:** S · **Now:** 0% (class of bug is live in the reference and possible here)
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-21 — edit validation (page index, box, before-lines) plus an `edit-coverage` warning for text-only edits and an `assertOutcomeCoverage` refusal for any edit that produces no outcome.
 - **Why:** export must never silently drop a dirty edit because its block/layout is missing.
 - **Scope:** assert every dirty/native edit has required geometry and a matchable target; otherwise warn (`edit-unresolved`) or refuse; ensure all edited pages are hydrated before export, not just visited ones.
 - **Anchor:** `ops/edit.ts` validation; `textedit/engine.ts:819+`; `edit-pdf-tool.tsx:2178–2237`; `ensureRuns` `:710–770`.
@@ -624,7 +624,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** multi-page edit/export; deliberately missing layout.
 
 ### C-14 — XObject/Type3/inline-image honesty
-- **Pri:** P0 · **Size:** S · **Now:** 0%; `BI` → manual-review; no `Do` recursion; Type3 unreachable in stream path.
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-21 — the scan detects Form-XObject text, Type3 fonts, malformed tokens and unresolved show fonts; outcomes say `stream-incomplete` and `complete:false`, and inline images are parsed rather than aborting the page.
 - **Scope:** detect text inside Form XObjects; set `complete:false` + `stream-incomplete` code; no false success. Full recursion is a later task.
 - **Anchor:** `contentStream.ts:272, 604–606`; `removal.ts:604–606`.
 - **Done when:** a text-in-XObject fixture warns instead of claiming removal.
@@ -864,6 +864,26 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 **Verification:** `pnpm typecheck` green (all packages); `pnpm test` - pdf-core **601 passed + 1 expected fail**, web **301**, api **243**, mcp **19**, ai-agent **152**, ai-provider **375**; `pnpm build` green; `pnpm test:bundle` main chunk 150.4 kB with 0 engines; `pnpm test:provenance` clean. Browser suites green against the dev stack: new `text-ux` **44/44** (revert, move, styling, find/replace, 40-page find, 100%/400% legibility, draft restore/discard), plus `text-model`, `text-edit`, `editor-quick-parity`, `signature-upload`, `sign`; preview suites `keyboard`, `a11y`, `editor-cancel-save` and `smoke` green. Pushed to `origin/rea-uplift`.
 
 **Still open before Sprint 4:** T-06's native styling half (Sprint 5), T-07 rotation, E-07 snapping, E-09 insert pages, E-10 rail/capability truth, S-06 browser back/forward route blocking. None blocks Gate B for the agreed Sprint 3 scope.
+
+---
+
+## Sprint 4 close (2026-11-21)
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| C-01 | `[x]` | New `textedit/stream/lexer.ts`: contiguous tokens with byte ranges, literal/hex strings with escapes and octal, names with `#xx`, arrays/dicts, comments, and `BI … ID … EI` inline images. `emitContentStream` concatenates the original ranges, so tokenise→emit is byte-identical; `parseOperations` groups operands. Tests cover escapes, hex, nested dicts, malformed tails, empty streams and an inline image, plus the operation range (`(Hi) Tj`). |
+| C-02 | `[x]` | New `textedit/stream/metrics.ts`: Type0 `/W` + `/DW`, simple `/FirstChar` + `/Widths` + `/MissingWidth`, Type3 `/FontMatrix`, base-14 AFM tables (Helvetica/Times/Courier), `/ToUnicode`, `/Encoding` + `/Differences`, Identity vs non-Identity CMap and `reliable`/reason flags. Unit tests pin the two-byte decode/encode, AFM widths, Type3 matrix, non-Identity refusal and the no-width-source negative. |
+| C-03 | `[x]` | New `textedit/stream/surgery.ts` walks `q/Q`, CTM, `Tm/Tlm/Td/TD/T*/TL/Tz/Tc/Tw/Ts` and emits glyph quads/advances. Per-glyph removal rewrites only the owning show operator; every other byte is untouched. `partial-word` deletes `2026` mid-`Tj` and keeps `INVOICE`/`0042`; the line's right edge is unchanged. |
+| C-04 | `[x]` | Removed advances become negative `TJ` kerns in the operator's own text space (character and word spacing included); `Tj` converts to `TJ` when a removal splits the string; `'`/`"` keep their line move and spacing operands even when every glyph is removed; `formatNumber` keeps four decimals and never rounds a non-zero kern to `0`. Tests cover the `partial-word` and `tj-kern` fixtures and a fully removed `'` run, with pdf.js confirming the following line does not move. |
+| C-06 | `[x]` | `ops/edit.ts` wraps the source content in `q … Q` before appending overlays, decodes pdf-lib `PDFFlateStream` content via `getUnencodedContents`, keeps `/Contents` an array (pdf-lib appends into it) and clears pdf-lib's cached content stream so new draws land in the wrapped page. The unclosed-clip fixture exports with a leading `q`, a closing `Q` and the original `(CLIPPED) Tj` intact. |
+| C-12 | `[x]` | `exportVerify` now compares `/Rotate`, fingerprints every page no edit touched, and fails a changed untouched page; the stream pass reopens its own output and **discards** the rewrite with a warning when replacement/absence checks fail. A stream outcome carries its glyph-derived box, so the visual gate sees the region instead of skipping it. Tests cover untouched pass/fail and rotation fail. |
+| C-13 | `[x]` | `assertEditsValid` rejects a non-integer/negative page, a non-positive box and an empty `beforeLines`; a text-only edit warns `edit-coverage` instead of disappearing; `assertOutcomeCoverage` refuses an edit that produced no outcome. Test proves a no-box edit still exports with the warning. |
+| C-14 | `[x]` | The scan records inline images, text found inside a Form XObject `Do`, Type3 fonts and malformed token streams. Unmatched edits report `stream-incomplete: …` and `ContentStreamResult.complete:false`; the engine forwards those as warnings. Tests pin the XObject warning and prove an inline image no longer prevents the following text from being rewritten. |
+| G-03 | `[x]` | `test/golden.ts` adds page rotation, an FNV text fingerprint and pdf-lib + pdf.js reopening; `pnpm test:corpus` (`scripts/corpus.mjs` → `test/goldenCorpus.test.ts`) runs the harness end-to-end and prints pass/fail with per-page diffs. The negative control fails on the untouched-page fingerprint. |
+
+**Verification:** `pnpm typecheck` green for all 8 workspace projects; `pnpm test` — pdf-core **628 passed + 1 expected fail**, web **301**, api **243**, mcp **19**, ai-agent **152**, ai-provider **375**; `pnpm build` green (63 routes prerendered); `pnpm test:bundle` main chunk **150.4 kB, 0 engines**; `pnpm test:provenance` clean; `pnpm test:corpus` **2/2**; browser `text-edit` **7/7** and `editor-quick-parity` **20/20** green against the dev web app (preflight used a local mock `/api/health`; neither suite uses server-backed steps). New coverage: 25 pdf-core tests (`streamLexer` 8, `streamMetrics` 6, `streamSurgery` 7, `streamVerification` 3, `goldenCorpus` 2) plus the extended golden test.
+
+**Still open before Sprint 5:** C-05 partial-run deletion policy (stream removal exists, the deletion UX still needs the C-05 wiring), C-07 leftover-cover policy, C-08..C-11, T-06 native styling, T-07 rotation, E-07 snapping, E-09 insert pages, E-10 rail truth, S-06 back/forward blocking. **Gate C is not claimed:** it requires C-07, which is Sprint 5.
 
 ---
 

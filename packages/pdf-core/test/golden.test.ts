@@ -6,7 +6,7 @@ import {
   editPdfText,
   loadPdfiumModule,
 } from '../src/index.js';
-import { assertGoldenExport } from './golden.js';
+import { assertGoldenExport, inspectExport } from './golden.js';
 import { testContext } from './fixtures.js';
 
 function readPdfiumWasm(): Uint8Array {
@@ -55,16 +55,18 @@ describe('golden export harness (G-03)', () => {
       {
         pageCount: 2,
         pages: [
-          { width: 400, height: 300 },
-          { width: 400, height: 300 },
+          { width: 400, height: 300, rotation: 0 },
+          { width: 400, height: 300, rotation: 0 },
         ],
         contains: ['GOLDEN TEXT'],
         absent: ['KEEP THIS'],
         untouchedText: { 1: 'SECOND PAGE' },
+        untouchedHashes: { 1: (await inspectExport(source)).hashes[1]! },
       },
       'native replacement',
     );
     expect(inspected.pageCount).toBe(2);
+    expect(inspected.hashes).toHaveLength(2);
   });
 
   it('fails loudly when an untouched page text changes', async () => {

@@ -14,20 +14,34 @@ import { extractTextRuns } from '../src/index.js';
 export interface GoldenExpectation {
   pageCount?: number;
   /** Per-page display size in points, in order. */
-  pages?: Array<{ width: number; height: number }>;
+  pages?: Array<{ width: number; height: number; rotation?: number }>;
   contains?: string[];
   absent?: string[];
   /** pageIndex -> exact extracted text that must not change. */
   untouchedText?: Record<number, string>;
+  /** pageIndex -> fingerprint of extracted text that must not change. */
+  untouchedHashes?: Record<number, string>;
 }
 
 export interface GoldenResult {
   pageCount: number;
-  pages: Array<{ width: number; height: number }>;
+  pages: Array<{ width: number; height: number; rotation: number }>;
   textByPage: string[];
+  hashes: string[];
 }
 
-async function textByPage(bytes: Uint8Array, pageCount: number): Promise<string[]> {
+/** FNV-1a fingerprint of the normalized page text. */
+export function goldenTextFingerprint(text: string): string {
+  const normalized = text.replace(/\s+/gu, ' ').trim();
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `${hash.toString(16).padStart(8, '0')}:${normalized.length}`;
+}
+
+async function extractPageText(bytes: Uint8Array, pageCount: number): Promise<string[]> {
   const runs = await extractTextRuns(bytes, Array.from({ length: pageCount }, (_, index) => index));
   return runs.map((pageRuns) => pageRuns.map((run) => run.text).join('\n'));
 }
@@ -36,12 +50,18 @@ export async function inspectExport(bytes: Uint8Array): Promise<GoldenResult> {
   const doc = await PDFDocument.load(bytes, { updateMetadata: false });
   const pages = doc.getPages().map((page) => {
     const { width, height } = page.getSize();
-    return { width: Math.round(width), height: Math.round(height) };
+    return {
+      width: Math.round(width),
+      height: Math.round(height),
+      rotation: ((page.getRotation().angle % 360) + 360) % 360,
+    };
   });
+  const textByPage = await extractPageText(bytes, pages.length);
   return {
     pageCount: pages.length,
     pages,
-    textByPage: await textByPage(bytes, pages.length),
+    textByPage,
+    hashes: textByPage.map(goldenTextFingerprint),
   };
 }
 
@@ -72,6 +92,9 @@ export async function assertGoldenExport(
           `page ${index + 1} size ${actual.width}x${actual.height} != ${expected.width}x${expected.height}`,
         );
       }
+      if (expected.rotation !== undefined && actual.rotation !== expected.rotation) {
+        problems.push(`page ${index + 1} rotation ${actual.rotation} != ${expected.rotation}`);
+      }
     });
   }
 
@@ -86,6 +109,14 @@ export async function assertGoldenExport(
     const actual = normalise(result.textByPage[Number(index)] ?? '');
     if (actual !== normalise(expected)) {
       problems.push(`page ${Number(index) + 1} text changed: "${actual}" != "${expected}"`);
+    }
+  }
+  for (const [index, expected] of Object.entries(expectation.untouchedHashes ?? {})) {
+    const actual = result.hashes[Number(index)] ?? '';
+    if (actual !== expected) {
+      problems.push(
+        `page ${Number(index) + 1} text fingerprint ${actual} != ${expected}`,
+      );
     }
   }
 

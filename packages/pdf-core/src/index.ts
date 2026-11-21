@@ -412,6 +412,40 @@ export {
 } from './textedit/contentStream.js';
 export type { ContentStreamResult } from './textedit/contentStream.js';
 export {
+  emitContentStream,
+  isPlainLiteral,
+  parseOperations,
+  tokenizeContentStream,
+} from './textedit/stream/lexer.js';
+export type {
+  ContentOperation,
+  StreamToken,
+  StreamTokenKind,
+} from './textedit/stream/lexer.js';
+export { readFontMetrics, readPageFontMetrics } from './textedit/stream/metrics.js';
+export type {
+  DecodedGlyphCode,
+  FontMetrics,
+  FontSubtype,
+} from './textedit/stream/metrics.js';
+export {
+  findGlyphRange,
+  foldRunText,
+  glyphRangeBox,
+  planGlyphRemoval,
+  planRunReplacement,
+  scanPageText,
+} from './textedit/stream/surgery.js';
+export type {
+  FindResult,
+  GlyphInfo,
+  GlyphRange,
+  PageTextScan,
+  RemovalPlan,
+  ReplacementPlan,
+  TextSegment,
+} from './textedit/stream/surgery.js';
+export {
   fontCategory,
   fontLikeFromPdfium,
   missingGlyphs,

@@ -163,6 +163,17 @@ const BASE_ENCODINGS: Record<string, Record<number, number>> = {
   MacRomanEncoding: macRomanEncoding(),
 };
 
+/**
+ * A named base encoding's code -> Unicode table, or undefined for a name this
+ * module does not carry. Exposed for the stream metrics reader, which needs the
+ * same fail-closed set: an encoding nobody understands is never guessed at.
+ */
+export function namedEncodingTable(
+  name: string,
+): Readonly<Record<number, number>> | undefined {
+  return BASE_ENCODINGS[name.replace(/^\//, '')];
+}
+
 /* -------------------------------------------------------------- parsing */
 
 /** Decodes a CMap's hex string as UTF-16BE code units. */

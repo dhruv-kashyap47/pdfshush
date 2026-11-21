@@ -42,6 +42,7 @@
     "test:e2e:share": "node tests/support/preflight.mjs && node tests/e2e/share-boundary.mjs",
     "test:bundle": "node tests/bundle-boundary.mjs",
     "test:provenance": "node scripts/check-provenance.mjs",
+    "test:corpus": "node scripts/corpus.mjs",
     "test:merge-clean": "node scripts/check-merge-clean.mjs rea-uplift origin/main",
     "test:baseline": "node tests/benchmarks/m5-0-baseline.mjs",
     "test:perf": "node tests/benchmarks/m5-4-ceilings.mjs",

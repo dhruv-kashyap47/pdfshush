@@ -48,6 +48,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
 | **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 301 |
+| **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; pdf-core 628+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waits on C-07 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -95,6 +96,20 @@ new `test:e2e:text-ux` **44/44**, with `text-model`, `text-edit`, `editor-quick-
 measured 735–966 ms on the dev stack. This is the branch evidence, not a re-run of the
 containerised gates. `rea-uplift` was then synced with `origin/main` (`30fde40`, the
 dark-only frontend) in merge `4390264`; `pnpm test:merge-clean` reports no conflicts.
+**2026-11-21 rea-uplift Sprint 4:** engine core landed on `rea-uplift` (C-01..C-04,
+C-06, C-12..C-14 and G-03 complete; C-05/C-07/C-08..C-11 remain Sprint 5). New
+`textedit/stream/{lexer,metrics,surgery}.ts`: untouched tokens emit byte-identically,
+inline images no longer abort the page, font advances come from `/W`/`/Widths`/Type3
+`FontMatrix`/base-14 AFM, and a removed glyph's advance is written back as a `TJ`
+kern so kept glyphs stay put. `ops/edit.ts` wraps source content in `q … Q` before
+appending overlays; stream outcomes carry a glyph box and report `stream-incomplete`
+for Form-XObject/Type3/malformed text. Fresh gates: `pnpm typecheck` all 8 projects,
+`pnpm test` — pdf-core **628 pass + 1 expected fail**, web 301, api 243, mcp 19,
+ai-agent 152, ai-provider 375; `pnpm build` (63 routes), `pnpm test:bundle` main
+**150.4 kB / 0 engines**, `pnpm test:provenance` clean, new `pnpm test:corpus` **2/2**.
+25 new pdf-core tests cover the lexer, metrics, removal/compensation, untouched-page
+verification, coverage and stream honesty. Browser E2E suites were not re-run this
+pass. Gate C is **not** claimed: it still requires C-07 (Sprint 5).
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -7583,3 +7598,132 @@ fallback, and both stale-registration paths. Verified end-to-end against the
 preview: the normal update navigates immediately, and a worker patched to
 ignore `SKIP_WAITING` ("Reloading…", then `?__build=…`) still lands on the new
 build.
+
+---
+
+## 39. Sprint 4 - engine core (2026-11-21)
+
+Branch `rea-uplift`, sprint 4 of 7. Scope: C-01..C-04, C-06, C-12..C-14 and G-03.
+The goal was not "more replacement": it was a content-stream foundation that can
+remove a glyph, compensate its advance, and prove it did not move anything else.
+
+### 39.1 Byte-preserving lexer and emitter (C-01)
+
+`packages/pdf-core/src/textedit/stream/lexer.ts` replaces the old tokenizer. It is
+deliberately two things at once:
+
+- a scanner that partitions the stream into contiguous `[start,end)` tokens
+  (whitespace and comments included), decoding literal strings (escapes, octal,
+  line continuations), hex strings, names (`#xx`), arrays and dictionaries;
+- an emitter that concatenates the original byte ranges. Tokenise -> emit is
+  byte-identical by construction, so a page the pass does not understand cannot
+  be corrupted by re-serialisation.
+
+`BI … ID … EI` is parsed as one token using the PDF whitespace heuristic around
+`EI`; binary data is never interpreted or rewritten. `parseOperations` groups
+operands with their operator and keeps the operator's exact byte range, which is
+what surgery replaces.
+
+### 39.2 Document font metrics (C-02)
+
+`stream/metrics.ts` reads advances from the document rather than asking a
+renderer:
+
+| Font shape | Width source |
+| --- | --- |
+| Type0 | descendant `/W` + `/DW` |
+| simple | `/FirstChar` + `/Widths` + `/MissingWidth` |
+| Type3 | `/Widths` transformed by `/FontMatrix` |
+| base-14 without `/Widths` | Adobe AFM ASCII tables (Helvetica/Times/Courier) |
+
+`/ToUnicode`, `/Encoding` and `/Differences` provide code -> Unicode;
+`Identity-H/V` is the only trusted Type0 code space. Everything else returns a
+reason and `reliable:false`; no caller is allowed to compensate from a guess.
+
+### 39.3 Per-glyph removal and advance compensation (C-03/C-04)
+
+`stream/surgery.ts` walks `q/Q`, `cm`, `BT/ET`, `Tm/Tlm/Td/TD/T*/TL`, `Tf`, `Tc`,
+`Tw`, `Tz`, `Ts` and the show operators. It produces glyph quads in user space and
+an `advanceUnits` value per glyph (width plus character/word spacing, normalised
+to 1/1000 text space).
+
+A removal rewrites only the show operator that owns the selected glyphs:
+
+- kept glyphs are re-emitted as hex strings, so the original codes and byte
+  length survive;
+- each removed contiguous span becomes a negative `TJ` number computed from the
+  glyph advances, so the following glyph/operator keeps its original position;
+- `Tj` becomes `TJ` when a removal splits the string;
+- `'` and `"` re-emit their line move (`T*`) and, for `"`, the `Tw`/`Tc` operands,
+  even when every glyph is removed;
+- numbers are formatted to four decimals and a non-zero kern is never rounded to
+  `0`.
+
+The corpus pins the result with pdf.js: deleting `2026` from
+`INVOICE 2026-0042` (one `Tj`) and from `[(INVOICE) -250 (2026) -250 (0042)] TJ`
+leaves the line's right edge unchanged, and removing a whole `'` run leaves the
+next line where it was.
+
+### 39.4 Stream isolation (C-06)
+
+`ops/edit.ts` wraps a page's existing content in `q … Q` before appending any
+overlay. Three implementation details matter and are tested:
+
+- pdf-lib's own content streams are `PDFFlateStream`s; `getContents()` returns the
+  compressed payload, so isolation reads `getUnencodedContents()`;
+- `/Contents` stays an array, because pdf-lib's `addContentStream` pushes into it;
+- pdf-lib caches the writable stream on first draw; the cache is cleared after
+  isolation so the next draw creates a fresh stream inside the wrapped page.
+
+This is what stops an unclosed source clip from clipping an appended stamp or
+signature, without changing any operator the source executed.
+
+### 39.5 Verification and coverage (C-12/C-13/C-14)
+
+`exportVerify.ts` now also compares `/Rotate` and extracts every page no edit
+touched, comparing a normalised text fingerprint; an undeclared text change fails
+the gate. A stream rewrite is reopened against the pre-rewrite bytes and, if its
+replacement/absence checks fail, is discarded with a warning and left to the
+overlay instead of being exported. Stream outcomes carry the glyph-derived box so
+the visual gate has a region to exclude.
+
+`engine.ts` validates page index, box and layout anchors, warns
+`edit-coverage` when an edit has no geometry, and refuses an edit that produces no
+outcome. The stream scan reports Form-XObject text, Type3 fonts, unresolved show
+fonts and malformed tokens as `stream-incomplete` with `complete:false`; inline
+images are parsed and do not block the text after them.
+
+### 39.6 Golden corpus (G-03)
+
+`test/golden.ts` adds rotation and text fingerprints to the existing
+page-count/size/contains/absent/untouched assertions, and reopens with both
+pdf-lib and pdf.js. `pnpm test:corpus` (`scripts/corpus.mjs`) runs
+`test/goldenCorpus.test.ts` and prints the pass/fail report; a wrong untouched
+fingerprint fails loudly with the page and the two hashes.
+
+### 39.7 Verification
+
+| Gate | Result |
+| --- | --- |
+| `pnpm typecheck` (8 projects) | pass |
+| `pnpm test` | pdf-core **628 + 1 expected fail**, web 301, api 243, mcp 19, ai-agent 152, ai-provider 375 |
+| `pnpm build` | pass, 63 routes prerendered |
+| `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
+| `pnpm test:provenance` | clean |
+| `pnpm test:corpus` | 2/2 |
+| Browser E2E | `text-edit` 7/7 and `editor-quick-parity` 20/20 green against the dev web app (preflight used a mock `/api/health`; neither suite uses server-backed steps) |
+
+New tests: `streamLexer.test.ts` (8), `streamMetrics.test.ts` (6),
+`streamSurgery.test.ts` (7), `streamVerification.test.ts` (3),
+`goldenCorpus.test.ts` (2), plus the extended `golden.test.ts`.
+
+### 39.8 Deliberately not claimed
+
+- **Gate C is not met.** It requires C-07 (leftover-cover policy), which is
+  Sprint 5. C-05's UX wiring, C-08..C-11, T-06 native styling, T-07 rotation and
+  E-07/E-09/E-10/S-06 remain open.
+- Browser E2E: `text-edit` and `editor-quick-parity` were run green against the
+  dev web app (the preflight API health probe was a local mock; neither suite uses
+  server-backed steps). The remaining suites were not re-run for this sprint.
+- Non-Identity Type0, Type3 and Form-XObject text are refused with
+  `stream-incomplete`, not rewritten.

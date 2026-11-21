@@ -13,8 +13,14 @@
 
 import {
   LineCapStyle,
+  PDFDict,
   PDFDocument,
+  PDFName,
+  PDFNumber,
+  PDFRawStream,
+  PDFStream,
   StandardFonts,
+  decodePDFRawStream,
   degrees,
   rgb,
   type PDFImage,
@@ -642,6 +648,7 @@ export async function applyEdits(
   if (objects.length === 0) return;
   const progress = createProgressReporter(ctx);
   const pages = doc.getPages();
+  const isolated = new Set<number>();
 
   const geomCache = new Map<number, PageGeom>();
   const geomFor = (pageIndex: number): PageGeom => {
@@ -680,10 +687,84 @@ export async function applyEdits(
     ctx.throwIfAborted();
     const object = objects[i]!;
     const page = pages[object.pageIndex]!;
+    if (!isolated.has(object.pageIndex)) {
+      isolatePageContent(page);
+      isolated.add(object.pageIndex);
+    }
     const geom = geomFor(object.pageIndex);
     await drawObject(page, geom, object, { imageCache, fontCache, documentFonts });
     progress.step(i, objects.length, 'Applying edits');
   }
+}
+
+/**
+ * C-06: wrap the page's existing content in `q … Q` before appending draws.
+ *
+ * PDF state is saved and restored by `q/Q`. A source stream that opens a clip
+ * (or changes the CTM/colour) and never closes it would otherwise apply that
+ * state to everything pdf-lib appends afterwards — the classic "new text is
+ * clipped away" failure. Wrapping the original in its own graphics-state scope
+ * guarantees the appended objects start from the page's initial state without
+ * changing a single drawing operator the source performed.
+ */
+function isolatePageContent(page: PDFPage): void {
+  const { Contents } = page.node.normalizedEntries();
+  if (!Contents || Contents.size() === 0) return;
+  const chunks: Uint8Array[] = [];
+  for (let i = 0; i < Contents.size(); i += 1) {
+    const value = Contents.lookup(i);
+    if (!(value instanceof PDFStream)) continue;
+    let decoded: Uint8Array;
+    if (value instanceof PDFRawStream) {
+      try {
+        decoded = decodePDFRawStream(value).decode();
+      } catch {
+        decoded = value.getContents();
+      }
+    } else if (
+      'getUnencodedContents' in value &&
+      typeof (value as { getUnencodedContents?: () => Uint8Array }).getUnencodedContents ===
+        'function'
+    ) {
+      // pdf-lib's own content streams are PDFFlateStreams: getContents() is the
+      // compressed payload, while getUnencodedContents() is the operators.
+      decoded = (value as { getUnencodedContents(): Uint8Array }).getUnencodedContents();
+    } else {
+      decoded = value.getContents();
+    }
+    chunks.push(decoded, Uint8Array.of(0x0a));
+  }
+  if (chunks.length === 0) return;
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const wrapped = new Uint8Array(total + 4);
+  wrapped[0] = 0x71; // q
+  wrapped[1] = 0x0a;
+  let offset = 2;
+  for (const chunk of chunks) {
+    wrapped.set(chunk, offset);
+    offset += chunk.length;
+  }
+  wrapped[offset] = 0x51; // Q
+  wrapped[offset + 1] = 0x0a;
+
+  const dict = PDFDict.withContext(page.doc.context);
+  dict.set(PDFName.of('Length'), PDFNumber.of(wrapped.length));
+  const stream = PDFRawStream.of(dict, wrapped);
+  // Keep /Contents an array: pdf-lib's own appender pushes into it. A bare
+  // stream reference was normalised once already, so it would not be re-wrapped.
+  page.node.set(
+    PDFName.of('Contents'),
+    page.doc.context.obj([page.doc.context.register(stream)]),
+  );
+  // pdf-lib caches the page's writable content stream on first draw. Replacing
+  // /Contents behind that cache would make later draws land in an unreferenced
+  // stream, so clear it and let the next draw create a fresh one in our array.
+  const cached = page as unknown as {
+    contentStream?: unknown;
+    contentStreamRef?: unknown;
+  };
+  delete cached.contentStream;
+  delete cached.contentStreamRef;
 }
 
 interface FontSet {
