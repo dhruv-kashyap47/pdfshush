@@ -122,4 +122,23 @@ describe('stream font metrics (C-02)', () => {
     expect(metrics.reliable).toBe(false);
     expect(metrics.reason).toMatch(/width/i);
   });
+
+  it('does not guess base-14 widths for a name that merely looks similar', async () => {
+    const doc = await PDFDocument.create();
+    for (const name of ['MySansFace', 'Symbol', 'ZapfDingbats', 'HelveticaNeue']) {
+      const metrics = readFontMetrics(
+        dict(doc, { Type: 'Font', Subtype: 'Type1', BaseFont: name }),
+      );
+      expect(metrics.reliable, name).toBe(false);
+    }
+  });
+
+  it('uses the bold AFM table for Helvetica-Bold', async () => {
+    const doc = await PDFDocument.create();
+    const metrics = readFontMetrics(
+      dict(doc, { Type: 'Font', Subtype: 'Type1', BaseFont: 'Helvetica-Bold' }),
+    );
+    expect(metrics.reliable).toBe(true);
+    expect(metrics.widthFor(65)).toBe(722);
+  });
 });

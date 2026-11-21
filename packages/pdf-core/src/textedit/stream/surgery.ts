@@ -409,6 +409,14 @@ export function scanPageText(
           tm = multiply(translate(distance, 0), tm);
         };
         const emitSegment = (segment: TextSegment, segmentIndex: number): void => {
+          if (
+            font.codeByteLength === 2 &&
+            (segment.token.bytes?.length ?? 0) % 2 !== 0
+          ) {
+            // A two-byte code space with a trailing half code cannot be re-emitted
+            // without guessing. Mark the run undecodable so no plan can match it.
+            decodable = false;
+          }
           for (const glyph of segment.glyphs) {
             const spacing =
               charSpacing + (glyph.code === 0x20 && font.codeByteLength === 1 ? wordSpacing : 0);
@@ -523,6 +531,8 @@ export interface GlyphRange {
 export interface FindResult {
   range: GlyphRange;
   exact: boolean;
+  /** True when the same needle appears more than once in this run. */
+  ambiguous: boolean;
 }
 
 /** Finds `needle` in a run and maps it back to glyph indices. */
@@ -534,10 +544,15 @@ export function findGlyphRange(run: TextRun, needle: string): FindResult | undef
   const exact = folded.text === normalizedNeedle;
   const at = exact ? 0 : folded.text.indexOf(normalizedNeedle);
   if (at < 0) return undefined;
+  const ambiguous = !exact && folded.text.indexOf(normalizedNeedle, at + 1) !== -1;
   const startGlyph = folded.owners[at];
   const endGlyph = folded.owners[at + normalizedNeedle.length - 1];
   if (startGlyph === undefined || endGlyph === undefined) return undefined;
-  return { range: { start: startGlyph, end: endGlyph + 1 }, exact };
+  return {
+    range: { start: startGlyph, end: endGlyph + 1 },
+    exact,
+    ambiguous,
+  };
 }
 
 export interface RunBox {
@@ -647,6 +662,9 @@ function buildRemovalShow(
   removeStart: number,
   removeEnd: number,
 ): string | { reason: string } {
+  if (run.operation.name === '"' && run.operation.operands.length < 3) {
+    return { reason: 'malformed " operator; spacing operands are missing' };
+  }
   const font = run.font;
   const renderSegment = (segment: TextSegment, index: number): string[] => {
     if (index !== targetSegment) return [rawToken(bytes, segment.token)];
@@ -689,6 +707,9 @@ function buildReplacementShow(
   encoded: Uint8Array,
   kern: number,
 ): string | { reason: string } {
+  if (run.operation.name === '"' && run.operation.operands.length < 3) {
+    return { reason: 'malformed " operator; spacing operands are missing' };
+  }
   const parts = [`<${hexBytes(encoded)}>`];
   if (Math.abs(kern) >= 0.00005) parts.push(formatNumber(kern));
   const prefix = showPrefix(run, bytes);
@@ -726,6 +747,9 @@ export function planGlyphRemoval(
   range: GlyphRange,
   bytes: Uint8Array,
 ): RemovalPlan | { reason: string } {
+  if (!run.decodable) {
+    return { reason: 'the show operator could not be decoded completely' };
+  }
   if (range.start < 0 || range.end > run.glyphs.length || range.end <= range.start) {
     return { reason: 'selected glyph range is empty or outside the run' };
   }
@@ -763,6 +787,9 @@ export function planRunReplacement(
   encoded: Uint8Array,
   options: { allowAdvanceGrowth?: boolean } = {},
 ): ReplacementPlan | { reason: string } {
+  if (!run.decodable) {
+    return { reason: 'the show operator could not be decoded completely' };
+  }
   if (!run.font.reliable) {
     // No reliable metrics means no honest compensation; still rewrite the string
     // when the caller asked, but do not claim a preserved advance.

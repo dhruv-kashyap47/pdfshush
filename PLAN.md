@@ -48,7 +48,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
 | **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 301 |
-| **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; pdf-core 628+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waits on C-07 |
+| **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; bug pass fixed 10 boundary defects; pdf-core 639+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waits on C-07 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -104,7 +104,7 @@ inline images no longer abort the page, font advances come from `/W`/`/Widths`/T
 kern so kept glyphs stay put. `ops/edit.ts` wraps source content in `q … Q` before
 appending overlays; stream outcomes carry a glyph box and report `stream-incomplete`
 for Form-XObject/Type3/malformed text. Fresh gates: `pnpm typecheck` all 8 projects,
-`pnpm test` — pdf-core **628 pass + 1 expected fail**, web 301, api 243, mcp 19,
+`pnpm test` - pdf-core **639 pass + 1 expected fail**, web 301, api 243, mcp 19,
 ai-agent 152, ai-provider 375; `pnpm build` (63 routes), `pnpm test:bundle` main
 **150.4 kB / 0 engines**, `pnpm test:provenance` clean, new `pnpm test:corpus` **2/2**.
 25 new pdf-core tests cover the lexer, metrics, removal/compensation, untouched-page
@@ -7706,18 +7706,45 @@ fingerprint fails loudly with the page and the two hashes.
 | Gate | Result |
 | --- | --- |
 | `pnpm typecheck` (8 projects) | pass |
-| `pnpm test` | pdf-core **628 + 1 expected fail**, web 301, api 243, mcp 19, ai-agent 152, ai-provider 375 |
+| `pnpm test` | pdf-core **639 + 1 expected fail**, web 301, api 243, mcp 19, ai-agent 152, ai-provider 375 |
 | `pnpm build` | pass, 63 routes prerendered |
 | `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
 | `pnpm test:provenance` | clean |
 | `pnpm test:corpus` | 2/2 |
 | Browser E2E | `text-edit` 7/7 and `editor-quick-parity` 20/20 green against the dev web app (preflight used a mock `/api/health`; neither suite uses server-backed steps) |
 
-New tests: `streamLexer.test.ts` (8), `streamMetrics.test.ts` (6),
-`streamSurgery.test.ts` (7), `streamVerification.test.ts` (3),
+New tests: `streamLexer.test.ts` (10), `streamMetrics.test.ts` (8),
+`streamSurgery.test.ts` (15), `streamVerification.test.ts` (3),
 `goldenCorpus.test.ts` (2), plus the extended `golden.test.ts`.
 
-### 39.8 Deliberately not claimed
+### 39.9 Bug pass (2026-11-21)
+
+The sprint-4 engine was then attacked on its own boundaries. Ten defects were
+found and fixed before commit:
+
+| Area | Bug | Fix |
+| --- | --- | --- |
+| C-02 | A custom face named `MySansFace`, `Symbol`, `ZapfDingbats` or `HelveticaNeue` was given Helvetica/Times advances merely because its name contained a family word. | Base-14 detection now matches known Helvetica/Arial/Times/Courier names only; everything else is `reliable:false`. |
+| C-03 | A deletion whose needle occurred **twice in the same show run** silently picked the first occurrence. | `findGlyphRange` marks the run ambiguous and the stream pass refuses with a reason instead of guessing. |
+| C-03 | A Type0 string with an odd byte length was decoded into glyphs and re-emitted without its trailing half-code. | The run is marked undecodable and no plan can match it. Public plan functions also refuse undecodable runs. |
+| C-04 | First/last string removals and `Tj`→`TJ` transitions at array edges were not pinned by tests. | Added first/last `TJ` cases (asserting the leading/trailing negative kern), plus `Tc`/`Tw`/`Tz` and a real `"` operator case. |
+| C-05 | `planGlyphRemoval` accepted a range on an undecodable run. | Both plan functions refuse with a reason. |
+| C-06 | An undecodable content filter was “decoded” by `getContents()`, which returns the still-compressed payload; wrapping it would splice binary into a raw stream. | Isolation skips the page when a filter cannot be decoded; the content-stream pass reports manual-review instead of rewriting. The wrapper is now flate-compressed so isolation does not inflate large pages. |
+| C-12 | The untouched-page check extracted **every** untouched page on each save — a 500-page document with one edit would pay for 499 pdf.js extractions. | Bounded to 64 pages by default (deterministic head+tail sample) with an explicit “sampled from N” detail; `untouchedPageLimit` is configurable. |
+| C-12 | Mixed text + overlay exports put new overlay text on a page no edit declared, so the untouched-page check failed a save that did exactly what was asked. | Every extra overlay object now contributes an expected-change region. |
+| C-12 | Stream outcomes overwrote a caller-supplied `edit.box` with a tighter glyph-derived box, risking a false visual failure on a slightly wider replacement. | A caller box is kept; the glyph box is only derived when none was supplied. |
+| C-12 | Rotated pages got no display region from the stream pass. | `pageGeom` + `pdfRectToView` convert the glyph AABB through CropBox and `/Rotate`, so rotated removals carry a box. |
+
+Also: a hex string containing non-hex characters is now `malformed` (so the
+page reports `stream-incomplete` instead of treating the token as clean).
+
+Verification after the bug pass: `pnpm typecheck` all 8 projects, `pnpm test` —
+pdf-core **639 + 1 expected fail**, web 301, api 243, mcp 19, ai-agent 152,
+ai-provider 375; `pnpm build` (63 routes), bundle main **150.4 kB / 0 engines**,
+provenance clean, corpus 2/2, and `text-edit` 7/7 + `editor-quick-parity` 20/20
+green against the dev web app. Total new pdf-core coverage is 38 tests.
+
+### 39.10 Deliberately not claimed
 
 - **Gate C is not met.** It requires C-07 (leftover-cover policy), which is
   Sprint 5. C-05's UX wiring, C-08..C-11, T-06 native styling, T-07 rotation and

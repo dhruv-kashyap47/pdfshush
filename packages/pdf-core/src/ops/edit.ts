@@ -13,10 +13,8 @@
 
 import {
   LineCapStyle,
-  PDFDict,
   PDFDocument,
   PDFName,
-  PDFNumber,
   PDFRawStream,
   PDFStream,
   StandardFonts,
@@ -714,11 +712,16 @@ function isolatePageContent(page: PDFPage): void {
   for (let i = 0; i < Contents.size(); i += 1) {
     const value = Contents.lookup(i);
     if (!(value instanceof PDFStream)) continue;
+    const filtered = value.dict.get(PDFName.of('Filter')) !== undefined;
     let decoded: Uint8Array;
     if (value instanceof PDFRawStream) {
       try {
         decoded = decodePDFRawStream(value).decode();
       } catch {
+        // A filter pdf-lib cannot decode must not be "decoded" by handing back
+        // its still-encoded bytes: that would splice compressed data into a raw
+        // content stream. Leave the page alone instead.
+        if (filtered) return;
         decoded = value.getContents();
       }
     } else if (
@@ -726,10 +729,15 @@ function isolatePageContent(page: PDFPage): void {
       typeof (value as { getUnencodedContents?: () => Uint8Array }).getUnencodedContents ===
         'function'
     ) {
-      // pdf-lib's own content streams are PDFFlateStreams: getContents() is the
-      // compressed payload, while getUnencodedContents() is the operators.
-      decoded = (value as { getUnencodedContents(): Uint8Array }).getUnencodedContents();
+      try {
+        // pdf-lib's own content streams are PDFFlateStreams: getContents() is the
+        // compressed payload, while getUnencodedContents() is the operators.
+        decoded = (value as { getUnencodedContents(): Uint8Array }).getUnencodedContents();
+      } catch {
+        return;
+      }
     } else {
+      if (filtered) return;
       decoded = value.getContents();
     }
     chunks.push(decoded, Uint8Array.of(0x0a));
@@ -747,9 +755,9 @@ function isolatePageContent(page: PDFPage): void {
   wrapped[offset] = 0x51; // Q
   wrapped[offset + 1] = 0x0a;
 
-  const dict = PDFDict.withContext(page.doc.context);
-  dict.set(PDFName.of('Length'), PDFNumber.of(wrapped.length));
-  const stream = PDFRawStream.of(dict, wrapped);
+  // Compress the wrapped stream so isolation does not inflate large pages. The
+  // /Filter is set by pdf-lib; the bytes are the decoded operators we just read.
+  const stream = page.doc.context.flateStream(wrapped);
   // Keep /Contents an array: pdf-lib's own appender pushes into it. A bare
   // stream reference was normalised once already, so it would not be re-wrapped.
   page.node.set(

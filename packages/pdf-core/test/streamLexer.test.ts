@@ -69,4 +69,11 @@ describe('content-stream lexer (C-01)', () => {
     expect(isPlainLiteral(stream, hex!)).toBe(false);
     expect(isPlainLiteral(stream, escaped!)).toBe(false);
   });
+
+  it('marks a hex string with non-hex characters as malformed', () => {
+    const token = tokenizeContentStream(bytes('<61ZZ62>')).find(
+      (candidate) => candidate.kind === 'string',
+    );
+    expect(token?.malformed).toBe(true);
+  });
 });

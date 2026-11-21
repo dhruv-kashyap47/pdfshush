@@ -191,6 +191,7 @@ class Scanner {
     this.index += 1;
     const digits: number[] = [];
     let malformed = true;
+    let invalid = false;
     while (this.index < this.bytes.length) {
       const byte = this.bytes[this.index]!;
       this.index += 1;
@@ -208,6 +209,7 @@ class Scanner {
               ? byte - 0x57
               : -1;
       if (value >= 0) digits.push(value);
+      else invalid = true;
     }
     if (digits.length % 2 === 1) digits.push(0);
     const out = new Uint8Array(digits.length / 2);
@@ -220,7 +222,7 @@ class Scanner {
       end: this.index,
       bytes: out,
       literal: false,
-      ...(malformed ? { malformed: true } : {}),
+      ...(malformed || invalid ? { malformed: true } : {}),
     };
   }
 

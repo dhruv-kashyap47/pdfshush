@@ -137,24 +137,25 @@ const COURIER = widthTable(
 );
 
 function baseTables(baseName: string): number[] | undefined {
-  const name = baseName.toLowerCase();
-  if (name.includes('courier') || name.includes('mono')) return COURIER;
-  if (name.includes('times') || name.includes('serif')) {
-    const bold = name.includes('bold') || name.includes('black');
-    const italic = name.includes('italic') || name.includes('oblique');
+  // Only faces whose advances are actually the base-14 metrics. A name that
+  // merely *contains* "sans" or "serif" is not evidence: guessing Helvetica
+  // widths for a custom face would move every kept glyph after a removal.
+  const name = baseName.trim().toLowerCase().replace(/^[a-z]{6}\+/, '');
+  const style = name.replace(/^[a-z]+/, '').replace(/[^a-z]/g, '');
+  const bold = style.includes('bold') || style.includes('black');
+  const italic = style.includes('italic') || style.includes('oblique');
+  if (/^courier(\b|$)/.test(name) || /^courier[- ]/.test(name)) return COURIER;
+  if (/^times(\b|$)|^times[- ]/.test(name)) {
     if (bold && italic) return TIMES_BOLD_ITALIC;
     if (bold) return TIMES_BOLD;
     if (italic) return TIMES_ITALIC;
     return TIMES_ROMAN;
   }
-  if (
-    name.includes('helvetica') ||
-    name.includes('arial') ||
-    name.includes('sans') ||
-    name.includes('symbol')
-  ) {
-    return name.includes('bold') ? HELVETICA_BOLD : HELVETICA;
+  if (/^helvetica(\b|$)|^helvetica[- ]/.test(name) || /^arial(\b|$)|^arial[- ]/.test(name)) {
+    return bold ? HELVETICA_BOLD : HELVETICA;
   }
+  // Symbol and ZapfDingbats are base-14 faces but their codes are glyph names,
+  // not text; their advances are not the Helvetica table.
   return undefined;
 }
 
@@ -537,7 +538,9 @@ export function readPageFontMetrics(
   if (!(fonts instanceof PDFDict)) return out;
   for (const [name, value] of fonts.entries()) {
     const dict = fonts.context.lookup(value);
-    if (dict instanceof PDFDict) out.set(name.asString().replace(/^\//, ''), readFontMetrics(dict));
+    if (dict instanceof PDFDict) {
+      out.set(name.decodeText().replace(/^\//, ''), readFontMetrics(dict));
+    }
   }
   return out;
 }

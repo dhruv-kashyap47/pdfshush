@@ -31,9 +31,11 @@ import {
   PDFStream,
   decodePDFRawStream,
   type PDFArray,
+  type PDFPage,
 } from '@cantoo/pdf-lib';
 import type { JobContext } from '../job.js';
 import { loadPdfDocument } from '../ops/pages.js';
+import { pageGeom, pdfRectToView } from '../ops/geometry.js';
 import type { FontCharcodes, FontCharcodesByPage } from './charcodes.js';
 import { parseOperations, tokenizeContentStream } from './stream/lexer.js';
 import { readPageFontMetrics } from './stream/metrics.js';
@@ -84,6 +86,9 @@ function decodeContents(contents: PDFArray, context: PDFDict['context']): Uint8A
       try {
         decoded = decodePDFRawStream(stream).decode();
       } catch {
+        if (stream.dict.get(PDFName.of('Filter')) !== undefined) {
+          throw new Error('content stream uses a filter this engine cannot decode');
+        }
         decoded = stream.getContents();
       }
     } else if (
@@ -93,6 +98,9 @@ function decodeContents(contents: PDFArray, context: PDFDict['context']): Uint8A
     ) {
       decoded = (stream as { getUnencodedContents(): Uint8Array }).getUnencodedContents();
     } else {
+      if (stream.dict.get(PDFName.of('Filter')) !== undefined) {
+        throw new Error('content stream uses a filter this engine cannot decode');
+      }
       decoded = stream.getContents();
     }
     chunks.push(decoded, Uint8Array.of(0x0a));
@@ -138,18 +146,14 @@ function applySplices(bytes: Uint8Array, splices: readonly Splice[]): Uint8Array
   return out;
 }
 
-function displayBox(
-  page: { getSize(): { width: number; height: number }; getRotation(): { angle: number } },
-  box: RunBox,
-): TextEditBox | undefined {
-  if (page.getRotation().angle % 360 !== 0) return undefined;
-  const { height } = page.getSize();
-  return {
-    x: box.x,
-    y: height - (box.y + box.height),
-    width: box.width,
-    height: box.height,
-  };
+function displayBox(page: PDFPage, box: RunBox): TextEditBox | undefined {
+  try {
+    // pdfRectToView owns CropBox intersection and /Rotate; doing this by hand
+    // left rotated stream edits without a verification region.
+    return pdfRectToView(pageGeom(page), box);
+  } catch {
+    return undefined;
+  }
 }
 
 function limitationsFor(scan: PageTextScan): string[] {
@@ -294,18 +298,25 @@ export async function applyContentStreamEdits(
 
       const deletion = edit.replace.length === 0;
       const matches: Array<{ run: TextRun; start: number; end: number }> = [];
+      let ambiguousInRun = false;
       for (const run of scan.runs) {
         const found = findGlyphRange(run, edit.find);
         if (!found) continue;
         if (!deletion && !found.exact) continue;
+        if (found.ambiguous) {
+          ambiguousInRun = true;
+          continue;
+        }
         matches.push({ run, start: found.range.start, end: found.range.end });
       }
 
-      if (matches.length !== 1) {
+      if (ambiguousInRun || matches.length !== 1) {
         const base =
-          matches.length === 0
-            ? 'no single content-stream show operator matches the run'
-            : `${matches.length} show operators match the run; refusing an ambiguous rewrite`;
+          ambiguousInRun
+            ? `the run contains more than one occurrence of "${edit.find}"; refusing to guess which one was selected`
+            : matches.length === 0
+              ? 'no single content-stream show operator matches the run'
+              : `${matches.length} show operators match the run; refusing an ambiguous rewrite`;
         pageOutcomes.set(edit.id, {
           id: edit.id,
           pageIndex,
@@ -338,7 +349,9 @@ export async function applyContentStreamEdits(
           pageIndex,
           mode: 'content-stream',
           fidelity: 'high',
-          ...(box ? { box: displayBox(page, box) ?? undefined } : {}),
+          // A caller-supplied box is the region the UI already told the visual
+          // gate to expect; keep it. Only derive one when none was supplied.
+          ...(box && !edit.box ? { box: displayBox(page, box) ?? undefined } : {}),
         });
         applied += 1;
         continue;
@@ -372,7 +385,7 @@ export async function applyContentStreamEdits(
         pageIndex,
         mode: 'content-stream',
         fidelity: 'high',
-        ...(box ? { box: displayBox(page, box) ?? undefined } : {}),
+        ...(box && !edit.box ? { box: displayBox(page, box) ?? undefined } : {}),
       });
       applied += 1;
     }

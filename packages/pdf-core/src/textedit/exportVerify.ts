@@ -51,6 +51,12 @@ export interface ExportVerifyOptions {
   consumedFonts?: Set<string>;
   /** Canvas implementation for the visual comparison (browser worker or Node test). */
   canvasFactory?: CanvasFactory;
+  /**
+   * Maximum number of untouched pages to text-compare. Large exports still get
+   * a deterministic head+tail sample instead of extracting hundreds of pages on
+   * every save. Defaults to 64.
+   */
+  untouchedPageLimit?: number;
 }
 
 interface SampledPage {
@@ -306,16 +312,26 @@ export async function verifyExportArtifact(
     add(checks, 'untouched-pages', true, 'no text edit scope declared');
   } else if (untouchedPages.length > 0) {
     try {
+      const limit = Math.max(1, options.untouchedPageLimit ?? 64);
+      let checkedPages = untouchedPages;
+      if (untouchedPages.length > limit) {
+        const headCount = Math.ceil(limit / 2);
+        const tailCount = limit - headCount;
+        const picks = [...untouchedPages.slice(0, headCount)];
+        if (tailCount > 0) picks.push(...untouchedPages.slice(-tailCount));
+        checkedPages = [...new Set(picks)].sort((a, b) => a - b);
+      }
+      const sampled = checkedPages.length < untouchedPages.length;
       const [originalRuns, outputRuns] = await Promise.all([
-        extractTextRuns(options.original, untouchedPages, undefined, options.password),
-        extractTextRuns(options.output, untouchedPages, undefined, options.password),
+        extractTextRuns(options.original, checkedPages, undefined, options.password),
+        extractTextRuns(options.output, checkedPages, undefined, options.password),
       ]);
       const join = (runs: Array<Array<{ text: string }>>): string[] =>
         runs.map((page) => normalizeForMatch(page.map((run) => run.text).join('\n')));
       const before = join(originalRuns);
       const after = join(outputRuns);
       let changed = 0;
-      untouchedPages.forEach((pageIndex, position) => {
+      checkedPages.forEach((pageIndex, position) => {
         const a = before[position] ?? '';
         const b = after[position] ?? '';
         const same = a === b;
@@ -333,7 +349,8 @@ export async function verifyExportArtifact(
         checks,
         'untouched-pages',
         changed === 0,
-        `${untouchedPages.length - changed} of ${untouchedPages.length} untouched pages text-identical`,
+        `${checkedPages.length - changed} of ${checkedPages.length} checked pages text-identical` +
+          (sampled ? ` (sampled from ${untouchedPages.length} untouched pages)` : ''),
       );
     } catch (error) {
       add(

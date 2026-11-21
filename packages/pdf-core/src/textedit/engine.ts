@@ -1128,7 +1128,7 @@ export async function editPdfText(
           if (!replacement) continue;
           outcome.mode = 'content-stream';
           outcome.fidelity = 'high';
-          if (replacement.box) outcome.box = replacement.box;
+          if (replacement.box && !outcome.box) outcome.box = replacement.box;
           delete outcome.reason;
         }
         warnings.push(
@@ -1279,6 +1279,15 @@ export async function editPdfText(
         box: { x, y, width: right - x, height: bottom - y },
       });
     }
+  }
+  // Extra overlay objects are expected changes too. Without their boxes, the
+  // untouched-page text check would see new text on a page no edit declared and
+  // fail a save that did exactly what was asked (mixed text + object exports).
+  for (const object of overlayObjects) {
+    editedRegions.push({
+      pageIndex: object.pageIndex,
+      box: { x: object.x, y: object.y, width: object.width, height: object.height },
+    });
   }
   // Filling a field legitimately repaints its widget appearance. The visual gate
   // compares the whole page outside the text-edit regions, so the widgets whose
