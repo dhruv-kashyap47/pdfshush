@@ -3166,6 +3166,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           find: deletion.text,
           replace: '',
           box: deletion.line.box,
+          // A partial deletion must be anchored by its text, not by the whole
+          // line box: the native box-only erase fallback would remove the entire
+          // run. Content-stream surgery is the only path that removes just the
+          // selected glyphs; if it cannot anchor them, the engine refuses.
+          strategy: 'content-stream',
           coverPolicy: 'leftover-cover',
         });
         linked.add(object.id);

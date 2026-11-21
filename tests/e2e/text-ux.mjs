@@ -611,6 +611,46 @@ async function draftScenario(browser) {
   }
 }
 
+async function partialDeleteScenario(browser) {
+  const fixture = await writeFixture('partial-delete.pdf', [
+    [{ text: 'Invoice 2026-0042 total' }],
+  ]);
+  const page = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
+  try {
+    await openEditor(page, fixture);
+    const { pageBox, zoom } = await paragraphPoint(page);
+    // Select the date word inside the inline editor and delete only it. The
+    // paragraph is otherwise unchanged, so C-05 must remove that run, not the
+    // line.
+    const { point } = await paragraphPoint(page);
+    await page.mouse.dblclick(point.x, point.y, { delay: 60 });
+    const input = page.getByTestId('editor-paragraph-input');
+    await input.waitFor({ timeout: 15_000 });
+    await input.evaluate((element) => {
+      element.focus();
+      element.setSelectionRange(8, 17);
+    });
+    await page.keyboard.press('Delete');
+    await page.mouse.click(pageBox.x + pageBox.width - 30, pageBox.y + pageBox.height - 30);
+    await waitFor(
+      async () => (await page.getByTestId('editor-paragraph-input').count()) === 0,
+      10_000,
+      'paragraph commit',
+    );
+    await waitFor(
+      async () => (await page.getByTestId('editor-object-text').count()) === 1,
+      15_000,
+      'deletion replacement object',
+    );
+    const saved = await saveAndDownload(page);
+    const text = await extractText(saved);
+    check('partial delete keeps the rest of the line', text.includes('Invoice') && text.includes('total'), text.trim());
+    check('partial delete removes only the selected word', !text.includes('2026-0042'), text.trim());
+  } finally {
+    await page.close();
+  }
+}
+
 async function insertPagesScenario(browser) {
   const base = await writeFixture('insert-base.pdf', [[{ text: 'Base page' }]]);
   const extra = await writeFixture('insert-extra.pdf', [[{ text: 'Inserted page' }]]);
@@ -653,6 +693,10 @@ async function main() {
     if (want('format')) {
       console.log('\n-- formatting (T-06 UI half) --');
       await formattingScenario(browser);
+    }
+    if (want('delete')) {
+      console.log('\n-- partial-run deletion (C-05) --');
+      await partialDeleteScenario(browser);
     }
     if (want('insert')) {
       console.log('\n-- insert pages (E-09) --');
