@@ -392,20 +392,34 @@ interface LayoutMetrics {
   fontPtr: number;
   fontSize: number;
   source: PdfiumTextObject;
+  /** Source object matrix in PDF space. */
   matrix: readonly [number, number, number, number, number, number];
+  /** Unit-scale source orientation, used to place freshly created lines. */
+  creationMatrix: readonly [number, number, number, number];
   map: Map<number, number>;
   fontName: string;
   fontFamily?: 'helvetica' | 'times' | 'courier';
-  /** Exact standard face for native new-line creation, when the source is one. */
+  /**
+   * Exact standard face for native creation. Present when the source is a
+   * standard-14 face, or when the caller requested one of the standard families
+   * (which is an exact requested face, not a substitution).
+   */
   standardFace?: string;
+  /** True when every original line must be recreated in `standardFace`. */
+  recreate: boolean;
   color?: { r: number; g: number; b: number; a: number };
   align?: 'left' | 'center' | 'right';
   /** Clockwise display-space rotation requested by T-07. */
   rotationDeg?: number;
-  /** True when the requested size differs from the source size. */
+  /** True when the requested size differs from the source's effective size. */
   scaleToSize: boolean;
-  /** The object's nominal font size before the edit. */
+  /** The source object's effective (matrix-inclusive) size before the edit. */
   sourceFontSize: number;
+  /**
+   * Synthetic styles are only used for embedded/custom faces, where changing
+   * the face would be a substitution. Standard faces use a real bold/italic
+   * variant instead.
+   */
   syntheticBold: boolean;
   syntheticItalic: boolean;
 }
@@ -415,6 +429,36 @@ function asciiCharcodeMap(): Map<number, number> {
   const map = new Map<number, number>();
   for (let code = 0x20; code <= 0x7e; code += 1) map.set(code, code);
   return map;
+}
+
+/** Linear scale of a PDF text matrix. */
+function matrixScaleOf(matrix: readonly [number, number, number, number, number, number]): number {
+  return Math.hypot(matrix[0], matrix[1]) || 1;
+}
+
+/**
+ * The orientation of a source text matrix with its scale divided out. A freshly
+ * created text object carries its size in `fontSize`, so reusing the source
+ * matrix verbatim would apply an existing matrix scale a second time.
+ */
+function unitTextMatrix(
+  matrix: readonly [number, number, number, number, number, number],
+): readonly [number, number, number, number] {
+  const xScale = Math.hypot(matrix[0], matrix[1]) || 1;
+  const yScale = Math.hypot(matrix[2], matrix[3]) || 1;
+  return [matrix[0] / xScale, matrix[1] / xScale, matrix[2] / yScale, matrix[3] / yScale];
+}
+
+/** Rotate a text matrix's linear part counter-clockwise in PDF space. */
+function rotateMatrixLinear(
+  linear: readonly [number, number, number, number],
+  degreesClockwise: number,
+): readonly [number, number, number, number] {
+  const radians = (-degreesClockwise * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const [a, b, c, d] = linear;
+  return [a * cos + c * sin, b * cos + d * sin, -a * sin + c * cos, -b * sin + d * cos];
 }
 
 /** Rotates a display-space offset clockwise (display y points down). */
@@ -597,42 +641,71 @@ function planLayoutEdit(
   const source = targets[0]!.members[0]!;
   const style = plan.style;
   const fontName = doc.fontNameOf(source.ptr);
+  const sourceMatrix = source.matrix ?? ([1, 0, 0, 1, 0, 0] as const);
+  const sourceScale = matrixScaleOf(sourceMatrix);
+  const sourceSize = (source.fontSize || plan.reflow.lineHeight || 12) * sourceScale;
   const documentMap = fontName ? fonts?.get(pageIndex)?.get(fontName) : undefined;
-  const standardFont = fontName
-    ? /^(helvetica|times|courier|arial|symbol|zapfdingbats)/i.test(fontName)
-    : false;
-  const fontPtr = source.fontPtr;
-  const map = documentMap ?? (standardFont ? asciiCharcodeMap() : undefined);
-  if (!fontPtr || !map) {
-    return { reason: 'original font has no document-derived encoding map' };
-  }
   const sourceFamily = fontFamilyOf(fontName ?? source.font?.familyName ?? '');
   const sourceBold = isBoldFont(source.font);
   const sourceItalic = isItalicFont(source.font);
-  const standardFaceName = fontName
-    ? standardFaceForSource(fontName, source.font)
+  const sourceStandardFace = fontName ? standardFaceForSource(fontName, source.font) : undefined;
+  // Only a face this build can actually recreate gets the ASCII fallback map.
+  // A custom `HelveticaNeue` must not be treated as base-14 just by its name.
+  const sourceIsStandard = sourceStandardFace !== undefined;
+
+  // A requested standard family is an exact requested face, not a substitution.
+  // When the source is already standard-14, a bold/italic change can likewise
+  // use the real variant instead of a synthetic stroke or shear.
+  const targetFamily: 'helvetica' | 'times' | 'courier' | undefined =
+    style?.fontFamily ??
+    (sourceStandardFace && sourceFamily !== 'other' ? sourceFamily : undefined);
+  const targetBold = style?.bold ?? sourceBold;
+  const targetItalic = style?.italic ?? sourceItalic;
+  const standardFaceName = targetFamily
+    ? standardFace(targetFamily, targetBold, targetItalic)
     : undefined;
-  // T-06 on this PDFium build: new text objects cannot be created (their text
-  // write is refused), so a style is applied to the *existing* objects --
-  // matrix scale, shear (synthetic italic), rotation, fill colour and
-  // fill+stroke (synthetic bold). A requested family that is not the document's
-  // own, or un-bolding/un-italicising a face that has that style baked in,
-  // cannot be expressed and goes to the overlay with a receipt.
-  if (style?.fontFamily !== undefined && style.fontFamily !== sourceFamily) {
-    warnings.push(
-      `font-substituted: "${fontName ?? 'the document font'}" cannot become ${style.fontFamily} in place; ` +
-        'the replacement is drawn with the requested standard face instead.',
-    );
-    return { reason: 'requested font family needs a substituted face' };
+  const familyChanged =
+    style?.fontFamily !== undefined &&
+    (!sourceStandardFace || style.fontFamily !== sourceFamily);
+  const weightOrSlantChanged =
+    sourceStandardFace !== undefined &&
+    (targetBold !== sourceBold || targetItalic !== sourceItalic);
+  const recreate = Boolean(standardFaceName && (familyChanged || weightOrSlantChanged));
+
+  let fontPtr = source.fontPtr;
+  let map: Map<number, number> | undefined;
+  if (recreate && standardFaceName) {
+    // Measure the replacement in the face that will actually be created.
+    const loaded = doc.loadStandardFont(standardFaceName);
+    if (!loaded) {
+      return { reason: `PDFium could not load the requested standard face ${standardFaceName}` };
+    }
+    fontPtr = loaded;
+    map = asciiCharcodeMap();
+  } else {
+    map = documentMap ?? (sourceIsStandard ? asciiCharcodeMap() : undefined);
+    if (!fontPtr && standardFaceName) {
+      fontPtr = doc.loadStandardFont(standardFaceName);
+      map = asciiCharcodeMap();
+    }
   }
-  if (style?.bold === false && sourceBold) {
-    return { reason: 'the original face is bold and cannot be made lighter in place' };
+  if (!fontPtr || !map) {
+    return { reason: 'original font has no document-derived encoding map' };
   }
-  if (style?.italic === false && sourceItalic) {
-    return { reason: 'the original face is italic and cannot be made upright in place' };
+
+  // Embedded/custom faces cannot be recreated safely by this PDFium build (the
+  // CreateTextObj path returns an unusable object even for a font programme
+  // loaded from the document). They keep the original face and mutate existing
+  // objects; a needed face change or extra line has no native path and takes
+  // the declared overlay fallback with a receipt.
+  if (!standardFaceName && style?.bold === false && sourceBold) {
+    return { reason: 'the original embedded face is bold and cannot be made lighter in place' };
   }
-  const syntheticBold = style?.bold === true && !sourceBold;
-  const syntheticItalic = style?.italic === true && !sourceItalic;
+  if (!standardFaceName && style?.italic === false && sourceItalic) {
+    return { reason: 'the original embedded face is italic and cannot be made upright in place' };
+  }
+  const syntheticBold = !standardFaceName && style?.bold === true && !sourceBold;
+  const syntheticItalic = !standardFaceName && style?.italic === true && !sourceItalic;
   if (syntheticBold) {
     warnings.push(
       'synthetic-bold: the document face has no bold variant; the replacement is drawn with a synthetic stroke.',
@@ -643,7 +716,7 @@ function planLayoutEdit(
       'synthetic-italic: the document face has no italic variant; the replacement is drawn with an oblique shear.',
     );
   }
-  const sourceSize = source.fontSize || plan.reflow.lineHeight || 12;
+
   const fontSize = style?.fontSize ?? sourceSize;
   const color = style?.color ? parseHexColorToUnit(style.color) : doc.objectFillColor(source.ptr);
   const measure = (text: string): number | null => measureWithFont(doc, fontPtr, map, text, fontSize);
@@ -667,10 +740,10 @@ function planLayoutEdit(
   if (wrapped.overflow || wrapped.exceedsMaxLines) {
     return { reason: 'reflowed text does not fit the paragraph width/line budget' };
   }
-  if (style && wrapped.lines.length > targets.length) {
+  if (wrapped.lines.length > targets.length && !standardFaceName) {
     return {
       reason:
-        'the styled replacement needs more line objects than the original; this build cannot create them, so the overlay carries the style',
+        'the original font is embedded/custom and this build cannot create the extra line objects; the overlay carries the replacement',
     };
   }
   if (style?.rotationDeg !== undefined && plan.beforeLines.length > 1) {
@@ -736,6 +809,7 @@ function planLayoutEdit(
     }
   }
 
+  const creationOrientation = unitTextMatrix(sourceMatrix);
   return {
     metrics: {
       lines: created,
@@ -744,16 +818,20 @@ function planLayoutEdit(
       fontPtr,
       fontSize,
       source,
-      matrix: source.matrix ?? [fontSize, 0, 0, fontSize, 0, 0],
+      matrix: sourceMatrix,
+      creationMatrix:
+        rotationDeg !== undefined
+          ? rotateMatrixLinear(creationOrientation, rotationDeg)
+          : creationOrientation,
       map,
       fontName: fontName ?? '',
       ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
       ...(standardFaceName ? { standardFace: standardFaceName } : {}),
+      recreate,
       color,
       ...(align ? { align } : {}),
       ...(rotationDeg !== undefined ? { rotationDeg } : {}),
-      scaleToSize:
-        style?.fontSize !== undefined && Math.abs(style.fontSize - sourceSize) > 0.01,
+      scaleToSize: Math.abs(fontSize - sourceSize) > 0.01,
       sourceFontSize: sourceSize,
       syntheticBold,
       syntheticItalic,
@@ -789,43 +867,132 @@ function applyLayoutEdit(
 ): void {
   const { metrics, targets } = plan;
   const map = metrics.map;
-  const created: number[] = [];
+  const insertedCreated: number[] = [];
+  const uninserted: number[] = [];
+
+  const originFor = (index: number): { x: number; y: number } => {
+    const line = metrics.lines[index]!;
+    let baselineX = line.x;
+    let baselineY = line.baselineY;
+    if (metrics.rotationDeg !== undefined) {
+      // Rotate the whole block around the first line's baseline start, not each
+      // line around its own origin.
+      const pivotX = metrics.x;
+      const pivotY = edit.layout!.reflow.firstBaselineY;
+      const [rx, ry] = rotateClockwise(
+        baselineX - pivotX,
+        baselineY - pivotY,
+        metrics.rotationDeg,
+      );
+      baselineX = pivotX + rx;
+      baselineY = pivotY + ry;
+    }
+    return { x: baselineX, y: baselineY };
+  };
+
+  const matrixFor = (index: number): readonly [number, number, number, number, number, number] => {
+    const origin = originFor(index);
+    const [x, y] = doc.viewPointToPdf(pageIndex, origin);
+    const [a, b, c, d] = metrics.creationMatrix;
+    return [a, b, c, d, x, y] as const;
+  };
+
+  const cleanup = (): void => {
+    for (const ptr of insertedCreated) {
+      try {
+        doc.removeObject(pageIndex, ptr);
+      } catch {
+        /* best effort before the whole document is discarded */
+      }
+    }
+    for (const ptr of uninserted) {
+      try {
+        doc.destroyObject(ptr);
+      } catch {
+        /* best effort */
+      }
+    }
+  };
+
   try {
-    // Create overflow lines first. If this fails, nothing has been rewritten.
-    for (let index = targets.length; index < metrics.lines.length; index += 1) {
-      const line = metrics.lines[index]!;
-      const baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
-      const [x, y] = doc.viewPointToPdf(pageIndex, { x: metrics.x, y: baselineY });
-      const matrix = [metrics.matrix[0], metrics.matrix[1], metrics.matrix[2], metrics.matrix[3], x, y] as const;
-      const charcodes = encodeWithMap(map, line.text);
-      // Standard-14 sources use FPDFPageObj_NewTextObj: the only creation path
-      // that is safe in this PDFium build. Embedded/custom faces cannot be
-      // recreated here and still take the declared overlay fallback.
-      let ptr = metrics.standardFace
-        ? doc.createStandardTextObject(
-            pageIndex,
-            metrics.standardFace,
-            metrics.fontSize,
-            line.text,
-            matrix,
-            metrics.color,
-            metrics.source.renderMode,
-          )
-        : 0;
-      if (!ptr) {
-        ptr = doc.createTextObject(
-          pageIndex,
-          metrics.fontPtr,
+    if (metrics.recreate && metrics.standardFace) {
+      // Style changes that need a different face are applied by recreating every
+      // line in that exact face. Prepare all lines first: if any creation fails,
+      // the original paragraph is still untouched and the edit can demote
+      // honestly to the overlay.
+      for (let index = 0; index < metrics.lines.length; index += 1) {
+        const line = metrics.lines[index]!;
+        const ptr = doc.prepareStandardTextObject(
+          metrics.standardFace,
           metrics.fontSize,
           line.text,
-          matrix,
+          matrixFor(index),
           metrics.color,
           metrics.source.renderMode,
-          charcodes,
         );
+        if (!ptr) {
+          throw new Error(
+            `PDFium refused to prepare a recreated line (${doc.lastCreateError})`,
+          );
+        }
+        uninserted.push(ptr);
       }
-      if (!ptr) throw new Error(`PDFium refused to create a reflowed line (${doc.lastCreateError})`);
-      created.push(ptr);
+
+      const memberPtrs = targets.flatMap((target) =>
+        target.members.map((member) => member.ptr),
+      );
+      const memberIndexes = memberPtrs.map((ptr) => ({
+        ptr,
+        index: doc.objectIndex(pageIndex, ptr),
+      }));
+      if (memberIndexes.some((entry) => entry.index < 0)) {
+        throw new Error('an original line object disappeared before the paragraph could be recreated');
+      }
+      const insertIndex = Math.min(...memberIndexes.map((entry) => entry.index));
+
+      noteConsumedFonts(doc, memberPtrs, consumedFonts);
+      for (const entry of [...memberIndexes].sort((a, b) => b.index - a.index)) {
+        if (!doc.removeObject(pageIndex, entry.ptr)) {
+          throw new LayoutMutationError(
+            'PDFium refused to remove an original line while recreating the paragraph',
+          );
+        }
+      }
+
+      let insertOffset = 0;
+      while (uninserted.length > 0) {
+        const ptr = uninserted[0]!;
+        if (!doc.insertObject(pageIndex, ptr, insertIndex + insertOffset)) {
+          throw new LayoutMutationError('PDFium refused to insert a recreated paragraph line');
+        }
+        uninserted.shift();
+        insertedCreated.push(ptr);
+        insertOffset += 1;
+      }
+      return;
+    }
+
+    // No face change: mutate the document's own objects and create only the
+    // overflow lines. A failure here after the first rewrite is a hard refusal;
+    // an overlay beside surviving rewritten lines would duplicate the words.
+    for (let index = targets.length; index < metrics.lines.length; index += 1) {
+      if (!metrics.standardFace) {
+        throw new Error('no standard face is available for an extra reflow line');
+      }
+      const line = metrics.lines[index]!;
+      const ptr = doc.createStandardTextObject(
+        pageIndex,
+        metrics.standardFace,
+        metrics.fontSize,
+        line.text,
+        matrixFor(index),
+        metrics.color,
+        metrics.source.renderMode,
+      );
+      if (!ptr) {
+        throw new Error(`PDFium refused to create a reflowed line (${doc.lastCreateError})`);
+      }
+      insertedCreated.push(ptr);
     }
 
     for (let index = 0; index < targets.length; index += 1) {
@@ -846,20 +1013,13 @@ function applyLayoutEdit(
         doc.setText(first.ptr, replacement);
       if (!written) throw new LayoutMutationError('PDFium refused to rewrite a reflowed line');
 
-      // T-06/T-07: apply the requested style to the *existing* object. New text
-      // objects cannot be created in this PDFium build, so size is a matrix
-      // scale, italic is a shear, rotation is a matrix rotation, colour is a
-      // fill write, and bold is synthetic fill+stroke. The face itself is never
-      // silently swapped; a family change goes to the overlay with a receipt.
       const original = doc.objectMatrix(first.ptr);
       if (original) {
         let [a, b, c, d] = original;
         if (metrics.scaleToSize) {
-          // The matrix already carries the document's own scale. Divide it out
-          // so a requested 24 pt is 24 pt, not 24 multiplied by whatever
-          // transform the source object happened to use.
-          const matrixScale = Math.hypot(original[0], original[1]) || 1;
-          const fontScale = metrics.fontSize / Math.max(0.01, metrics.sourceFontSize * matrixScale);
+          // The source size is matrix-inclusive; scale by the requested ratio so
+          // a source object that already has a transform is not scaled twice.
+          const fontScale = metrics.fontSize / Math.max(0.01, metrics.sourceFontSize);
           a *= fontScale;
           b *= fontScale;
           c *= fontScale;
@@ -872,18 +1032,12 @@ function applyLayoutEdit(
           d += b * shear;
         }
         if (metrics.rotationDeg !== undefined) {
-          // Display clockwise -> PDF counter-clockwise is negative.
-          const radians = (-metrics.rotationDeg * Math.PI) / 180;
-          const cos = Math.cos(radians);
-          const sin = Math.sin(radians);
-          const na = a * cos + c * sin;
-          const nb = b * cos + d * sin;
-          const nc = -a * sin + c * cos;
-          const nd = -b * sin + d * cos;
-          a = na;
-          b = nb;
-          c = nc;
-          d = nd;
+          [a, b, c, d] = rotateMatrixLinear([a, b, c, d], metrics.rotationDeg) as [
+            number,
+            number,
+            number,
+            number,
+          ];
         }
         const beforeLine = edit.layout!.beforeLines[index]?.box;
         const firstBefore = edit.layout!.beforeLines[0]?.box;
@@ -901,9 +1055,6 @@ function applyLayoutEdit(
           let baselineX = baseX;
           let baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
           if (metrics.rotationDeg !== undefined) {
-            // Rotate the whole block around the first line's baseline start,
-            // not each line around its own origin. Otherwise the second line of
-            // a rotated paragraph lands on top of the first.
             const pivotX = metrics.x;
             const pivotY = edit.layout!.reflow.firstBaselineY;
             const [rx, ry] = rotateClockwise(
@@ -940,13 +1091,7 @@ function applyLayoutEdit(
       }
     }
   } catch (error) {
-    for (const ptr of created) {
-      try {
-        doc.removeObject(pageIndex, ptr);
-      } catch {
-        /* best effort before the whole document is discarded */
-      }
-    }
+    cleanup();
     throw error;
   }
 }
@@ -1394,9 +1539,10 @@ export async function editPdfText(
   // Carrying `find` makes verification also confirm the original text was consumed,
   // not just that the replacement is present. A native write can be reported as a
   // success while leaving the original run intact (e.g. the replacement string
-  // already existed on the page), and a "present" check alone would pass it. Only
-  // non-layout in-place replacements are checked here: a reflowed paragraph rewrites
-  // many objects, so its `find` string is not a reliable absence oracle.
+  // already existed on the page), and a "present" check alone would pass it. A
+  // reflow supplies its original line texts as separate `finds`: the whole
+  // paragraph string is not a reliable oracle, but each line that the replacement
+  // does not reintroduce must be gone.
   const expectations: TextEditExpectation[] = outcomes
     .filter(
       (outcome) =>
@@ -1409,7 +1555,13 @@ export async function editPdfText(
         label: outcome.id,
         pageIndex: outcome.pageIndex,
         expect: edit.replace,
-        ...(edit.layout ? {} : { find: edit.find }),
+        ...(edit.layout
+          ? {
+              finds: edit.layout.beforeLines
+                .map((line) => line.text)
+                .filter((text) => text.trim().length > 0),
+            }
+          : { find: edit.find }),
       };
     });
 
@@ -1434,11 +1586,13 @@ export async function editPdfText(
             (check.name.startsWith('replacement-present:') ||
               check.name.startsWith('residual-original:')),
         )
-        .map((check) =>
-          check.name.startsWith('replacement-present:')
+        .map((check) => {
+          const rest = check.name.startsWith('replacement-present:')
             ? check.name.slice('replacement-present:'.length)
-            : check.name.slice('residual-original:'.length),
-        ),
+            : check.name.slice('residual-original:'.length);
+          const suffix = rest.indexOf(':line-');
+          return suffix >= 0 ? rest.slice(0, suffix) : rest;
+        }),
     );
     for (const outcome of outcomes) {
       if (outcome.mode === 'in-place' && failed.has(outcome.id)) {
@@ -1700,14 +1854,14 @@ export async function editPdfText(
   // rendered page outside the edited regions. A replacement string being present
   // is necessary but not sufficient.
   //
-  // Carrying `find` for natively-applied edits (in-place and content-stream) makes
-  // the gate also confirm the original text was consumed -- this is what catches a
-  // no-op write whose replacement string already existed on the page, and what gives
-  // deletions a real post-export absence check for the first time. Overlay-fallback
-  // edits do not carry `find`: the original is still extractable underneath the
-  // whiteout, so requiring its absence there would be a false failure. Layout edits
-  // also do not: a reflowed paragraph rewrites many objects, so its `find` string is
-  // not a reliable absence oracle.
+  // Carrying `find`/`finds` for natively-applied edits (in-place and content-stream)
+  // makes the gate also confirm the original text was consumed -- this is what
+  // catches a no-op write whose replacement string already existed on the page, and
+  // what gives deletions a real post-export absence check. Overlay-fallback edits do
+  // not carry it: the original is still extractable underneath the whiteout, so
+  // requiring its absence there would be a false failure. A reflow carries its
+  // original line texts as `finds`, so every old line the replacement does not
+  // reintroduce must be absent while the new text is extractable.
   const outcomeModeById = new Map(outcomes.map((outcome) => [outcome.id, outcome.mode] as const));
   const nativelyApplied = (id: string): boolean => {
     const mode = outcomeModeById.get(id);
@@ -1719,12 +1873,25 @@ export async function editPdfText(
         !rasterisedObjectIds.has(edit.id) &&
         (edit.replace.length > 0 || nativelyApplied(edit.id)),
     )
-    .map((edit) => ({
-      label: edit.id,
-      pageIndex: edit.pageIndex,
-      expect: edit.replace,
-      ...(nativelyApplied(edit.id) && !edit.layout ? { find: edit.find } : {}),
-    }));
+    .map((edit) => {
+      const native = nativelyApplied(edit.id);
+      if (native && edit.layout) {
+        return {
+          label: edit.id,
+          pageIndex: edit.pageIndex,
+          expect: edit.replace,
+          finds: edit.layout.beforeLines
+            .map((line) => line.text)
+            .filter((text) => text.trim().length > 0),
+        };
+      }
+      return {
+        label: edit.id,
+        pageIndex: edit.pageIndex,
+        expect: edit.replace,
+        ...(native ? { find: edit.find } : {}),
+      };
+    });
   const editedRegions: VisualEditRegion[] = [];
   for (const edit of edits) {
     const outcomeBox = outcomes.find((outcome) => outcome.id === edit.id)?.box;

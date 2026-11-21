@@ -7927,3 +7927,77 @@ round-trip and native reflow growth), `snap.test.ts` (5), text-editing
 | E-09 | After a reordered insert, rasters/text/layouts remained keyed to the old page indices; Undo could desync the page remap; removed-page objects pointed at other pages. | Invalidate page-index caches, remap with `live`, drop objects on pages no longer in the rail, and clear stale outcomes. |
 | C-11 | Find/replace paid for a colour render on every page. | `colors:false` for search, plus a `colorsFetched` set so a later visit fills colour without re-rendering known pages. |
 | Guard | Untrusted layout style values reached PDFium. | Validate size/colour/bold/italic/family/align/rotation/cover policy before the WASM pass. |
+
+---
+
+## 41. Sprint 6 - native styled creation and verification (2026-11-21)
+
+Scope: finish the text-editing engine around the now-working
+`FPDFPageObj_NewTextObj` creation path. No PDFium binary change and no memory
+workaround was added.
+
+### 41.1 What became native
+
+| Operation | Before | Now |
+| --- | --- | --- |
+| Multiline grow with a style change | overlay fallback | all lines prepared first, originals removed, new standard-face lines inserted at the paragraph's z-order index (`in-place`) |
+| Multiline shrink with a style change | native rewrite/removal | native (unchanged ladder) |
+| Font family requested (`helvetica`/`times`/`courier`) | overlay + `font-substituted` | exact requested standard face, recreated natively even when the source was a custom face |
+| Bold/italic requested on a standard source | synthetic stroke/shear | real bold/italic variant; un-bolding/un-italicising also recreates the plain/variant face |
+| Size / colour / alignment / rotation | applied to existing objects | same for existing objects; newly created lines receive the target size, colour, render mode, matrix/origin and alignment |
+| New lines on an invisible OCR layer | source render mode preserved | preserved on every created line |
+| Embedded/custom face with no family request | mutate or overlay | unchanged mutation for pure text/size/colour/align; growth still takes the explicit overlay fallback |
+
+### 41.2 Two real bugs found and fixed
+
+- **Colour units.** `FPDFPageObj_SetFillColor` / `SetStrokeColor` take 0-255
+  unsigned integers, not 0-1 floats. The engine passed unit floats, truncating
+  every channel to 0: styled text always rendered black while the call reported
+  success. The API boundary now converts both ways; `GetFillColor` reads unsigned
+  channels instead of interpreting them as floats (which returned denormal
+  garbage). The regression test verifies red ink from the rendered page, not from
+  the unreliable object getter alone.
+- **Effective size.** Reflow measurement and matrix scaling now use the source's
+  matrix-inclusive size (`nominal x matrix scale`), so a source object that
+  already carries a transform is neither double-scaled nor under-measured.
+
+### 41.3 Verification hardening
+
+- A reflow now supplies every original line as `finds`. Each line the replacement
+  does not reintroduce must be absent after export; the full replacement must be
+  extractable; untouched pages remain text-identical. The check is fail-closed in
+  both the intermediate native pass and the final artifact gate.
+- `normalizeForMatch` (whitespace + ligature folding) is used for verification.
+- Atomicity is unchanged and stricter in recreation: all lines are prepared
+  uninserted; creation failure demotes before any mutation; a failure after the
+  first removal/insertion throws `LayoutMutationError` and hard-refuses the
+  export. No paragraph can become partly native and partly overlay.
+- The in-place receipt no longer claims the font/size/colour are necessarily the
+  original's; it states that the object was replaced or recreated and that any
+  requested style was applied.
+
+### 41.4 Embedded/custom font investigation
+
+`FPDFFont_GetFontData` + `FPDFText_LoadFont` can load an embedded TrueType
+programme, but `FPDFPageObj_CreateTextObj` still returns an unusable object:
+`FPDFText_SetText` refuses it and `FPDFPageObj_SetMatrix` faults. This build
+therefore has no reliable embedded-face creation path. Embedded/custom faces keep
+the existing explicit overlay fallback and are never reported as native.
+
+### 41.5 Verification
+
+| Gate | Result |
+| --- | --- |
+| `pnpm --filter @pdfshush/pdf-core test` | **671 passed + 1 expected fail** (49 files) |
+| `pnpm --filter @pdfshush/web test` | **309 passed** (39 files) |
+| `pnpm -r typecheck` | all 8 projects pass |
+| `pnpm build` | pass, 63 routes prerendered |
+| `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
+| `pnpm test:provenance` | clean |
+
+New file `textEditNativeCreation.test.ts` adds 14 regressions: unstyled/styled
+growth, shrink, Helvetica/Times/Courier, real bold/italic and un-styling, size,
+rendered colour, invisible render mode, right alignment, untouched pages,
+search/copy extraction, embedded-font refusal, embedded-font explicit overlay
+fallback, and a native family change on a custom source. `textFidelity` now
+asserts the real bold face instead of the old synthetic render mode.

@@ -493,21 +493,56 @@ export class PdfiumTextDocument {
     }
   }
 
-  /** Paint an existing text object with a new fill colour (T-06). */
-  setObjectFillColor(objPtr: number, color: PdfiumColor): boolean {
+  /**
+   * PDFium's colour APIs take 0-255 unsigned integers, not unit floats. Passing
+   * the engine's unit values straight through truncated every component to 0
+   * and painted the text black while reporting success.
+   */
+  private colorChannel(value: number): number {
+    return Math.max(0, Math.min(255, Math.round(value * 255)));
+  }
+
+  private fillColorOf(objPtr: number, color: PdfiumColor): boolean {
     try {
       return Boolean(
-        this.m.FPDFPageObj_SetFillColor(objPtr, color.r, color.g, color.b, color.a),
+        this.m.FPDFPageObj_SetFillColor(
+          objPtr,
+          this.colorChannel(color.r),
+          this.colorChannel(color.g),
+          this.colorChannel(color.b),
+          this.colorChannel(color.a),
+        ),
       );
     } catch {
       return false;
     }
   }
 
+  private strokeColorOf(objPtr: number, color: PdfiumColor): boolean {
+    try {
+      return Boolean(
+        this.m.FPDFPageObj_SetStrokeColor(
+          objPtr,
+          this.colorChannel(color.r),
+          this.colorChannel(color.g),
+          this.colorChannel(color.b),
+          this.colorChannel(color.a),
+        ),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /** Paint an existing text object with a new fill colour (T-06). */
+  setObjectFillColor(objPtr: number, color: PdfiumColor): boolean {
+    return this.fillColorOf(objPtr, color);
+  }
+
   /** Synthetic bold: fill + stroke, with the stroke sharing the ink colour. */
   setSyntheticBold(objPtr: number, color: PdfiumColor, widthPt: number): boolean {
     try {
-      const stroke = this.m.FPDFPageObj_SetStrokeColor(objPtr, color.r, color.g, color.b, color.a);
+      const stroke = this.strokeColorOf(objPtr, color);
       const width = this.m.FPDFPageObj_SetStrokeWidth(objPtr, Math.max(0.05, widthPt));
       const mode = this.m.FPDFTextObj_SetTextRenderMode(objPtr, 2);
       return Boolean(stroke && width && mode);
@@ -535,11 +570,16 @@ export class PdfiumTextDocument {
       if (!this.m.FPDFPageObj_GetFillColor(objPtr, out[0]!, out[1]!, out[2]!, out[3]!)) {
         return { r: 0, g: 0, b: 0, a: 1 };
       }
+      // The API writes unsigned 0-255 channels, not floats. Reading them as
+      // floats produced denormal garbage (or zero) for every object.
+      const heap = heapOf(this.m);
+      const channel = (ptr: number): number =>
+        new Uint32Array(heap.buffer, ptr, 1)[0]! / 255;
       return {
-        r: this.m.pdfium.getValue(out[0]!, 'float'),
-        g: this.m.pdfium.getValue(out[1]!, 'float'),
-        b: this.m.pdfium.getValue(out[2]!, 'float'),
-        a: this.m.pdfium.getValue(out[3]!, 'float'),
+        r: channel(out[0]!),
+        g: channel(out[1]!),
+        b: channel(out[2]!),
+        a: channel(out[3]!),
       };
     } catch {
       return { r: 0, g: 0, b: 0, a: 1 };
@@ -554,23 +594,26 @@ export class PdfiumTextDocument {
   }
 
   /**
-   * Create a text object for a standard-14 face through
-   * `FPDFPageObj_NewTextObj(document, font_name, size)`.
+   * Build a fully styled text object for a standard-14 face *without inserting
+   * it on a page*.
    *
    * This is the reliable creation path in this PDFium build. The
-   * `FPDFPageObj_CreateTextObj(FPDF_FONT, …)` path traps when the fresh object
-   * is initialised (`SetMatrix`/`SetText`), even though the same calls work on
-   * an existing text object. `NewTextObj` lets PDFium own the standard-font
-   * object from the start; SetText and SetMatrix then succeed, and the object
-   * exports normally.
+   * `FPDFPageObj_CreateTextObj(FPDF_FONT, …)` path returns an object that cannot
+   * be initialised (`SetText` refuses, `SetMatrix` faults), even for a font
+   * loaded from the document's own embedded programme. `NewTextObj` lets PDFium
+   * own the standard-font object from the start; SetText, SetMatrix, fill colour
+   * and render mode then succeed, and the object exports normally.
+   *
+   * Keeping the object uninserted lets a multi-line paragraph be prepared
+   * atomically: if any line fails, every prepared object can be destroyed while
+   * the original paragraph is still untouched. The caller inserts the finished
+   * objects with {@link insertObject} (optionally at a chosen z-order index).
    *
    * Only standard names are accepted: Helvetica/Times/Courier (including their
-   * bold/italic variants), Symbol and ZapfDingbats. A document's embedded font
-   * still has to go through `createTextObject`; if that build path fails, the
-   * engine keeps its declared overlay fallback.
+   * bold/italic variants), Symbol and ZapfDingbats. Embedded/custom faces have
+   * no reliable creation path and keep the engine's declared overlay fallback.
    */
-  createStandardTextObject(
-    pageIndex: number,
+  prepareStandardTextObject(
     fontName: string,
     fontSize: number,
     text: string,
@@ -602,7 +645,7 @@ export class PdfiumTextDocument {
         this.m.FPDFPageObj_Destroy(obj);
         return 0;
       }
-      if (color && !this.m.FPDFPageObj_SetFillColor(obj, color.r, color.g, color.b, color.a)) {
+      if (color && !this.fillColorOf(obj, color)) {
         this.lastCreateError = 'FPDFPageObj_SetFillColor refused the standard-font line';
         this.m.FPDFPageObj_Destroy(obj);
         return 0;
@@ -612,7 +655,6 @@ export class PdfiumTextDocument {
         this.m.FPDFPageObj_Destroy(obj);
         return 0;
       }
-      this.m.FPDFPage_InsertObject(this.page(pageIndex), obj);
       return obj;
     } catch (error) {
       this.lastCreateError = error instanceof Error ? error.message : String(error);
@@ -620,11 +662,76 @@ export class PdfiumTextDocument {
         try {
           this.m.FPDFPageObj_Destroy(obj);
         } catch {
-          /* already owned by the page */
+          /* already released */
         }
       }
       return 0;
     }
+  }
+
+  /**
+   * Prepare and append a standard-14 text object. This is the convenience path
+   * used for additional reflow lines; the paragraph-recreation path uses
+   * {@link prepareStandardTextObject} and {@link insertObject} so it can remove
+   * the originals before any new line becomes visible.
+   */
+  createStandardTextObject(
+    pageIndex: number,
+    fontName: string,
+    fontSize: number,
+    text: string,
+    matrix: PdfiumMatrix,
+    color?: PdfiumColor,
+    renderMode = 0,
+  ): number {
+    const obj = this.prepareStandardTextObject(fontName, fontSize, text, matrix, color, renderMode);
+    if (!obj) return 0;
+    if (!this.insertObject(pageIndex, obj)) {
+      this.lastCreateError = 'FPDFPage_InsertObject refused the standard-font line';
+      this.destroyObject(obj);
+      return 0;
+    }
+    return obj;
+  }
+
+  /** Insert a prepared page object, optionally at an explicit z-order index. */
+  insertObject(pageIndex: number, objPtr: number, index?: number): boolean {
+    try {
+      const page = this.page(pageIndex);
+      if (index !== undefined) {
+        return Boolean(this.m.FPDFPage_InsertObjectAtIndex(page, objPtr, index));
+      }
+      // Upstream returns void and reports failure only by taking ownership of a
+      // destroyed object; a thrown WASM error is the only observable failure.
+      this.m.FPDFPage_InsertObject(page, objPtr);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Destroy an object that has never been inserted on a page. */
+  destroyObject(objPtr: number): boolean {
+    try {
+      this.m.FPDFPageObj_Destroy(objPtr);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Zero-based index of an object in a page's object list, or -1 if absent. */
+  objectIndex(pageIndex: number, objPtr: number): number {
+    try {
+      const page = this.page(pageIndex);
+      const count = this.m.FPDFPage_CountObjects(page);
+      for (let index = 0; index < count; index += 1) {
+        if (this.m.FPDFPage_GetObject(page, index) === objPtr) return index;
+      }
+    } catch {
+      /* fall through */
+    }
+    return -1;
   }
 
   /**
@@ -667,7 +774,7 @@ export class PdfiumTextDocument {
         this.m.FPDFPageObj_Destroy(obj);
         return 0;
       }
-      if (color) this.m.FPDFPageObj_SetFillColor(obj, color.r, color.g, color.b, color.a);
+      if (color) this.fillColorOf(obj, color);
       this.m.FPDFTextObj_SetTextRenderMode(obj, renderMode);
       this.m.FPDFPage_InsertObject(this.page(pageIndex), obj);
       return obj;

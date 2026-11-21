@@ -573,7 +573,11 @@ export interface ParagraphEditRecord {
   objectIds: string[];
   /** Native reflow intent carried by the replacement object. */
   plan: EditTextNativePlan;
-  /** True when the edit's style is currently served by the overlay path. */
+  /**
+   * True when the edit changed style. The engine applies it natively on the
+   * document objects/standard faces where possible; otherwise the explicit
+   * overlay fallback carries it and the receipt says so.
+   */
   styled: boolean;
   /** Timestamp of the commit, for drafts and the details drawer. */
   savedAt: number;
@@ -599,10 +603,11 @@ function normalizedAlign(alignment: Paragraph['alignment']): 'left' | 'center' |
 
 /**
  * Which of the replacement object's style fields differ from the original
- * paragraph. This is what decides whether the native plan can honestly be used:
- * the engine's reflow keeps the document's own font, size, colour and alignment,
- * so a difference must be demoted to the overlay until the native style path
- * lands (T-06 engine half).
+ * paragraph. This is what decides whether a native style intent is sent with
+ * the plan. The engine applies size, colour, alignment, rotation and a real
+ * standard bold/italic/family variant on the document objects where the face
+ * allows it; an embedded/custom face that cannot be recreated takes the
+ * explicit overlay fallback instead.
  */
 export function paragraphStyleDiff(
   paragraph: Paragraph,

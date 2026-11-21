@@ -35,7 +35,7 @@ export const EDIT_MODE_COPY: Record<TextEditMode, { label: string; detail: strin
   'in-place': {
     label: 'Rewritten in place',
     detail:
-      "The document's own text object was replaced. Font, size, colour and position are the original's.",
+      "The document's own text object was replaced or recreated in the document. The old glyphs are no longer in the content stream, and any requested size, colour, face or alignment was applied to the replacement.",
   },
   'content-stream': {
     label: 'Rewritten in the content stream',

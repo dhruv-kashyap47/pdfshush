@@ -14,6 +14,7 @@
 
 import { loadPdfDocument } from '../ops/pages.js';
 import { extractTextRuns } from '../render/textRuns.js';
+import { normalizeForMatch } from './text.js';
 import type { TextEditCheck, TextEditVerification } from './types.js';
 
 export interface TextEditExpectation {
@@ -30,6 +31,14 @@ export interface TextEditExpectation {
    * absence there would be a false failure.
    */
   find?: string;
+  /**
+   * Several original strings that must all be absent after a native edit. Used
+   * by a reflowed paragraph, where `find` is the whole paragraph and each
+   * `beforeLines` entry is the unit that must genuinely disappear. Entries that
+   * the replacement reintroduces, or that were not independently countable in
+   * the pre-edit document, are skipped exactly like a single `find`.
+   */
+  finds?: string[];
 }
 
 export interface TextEditVerificationInput {
@@ -45,9 +54,9 @@ export interface TextEditVerificationInput {
   password?: string;
 }
 
-/** Collapse whitespace so extraction spacing differences do not cause misses. */
+/** Fold ligatures and collapse whitespace so extraction differences do not miss. */
 function normalize(text: string): string {
-  return text.replace(/\s+/gu, ' ').trim();
+  return normalizeForMatch(text);
 }
 
 /** Count non-overlapping occurrences of `needle` in `haystack`. */
@@ -132,9 +141,42 @@ export async function verifyTextEdits(
   // "replacement-present" check be trusted. It needs the pre-edit bytes to compare
   // occurrence counts, and it only applies to edits applied in place / through the
   // content stream (an overlay leaves the original readable underneath).
-  const residual = input.expectations.filter((expectation) => expectation.find !== undefined);
+  //
+  // A reflowed paragraph supplies `finds` (its original lines) instead of one
+  // `find`: every original line that the replacement does not reintroduce must
+  // be gone, which is what proves the paragraph was rewritten rather than partly
+  // duplicated.
+  interface ResidualTarget {
+    label: string;
+    /** Name suffix; empty for the single `find` form. */
+    suffix: string;
+    pageIndex: number;
+    find: string;
+    expect: string;
+  }
+  const residual: ResidualTarget[] = [];
+  for (const expectation of input.expectations) {
+    if (expectation.find !== undefined) {
+      residual.push({
+        label: expectation.label,
+        suffix: '',
+        pageIndex: expectation.pageIndex,
+        find: expectation.find,
+        expect: expectation.expect,
+      });
+    }
+    (expectation.finds ?? []).forEach((find, index) => {
+      residual.push({
+        label: expectation.label,
+        suffix: `:line-${index}`,
+        pageIndex: expectation.pageIndex,
+        find,
+        expect: expectation.expect,
+      });
+    });
+  }
   if (input.original && residual.length > 0) {
-    const residualPages = [...new Set(residual.map((expectation) => expectation.pageIndex))].sort(
+    const residualPages = [...new Set(residual.map((target) => target.pageIndex))].sort(
       (a, b) => a - b,
     );
     let originalByPage: string[];
@@ -158,27 +200,27 @@ export async function verifyTextEdits(
       // "Secret" twice and redacted both must end with zero; one that said it twice
       // and redacted a single occurrence must end with one.
       const consumed = new Map<string, number>();
-      for (const expectation of residual) {
-        const key = `${expectation.pageIndex}:${normalize(expectation.find!)}`;
+      for (const target of residual) {
+        const key = `${target.pageIndex}:${normalize(target.find)}`;
         consumed.set(key, (consumed.get(key) ?? 0) + 1);
       }
 
-      for (const expectation of residual) {
-        const before = normalize(expectation.find!);
-        const beforeCount = countOccurrences(originalText.get(expectation.pageIndex) ?? '', before);
-        const after = countOccurrences(textByPage.get(expectation.pageIndex) ?? '', before);
-        const consumedCount = consumed.get(`${expectation.pageIndex}:${before}`) ?? 0;
+      for (const target of residual) {
+        const before = normalize(target.find);
+        const beforeCount = countOccurrences(originalText.get(target.pageIndex) ?? '', before);
+        const after = countOccurrences(textByPage.get(target.pageIndex) ?? '', before);
+        const consumedCount = consumed.get(`${target.pageIndex}:${before}`) ?? 0;
         // A find string that was already absent, or that the replacement reintroduces
         // as a substring, cannot be judged by occurrence counts. Skip rather than
         // report a misleading pass/fail.
-        const replacementContainsFind = normalize(expectation.expect).includes(before);
+        const replacementContainsFind = normalize(target.expect).includes(before);
         if (beforeCount === 0 || replacementContainsFind) {
           checks.push({
-            name: `residual-original:${expectation.label}`,
+            name: `residual-original:${target.label}${target.suffix}`,
             ok: true,
             // The original text is deliberately not echoed: it is often the very
             // secret being replaced, and verification details can reach logs.
-            detail: `skipped: the original run was not independently countable on the pre-edit page ${expectation.pageIndex + 1}`,
+            detail: `skipped: the original run was not independently countable on the pre-edit page ${target.pageIndex + 1}`,
           });
           continue;
         }
@@ -188,11 +230,11 @@ export async function verifyTextEdits(
         const maxAllowed = Math.max(0, beforeCount - consumedCount);
         const ok = after <= maxAllowed;
         checks.push({
-          name: `residual-original:${expectation.label}`,
+          name: `residual-original:${target.label}${target.suffix}`,
           ok,
           detail: ok
-            ? `the original run reduced from ${beforeCount} to ${after} occurrence(s) on page ${expectation.pageIndex + 1}`
-            : `the original run still appears ${after} time(s) on page ${expectation.pageIndex + 1} ` +
+            ? `the original run reduced from ${beforeCount} to ${after} occurrence(s) on page ${target.pageIndex + 1}`
+            : `the original run still appears ${after} time(s) on page ${target.pageIndex + 1} ` +
               `(expected at most ${maxAllowed}); the edit did not consume the original text`,
         });
       }

@@ -187,8 +187,10 @@ describe('native style (T-06)', () => {
     // sees; the original object's nominal size is not mutated.
     expect(styled.fontSize).toBeCloseTo(20, 1);
     const object = await textObjectStartingWith(result.bytes, 'Styled paragraph');
-    // Synthetic bold is fill + stroke (render mode 2), not a silent lighter face.
-    expect(object?.renderMode).toBe(2);
+    // A standard source has a real bold face: the replacement is Helvetica-Bold,
+    // not a synthetic stroke over the regular face.
+    expect(object?.font?.baseName.toLowerCase()).toContain('bold');
+    expect(object?.renderMode).toBe(0);
   });
 
   it('scales a source object that already has a matrix transform', async () => {
