@@ -396,6 +396,8 @@ interface LayoutMetrics {
   map: Map<number, number>;
   fontName: string;
   fontFamily?: 'helvetica' | 'times' | 'courier';
+  /** Exact standard face for native new-line creation, when the source is one. */
+  standardFace?: string;
   color?: { r: number; g: number; b: number; a: number };
   align?: 'left' | 'center' | 'right';
   /** Clockwise display-space rotation requested by T-07. */
@@ -488,6 +490,69 @@ function fontFamilyOf(baseName: string): 'helvetica' | 'times' | 'courier' | 'ot
   return 'other';
 }
 
+function standardFace(
+  family: 'helvetica' | 'times' | 'courier',
+  bold: boolean,
+  italic: boolean,
+): string {
+  if (family === 'times') {
+    return bold && italic
+      ? 'Times-BoldItalic'
+      : bold
+        ? 'Times-Bold'
+        : italic
+          ? 'Times-Italic'
+          : 'Times-Roman';
+  }
+  if (family === 'courier') {
+    return bold && italic
+      ? 'Courier-BoldOblique'
+      : bold
+        ? 'Courier-Bold'
+        : italic
+          ? 'Courier-Oblique'
+          : 'Courier';
+  }
+  return bold && italic
+    ? 'Helvetica-BoldOblique'
+    : bold
+      ? 'Helvetica-Bold'
+      : italic
+        ? 'Helvetica-Oblique'
+        : 'Helvetica';
+}
+
+/**
+ * Standard-14 face equivalent of a source font, or undefined when the source
+ * is an embedded/custom face that `NewTextObj` cannot recreate.
+ */
+function standardFaceForSource(
+  fontName: string,
+  font: PdfiumTextObject['font'],
+): string | undefined {
+  // Same rule as the stream metrics: only names that really are base-14 faces.
+  // A custom `MySansFace` or `HelveticaNeue` must not be recreated as Helvetica
+  // just because the name contains a family word.
+  const name = fontName.trim().toLowerCase().replace(/^[a-z]{6}\+/, '');
+  if (/symbol|zapfdingbats/.test(name)) return undefined;
+  const style = name.replace(/^[a-z]+/, '').replace(/[^a-z]/g, '');
+  const family = /^courier(\b|$)|^courier[- ]/.test(name)
+    ? 'courier'
+    : /^times(\b|$)|^times[- ]/.test(name)
+      ? 'times'
+      : /^helvetica(\b|$)|^helvetica[- ]|^arial(\b|$)|^arial[- ]/.test(name)
+        ? 'helvetica'
+        : undefined;
+  if (!family) return undefined;
+  const bold =
+    (font?.weight ?? 400) >= 600 || style.includes('bold') || style.includes('black');
+  const italic =
+    Math.abs(font?.italicAngle ?? 0) > 0.01 ||
+    style.includes('italic') ||
+    style.includes('oblique');
+  return standardFace(family, bold, italic);
+}
+
 function isBoldFont(font: PdfiumTextObject['font']): boolean {
   if (!font) return false;
   return font.weight >= 600 || /bold|black|heavy|demi/i.test(font.baseName);
@@ -544,6 +609,9 @@ function planLayoutEdit(
   const sourceFamily = fontFamilyOf(fontName ?? source.font?.familyName ?? '');
   const sourceBold = isBoldFont(source.font);
   const sourceItalic = isItalicFont(source.font);
+  const standardFaceName = fontName
+    ? standardFaceForSource(fontName, source.font)
+    : undefined;
   // T-06 on this PDFium build: new text objects cannot be created (their text
   // write is refused), so a style is applied to the *existing* objects --
   // matrix scale, shear (synthetic italic), rotation, fill colour and
@@ -680,6 +748,7 @@ function planLayoutEdit(
       map,
       fontName: fontName ?? '',
       ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
+      ...(standardFaceName ? { standardFace: standardFaceName } : {}),
       color,
       ...(align ? { align } : {}),
       ...(rotationDeg !== undefined ? { rotationDeg } : {}),
@@ -729,36 +798,28 @@ function applyLayoutEdit(
       const [x, y] = doc.viewPointToPdf(pageIndex, { x: metrics.x, y: baselineY });
       const matrix = [metrics.matrix[0], metrics.matrix[1], metrics.matrix[2], metrics.matrix[3], x, y] as const;
       const charcodes = encodeWithMap(map, line.text);
-      const standardName =
-        metrics.fontFamily === 'times'
-          ? 'Times-Roman'
-          : metrics.fontFamily === 'courier'
-            ? 'Courier'
-            : metrics.fontFamily === 'helvetica'
-              ? 'Helvetica'
-              : '';
-      const standard = standardName ? doc.loadStandardFont(standardName) : 0;
-      // For a standard-14 source font, a freshly loaded standard font is exact
-      // and avoids reusing a document font pointer that some PDFium builds only
-      // allow for rewriting existing objects.
-      let ptr = doc.createTextObject(
-        pageIndex,
-        standard || metrics.fontPtr,
-        metrics.fontSize,
-        line.text,
-        matrix,
-        doc.objectFillColor(metrics.source.ptr),
-        metrics.source.renderMode,
-        charcodes,
-      );
-      if (!ptr && standard) {
+      // Standard-14 sources use FPDFPageObj_NewTextObj: the only creation path
+      // that is safe in this PDFium build. Embedded/custom faces cannot be
+      // recreated here and still take the declared overlay fallback.
+      let ptr = metrics.standardFace
+        ? doc.createStandardTextObject(
+            pageIndex,
+            metrics.standardFace,
+            metrics.fontSize,
+            line.text,
+            matrix,
+            metrics.color,
+            metrics.source.renderMode,
+          )
+        : 0;
+      if (!ptr) {
         ptr = doc.createTextObject(
           pageIndex,
           metrics.fontPtr,
           metrics.fontSize,
           line.text,
           matrix,
-          doc.objectFillColor(metrics.source.ptr),
+          metrics.color,
           metrics.source.renderMode,
           charcodes,
         );

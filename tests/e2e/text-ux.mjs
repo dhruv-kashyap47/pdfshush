@@ -208,6 +208,38 @@ async function moveScenario(browser) {
   }
 }
 
+async function growParagraphScenario(browser) {
+  const fixture = await writeFixture('grow.pdf', [[{ text: 'Grow this line' }]]);
+  const page = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
+  try {
+    await openEditor(page, fixture);
+    await commitParagraph(
+      page,
+      'Native growth keeps this paragraph editable and moves every extra line into the real text layer without an overlay fallback.',
+    );
+    const saved = await saveAndDownload(page);
+    const toast = await page.locator('[data-sonner-toast]').allInnerTexts();
+    check(
+      'a grown paragraph is rewritten natively',
+      toast.some((entry) => /replaced in place/i.test(entry)),
+      toast.join(' | '),
+    );
+    check(
+      'a grown paragraph does not claim an overlay',
+      !toast.some((entry) => /drawn as an overlay/i.test(entry)),
+      toast.join(' | '),
+    );
+    const text = await extractText(saved);
+    check(
+      'extra native lines extract from the saved PDF',
+      text.includes('overlay fallback') && text.includes('Native growth'),
+      text.trim(),
+    );
+  } finally {
+    await page.close();
+  }
+}
+
 async function formattingScenario(browser) {
   const fixture = await writeFixture('format.pdf', [[{ text: 'Format this paragraph' }]]);
   const page = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
@@ -689,6 +721,10 @@ async function main() {
     if (want('move')) {
       console.log('\n-- move (T-02) --');
       await moveScenario(browser);
+    }
+    if (want('grow')) {
+      console.log('\n-- native paragraph growth (C-03/C-04) --');
+      await growParagraphScenario(browser);
     }
     if (want('format')) {
       console.log('\n-- formatting (T-06 UI half) --');

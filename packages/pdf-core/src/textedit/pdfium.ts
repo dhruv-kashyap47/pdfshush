@@ -554,6 +554,80 @@ export class PdfiumTextDocument {
   }
 
   /**
+   * Create a text object for a standard-14 face through
+   * `FPDFPageObj_NewTextObj(document, font_name, size)`.
+   *
+   * This is the reliable creation path in this PDFium build. The
+   * `FPDFPageObj_CreateTextObj(FPDF_FONT, …)` path traps when the fresh object
+   * is initialised (`SetMatrix`/`SetText`), even though the same calls work on
+   * an existing text object. `NewTextObj` lets PDFium own the standard-font
+   * object from the start; SetText and SetMatrix then succeed, and the object
+   * exports normally.
+   *
+   * Only standard names are accepted: Helvetica/Times/Courier (including their
+   * bold/italic variants), Symbol and ZapfDingbats. A document's embedded font
+   * still has to go through `createTextObject`; if that build path fails, the
+   * engine keeps its declared overlay fallback.
+   */
+  createStandardTextObject(
+    pageIndex: number,
+    fontName: string,
+    fontSize: number,
+    text: string,
+    matrix: PdfiumMatrix,
+    color?: PdfiumColor,
+    renderMode = 0,
+  ): number {
+    this.lastCreateError = '';
+    if (!fontName || text.length === 0) {
+      this.lastCreateError = !fontName ? 'standard font name is empty' : 'line text is empty';
+      return 0;
+    }
+    let obj = 0;
+    try {
+      obj = this.m.FPDFPageObj_NewTextObj(this.docPtr, fontName, fontSize);
+      if (!obj) {
+        this.lastCreateError = 'FPDFPageObj_NewTextObj returned 0';
+        return 0;
+      }
+      // NewTextObj accepts the text before the matrix. Do not reorder these:
+      // this is the sequence verified against the bundled wasm.
+      if (!this.setText(obj, text)) {
+        this.lastCreateError = 'FPDFText_SetText refused the standard-font line';
+        this.m.FPDFPageObj_Destroy(obj);
+        return 0;
+      }
+      if (!this.setObjectMatrix(obj, matrix)) {
+        this.lastCreateError = 'FPDFPageObj_SetMatrix refused the standard-font line';
+        this.m.FPDFPageObj_Destroy(obj);
+        return 0;
+      }
+      if (color && !this.m.FPDFPageObj_SetFillColor(obj, color.r, color.g, color.b, color.a)) {
+        this.lastCreateError = 'FPDFPageObj_SetFillColor refused the standard-font line';
+        this.m.FPDFPageObj_Destroy(obj);
+        return 0;
+      }
+      if (!this.m.FPDFTextObj_SetTextRenderMode(obj, renderMode)) {
+        this.lastCreateError = 'FPDFTextObj_SetTextRenderMode refused the standard-font line';
+        this.m.FPDFPageObj_Destroy(obj);
+        return 0;
+      }
+      this.m.FPDFPage_InsertObject(this.page(pageIndex), obj);
+      return obj;
+    } catch (error) {
+      this.lastCreateError = error instanceof Error ? error.message : String(error);
+      if (obj) {
+        try {
+          this.m.FPDFPageObj_Destroy(obj);
+        } catch {
+          /* already owned by the page */
+        }
+      }
+      return 0;
+    }
+  }
+
+  /**
    * Create a text object using an existing document font, position it with a
    * PDF matrix and append it to the page. Used by native reflow for lines that
    * are longer than the original paragraph. Returns 0 on failure.

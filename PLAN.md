@@ -49,7 +49,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
 | **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 301 |
 | **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; bug pass fixed 10 boundary defects; pdf-core 639+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waited on C-07 |
-| **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 655+1 expected fail, web 309, corpus 2/2, `text-ux` 53/53, main 150.4 kB / 0 engines; **Gate C met** |
+| **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 657+1 expected fail, web 309, corpus 2/2, `text-ux` 56/56, main 150.4 kB / 0 engines; **Gate C met** |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -114,10 +114,10 @@ path; `ops/textRaster.ts` renders an uncodable line locally and reports
 `glyph-rasterised`; native style is applied by matrix scale/shear/rotation and
 fill/stroke with synthetic-bold/italic receipts; ink colour is sampled from one
 bounded page render; snap guides, Alt bypass and insert-pages landed in the editor.
-Fresh gates: `pnpm typecheck` all 8 projects, `pnpm test` - pdf-core **655 pass +
+Fresh gates: `pnpm typecheck` all 8 projects, `pnpm test` - pdf-core **657 pass +
 1 expected fail**, web 309, api 243, mcp 19, ai-agent 152, ai-provider 375;
 `pnpm build` (63 routes), `pnpm test:bundle` main **150.4 kB / 0 engines**,
-`pnpm test:provenance` clean, `pnpm test:corpus` **2/2**. Browser: `text-ux` **53/53**
+`pnpm test:provenance` clean, `pnpm test:corpus` **2/2**. Browser: `text-ux` **56/56**
 (snap, native style, rotation, insert pages), `text-edit` and `editor-quick-parity`
 green against the dev web app. New unit coverage: `textFidelity.test.ts` (15),
 `snap.test.ts` (5), text-editing deletion cases (3). **Gate C is met**;
@@ -7848,10 +7848,17 @@ The engine applies style to the existing objects rather than creating new ones:
 A requested family change, or un-bolding/un-italicising a face with that style
 baked in, returns a reason and falls back to the overlay with
 `font-substituted`. Synthetic styles emit `synthetic-bold`/`synthetic-italic`.
-New text-object creation is refused by this PDFium build (`SetText`/`SetMatrix`
-trap on a fresh object), so a styled replacement that needs more lines than the
-original falls back honestly instead of leaving a half-styled page. This is a
-deliberate limitation of the current build, not a silent demotion.
+New text-object creation now works for standard-14 faces. The
+`FPDFPageObj_CreateTextObj(FPDF_FONT, …)` path in `@embedpdf/pdfium` 2.15.1 is
+broken: `SetMatrix`/`SetText` trap on a freshly created object. The supported
+path is `FPDFPageObj_NewTextObj(document, font_name, size)`, whose header
+signature matches upstream PDFium and which passes the full create → set text →
+set matrix → insert → generate → save → reopen → extract test in
+`textObjectCreation.test.ts`. Native reflow uses it for extra Helvetica/Times/
+Courier lines. Embedded/custom faces still cannot be recreated by that API, and
+a styled replacement that needs extra lines still uses the declared overlay
+until style application to new lines is implemented. Neither case is claimed as
+an in-place rewrite.
 
 ### 40.8 Snap guides (E-07)
 
@@ -7879,25 +7886,27 @@ replace the editor.
 | Gate | Result |
 | --- | --- |
 | `pnpm typecheck` (8 projects) | pass |
-| `pnpm test` | pdf-core **655 + 1 expected fail**, web 309, api 243, mcp 19, ai-agent 152, ai-provider 375 |
+| `pnpm test` | pdf-core **657 + 1 expected fail**, web 309, api 243, mcp 19, ai-agent 152, ai-provider 375 |
 | `pnpm build` | pass, 63 routes prerendered |
 | `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
 | `pnpm test:provenance` | clean |
 | `pnpm test:corpus` | 2/2 |
 | `pnpm test:merge-clean` | no conflicts |
-| Browser E2E | `text-ux` **53/53** (partial delete, snap, native style, synthetic-bold receipt, rotation, insert pages), `text-edit` and `editor-quick-parity` green against the dev web app |
+| Browser E2E | `text-ux` **56/56** (partial delete, snap, native style, synthetic-bold receipt, rotation, insert pages, native paragraph growth), `text-edit` and `editor-quick-parity` green against the dev web app |
 
 New tests: `textFidelity.test.ts` (15: fit boundaries, native size/colour/bold,
 rotation, 180/270 stream removal, white/coloured leftover covers, raster
-fallback, ink sampling), `snap.test.ts` (5), text-editing `singleRunDeletion`
-(3), and the raster-fallback validation case in `editor.test.ts`.
+fallback, ink sampling), `textObjectCreation.test.ts` (2: full NewTextObj
+round-trip and native reflow growth), `snap.test.ts` (5), text-editing
+`singleRunDeletion` (3), and the raster-fallback validation case in
+`editor.test.ts`.
 
 ### 40.11 Deliberately not claimed
 
 - **Gate C is met**; the remaining O/X/H scope is Gate D.
-- Native style cannot create new line objects in this PDFium build. A style
-  that needs more lines is drawn by the overlay and the receipt says so; it is
-  not reported as an in-place rewrite.
+- Native line creation is proven for standard-14 fonts. Embedded/custom faces
+  and styled growth still fall back to the overlay and say so; only those cases
+  are not in-place rewrites.
 - `S-06` browser back/forward route blocking and E-10's remaining rail/
   capability truth are still open (Sprint 7).
 - `C-11` reads colour from pixels, not from fill operators for every source.
