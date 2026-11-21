@@ -180,6 +180,38 @@ describe('residual-original absence checks', () => {
     expect(check(verification, 'residual-original:e').ok).toBe(true);
   });
 
+  it('does not let an unjudgeable edit consume the allowance of a judged one', async () => {
+    // Two original "DUP" runs. One replacement deliberately reintroduces "DUP"
+    // ("DUP extra"), so its absence cannot be judged. The other edit really
+    // removes its occurrence. Counting the skipped edit as consumed used to
+    // leave an allowance of zero and fail the judged edit.
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([400, 300]);
+    page.drawText('DUP', { x: 40, y: 240, size: 18, font, color: rgb(0, 0, 0) });
+    page.drawText('DUP', { x: 40, y: 200, size: 18, font, color: rgb(0, 0, 0) });
+    const original = new Uint8Array(await doc.save({ useObjectStreams: false }));
+
+    const doc2 = await PDFDocument.create();
+    const font2 = await doc2.embedFont(StandardFonts.Helvetica);
+    const page2 = doc2.addPage([400, 300]);
+    page2.drawText('DUP extra', { x: 40, y: 240, size: 18, font: font2, color: rgb(0, 0, 0) });
+    page2.drawText('CHANGED', { x: 40, y: 200, size: 18, font: font2, color: rgb(0, 0, 0) });
+    const output = new Uint8Array(await doc2.save({ useObjectStreams: false }));
+
+    const verification = await verifyTextEdits(output, {
+      expectedPageCount: 1,
+      expectations: [
+        { label: 'kept', pageIndex: 0, expect: 'DUP extra', find: 'DUP' },
+        { label: 'changed', pageIndex: 0, expect: 'CHANGED', find: 'DUP' },
+      ],
+      original,
+    });
+    expect(check(verification, 'residual-original:kept').ok).toBe(true);
+    expect(check(verification, 'residual-original:changed').ok).toBe(true);
+    expect(verification.ok).toBe(true);
+  });
+
   it('accounts for several edits consuming the same string on one page', async () => {
     // Two "DUP" runs, one consumed: the page must still show exactly one.
     const doc = await PDFDocument.create();

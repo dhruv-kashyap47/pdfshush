@@ -16,7 +16,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
-import { PDFDocument, StandardFonts, rgb } from '@cantoo/pdf-lib';
+import { PDFDocument, PDFName, StandardFonts, rgb } from '@cantoo/pdf-lib';
 import { createCanvas } from '@napi-rs/canvas';
 import fontkit from '@cantoo/fontkit';
 import {
@@ -327,6 +327,63 @@ describe('native standard-font creation and styling', () => {
     }
   });
 
+  it('inherits the source ink colour and effective size on unstyled growth', async () => {
+    const source = await makeParagraph({ color: rgb(0.8, 0.1, 0.1) });
+    const { edit } = await layoutEditFor(
+      source,
+      'ZZINHERIT keeps the original red ink and twelve point size on every new line ' +
+        'instead of silently creating black text, and the replacement is long enough ' +
+        'to force several created line objects beyond the two originals.',
+    );
+    const result = await editPdfText(source, { edits: [edit] }, testContext());
+    expect(result.outcomes[0]!.mode, result.outcomes[0]!.reason).toBe('in-place');
+    const runs = (await extractTextRuns(result.bytes, [0]))[0]!;
+    const grown = runs.filter((run) => run.y < 220 && run.text.trim().length > 0);
+    expect(grown.length).toBeGreaterThan(2);
+    for (const run of grown) expect(run.fontSize).toBeCloseTo(12, 0);
+
+    const layouts = await extractPageLayouts(result.bytes, {
+      pageIndexes: [0],
+      includeColors: true,
+      canvasFactory,
+    });
+    const paragraph = layouts[0]!.paragraphs.find((entry) => entry.text.includes('ZZINHERIT'))!;
+    expect(paragraph.typography.color).toMatch(/^#[0-9a-f]{6}$/);
+    const red = Number.parseInt(paragraph.typography.color!.slice(1, 3), 16);
+    const green = Number.parseInt(paragraph.typography.color!.slice(3, 5), 16);
+    expect(red).toBeGreaterThan(120);
+    expect(red).toBeGreaterThan(green + 40);
+  });
+
+  it('grows a matrix-scaled source without double-scaling or under-measuring', async () => {
+    const pdf = await PDFDocument.create();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const page = pdf.addPage([612, 792]);
+    page.node.set(
+      PDFName.of('Contents'),
+      pdf.context.register(
+        pdf.context.flateStream('BT /F1 12 Tf 2 0 0 2 72 500 Tm (Scaled source line) Tj ET\n'),
+      ),
+    );
+    page.node.set(PDFName.of('Resources'), pdf.context.obj({ Font: { F1: font.ref } }));
+    const source = new Uint8Array(await pdf.save({ useObjectStreams: false }));
+
+    const { edit } = await layoutEditFor(
+      source,
+      'Scaled source line grows into a longer replacement that needs several lines and every ' +
+        'line must stay at the effective twenty-four point size carried by the source matrix.',
+      {},
+      'Scaled',
+    );
+    const result = await editPdfText(source, { edits: [edit] }, testContext());
+    expect(result.outcomes[0]!.mode, result.outcomes[0]!.reason).toBe('in-place');
+    const runs = (await extractTextRuns(result.bytes, [0]))[0]!;
+    const grown = runs.filter((run) => run.y < 400 && run.text.trim().length > 0);
+    expect(grown.length).toBeGreaterThan(1);
+    for (const run of grown) expect(run.fontSize).toBeCloseTo(24, 0);
+    expect(await pageText(result.bytes)).toContain('twenty-four point size');
+  });
+
   it('positions created lines on a right-aligned paragraph edge', async () => {
     const source = await makeParagraph({
       lines: ['Align this paragraph to the right edge of its column', 'with a second original line'],
@@ -475,6 +532,26 @@ describe('embedded/custom font boundaries', () => {
     expect(text).toContain('EMBEDDED OVERLAY replacement');
     // The original custom-face text is still recoverable under the overlay.
     expect(text).toContain('Embedded line one');
+  });
+
+  it('mutates a custom-font paragraph natively when no new line is needed', async () => {
+    const source = await embeddedParagraph();
+    const { edit } = await layoutEditFor(
+      source,
+      'Custom rewritten line stays in the embedded face.',
+      { style: { fontSize: 14, color: '#111827', bold: true, italic: false } },
+      'Embedded',
+    );
+    const result = await editPdfText(source, { edits: [edit] }, testContext());
+    expect(result.outcomes[0]!.mode, result.outcomes[0]!.reason).toBe('in-place');
+    expect(result.fallback).toBe(0);
+    expect(result.warnings.some((warning) => warning.startsWith('synthetic-bold:'))).toBe(true);
+    const text = await pageText(result.bytes);
+    expect(text).toContain('Custom rewritten line');
+    expect(text).not.toContain('Embedded line one');
+    const object = await textObjectStartingWith(result.bytes, 'Custom rewritten');
+    expect(object?.font?.baseName.toLowerCase()).toContain('liberation');
+    expect(object?.renderMode).toBe(2);
   });
 
   it('honours an explicit standard-family request natively even when the source face is custom', async () => {

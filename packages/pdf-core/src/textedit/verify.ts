@@ -196,11 +196,24 @@ export async function verifyTextEdits(
       const originalText = new Map<number, string>();
       residualPages.forEach((pageIndex, i) => originalText.set(pageIndex, originalByPage[i] ?? ''));
 
-      // How many edits on a page consumed the same `find` string. A page that said
-      // "Secret" twice and redacted both must end with zero; one that said it twice
-      // and redacted a single occurrence must end with one.
+      // Classify every residual target first. A target whose replacement
+      // reintroduces the original string (or that was not independently
+      // countable) is skipped: occurrence counting cannot judge it. Only judged
+      // targets may reduce the allowance for other edits. Counting skipped
+      // targets as "consumed" made two edits that share a find string fail even
+      // when the judged one did remove its occurrence.
+      const judged = residual.filter((target) => {
+        const before = normalize(target.find);
+        const beforeCount = countOccurrences(originalText.get(target.pageIndex) ?? '', before);
+        const replacementContainsFind = normalize(target.expect).includes(before);
+        return beforeCount > 0 && !replacementContainsFind;
+      });
+
+      // How many judged edits on a page consumed the same `find` string. A page
+      // that said "Secret" twice and redacted both must end with zero; one that
+      // said it twice and redacted a single occurrence must end with one.
       const consumed = new Map<string, number>();
-      for (const target of residual) {
+      for (const target of judged) {
         const key = `${target.pageIndex}:${normalize(target.find)}`;
         consumed.set(key, (consumed.get(key) ?? 0) + 1);
       }
@@ -209,7 +222,6 @@ export async function verifyTextEdits(
         const before = normalize(target.find);
         const beforeCount = countOccurrences(originalText.get(target.pageIndex) ?? '', before);
         const after = countOccurrences(textByPage.get(target.pageIndex) ?? '', before);
-        const consumedCount = consumed.get(`${target.pageIndex}:${before}`) ?? 0;
         // A find string that was already absent, or that the replacement reintroduces
         // as a substring, cannot be judged by occurrence counts. Skip rather than
         // report a misleading pass/fail.
@@ -225,8 +237,9 @@ export async function verifyTextEdits(
           continue;
         }
         // The original must be consumed: after-count cannot exceed before-count minus
-        // the edits that removed it. Equality with before-count means nothing was
-        // removed -- the edit was a no-op.
+        // the judged edits that removed it. Equality with before-count means nothing
+        // was removed -- the edit was a no-op.
+        const consumedCount = consumed.get(`${target.pageIndex}:${before}`) ?? 0;
         const maxAllowed = Math.max(0, beforeCount - consumedCount);
         const ok = after <= maxAllowed;
         checks.push({

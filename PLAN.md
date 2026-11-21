@@ -7960,6 +7960,11 @@ workaround was added.
 - **Effective size.** Reflow measurement and matrix scaling now use the source's
   matrix-inclusive size (`nominal x matrix scale`), so a source object that
   already carries a transform is neither double-scaled nor under-measured.
+- **Shared-find verification.** A residual target whose replacement reintroduces
+  the original string is skipped, but it was still counted as "consumed". That
+  could make a *different* edit sharing the same original text fail. Only judged
+  targets now reduce the allowance; an added regression covers two edits that
+  share `DUP` where one replacement is `DUP extra`.
 
 ### 41.3 Verification hardening
 
@@ -7988,16 +7993,19 @@ the existing explicit overlay fallback and are never reported as native.
 
 | Gate | Result |
 | --- | --- |
-| `pnpm --filter @pdfshush/pdf-core test` | **671 passed + 1 expected fail** (49 files) |
+| `pnpm --filter @pdfshush/pdf-core test` | **675 passed + 1 expected fail** (49 files) |
 | `pnpm --filter @pdfshush/web test` | **309 passed** (39 files) |
 | `pnpm -r typecheck` | all 8 projects pass |
 | `pnpm build` | pass, 63 routes prerendered |
 | `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
 | `pnpm test:provenance` | clean |
 
-New file `textEditNativeCreation.test.ts` adds 14 regressions: unstyled/styled
+New file `textEditNativeCreation.test.ts` adds 17 regressions: unstyled/styled
 growth, shrink, Helvetica/Times/Courier, real bold/italic and un-styling, size,
-rendered colour, invisible render mode, right alignment, untouched pages,
-search/copy extraction, embedded-font refusal, embedded-font explicit overlay
-fallback, and a native family change on a custom source. `textFidelity` now
-asserts the real bold face instead of the old synthetic render mode.
+rendered colour, source-colour inheritance, matrix-scaled growth, invisible
+render mode, right alignment, untouched pages, search/copy extraction,
+embedded-font refusal, embedded-font explicit overlay fallback, native
+custom-font mutation (synthetic bold), and a native family change on a custom
+source. `textEditGates.test.ts` adds the shared-find verification regression.
+`textFidelity` now asserts the real bold face instead of the old synthetic render
+mode.
