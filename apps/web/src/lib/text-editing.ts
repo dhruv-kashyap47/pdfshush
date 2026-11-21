@@ -472,8 +472,9 @@ export function buildParagraphEditObjects(
     bold: typography.bold,
     italic: typography.italic,
     fontFamily: resolvedFontFamily(typography),
-    color: '#111827',
+    color: typography.color ?? '#111827',
     align,
+    rasterFallback: true,
     native,
     ...(options.fontKey ? { fontKey: options.fontKey } : {}),
   };
@@ -584,6 +585,7 @@ export interface ParagraphStyleDiff {
   family: boolean;
   color: boolean;
   align: boolean;
+  rotation: boolean;
   any: boolean;
   /** Human-readable field names, for the inspector note and receipt copy. */
   labels: string[];
@@ -602,15 +604,21 @@ function normalizedAlign(alignment: Paragraph['alignment']): 'left' | 'center' |
  */
 export function paragraphStyleDiff(
   paragraph: Paragraph,
-  object: Pick<EditTextObject, 'fontSize' | 'bold' | 'italic' | 'fontFamily' | 'color' | 'align'>,
+  object: Pick<
+    EditTextObject,
+    'fontSize' | 'bold' | 'italic' | 'fontFamily' | 'color' | 'align' | 'rotationDeg'
+  >,
 ): ParagraphStyleDiff {
   const originalSize = Math.round(paragraph.typography.fontSize * 2) / 2;
   const size = Math.abs(object.fontSize - originalSize) > 0.26;
   const bold = Boolean(object.bold) !== paragraph.typography.bold;
   const italic = Boolean(object.italic) !== paragraph.typography.italic;
   const family = (object.fontFamily ?? 'helvetica') !== resolvedFontFamily(paragraph.typography);
-  const color = (object.color ?? DEFAULT_TEXT_COLOR) !== DEFAULT_TEXT_COLOR;
+  const color =
+    (object.color ?? DEFAULT_TEXT_COLOR) !== (paragraph.typography.color ?? DEFAULT_TEXT_COLOR);
   const align = (object.align ?? 'left') !== normalizedAlign(paragraph.alignment);
+  const originalRotation = Math.round(paragraph.typography.rotationDeg) % 360;
+  const rotation = Math.abs(Math.round(object.rotationDeg ?? 0) - originalRotation) > 0.5;
   const labels: string[] = [];
   if (size) labels.push('size');
   if (bold) labels.push(bold ? 'bold' : 'weight');
@@ -618,7 +626,8 @@ export function paragraphStyleDiff(
   if (family) labels.push('font family');
   if (color) labels.push('colour');
   if (align) labels.push('alignment');
-  return { size, bold, italic, family, color, align, any: labels.length > 0, labels };
+  if (rotation) labels.push('rotation');
+  return { size, bold, italic, family, color, align, rotation, any: labels.length > 0, labels };
 }
 
 /**
@@ -650,6 +659,49 @@ export function displayTextForBody(paragraph: Paragraph, body: string): string {
   const marker = paragraph.list.marker.trim();
   if (!marker) return body;
   return `${marker} ${body}`.trimEnd();
+}
+
+export interface SingleRunDeletion {
+  /** The removed display text (never empty after trimming). */
+  text: string;
+  /** The original line that owns it, for geometry. */
+  line: { text: string; box: BBox };
+}
+
+/**
+ * C-05: recognises a pure, single-line deletion.
+ *
+ * A paragraph edit that only removes one contiguous span inside one original
+ * line is exactly a content-stream deletion: remove those glyphs, compensate
+ * the advance, leave every other byte alone. Reporting it as a full layout
+ * rewrite would be true but coarser, and would force a cover on fallback. This
+ * helper returns null for anything else (an insertion, a replacement, a change
+ * spanning lines, repeated text it cannot disambiguate).
+ */
+export function singleRunDeletion(
+  before: string,
+  after: string,
+  lines: readonly { text: string; box: BBox }[],
+): SingleRunDeletion | null {
+  if (after.length >= before.length || before.length === 0) return null;
+  let start = 0;
+  while (start < after.length && before[start] === after[start]) start += 1;
+  let endBefore = before.length - 1;
+  let endAfter = after.length - 1;
+  while (endAfter >= start && before[endBefore] === after[endAfter]) {
+    endBefore -= 1;
+    endAfter -= 1;
+  }
+  if (endAfter >= start) return null; // an insertion or replacement, not a deletion
+  const removed = before.slice(start, endBefore + 1);
+  if (removed.trim().length === 0 || /[\r\n]/.test(removed)) return null;
+  // It must sit inside exactly one original line; a span across a soft wrap is
+  // not one show operator and must stay a reflow.
+  const owners = lines.filter((line) => line.text.includes(removed));
+  if (owners.length !== 1) return null;
+  const owner = owners[0]!;
+  if (owner.text !== removed && !owner.text.includes(removed)) return null;
+  return { text: removed, line: owner };
 }
 
 /**

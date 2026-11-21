@@ -326,6 +326,14 @@ describe('edit op', () => {
     }
   });
 
+  it('allows unencodable text when the object opted into the raster fallback', () => {
+    // C-09: the editor sets this flag, and the draw path either renders the
+    // line as pixels or fails loudly -- it never writes mojibake.
+    expect(() =>
+      validateEditObjects([textObject({ text: 'Signed \u{1F600}', rasterFallback: true })], 1),
+    ).not.toThrow();
+  });
+
   it('accepts the text WinAnsi can represent', () => {
     const samples = [
       'Plain ASCII',

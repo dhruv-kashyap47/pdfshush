@@ -493,6 +493,42 @@ export class PdfiumTextDocument {
     }
   }
 
+  /** Paint an existing text object with a new fill colour (T-06). */
+  setObjectFillColor(objPtr: number, color: PdfiumColor): boolean {
+    try {
+      return Boolean(
+        this.m.FPDFPageObj_SetFillColor(objPtr, color.r, color.g, color.b, color.a),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /** Synthetic bold: fill + stroke, with the stroke sharing the ink colour. */
+  setSyntheticBold(objPtr: number, color: PdfiumColor, widthPt: number): boolean {
+    try {
+      const stroke = this.m.FPDFPageObj_SetStrokeColor(objPtr, color.r, color.g, color.b, color.a);
+      const width = this.m.FPDFPageObj_SetStrokeWidth(objPtr, Math.max(0.05, widthPt));
+      const mode = this.m.FPDFTextObj_SetTextRenderMode(objPtr, 2);
+      return Boolean(stroke && width && mode);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Keep the existing render mode (an invisible OCR layer stays invisible). */
+  renderModeOf(objPtr: number): number {
+    return this.objectRenderMode(objPtr);
+  }
+
+  setRenderMode(objPtr: number, mode: number): boolean {
+    try {
+      return Boolean(this.m.FPDFTextObj_SetTextRenderMode(objPtr, mode));
+    } catch {
+      return false;
+    }
+  }
+
   objectFillColor(objPtr: number): PdfiumColor {
     const out = [this.alloc(4), this.alloc(4), this.alloc(4), this.alloc(4)];
     try {

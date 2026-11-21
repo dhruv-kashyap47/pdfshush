@@ -4,12 +4,16 @@
  * Rendering happens inside a Web Worker, so the real implementation is
  * `OffscreenCanvas`. We keep an interface here so the same engine can also run
  * under Node (with a canvas polyfill) and in the main thread during tests.
+ *
+ * The DOM type names are deliberately not used: `apps/api` compiles this engine
+ * without the `dom` lib, and a bare `OffscreenCanvas` annotation would make the
+ * Node build depend on browser types it never uses.
  */
 
 export interface RenderCanvas {
   readonly width: number;
   readonly height: number;
-  /** 2D rendering context. */
+  /** 2D rendering context (DOM or offscreen, depending on the realm). */
   readonly context: unknown;
   toBlob(type: string, quality?: number): Promise<Blob>;
   /** Optional early release of the underlying bitmap (memory pressure). */
@@ -18,8 +22,66 @@ export interface RenderCanvas {
 
 export type CanvasFactory = (width: number, height: number) => RenderCanvas;
 
+/**
+ * The 2D-context operations the engine actually uses. Deliberately structural:
+ * the DOM and Offscreen contexts both satisfy it, and `apps/api` can compile
+ * the engine without the `dom` lib.
+ */
+export interface Canvas2DContext {
+  readonly canvas?: unknown;
+  fillStyle: unknown;
+  strokeStyle?: unknown;
+  font?: string;
+  textBaseline?: string;
+  fillRect(x: number, y: number, width: number, height: number): void;
+  clearRect?(x: number, y: number, width: number, height: number): void;
+  getImageData(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ): { data: Uint8ClampedArray; width: number; height: number };
+  putImageData(
+    image: { data: Uint8ClampedArray; width: number; height: number },
+    x: number,
+    y: number,
+  ): void;
+  fillText?(text: string, x: number, y: number): void;
+  measureText?(text: string): { width: number };
+  drawImage?(image: unknown, x: number, y: number, width?: number, height?: number): void;
+}
+
+interface OffscreenCanvasLike {
+  width: number;
+  height: number;
+  getContext(type: '2d', options?: unknown): unknown;
+  convertToBlob(options?: { type?: string; quality?: number }): Promise<Blob>;
+}
+
+interface HtmlCanvasLike {
+  width: number;
+  height: number;
+  getContext(type: '2d', options?: unknown): unknown;
+  toBlob(
+    callback: (blob: Blob | null) => void,
+    type?: string,
+    quality?: number,
+  ): void;
+}
+
+interface CanvasGlobals {
+  OffscreenCanvas?: new (width: number, height: number) => OffscreenCanvasLike;
+  document?: {
+    createElement(tag: 'canvas'): HtmlCanvasLike;
+  };
+}
+
+function canvasGlobals(): CanvasGlobals {
+  return globalThis as unknown as CanvasGlobals;
+}
+
 class OffscreenCanvasAdapter implements RenderCanvas {
-  constructor(private readonly canvas: OffscreenCanvas) {}
+  constructor(private readonly canvas: OffscreenCanvasLike) {}
   get width(): number {
     return this.canvas.width;
   }
@@ -27,10 +89,13 @@ class OffscreenCanvasAdapter implements RenderCanvas {
     return this.canvas.height;
   }
   get context(): unknown {
-    return this.canvas.getContext('2d');
+    return this.canvas.getContext('2d', { willReadFrequently: true });
   }
   toBlob(type: string, quality?: number): Promise<Blob> {
-    return this.canvas.convertToBlob({ type, ...(quality !== undefined ? { quality } : {}) });
+    return this.canvas.convertToBlob({
+      type,
+      ...(quality !== undefined ? { quality } : {}),
+    });
   }
   release(): void {
     this.canvas.width = 0;
@@ -39,7 +104,7 @@ class OffscreenCanvasAdapter implements RenderCanvas {
 }
 
 class HtmlCanvasAdapter implements RenderCanvas {
-  constructor(private readonly canvas: HTMLCanvasElement) {}
+  constructor(private readonly canvas: HtmlCanvasLike) {}
   get width(): number {
     return this.canvas.width;
   }
@@ -66,14 +131,14 @@ class HtmlCanvasAdapter implements RenderCanvas {
 
 /** True when this realm owns canvases that outlive a DOM document. */
 export function hasOffscreenCanvas(): boolean {
-  return typeof OffscreenCanvas !== 'undefined';
+  return typeof canvasGlobals().OffscreenCanvas !== 'undefined';
 }
 
 /** A canvas pdf.js asked us for, plus the 2D context it paints into. */
 export interface PdfjsCanvasEntry {
-  canvas: OffscreenCanvas;
+  canvas: OffscreenCanvasLike;
   /** Null when the browser refuses a 2D context (e.g. GPU process loss). */
-  context: OffscreenCanvasRenderingContext2D | null;
+  context: unknown;
 }
 
 /**
@@ -94,14 +159,19 @@ export interface PdfjsCanvasEntry {
  */
 export class PdfjsCanvasFactory {
   /** Accepted and ignored: pdf.js passes its DOM, and a worker has none. */
-  constructor(_options?: { ownerDocument?: Document; enableHWA?: boolean }) {}
+  constructor(_options?: { ownerDocument?: unknown; enableHWA?: boolean }) {}
 
   create(width: number, height: number): PdfjsCanvasEntry {
     if (width <= 0 || height <= 0) throw new Error('Invalid canvas size');
-    const canvas = new OffscreenCanvas(width, height);
+    const Offscreen = canvasGlobals().OffscreenCanvas;
+    if (!Offscreen) throw new Error('OffscreenCanvas is not available');
+    const canvas = new Offscreen(width, height);
     // `willReadFrequently` mirrors pdf.js's own factories: these scratch canvases
     // are painted and then read back, which a GPU-backed context makes slow.
-    return { canvas, context: canvas.getContext('2d', { willReadFrequently: true }) };
+    return {
+      canvas,
+      context: canvas.getContext('2d', { willReadFrequently: true }),
+    };
   }
 
   reset(entry: PdfjsCanvasEntry, width: number, height: number): void {
@@ -127,14 +197,16 @@ let cachedFactory: CanvasFactory | undefined;
 export function defaultCanvasFactory(): CanvasFactory {
   if (cachedFactory) return cachedFactory;
 
-  if (typeof OffscreenCanvas !== 'undefined') {
-    cachedFactory = (width, height) => new OffscreenCanvasAdapter(new OffscreenCanvas(width, height));
+  const globals = canvasGlobals();
+  if (globals.OffscreenCanvas) {
+    const Offscreen = globals.OffscreenCanvas;
+    cachedFactory = (width, height) => new OffscreenCanvasAdapter(new Offscreen(width, height));
     return cachedFactory;
   }
 
-  if (typeof document !== 'undefined') {
+  if (globals.document) {
     cachedFactory = (width, height) => {
-      const canvas = document.createElement('canvas');
+      const canvas = globals.document!.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       return new HtmlCanvasAdapter(canvas);
@@ -170,19 +242,6 @@ export interface FittedRender {
 
 /**
  * Largest scale at or below `wantedScale` whose bitmap fits `budget`.
- *
- * Rendering used to pick a scale from the requested width (capped at 8) and
- * then *refuse* the page if the longest side exceeded the edge limit. That
- * split two real documents in half: a 600x6000 pt receipt asked for 8192+ px
- * tall at every export preset and was rejected outright, while a 5000x5000 pt
- * poster stayed under the edge limit but allocated a 64 MP canvas, above the
- * ~16.7 MP canvas ceiling iOS/Safari enforce (those pages paint blank). The
- * requested width is a preference; the budget is the hard limit. Fit the scale
- * to both instead of choosing one and rejecting the result.
- *
- * The 8x cap is deliberately not applied here: it also under-delivered small
- * pages (a 250 pt wide page at a 2560 px request came back 2000 px wide). Every
- * state a page can ask for is bounded by the budget below.
  */
 export function fitScaleToBudget(
   pageWidthPt: number,
@@ -208,18 +267,6 @@ export function fitScaleToBudget(
 /**
  * Raster width in pixels for a page rendered at `scale`, clamped so the decoded
  * bitmap stays inside `maxPixels`.
- *
- * A page's pixel area is `widthPt * heightPt * scale ** 2`, so the largest scale
- * the budget allows is `sqrt(maxPixels / (widthPt * heightPt))` -- and that is a
- * *scale* (pixels per point), not a width. Taking it as a width is the bug this
- * replaces: the editor compared it against a real pixel width, so `min()` always
- * picked the budget number and every page was asked to render about 7 px wide.
- * `scaleForWidth`'s 0.05 floor turned that into a 29 px bitmap stretched across
- * the whole column, which reads as a blank page.
- *
- * Clamping the scale rather than the width is also what keeps a huge page honest:
- * the area it returns stays `<= maxPixels` at any aspect ratio, while a page small
- * enough to fit is left at the scale the UI asked for.
  */
 export function rasterWidthWithinBudget(
   pageWidthPt: number,

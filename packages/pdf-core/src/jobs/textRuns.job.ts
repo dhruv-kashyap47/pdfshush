@@ -26,6 +26,8 @@ export type TextRunsOptions = {
   includeLayout?: boolean;
   /** Also inspect PDFium text objects/fonts/render modes for editing capability. */
   includeCapabilities?: boolean;
+  /** C-11: sample each page's ink colour (one bounded render per page). */
+  includeColors?: boolean;
   /** Overrides for the layout heuristics; mainly for diagnostics and tests. */
   layout?: LayoutBuildOptions;
 };
@@ -73,6 +75,7 @@ export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
         ctx,
         file.password,
         input.options.layout,
+        { includeColors: input.options.includeColors === true },
       );
       runs = result.runs;
       layouts = result.layouts;

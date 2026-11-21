@@ -21,6 +21,7 @@ import {
   decodePDFRawStream,
   degrees,
   rgb,
+  setCharacterSqueeze,
   type PDFImage,
   type PDFFont,
   type PDFPage,
@@ -30,7 +31,13 @@ import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS, formatBytes } from '../limits.js';
 import { pageGeom, viewRectToPdf, viewToPdf, displaySize, type PageGeom } from './geometry.js';
 import { collectFontPrograms, DocumentFontResolver } from './fontPrograms.js';
-import { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './textMetrics.js';
+import { rasteriseTextLine } from './textRaster.js';
+import {
+  TEXT_ASCENT,
+  TEXT_LINE_HEIGHT,
+  fitTextToWidth,
+} from './textMetrics.js';
+import { defaultCanvasFactory, type CanvasFactory } from '../render/canvas.js';
 
 export { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './textMetrics.js';
 
@@ -85,12 +92,23 @@ export interface EditTextNativePlan {
   };
   strategy?: 'native-object' | 'content-stream' | 'localized-reconstruction' | 'manual-review';
   /**
-   * The replacement carries styling the native reflow path cannot reproduce yet
-   * (size/colour/bold/italic/alignment/family). The editor demotes the edit to
-   * the overlay path so the requested style is what the user gets, and the
-   * export report says it was drawn as an overlay rather than rewritten.
+   * T-06 native style controls. When present the engine makes these true on the
+   * rewritten text objects; a face it cannot reproduce is substituted and
+   * receipted. `styled` remains for draft compatibility and means "this edit
+   * requests a style", not "demote to overlay".
    */
+  style?: {
+    fontSize?: number;
+    color?: string;
+    bold?: boolean;
+    italic?: boolean;
+    fontFamily?: 'helvetica' | 'times' | 'courier';
+    align?: 'left' | 'center' | 'right';
+    rotationDeg?: number;
+  };
   styled?: boolean;
+  /** C-07: engine-generated patch over a completed removal. */
+  coverPolicy?: 'leftover-cover';
 }
 
 export interface EditTextObject extends EditObjectBase {
@@ -119,6 +137,17 @@ export interface EditTextObject extends EditObjectBase {
    * then a standard face, then fails loudly rather than mangling glyphs.
    */
   fontKey?: string;
+  /**
+   * Clockwise rotation in display degrees (T-07). Absent/0 reads horizontally.
+   * The text is still anchored at (x, y + first baseline), so a rotated block
+   * follows the same box contract as an upright one.
+   */
+  rotationDeg?: number;
+  /**
+   * C-09: draw unencodable text as a raster image instead of refusing it. The
+   * export report says `glyph-rasterised`; the pixels are local to the worker.
+   */
+  rasterFallback?: boolean;
 }
 
 export interface EditImageObject extends EditObjectBase {
@@ -413,6 +442,15 @@ export function validateEditObjects(
         if (text.italic !== undefined && typeof text.italic !== 'boolean') {
           throw new Error(`${at} (text): italic must be a boolean`);
         }
+        if (text.rasterFallback !== undefined && typeof text.rasterFallback !== 'boolean') {
+          throw new Error(`${at} (text): rasterFallback must be a boolean`);
+        }
+        if (
+          text.rotationDeg !== undefined &&
+          (!Number.isFinite(text.rotationDeg) || Math.abs(text.rotationDeg) > 360)
+        ) {
+          throw new Error(`${at} (text): rotationDeg must be a finite angle between -360 and 360`);
+        }
         if (text.fontKey !== undefined) {
           if (typeof text.fontKey !== 'string' || text.fontKey.length === 0 || text.fontKey.length > 200) {
             throw new Error(`${at} (text): fontKey must be a non-empty string under 200 characters`);
@@ -421,8 +459,11 @@ export function validateEditObjects(
         assertHexColor(at, kind, 'color', text.color);
         // A document font programme can encode glyphs the standard-14 faces
         // cannot. The draw path verifies the programme actually covers the
-        // text; only fontless text is rejected here.
-        if (text.fontKey === undefined) assertEncodable(at, text.text);
+        // text. C-09 allows the caller to opt into a rasterised word instead of
+        // a hard refusal; without that opt-in the old mangling guard stays.
+        if (text.fontKey === undefined && text.rasterFallback !== true) {
+          assertEncodable(at, text.text);
+        }
         break;
       }
       case 'image': {
@@ -637,11 +678,21 @@ export function imagePixelSize(
   return null;
 }
 
+export interface ApplyEditsOptions {
+  /** Collected fidelity warnings (`text-squeeze`, `glyph-rasterised`). */
+  warnings?: string[];
+  /** Object ids whose text was rasterised, so verification can skip them. */
+  rasterisedObjectIds?: Set<string>;
+  /** Canvas used by the C-09 raster fallback; defaults to the environment's. */
+  canvasFactory?: CanvasFactory;
+}
+
 /** Draws every object onto its page, in array order (later = on top). */
 export async function applyEdits(
   doc: PDFDocument,
   objects: EditorObject[],
   ctx: JobContext,
+  options: ApplyEditsOptions = {},
 ): Promise<void> {
   if (objects.length === 0) return;
   const progress = createProgressReporter(ctx);
@@ -690,7 +741,14 @@ export async function applyEdits(
       isolated.add(object.pageIndex);
     }
     const geom = geomFor(object.pageIndex);
-    await drawObject(page, geom, object, { imageCache, fontCache, documentFonts });
+    await drawObject(page, geom, object, {
+      imageCache,
+      fontCache,
+      documentFonts,
+      warnings: options.warnings ?? [],
+      rasterisedObjectIds: options.rasterisedObjectIds ?? new Set<string>(),
+      canvasFactory: options.canvasFactory,
+    });
     progress.step(i, objects.length, 'Applying edits');
   }
 }
@@ -782,6 +840,12 @@ interface FontSet {
   imageCache: Map<string, PDFImage>;
   /** Document programmes extracted from the source, when a text object asks for one. */
   documentFonts?: DocumentFontResolver;
+  /** Fidelity warnings collected for the export receipt. */
+  warnings: string[];
+  /** Object ids whose text was drawn as pixels. */
+  rasterisedObjectIds: Set<string>;
+  /** Canvas for the C-09 raster fallback. */
+  canvasFactory?: CanvasFactory;
 }
 
 async function drawObject(
@@ -862,6 +926,18 @@ async function drawObject(
   }
 }
 
+function canDrawText(font: PDFFont, isStandard: boolean, text: string): boolean {
+  return isStandard ? findUnencodable(text) === undefined : canEncodeDocumentText(font, text);
+}
+
+function measureLine(font: PDFFont, line: string, fontSize: number): number {
+  try {
+    return font.widthOfTextAtSize(line, fontSize);
+  } catch {
+    return line.length * fontSize * 0.5;
+  }
+}
+
 async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, fonts: FontSet): Promise<void> {
   if (object.text.length === 0) return;
   const fontFamily = object.fontFamily ?? 'helvetica';
@@ -874,7 +950,9 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
   if (!font) return;
   const fontSize = clamp(object.fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
   const color = parseHexColor(object.color, rgb(0.07, 0.07, 0.07));
-  const angle = degrees(displayAngle(geom));
+  // Display clockwise rotation maps to the opposite PDF angle (PDF y is up,
+  // display y is down). The page's own /Rotate angle is already folded in.
+  const angle = degrees(displayAngle(geom) - (object.rotationDeg ?? 0));
   const align = object.align ?? 'left';
 
   let lines = wrapTextToWidth(font, object.text, fontSize, Math.max(1, object.width));
@@ -886,21 +964,80 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
     if (font !== standard && standard && findUnencodable(object.text) === undefined) {
       font = standard;
       lines = wrapTextToWidth(font, object.text, fontSize, Math.max(1, object.width));
-    } else {
+    } else if (object.rasterFallback !== true) {
       throw new Error(
         `The document font for "${object.text.slice(0, 40)}" cannot encode this text, and no standard font can draw it.`,
       );
     }
   }
+  const usingStandard = font === standard;
+  let canvasFactory = fonts.canvasFactory;
+  const rasterCanvas = (): CanvasFactory => {
+    canvasFactory ??= defaultCanvasFactory();
+    return canvasFactory;
+  };
+  const lineHeight = fontSize * TEXT_LINE_HEIGHT;
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]!;
     if (line.length === 0) continue;
-    let lineWidth = 0;
-    try {
-      lineWidth = font.widthOfTextAtSize(line, fontSize);
-    } catch {
-      lineWidth = line.length * fontSize * 0.5;
+    const baselineY = object.y + fontSize * TEXT_ASCENT + i * lineHeight;
+    let lineWidth = measureLine(font, line, fontSize);
+    const encodable = canDrawText(font, usingStandard, line);
+
+    // C-09: a line no available face can encode becomes pixels, not mojibake.
+    if (!encodable) {
+      if (object.rasterFallback !== true) {
+        throw new Error(
+          `The document font for "${object.text.slice(0, 40)}" cannot encode this text, and no standard font can draw it.`,
+        );
+      }
+      const raster = await rasteriseTextLine({
+        text: line,
+        fontSize,
+        color: { r: color.red, g: color.green, b: color.blue },
+        family: object.fontFamily ?? 'helvetica',
+        ...(object.bold ? { bold: true } : {}),
+        ...(object.italic ? { italic: true } : {}),
+        width: Math.max(1, object.width),
+        canvasFactory: rasterCanvas(),
+      });
+      if (!raster) {
+        throw new Error(
+          `The document font for "${object.text.slice(0, 40)}" cannot encode this text and it could not be rasterised.`,
+        );
+      }
+      const image = await page.doc.embedPng(raster.data);
+      const offset =
+        align === 'center'
+          ? (object.width - raster.width) / 2
+          : align === 'right'
+            ? object.width - raster.width
+            : 0;
+      const [ax, ay] = viewToPdf(geom, object.x + offset, baselineY - raster.height + fontSize * TEXT_ASCENT);
+      page.drawImage(image, {
+        x: ax,
+        y: ay,
+        width: raster.width,
+        height: raster.height,
+        rotate: angle,
+      });
+      fonts.rasterisedObjectIds.add(object.id);
+      fonts.warnings.push(
+        `glyph-rasterised: "${line.slice(0, 40)}" was drawn as an image because no available font can encode it; the text is not selectable.`,
+      );
+      continue;
+    }
+
+    // C-08: preserve the run's right edge with horizontal scaling. A normal
+    // line stays at 100%; only one that would overflow is squeezed.
+    const fit = fitTextToWidth(lineWidth, Math.max(1, object.width));
+    if (fit.percent !== 100) {
+      lineWidth = fit.width;
+      fonts.warnings.push(
+        `text-squeeze: "${line.slice(0, 40)}" was drawn at ${Math.round(fit.percent)}% width ` +
+          `${fit.unreadable ? '(outside the readable 70-140% band)' : ''}`.trim(),
+      );
     }
     const offset =
       align === 'center'
@@ -908,14 +1045,36 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
         : align === 'right'
           ? object.width - lineWidth
           : 0;
-    // Baseline of line i in display space, then mapped -- each line anchors in
-    // display coordinates so rotation and alignment compose correctly.
-    const [ax, ay] = viewToPdf(
-      geom,
-      object.x + offset,
-      object.y + fontSize * TEXT_ASCENT + i * fontSize * TEXT_LINE_HEIGHT,
-    );
-    page.drawText(line, { x: ax, y: ay, size: fontSize, font, color, rotate: angle });
+
+    const drawLine = (value: string, dx: number): void => {
+      const [x, y] = viewToPdf(geom, object.x + offset + dx, baselineY);
+      if (fit.percent !== 100) page.pushOperators(setCharacterSqueeze(fit.percent));
+      page.drawText(value, {
+        x,
+        y,
+        size: fontSize,
+        font,
+        color,
+        rotate: angle,
+      });
+      if (fit.percent !== 100) page.pushOperators(setCharacterSqueeze(100));
+    };
+
+    // A document subset can omit U+0020. Drawing words at measured positions
+    // keeps the line readable without asking the font for a space glyph; a
+    // space-less run extracts as separate words rather than `wordword`.
+    const spaceEncodable = canDrawText(font, usingStandard, ' ');
+    if (spaceEncodable || !line.includes(' ')) {
+      drawLine(line, 0);
+      continue;
+    }
+    const words = line.split(/\s+/).filter((word) => word.length > 0);
+    const spaceWidth = fontSize * 0.28;
+    let cursor = 0;
+    for (const word of words) {
+      drawLine(word, cursor);
+      cursor += measureLine(font, word, fontSize) + spaceWidth;
+    }
   }
 }
 

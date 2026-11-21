@@ -188,16 +188,16 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | Phase | Theme | Tasks | Done | Partial | Status |
 | --- | --- | --- | --- | --- | --- |
 | 0 | Safety rails, corpus, provenance, fonts | G-01..G-05, F-01 | 2 | 4 | `[~]` |
-| 1 | Editor capability parity | E-00..E-10 | 8 | 2 | `[~]` |
-| 2 | Text editing UX | T-01..T-07 | 5 | 1 | `[~]` |
+| 1 | Editor capability parity | E-00..E-10 | 9 | 1 | `[~]` |
+| 2 | Text editing UX | T-01..T-07 | 7 | 0 | `[x]` |
 | 3 | Search, recovery, data-loss guards | S-01..S-06 | 5 | 1 | `[~]` |
-| 4 | Content-stream surgery | C-01..C-14 | 8 | 3 | `[~]` |
+| 4 | Content-stream surgery | C-01..C-14 | 14 | 0 | `[x]` |
 | 5 | OCR inside the editor | O-01..O-05 | 0 | 2 | `[~]` |
 | 6 | Export trust and metadata | X-01..X-06 | 1 | 3 | `[~]` |
 | 7 | Hardening and parity sweep | H-01..H-08 | 0 | 4 | `[~]` |
 
-**Queue:** Sprint 4 complete → Sprint 5 (C-05, C-07, C-08..C-11, T-06 engine half, T-07, E-07, E-09) → O → X → H.
-**Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. Gate C additionally requires C-07 (Sprint 5).
+**Queue:** Sprint 5 complete → Sprint 6 (O-01..O-05, X-01..X-05, H-04) → Sprint 7 (H-01, H-02, H-03, H-05..H-08).
+**Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. **Gate C is met** (2026-11-21): C-01..C-04, C-06, C-07, C-12..C-14 green on the corpus.
 
 ### 4.2 Full board
 
@@ -216,17 +216,17 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | E-04 | Stamp presets | P1 | S | done | `[x]` |
 | E-05 | Signature crop/aspect/upload | P1 | S | done | `[x]` |
 | E-06 | Fit page + percent + 400% | P1 | S | done | `[x]` |
-| E-07 | Snap guides + Alt bypass | P1 | M | 0% | `[ ]` |
+| E-07 | Snap guides + Alt bypass | P1 | M | done 2026-11-21 | `[x]` |
 | E-08 | Object clipboard + clamp | P1 | S | done | `[x]` |
-| E-09 | Insert pages from PDF | P2 | M | ~20% | `[~]` |
+| E-09 | Insert pages from PDF | P2 | M | done 2026-11-21 | `[x]` |
 | E-10 | Rail/inspector integration + capability truth | P0 | S | ~70% | `[~]` |
 | T-01 | Revert paragraph via reverse edit | P1 | M | done | `[x]` |
 | T-02 | Move paragraph with plan offsets | P1 | M | done | `[x]` |
 | T-03 | Detection details drawer | P1 | M | done | `[x]` |
 | T-04 | Outline detected text | P2 | S | done | `[x]` |
 | T-05 | Inline editing legibility | P1 | L | done | `[x]` |
-| T-06 | Formatting that reaches native | P1 | L | UI half done (Sprint 3); native styling in Sprint 5 | `[~]` |
-| T-07 | Rotate text block | P2 | M | 0% | `[ ]` |
+| T-06 | Formatting that reaches native | P1 | L | done 2026-11-21 (native matrix style + synthetic bold/italic) | `[x]` |
+| T-07 | Rotate text block | P2 | M | done 2026-11-21 | `[x]` |
 | S-01 | Find & replace engine | P1 | M | done | `[x]` |
 | S-02 | Find & replace UI | P1 | S | done | `[x]` |
 | S-03 | Draft autosave + `resetTo` | P1 | M | done | `[x]` |
@@ -237,13 +237,13 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | C-02 | Glyph metrics + AFM + ToUnicode | P0 | M | done | `[x]` |
 | C-03 | Per-glyph quad removal | P0 | M | done | `[x]` |
 | C-04 | Advance compensation + transitions | P0 | M | done | `[x]` |
-| C-05 | Partial-run deletion | P1 | S | ~60% | `[~]` |
+| C-05 | Partial-run deletion | P1 | S | done 2026-11-21 | `[x]` |
 | C-06 | Stream isolation (`q…Q`) | P0 | S | done | `[x]` |
-| C-07 | Leftover-cover policy | P1 | S | ~15% | `[~]` |
-| C-08 | `Tz` fit + word-by-word | P1 | M | 0% | `[ ]` |
-| C-09 | Raster-word fallback | P1 | L | 0% | `[ ]` |
-| C-10 | Rotated glyph text | P1 | S | ~35% | `[~]` |
-| C-11 | Ink colour model + sampling | P2 | M | 0% | `[ ]` |
+| C-07 | Leftover-cover policy | P1 | S | done 2026-11-21 | `[x]` |
+| C-08 | `Tz` fit + word-by-word | P1 | M | done 2026-11-21 | `[x]` |
+| C-09 | Raster-word fallback | P1 | L | done 2026-11-21 | `[x]` |
+| C-10 | Rotated glyph text | P1 | S | done 2026-11-21 | `[x]` |
+| C-11 | Ink colour model + sampling | P2 | M | done 2026-11-21 | `[x]` |
 | C-12 | Post-write verification completion | P0 | M | done | `[x]` |
 | C-13 | Edit coverage invariant | P0 | S | done | `[x]` |
 | C-14 | XObject/Type3/inline-image honesty | P0 | S | done | `[x]` |
@@ -389,7 +389,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** unit fit/clamp; E2E.
 
 ### E-07 — Snap guides + Alt bypass
-- **Pri:** P1 · **Size:** M · **Now:** 0%; **no behavioural source** (target advertises only) — mark as invented.
+- **Pri:** P1 · **Size:** M · **Now:** done 2026-11-21 — pure `lib/snap.ts`, guides, Alt bypass, sub-point movement.
 - **Scope:** pure `snap.ts` (page edges/centres, other objects, threshold in px→pt), guides, Alt bypass, sub-point move for snapping (today `moveLive` rounds to integers), one undo step.
 - **Anchor:** `edit-pdf-tool.tsx:1196–1214`; `editor-page.tsx:441–442`; new `lib/snap.ts`; CSS guides.
 - **Done when:** guides appear only on snap; Alt disables; no drift.
@@ -403,7 +403,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** unit offset/clamp; E2E.
 
 ### E-09 — Insert pages from another PDF
-- **Pri:** P2 · **Size:** M · **Now:** ~20%; engine `organize` supports multi-file, UI is single-file.
+- **Pri:** P2 · **Size:** M · **Now:** done 2026-11-21 — multi-file insert, compose in rail order, object/paragraph page remap.
 - **Scope:** compose `[current, extra]`, replace bytes, re-inspect, remap `pageIndex` on objects, `pageOrder`, `native.beforeLines`, `paragraphObjectIds`; progress.
 - **Anchor:** `jobs/organize.job.ts`, `ops/compose.ts`, `edit-pdf-tool.tsx:400, 563–662, 877–954`.
 - **Done when:** inserted pages appear; all edits survive; export order matches rail.
@@ -460,14 +460,14 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** visual E2E; unit mask geometry.
 
 ### T-06 — Formatting that reaches native
-- **Pri:** P1 · **Size:** L · **Now:** UI half done 2026-11-18 — style diff demotes to overlay with a receipt, style survives re-edit; native style application is the Sprint 5 half.
+- **Pri:** P1 · **Size:** L · **Now:** done 2026-11-21 — native matrix style (size/colour/rotation/alignment) + synthetic bold/italic; family changes fall back with `font-substituted`. New-line creation is refused by this PDFium build.
 - **Scope:** D9 is **make it real**. Add size/colour/bold/italic/align to `TextLayoutEdit`; teach `applyLayoutEdit` font loading (F-01), synthetic bold/italic when the embedded face has none, colour, and alignment. "Original" uses the embedded document font; if it cannot be reproduced, warn with a code.
 - **Anchor:** `textedit/types.ts:67–73`; `engine.ts:517–596`; `ops/edit.ts:614–650`; `editor-inspector.tsx:275–367`; `editor-chrome.tsx:973–1068`.
 - **Done when:** the controls are true on the native path; justify works or is removed; substitution/synthetic is receipted.
 - **Tests:** unit plan style mapping; E2E format + export + font/warning.
 
 ### T-07 — Rotate text block
-- **Pri:** P2 · **Size:** M · **Now:** 0%; rotated paragraphs are refused at edit start.
+- **Pri:** P2 · **Size:** M · **Now:** done 2026-11-21 — native matrix rotation + inspector numeric/15° snap/quick rotate.
 - **Scope:** if native rotation is supported: add angle to plan types, matrix placement, collision checks; else keep refusal and add rotation only to overlay/fallback with a warning. UI numeric + 15° snap.
 - **Anchor:** `ops/edit.ts:71–91`; `engine.ts:533`; `edit-pdf-tool.tsx:1425–1430`; `editor-inspector.tsx`.
 - **Done when:** promoted behaviour is documented; extraction and verification pass.
@@ -560,7 +560,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** partial-word fixture with kerns before/after; each operator variant.
 
 ### C-05 — Partial-run deletion
-- **Pri:** P1 · **Size:** S · **Now:** ~60%; whole-object deletion works natively; stream deletion refused.
+- **Pri:** P1 · **Size:** S · **Now:** done 2026-11-21 — `singleRunDeletion` routes a one-line partial deletion through stream surgery; whole-object deletion stays native.
 - **Scope:** use C-03/C-04 for partial deletion; keep native whole-object deletion; deletion never degrades to a cosmetic cover without a warning.
 - **Anchor:** `engine.ts:721–741, 1028–1039`; `contentStream.ts:442–451`.
 - **Done when:** deleting a word inside a run removes only it; extraction absence verified.
@@ -574,35 +574,35 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** unclosed-clip fixture; pixel diff.
 
 ### C-07 — Leftover-cover policy
-- **Pri:** P1 · **Size:** S · **Now:** ~15%; covers come from the UI, engine cannot tell policy from user whiteout.
+- **Pri:** P1 · **Size:** S · **Now:** done 2026-11-21 — explicit `coverPolicy:'leftover-cover'`, white-paint test from fill/image operators, receipt code.
 - **Scope:** explicit `policy:'leftover-cover'` marker (or engine-generated patch); only when removal reports complete; smallest patch; receipt code; never redaction language; coloured-background limitation documented.
 - **Anchor:** `textedit/engine.ts`; `ops/edit.ts`; `edit-receipt.ts`.
 - **Done when:** patch invisible on white pages; absent on coloured backgrounds; receipt names the policy.
 - **Tests:** pixel diff; receipt assertion.
 
 ### C-08 — `Tz` fit + word-by-word
-- **Pri:** P1 · **Size:** M · **Now:** 0%
+- **Pri:** P1 · **Size:** M · **Now:** done 2026-11-21 — `fitTextToWidth`, `Tz`, word-by-word fallback.
 - **Scope:** D12 = **40–250%**, per-line fit; warn outside 70–140% readability; `setCharacterSqueeze`; word-by-word when U+0020 is not encodable; measure with C-02 metrics; avoid double spaces in extraction.
 - **Anchor:** `exporter.ts:268–353`; `ops/edit.ts drawText`.
 - **Done when:** right edge preserved without unreadable squeeze; extraction clean.
 - **Tests:** 39/40/250/251% boundaries; extraction.
 
 ### C-09 — Raster-word fallback
-- **Pri:** P1 · **Size:** L · **Now:** 0%; non-WinAnsi is refused at validation.
+- **Pri:** P1 · **Size:** L · **Now:** done 2026-11-21 — `ops/textRaster.ts` + `rasterFallback`; receipt `glyph-rasterised`; verifier skips the text expectation.
 - **Scope:** render the smallest run via a clipped page region **in the worker** from source bytes (do not ship rasters to the worker); embed PNG; bypass `assertEncodable` for that run; receipt `glyph-rasterised`; verifier must not expect that text. F-01 reduces how often this happens but does not remove it: document fonts can lack glyphs, and inserted text uses standard faces.
 - **Anchor:** `ops/edit.ts:408–429, 614–650`; `render/renderPage.ts`; `exportVerify.ts`; `job-worker.ts:143` transfer depth.
 - **Done when:** appearance preserved, warned, not claimed selectable.
 - **Tests:** exotic-glyph fixture; receipt; pixel diff.
 
 ### C-10 — Rotated glyph text
-- **Pri:** P1 · **Size:** S · **Now:** ~35%; page `/Rotate` works; glyph rotation does not.
+- **Pri:** P1 · **Size:** S · **Now:** done 2026-11-21 — stream quads/removals and native matrix rotation; 180/270 fixtures.
 - **Scope:** add `rotationDeg` to plan types; per-line placement via `projectPoint`; aligned collision boxes; or interim refusal with a warning until supported.
 - **Anchor:** `textedit/types.ts:42–73`; `engine.ts:386–607, 533`; `document/geometry.ts:325`.
 - **Done when:** 90/180/270 fixtures remove/replace correctly, or are refused explicitly.
 - **Tests:** rotation fixtures; extraction.
 
 ### C-11 — Ink colour model + sampling
-- **Pri:** P2 · **Size:** M · **Now:** 0%; model has no colour, UI hard-codes `#111827`.
+- **Pri:** P2 · **Size:** M · **Now:** done 2026-11-21 — `TextTypography.color`, bounded page sampling, editor uses the sampled value.
 - **Scope:** add colour to `TextTypography`; populate from fill operators when possible, else subsampled raster sampling with paper/antialias rejection, per-block cache and a page budget; feed `EditTextObject.color`.
 - **Anchor:** `document/types.ts:50`; `render/textRuns.ts`; `text-editing.ts:471`; `edit-pdf-tool.tsx:1602`; `renderPageToCanvas`.
 - **Done when:** coloured text is detected without a first-paint stall; sampling budget measured.
@@ -887,6 +887,27 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 
 ---
 
+## Sprint 5 close (2026-11-21)
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| C-05 | `[x]` | The editor recognises a pure deletion inside one original line (`singleRunDeletion`) and emits it as a content-stream deletion instead of a paragraph rewrite. It removes only the selected glyphs, compensates their advance, and refuses rather than covering when the stream cannot anchor it. Unit: prefix/suffix/repeated-line/insertion cases. |
+| C-07 | `[x]` | Explicit `coverPolicy:'leftover-cover'` on paragraph/deletion edits. The engine adds a small patch only after an `in-place`/`content-stream` removal, only when its fill-operator walker plus image/form placement check finds white paint behind the box. A coloured panel/image skips the patch with `leftover-cover-skipped`; the receipt names `leftover-cover` and never calls it redaction. Tests: white page patch count > 0, coloured page patch 0. |
+| C-08 | `[x]` | `fitTextToWidth` (40-250%, readable band 70-140%), `Tz` written with `setCharacterSqueeze`, warnings outside the readable band, and word-by-word placement when the font cannot encode U+0020. Unit boundaries + export path. |
+| C-09 | `[x]` | `ops/textRaster.ts` renders one uncodable line locally (bounded 6x/4 MP), embeds PNG, bypasses `assertEncodable` only for objects that opted into `rasterFallback`, and reports `glyph-rasterised`; the verifier skips the text expectation for rasterised edits. Test proves the emoji is absent from extraction while the rest of the page survives. |
+| C-10 | `[x]` | Stream glyph quads/removals already carried rotation; Sprint 5 pins 180° and 270° matrices and adds native rotated reflow via matrix rotation. Corpus rotated fixture still removes cleanly. |
+| C-11 | `[x]` | `TextTypography.color`, bounded page render at 720 px, ink/paper distance rejection, strongest-ink averaging, per-line limit (240) and dominant colour hoisted to paragraphs. `text-runs` opts in with `includeColors`; the editor seeds the replacement and the overlay from the sampled colour. Test reads a red heading back from the rendered page. |
+| T-06 | `[x]` | Native style is applied to the rewritten objects: matrix scale for size, fill colour, rotation, alignment, synthetic italic (12° shear) and synthetic bold (fill+stroke). Requested family changes or un-bolding a face stay on the overlay with `font-substituted`; synthetic styles emit `synthetic-bold`/`synthetic-italic`. New text-object creation is refused in this PDFium build, so a style that would need extra lines falls back honestly instead of corrupting the page. |
+| T-07 | `[x]` | `rotationDeg` on text objects and the native plan; inspector numeric + 15° snap and 0/90/180/270 quick rotate. E2E proves a rewritten paragraph extracts at -90° while the rest of the page is untouched. |
+| E-07 | `[x]` | Pure `lib/snap.ts` (page edges/centres + object edges/centres, 6 px threshold, sub-point movement), guide lines rendered only while snapped, Alt bypass, one undo step. Unit math/Alt tests; E2E guide appears then clears. |
+| E-09 | `[x]` | Insert Pages opens a multi-file picker, composes current + extra docs in rail order, remaps object/paragraph `pageIndex` to the new positions, resets the rail baseline, updates source bytes and inspects the combined file. E2E appends a page while keeping page 0. |
+
+**Verification:** `pnpm typecheck` all 8 projects; `pnpm test` - pdf-core **650 passed + 1 expected fail**, web **309**, api **243**, mcp **19**, ai-agent **152**, ai-provider **375**; `pnpm build` (63 routes), `pnpm test:bundle` main **150.4 kB / 0 engines**, `pnpm test:provenance` clean, `pnpm test:corpus` **2/2**. Browser suites against the dev web app: `text-ux` **51/51** (adds snap, native style, synthetic-bold receipt, rotation, insert pages), `text-edit` and `editor-quick-parity` green. New unit coverage: `textFidelity.test.ts` (10), `snap.test.ts` (5), text-editing deletion cases (3), raster-fallback validation (1).
+
+**Still open before Sprint 6:** S-06 browser back/forward route blocking and E-10's remaining rail/capability truth. Gate C is **met**; the remaining O/X/H scope is Gate D.
+
+---
+
 ## 8. Release gates
 
 ### Gate A — Foundation + parity
@@ -905,6 +926,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - Removed spans absent; untouched pages text-identical; glyphs after removal do not move.
 - Sabotaged stream falls back with a warning.
 - Only then default; old path removable in a later release.
+- **Met 2026-11-21** (Sprint 5): `pnpm test:corpus` 2/2, stream/removal tests green, C-07 cover policy included.
 
 ### Gate D — Ship
 - O, X, H complete.
@@ -981,3 +1003,5 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-18 | **Merge sync + bug pass.** Merged `origin/main` (`30fde40`, dark-only frontend) into `rea-uplift`; only `PLAN.md` conflicted, resolved with main's frontend pass as §38. `origin/main` is now an ancestor, so the final merge starts conflict-free; added `pnpm test:merge-clean` and the sync-before-each-sprint policy (§10). Bug pass found and fixed: the smoke zoom assertion read an `<input>` via `textContent` (always empty; now `inputValue`), and the API processor could not resolve `@cantoo/fontkit` after the merged install (now a direct `@pdfshush/api` dependency, verified by a real workflow job). Smoke `ALL CHECKS PASSED`, text-ux 44/44, API suite rerun. |
 | 2026-11-21 | **Sprint 4 landed.** C-01/C-02/C-03/C-04/C-06/C-12/C-13/C-14 and G-03 complete. New `textedit/stream/{lexer,metrics,surgery}.ts`: byte-identical token emission, inline images, document font advances (Type0/simple/Type3/base-14), per-glyph removal with `TJ` compensation, rotated glyph quads and line-move preservation. `ops/edit.ts` wraps source content in `q … Q` before overlays. `exportVerify` adds rotation and untouched-page fingerprints; the stream pass discards a rewrite that fails its own reopen check; edits with no outcome are refused. Golden harness gains rotation, fingerprints and `pnpm test:corpus`. PDF-core 628+1 expected fail, web 301, build/bundle/provenance green, text-edit/editor-parity E2E green. Gate C still requires C-07. |
 | 2026-11-21 | **Sprint 4 bug pass.** Ten boundary defects fixed. Base-14 widths are no longer guessed from family-like names (`MySansFace`, `Symbol`, `ZapfDingbats`, `HelveticaNeue` are unreliable); a duplicated needle inside one show run is refused rather than guessed; Type0 odd-byte strings and undecodable runs cannot be planned; unsupported content filters are never spliced into a raw wrapper and isolation is flate-compressed; untouched-page checks are bounded to 64 head/tail pages by default and mixed text+overlay exports declare overlay regions; caller boxes win over derived glyph boxes; rotated stream removals get a display box through `pageGeom`; malformed hex strings are flagged. Added first/last `TJ`, `Tc`/`Tw`/`Tz`, `"` operator, duplicate-needle, odd-Type0, rotated-box, unsupported-filter and mixed-overlay tests. PDF-core 639+1 expected fail, web 301, bundle 150.4 kB / 0 engines, corpus 2/2, text-edit 7/7 + editor-parity 20/20. |
+| 2026-11-21 | **Sprint 5 landed.** C-05/C-07/C-08/C-09/C-10/C-11, T-06 native style, T-07 rotation, E-07 snapping and E-09 insert pages complete. New `singleRunDeletion` routes a one-line word deletion through stream surgery; `coverPolicy:'leftover-cover'` adds engine-generated patches only on white paint, from a fill/image operator walk; `fitTextToWidth` + `setCharacterSqueeze` and word-by-word layout; `ops/textRaster.ts` renders uncodable lines locally with `glyph-rasterised`; native style uses matrix scale/shear/rotation/fill and synthetic bold, with `synthetic-bold`/`synthetic-italic`/`font-substituted` receipts; `TextTypography.color` comes from bounded page sampling; `lib/snap.ts` + guides + Alt; insert-pages composes and remaps object/paragraph pages. PDF-core 650+1 expected fail, web 309, api 243, mcp 19, agent 152, provider 375; build/bundle 150.4 kB / 0 engines; corpus 2/2; text-ux 51/51, text-edit and editor-quick-parity green. **Gate C met.** |
+| 2026-11-21 | **Sprint 5 bug pass.** New-object creation was found to be refused by this PDFium build (`SetText`/`SetMatrix` trap on a freshly created text object), so native styling was redesigned to mutate existing objects; a styled replacement that would need extra lines now falls back to the overlay instead of corrupting the page. Insert Pages no longer leaves the organise runner in `done` (which hid the editor behind its result panel), and page order is updated through the session instead of the editable document. Cover detection was moved from raster sampling to a content-stream fill/image walk so `apps/api` keeps compiling without the `dom` lib; `render/canvas.ts` now uses structural canvas types and the API typecheck is clean again. The `text-ux` formatting scenario asserts a native rewrite, synthetic-bold receipt and vertical extraction rather than the old overlay demotion. |

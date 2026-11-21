@@ -213,7 +213,10 @@ async function formattingScenario(browser) {
   const page = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
   try {
     await openEditor(page, fixture);
-    await commitParagraph(page, 'Styled paragraph text');
+    // Keep the replacement short enough that the requested larger size still
+    // fits the original line: the native style path cannot create new lines in
+    // this PDFium build, and would (honestly) fall back to an overlay.
+    await commitParagraph(page, 'Styled paragraph');
 
     // Select the replacement object and apply a style that differs from the
     // document's own. The object sits above the (covered) original.
@@ -222,8 +225,32 @@ async function formattingScenario(browser) {
     if (!box) throw new Error('replacement has no box');
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await page.getByTestId('editor-inspector').waitFor({ timeout: 10_000 });
+
+    // E-07: drag the object so its centre lands on the page centre; a guide
+    // must appear while the gesture is live and disappear on release.
+    const pageBox = await page.getByTestId('editor-page-0').boundingBox();
+    if (!pageBox) throw new Error('page has no box');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(pageBox.x + pageBox.width / 2, pageBox.y + pageBox.height / 2, {
+      steps: 8,
+    });
+    await waitFor(
+      async () => (await page.getByTestId('snap-guide-vertical').count()) > 0,
+      5_000,
+      'snap guide',
+    );
+    check('snap guide appears while the move is snapped', true);
+    await page.mouse.up();
+    await waitFor(
+      async () => (await page.getByTestId('snap-guide-vertical').count()) === 0,
+      5_000,
+      'guide cleared',
+    );
+    check('snap guide clears on release', true);
+
     const size = page.getByTestId('inspector-font-size');
-    await size.fill('24');
+    await size.fill('20');
     await size.press('Enter');
     await page.getByTestId('inspector-bold').click();
     await page.getByTestId('inspector-swatch-#ef4444').click();
@@ -232,7 +259,9 @@ async function formattingScenario(browser) {
       10_000,
       'honest native-style note',
     );
-    check('inspector says styled paragraph exports as an overlay', true);
+    check('inspector explains native styling', true);
+    await page.getByTestId('inspector-text-rotate-90').click();
+    check('rotation control is available for text', true);
 
     await page.getByTestId('editor-save').click();
     await waitFor(
@@ -242,17 +271,36 @@ async function formattingScenario(browser) {
     );
     const toast = await page.locator('[data-sonner-toast]').allInnerTexts();
     check(
-      'save reports the styled edit as an overlay',
-      toast.some((entry) => /drawn as an overlay/i.test(entry)),
+      'save reports the styled edit as a native rewrite',
+      toast.some((entry) => /replaced in place/i.test(entry)),
       toast.join(' | '),
     );
     const receipt = await page.getByTestId('edit-receipt').innerText();
-    check('receipt names the overlay', /Drawn over the original/i.test(receipt), receipt.slice(0, 180));
-    check('receipt warns the original remains', /Original text remains/i.test(receipt));
+    // T-06: the style is applied to the rewritten object. Bold is synthetic on
+    // a face with no bold variant, and the receipt must say so.
+    check(
+      'receipt names the synthetic bold',
+      /synthetic-bold/i.test(receipt),
+      receipt.slice(0, 200),
+    );
+    check('receipt does not claim an overlay', !/Drawn over the original/i.test(receipt));
 
     const saved = await downloadSaved(page);
     const text = await extractText(saved);
-    check('styled replacement text is present', text.includes('Styled paragraph text'), text.trim());
+    check('styled replacement text is present', text.includes('Styled paragraph'), text.trim());
+    const styledItems = (await extractTextItems(saved)).filter((item) =>
+      item.text.includes('Styled paragraph'),
+    );
+    check(
+      'styled replacement keeps the larger size',
+      styledItems.some((item) => item.fontSize >= 18),
+      styledItems.map((item) => item.fontSize).join(', '),
+    );
+    check(
+      'rotated replacement is vertical in the PDF text layer',
+      styledItems.some((item) => Math.abs(Math.abs(item.rotationDeg) - 90) < 3),
+      styledItems.map((item) => item.rotationDeg?.toFixed(1)).join(', '),
+    );
   } finally {
     await page.close();
   }
@@ -563,6 +611,31 @@ async function draftScenario(browser) {
   }
 }
 
+async function insertPagesScenario(browser) {
+  const base = await writeFixture('insert-base.pdf', [[{ text: 'Base page' }]]);
+  const extra = await writeFixture('insert-extra.pdf', [[{ text: 'Inserted page' }]]);
+  const page = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
+  try {
+    await openEditor(page, base);
+    await page.getByTestId('editor-mode-organize').click();
+    // Set the input directly: the button only opens the native picker, which
+    // has no useful affordance in a headless run.
+    await page.getByTestId('insert-pages-input').setInputFiles([extra]);
+    await waitFor(
+      async () => (await page.getByTestId('editor-page-1').count()) === 1,
+      60_000,
+      'inserted page',
+    );
+    check('inserting a PDF appends its pages', true);
+    check(
+      'the original page is still present',
+      (await page.getByTestId('editor-page-0').count()) === 1,
+    );
+  } finally {
+    await page.close();
+  }
+}
+
 async function main() {
   await mkdir(WORK, { recursive: true });
   const only = process.env.TEXT_UX_ONLY?.split(',').map((entry) => entry.trim()).filter(Boolean);
@@ -580,6 +653,10 @@ async function main() {
     if (want('format')) {
       console.log('\n-- formatting (T-06 UI half) --');
       await formattingScenario(browser);
+    }
+    if (want('insert')) {
+      console.log('\n-- insert pages (E-09) --');
+      await insertPagesScenario(browser);
     }
     if (want('find')) {
       console.log('\n-- find & replace (S-01/S-02) --');

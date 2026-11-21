@@ -44,6 +44,26 @@ export interface TextLineTarget {
   box: TextEditBox;
 }
 
+/**
+ * Style a native layout edit must make true on the document objects (T-06).
+ *
+ * Only fields that differ from the original need to be supplied. The engine
+ * may substitute a standard face when the document font has no matching
+ * weight/style; that is reported as `font-substituted`, never claimed as the
+ * original.
+ */
+export interface TextRunStyle {
+  fontSize?: number;
+  /** `#rrggbb`. */
+  color?: string;
+  bold?: boolean;
+  italic?: boolean;
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+  align?: 'left' | 'center' | 'right';
+  /** Clockwise display-space rotation of the text block (T-07/C-10). */
+  rotationDeg?: number;
+}
+
 /** Reflow parameters supplied by the Phase 1 layout/capability analysis. */
 export interface TextReflowRequest {
   /** Available display-space width in points. */
@@ -77,6 +97,8 @@ export interface TextLayoutEdit {
   fontFamily?: 'helvetica' | 'times' | 'courier';
   beforeLines: TextLineTarget[];
   reflow: TextReflowRequest;
+  /** Native style controls; absent means keep the document's own style. */
+  style?: TextRunStyle;
 }
 
 /** Serialisable font facts returned by capability inspection. */
@@ -169,6 +191,12 @@ export interface TextEdit {
   layout?: TextLayoutEdit;
   /** Preferred first strategy; the engine may still demote for safety. */
   strategy?: EditStrategy;
+  /**
+   * C-07: ask the engine to add its own small patch over a completed removal,
+   * hiding antialiased leftovers. Only applied on a near-white background; the
+   * report names it and it is never described as redaction.
+   */
+  coverPolicy?: 'leftover-cover';
 }
 
 /** How an individual edit was finally applied. */
@@ -190,6 +218,12 @@ export interface TextEditOutcome {
   fidelity?: EditFidelity;
   /** Display-space region the applied edit occupied (used by visual verification). */
   box?: TextEditBox;
+  /**
+   * C-09: the replacement was drawn as a raster image because no font could
+   * encode it. The text is not selectable, and the export verifier must not
+   * expect it in the extracted text layer.
+   */
+  rasterised?: boolean;
 }
 
 export interface TextEditCheck {
@@ -213,6 +247,10 @@ export interface TextEditReport {
   fallback: number;
   /** Edits that were deliberately left for manual review. */
   manualReview: number;
+  /** C-07 patches the engine added over a completed removal. */
+  covers: number;
+  /** Edits drawn as raster images because no font could encode them. */
+  rasterised: number;
   /** True when at least one edit was applied without a cosmetic cover. */
   usedNativeEngine: boolean;
   verification: TextEditVerification;

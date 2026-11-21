@@ -1,7 +1,12 @@
 import type { PDFPageProxy } from 'pdfjs-dist';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
-import { defaultCanvasFactory, fitScaleToBudget, type CanvasFactory } from './canvas.js';
+import {
+  defaultCanvasFactory,
+  fitScaleToBudget,
+  type Canvas2DContext,
+  type CanvasFactory,
+} from './canvas.js';
 import { loadPdfForRender } from './pdfjsRuntime.js';
 
 export type ImageFormat = 'png' | 'jpeg';
@@ -33,7 +38,7 @@ const MIME: Record<ImageFormat, string> = {
 export interface RenderedCanvas {
   /** Typed loosely so the worker (Offscreen) and tests (DOM) both fit. */
   canvas: import('./canvas.js').RenderCanvas;
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  context: Canvas2DContext;
   width: number;
   height: number;
 }
@@ -63,7 +68,7 @@ export async function renderPageToCanvas(
   const width = Math.max(1, Math.floor(viewport.width));
   const height = Math.max(1, Math.floor(viewport.height));
   const canvas = factory(width, height);
-  const context = canvas.context as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+  const context = canvas.context as Canvas2DContext | null;
   if (!context) {
     canvas.release?.();
     throw new Error('Could not acquire a 2D canvas context');
@@ -83,7 +88,7 @@ export async function renderPageToCanvas(
       // is how OffscreenCanvas contexts (worker rendering) are supported. pdf.js
       // only calls 2D-context methods, shared by DOM and offscreen variants.
       canvas: null,
-      canvasContext: context as CanvasRenderingContext2D,
+      canvasContext: context as never,
       viewport,
       background,
     });

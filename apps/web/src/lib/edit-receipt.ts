@@ -122,6 +122,19 @@ export function formatEditReceipt(input: EditReceiptInput): string {
     for (const summary of summaries) {
       lines.push(`  ${summary.count} × ${summary.label.toLowerCase()} — ${summary.detail}`);
     }
+    if (report.covers > 0) {
+      lines.push(
+        `  ${plural(report.covers, 'leftover-cover patch', 'leftover-cover patches')} — ` +
+          'a small white patch over a completed removal hides antialiased edges. ' +
+          'It is a visual patch, not redaction; the glyphs are absent from the text layer.',
+      );
+    }
+    if (report.rasterised > 0) {
+      lines.push(
+        `  ${plural(report.rasterised, 'edit')} drawn as an image — no available font could encode ` +
+          'the text. The appearance is preserved, but those words are not selectable or searchable.',
+      );
+    }
   }
 
   lines.push('');

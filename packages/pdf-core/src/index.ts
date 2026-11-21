@@ -87,7 +87,16 @@ export { collectFontPrograms, DocumentFontResolver, normalizeFontKey } from './o
 export type { DocumentFontProgram, FontProgramFormat } from './ops/fontPrograms.js';
 // Dependency-free so the editor can style its textarea without pulling pdf-lib
 // into the main browser bundle.
-export { TEXT_ASCENT, TEXT_LINE_HEIGHT } from './ops/textMetrics.js';
+export {
+  TEXT_ASCENT,
+  TEXT_LINE_HEIGHT,
+  TEXT_FIT_MIN_PERCENT,
+  TEXT_FIT_MAX_PERCENT,
+  TEXT_FIT_READABLE_MIN_PERCENT,
+  TEXT_FIT_READABLE_MAX_PERCENT,
+  fitTextToWidth,
+} from './ops/textMetrics.js';
+export type { TextFit } from './ops/textMetrics.js';
 export type {
   EditorObject,
   EditObjectBase,
@@ -482,6 +491,7 @@ export type {
   TextLineTarget,
   TextReflowRequest,
   TextLayoutEdit,
+  TextRunStyle,
   TextFontDescriptor,
   TextObjectInfo,
   TextLayerKind,

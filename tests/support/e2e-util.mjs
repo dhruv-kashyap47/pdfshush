@@ -75,6 +75,11 @@ export async function extractTextItems(bytes) {
         y: item.transform[5],
         width: item.width ?? 0,
         height: item.height ?? 0,
+        // The text matrix's vertical scale is the rendered font size.
+        fontSize: Math.hypot(item.transform[2] ?? 0, item.transform[3] ?? 0),
+        // Baseline angle in PDF space, degrees counter-clockwise.
+        rotationDeg:
+          (Math.atan2(item.transform[1] ?? 0, item.transform[0] ?? 1) * 180) / Math.PI,
       });
     }
   }

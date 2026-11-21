@@ -64,6 +64,11 @@ export interface TextTypography {
   rotationDeg: number;
   /** Extra letter spacing in points when the extractor reports it. */
   charSpacing?: number;
+  /**
+   * C-11: text ink sampled from the page (`#rrggbb`). Absent when the model has
+   * no colour evidence; the editor then uses its default rather than guessing.
+   */
+  color?: string;
 }
 
 /** How a block/paragraph participates in the page's structure. */

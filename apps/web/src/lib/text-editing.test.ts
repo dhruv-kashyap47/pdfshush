@@ -25,6 +25,7 @@ import {
   resolveClickCount,
   resolvedFontFamily,
   selectionFromAnchors,
+  singleRunDeletion,
   wordSelectionAt,
   type ParagraphEditRecord,
 } from './text-editing';
@@ -466,5 +467,38 @@ describe('paragraph records and revert (T-01)', () => {
       savedAt: 1,
     };
     expect(buildReverseParagraphEdit(record, () => 'reverse-1')).toBeNull();
+  });
+});
+
+describe('partial-run deletion (C-05)', () => {
+  const lines = [
+    { text: 'Invoice 2026-0042 total', box: box(72, 100, 200, 12) },
+    { text: 'Paid in full', box: box(72, 114, 120, 12) },
+  ];
+
+  it('recognises a pure deletion inside one line', () => {
+    expect(singleRunDeletion('Invoice 2026-0042 total', 'Invoice  total', lines)).toEqual({
+      text: '2026-0042',
+      line: lines[0],
+    });
+  });
+
+  it('refuses a replacement, an insertion and a cross-line deletion', () => {
+    expect(singleRunDeletion('Invoice 2026-0042 total', 'Invoice 2027-0042 total', lines)).toBeNull();
+    expect(singleRunDeletion('Invoice total', 'Invoice new total', lines)).toBeNull();
+    expect(
+      singleRunDeletion('Invoice 2026-0042 total', 'Invoi', [
+        { text: 'Invoice', box: box(72, 100, 50, 12) },
+        { text: '2026-0042 total', box: box(122, 100, 150, 12) },
+      ]),
+    ).toBeNull();
+  });
+
+  it('refuses a deletion that occurs on more than one line', () => {
+    const repeated = [
+      { text: 'to do', box: box(0, 0, 20, 10) },
+      { text: 'to do', box: box(0, 20, 20, 10) },
+    ];
+    expect(singleRunDeletion('to do', 'to ', repeated)).toBeNull();
   });
 });

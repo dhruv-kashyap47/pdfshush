@@ -27,10 +27,12 @@ import { LIMITS } from '../limits.js';
 import { applyEdits, validateExport, type EditorObject } from '../ops/edit.js';
 import { applyFormValues, extractFormWidgets } from '../ops/forms.js';
 import { loadPdfDocument } from '../ops/pages.js';
+import type { CanvasFactory } from '../render/canvas.js';
 import { wrapText } from '../document/reflow.js';
 import type { BBox } from '../document/types.js';
 import { encodeWithMap, readFontCharcodes, type FontCharcodesByPage } from './charcodes.js';
 import { applyContentStreamEdits } from './contentStream.js';
+import { coverBox, detectWhiteBackground } from './cover.js';
 import { verifyExportArtifact, type VisualEditRegion } from './exportVerify.js';
 import { normalizeForMatch, withoutWhitespaceForMatch } from './text.js';
 import {
@@ -42,6 +44,7 @@ import { loadPdfiumModule } from './runtime.js';
 import {
   TextEditUnsafeError,
   type TextEdit,
+  type TextEditBox,
   type TextEditMode,
   type TextEditOutcome,
   type TextEditUnsafeReason,
@@ -75,6 +78,8 @@ export interface TextEditOptions {
    * validator; the engine guards again for direct callers.
    */
   strategy?: TextEngineStrategy;
+  /** Canvas used by the C-09 raster fallback (tests inject a polyfill). */
+  canvasFactory?: CanvasFactory;
 }
 
 /** The engine strategies a job may request. */
@@ -95,6 +100,8 @@ export interface NativeTextEditResult {
    * tolerating the disappearance of a font no edit touched.
    */
   consumedFonts: Set<string>;
+  /** Native-stage fidelity warnings (`font-substituted`, shrink/rotation refusals). */
+  warnings: string[];
 }
 
 export interface TextEditRunResult {
@@ -106,6 +113,10 @@ export interface TextEditRunResult {
   contentStream: number;
   fallback: number;
   manualReview: number;
+  /** C-07 patches added over completed removals. */
+  covers: number;
+  /** Edits drawn as raster images. */
+  rasterised: number;
   /** True when at least one edit went through PDFium. */
   usedNativeEngine: boolean;
   /** The strategy this run actually used. */
@@ -374,7 +385,7 @@ function measureWithFont(
 }
 
 interface LayoutMetrics {
-  lines: { text: string; widthPt: number; bbox: BBox }[];
+  lines: { text: string; widthPt: number; bbox: BBox; x: number; baselineY: number }[];
   lineHeight: number;
   x: number;
   fontPtr: number;
@@ -384,6 +395,14 @@ interface LayoutMetrics {
   map: Map<number, number>;
   fontName: string;
   fontFamily?: 'helvetica' | 'times' | 'courier';
+  color?: { r: number; g: number; b: number; a: number };
+  align?: 'left' | 'center' | 'right';
+  /** Clockwise display-space rotation requested by T-07. */
+  rotationDeg?: number;
+  /** Requested size / source size, applied to the object matrix. */
+  fontScale: number;
+  syntheticBold: boolean;
+  syntheticItalic: boolean;
 }
 
 /** Printable ASCII maps one-to-one in the standard PDF fonts. */
@@ -391,6 +410,68 @@ function asciiCharcodeMap(): Map<number, number> {
   const map = new Map<number, number>();
   for (let code = 0x20; code <= 0x7e; code += 1) map.set(code, code);
   return map;
+}
+
+/** AABB of an upright display box rotated clockwise about its baseline start. */
+function rotatedBox(box: BBox, baselineY: number, degreesClockwise: number): BBox {
+  const radians = (degreesClockwise * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const pivotX = box.x;
+  const corners: Array<[number, number]> = [
+    [box.x, box.y],
+    [box.x + box.width, box.y],
+    [box.x + box.width, box.y + box.height],
+    [box.x, box.y + box.height],
+  ];
+  const points = corners.map(([x, y]) => {
+    const dx = x - pivotX;
+    const dy = y - baselineY;
+    return [pivotX + dx * cos - dy * sin, baselineY + dx * sin + dy * cos] as const;
+  });
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(...xs) - minX,
+    height: Math.max(...ys) - minY,
+  };
+}
+
+/** `#rrggbb`/`#rgb` -> unit RGB. Invalid values fall back to black. */
+function parseHexColorToUnit(value: string): { r: number; g: number; b: number; a: number } {
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value.trim());
+  if (!match) return { r: 0, g: 0, b: 0, a: 1 };
+  let hex = match[1]!;
+  if (hex.length === 3) hex = hex.split('').map((part) => part + part).join('');
+  const number = Number.parseInt(hex, 16);
+  return {
+    r: ((number >> 16) & 0xff) / 255,
+    g: ((number >> 8) & 0xff) / 255,
+    b: (number & 0xff) / 255,
+    a: 1,
+  };
+}
+
+function fontFamilyOf(baseName: string): 'helvetica' | 'times' | 'courier' | 'other' {
+  const lower = baseName.toLowerCase();
+  if (lower.includes('times') || lower.includes('serif') || lower.includes('roman')) return 'times';
+  if (lower.includes('courier') || lower.includes('mono')) return 'courier';
+  if (lower.includes('helvetica') || lower.includes('arial')) return 'helvetica';
+  return 'other';
+}
+
+function isBoldFont(font: PdfiumTextObject['font']): boolean {
+  if (!font) return false;
+  return font.weight >= 600 || /bold|black|heavy|demi/i.test(font.baseName);
+}
+
+function isItalicFont(font: PdfiumTextObject['font']): boolean {
+  if (!font) return false;
+  return Math.abs(font.italicAngle) > 0.01 || /italic|oblique/i.test(font.baseName);
 }
 
 /**
@@ -405,6 +486,7 @@ function planLayoutEdit(
   used: Set<number>,
   edit: TextEdit,
   fonts: FontCharcodesByPage | undefined,
+  warnings: string[] = [],
 ): { metrics: LayoutMetrics; targets: ObjectMatch[] } | { reason: string } {
   const plan = edit.layout!;
   if (plan.beforeLines.length === 0) return { reason: 'paragraph has no original lines to anchor' };
@@ -424,17 +506,54 @@ function planLayoutEdit(
     targets.push(match);
   }
   const source = targets[0]!.members[0]!;
-  const fontPtr = source.fontPtr;
+  const style = plan.style;
   const fontName = doc.fontNameOf(source.ptr);
   const documentMap = fontName ? fonts?.get(pageIndex)?.get(fontName) : undefined;
   const standardFont = fontName
     ? /^(helvetica|times|courier|arial|symbol|zapfdingbats)/i.test(fontName)
     : false;
+  const fontPtr = source.fontPtr;
   const map = documentMap ?? (standardFont ? asciiCharcodeMap() : undefined);
   if (!fontPtr || !map) {
     return { reason: 'original font has no document-derived encoding map' };
   }
-  const fontSize = source.fontSize || plan.reflow.lineHeight || 12;
+  const sourceFamily = fontFamilyOf(fontName ?? source.font?.familyName ?? '');
+  const sourceBold = isBoldFont(source.font);
+  const sourceItalic = isItalicFont(source.font);
+  // T-06 on this PDFium build: new text objects cannot be created (their text
+  // write is refused), so a style is applied to the *existing* objects --
+  // matrix scale, shear (synthetic italic), rotation, fill colour and
+  // fill+stroke (synthetic bold). A requested family that is not the document's
+  // own, or un-bolding/un-italicising a face that has that style baked in,
+  // cannot be expressed and goes to the overlay with a receipt.
+  if (style?.fontFamily && style.fontFamily !== sourceFamily && sourceFamily !== 'other') {
+    warnings.push(
+      `font-substituted: "${fontName ?? 'the document font'}" cannot become ${style.fontFamily} in place; ` +
+        'the replacement is drawn with the requested standard face instead.',
+    );
+    return { reason: 'requested font family needs a substituted face' };
+  }
+  if (style?.bold === false && sourceBold) {
+    return { reason: 'the original face is bold and cannot be made lighter in place' };
+  }
+  if (style?.italic === false && sourceItalic) {
+    return { reason: 'the original face is italic and cannot be made upright in place' };
+  }
+  const syntheticBold = style?.bold === true && !sourceBold;
+  const syntheticItalic = style?.italic === true && !sourceItalic;
+  if (syntheticBold) {
+    warnings.push(
+      'synthetic-bold: the document face has no bold variant; the replacement is drawn with a synthetic stroke.',
+    );
+  }
+  if (syntheticItalic) {
+    warnings.push(
+      'synthetic-italic: the document face has no italic variant; the replacement is drawn with an oblique shear.',
+    );
+  }
+  const sourceSize = source.fontSize || plan.reflow.lineHeight || 12;
+  const fontSize = style?.fontSize ?? sourceSize;
+  const color = style?.color ? parseHexColorToUnit(style.color) : doc.objectFillColor(source.ptr);
   const measure = (text: string): number | null => measureWithFont(doc, fontPtr, map, text, fontSize);
   const wrapped =
     edit.replace.length === 0
@@ -456,24 +575,49 @@ function planLayoutEdit(
   if (wrapped.overflow || wrapped.exceedsMaxLines) {
     return { reason: 'reflowed text does not fit the paragraph width/line budget' };
   }
+  if (style && wrapped.lines.length > targets.length) {
+    return {
+      reason:
+        'the styled replacement needs more line objects than the original; this build cannot create them, so the overlay carries the style',
+    };
+  }
   const x = plan.reflow.x ?? plan.beforeLines[0]!.box.x;
   const top = plan.reflow.firstBaselineY - fontSize * 0.82;
   const geom = doc.geom(pageIndex);
   const pageWidth = geom.x1 - geom.x0;
   const pageHeight = geom.y1 - geom.y0;
-  const created: { text: string; widthPt: number; bbox: BBox }[] = [];
+  const align = style?.align;
+  const rotationDeg = style?.rotationDeg;
+  const created: { text: string; widthPt: number; bbox: BBox; x: number; baselineY: number }[] = [];
   for (let index = 0; index < wrapped.lines.length; index += 1) {
     const line = wrapped.lines[index]!;
-    const bbox: BBox = {
-      x,
+    const lineX =
+      align === 'center'
+        ? x + (plan.reflow.width - line.widthPt) / 2
+        : align === 'right'
+          ? x + plan.reflow.width - line.widthPt
+          : x;
+    const rawBox: BBox = {
+      x: lineX,
       y: top + index * plan.reflow.lineHeight,
       width: Math.max(1, line.widthPt),
       height: plan.reflow.lineHeight * 0.9,
     };
+    // A rotated block's collision/verification box is the AABB of its corners,
+    // not the upright line box.
+    const bbox = rotationDeg
+      ? rotatedBox(rawBox, plan.reflow.firstBaselineY + index * plan.reflow.lineHeight, rotationDeg)
+      : rawBox;
     if (bbox.x < -0.5 || bbox.y < -0.5 || bbox.x + bbox.width > pageWidth + 0.5 || bbox.y + bbox.height > pageHeight + 0.5) {
       return { reason: 'reflowed paragraph would leave the page' };
     }
-    created.push({ text: line.text, widthPt: line.widthPt, bbox });
+    created.push({
+      text: line.text,
+      widthPt: line.widthPt,
+      bbox,
+      x: lineX,
+      baselineY: plan.reflow.firstBaselineY + index * plan.reflow.lineHeight,
+    });
   }
 
   const consumed = new Set(targets.flatMap((target) => target.members.map((member) => member.ptr)));
@@ -506,6 +650,12 @@ function planLayoutEdit(
       map,
       fontName: fontName ?? '',
       ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
+      color,
+      ...(align ? { align } : {}),
+      ...(rotationDeg !== undefined ? { rotationDeg } : {}),
+      fontScale: fontSize / Math.max(0.01, sourceSize),
+      syntheticBold,
+      syntheticItalic,
     },
     targets,
   };
@@ -602,16 +752,63 @@ function applyLayoutEdit(
         (charcodes !== null && doc.setCharcodes(first.ptr, charcodes)) ||
         doc.setText(first.ptr, replacement);
       if (!written) throw new LayoutMutationError('PDFium refused to rewrite a reflowed line');
-      if (edit.layout!.reflow.moved) {
-        // Rewriting glyphs does not change the object's matrix. A moved
-        // paragraph therefore has to be repositioned explicitly, preserving
-        // each line's relative indentation from the first line.
-        const line = edit.layout!.beforeLines[index]?.box;
-        const firstLine = edit.layout!.beforeLines[0]?.box;
-        const lineX = metrics.x + (line && firstLine ? line.x - firstLine.x : 0);
-        const baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
-        if (!doc.setObjectOrigin(pageIndex, first.ptr, { x: lineX, y: baselineY })) {
-          throw new LayoutMutationError('PDFium refused to move a reflowed line');
+
+      // T-06/T-07: apply the requested style to the *existing* object. New text
+      // objects cannot be created in this PDFium build, so size is a matrix
+      // scale, italic is a shear, rotation is a matrix rotation, colour is a
+      // fill write, and bold is synthetic fill+stroke. The face itself is never
+      // silently swapped; a family change goes to the overlay with a receipt.
+      const original = doc.objectMatrix(first.ptr);
+      if (original) {
+        let [a, b, c, d] = original;
+        a *= metrics.fontScale;
+        b *= metrics.fontScale;
+        c *= metrics.fontScale;
+        d *= metrics.fontScale;
+        if (metrics.syntheticItalic) {
+          // Shear x by y: 12 degrees is the conventional oblique angle.
+          const shear = Math.tan((12 * Math.PI) / 180);
+          c += a * shear;
+          d += b * shear;
+        }
+        if (metrics.rotationDeg !== undefined) {
+          // Display clockwise -> PDF counter-clockwise is negative.
+          const radians = (-metrics.rotationDeg * Math.PI) / 180;
+          const cos = Math.cos(radians);
+          const sin = Math.sin(radians);
+          const na = a * cos + c * sin;
+          const nb = b * cos + d * sin;
+          const nc = -a * sin + c * cos;
+          const nd = -b * sin + d * cos;
+          a = na;
+          b = nb;
+          c = nc;
+          d = nd;
+        }
+        const beforeLine = edit.layout!.beforeLines[index]?.box;
+        const firstBefore = edit.layout!.beforeLines[0]?.box;
+        const alignMoves = metrics.align === 'center' || metrics.align === 'right';
+        const needsOrigin =
+          Boolean(edit.layout!.reflow.moved) || alignMoves || metrics.rotationDeg !== undefined;
+        let e = original[4];
+        let f = original[5];
+        if (needsOrigin) {
+          const lineX = edit.layout!.reflow.moved
+            ? metrics.x + (beforeLine && firstBefore ? beforeLine.x - firstBefore.x : 0)
+            : alignMoves
+              ? metrics.lines[index]!.x
+              : beforeLine?.x ?? metrics.lines[index]!.x;
+          const baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
+          [e, f] = doc.viewPointToPdf(pageIndex, { x: lineX, y: baselineY });
+        }
+        if (!doc.setObjectMatrix(first.ptr, [a, b, c, d, e, f])) {
+          throw new LayoutMutationError('PDFium refused to style a reflowed line');
+        }
+        if (metrics.color) {
+          doc.setObjectFillColor(first.ptr, metrics.color);
+          if (metrics.syntheticBold && metrics.source.renderMode !== 3) {
+            doc.setSyntheticBold(first.ptr, metrics.color, metrics.fontSize * 0.03);
+          }
         }
       }
       const tails = target.members.slice(1);
@@ -654,6 +851,7 @@ export function applyNativeTextEdits(
     { mode: TextEditMode; reason?: string; box?: import('./types.js').TextEditBox }
   >();
   const consumedFonts = new Set<string>();
+  const warnings: string[] = [];
   try {
     const pageCount = doc.pageCount();
     const byPage = [...groupByPage(edits).entries()].sort((a, b) => a[0] - b[0]);
@@ -687,7 +885,7 @@ export function applyNativeTextEdits(
           continue;
         }
         if (edit.layout) {
-          const plan = planLayoutEdit(doc, pageIndex, objects, used, edit, fonts);
+          const plan = planLayoutEdit(doc, pageIndex, objects, used, edit, fonts, warnings);
           if ('reason' in plan) {
             provisional.set(edit.id, { mode: 'fallback', reason: plan.reason });
           } else {
@@ -836,7 +1034,7 @@ export function applyNativeTextEdits(
         ...(state.box ? { box: state.box } : edit.box ? { box: edit.box } : {}),
       };
     });
-    return { bytes, pageCount, outcomes, consumedFonts };
+    return { bytes, pageCount, outcomes, consumedFonts, warnings };
   } finally {
     doc.close();
   }
@@ -955,16 +1153,26 @@ export async function editPdfText(
   // Nothing to rewrite natively: skip PDFium entirely and go straight to the
   // overlay pass, so a document of pure new objects never needs the WASM engine.
   if (edits.length === 0) {
-    const bytes = await applyOverlayPass(data, overlayObjects, options.formValues, ctx, password);
+    const overlay = await applyOverlayPass(
+      data,
+      overlayObjects,
+      options.formValues,
+      ctx,
+      password,
+      options.canvasFactory,
+    );
+    warnings.push(...overlay.warnings);
     return {
-      bytes,
-      nativeBytes: bytes,
-      pageCount: await pageCountOf(bytes, password),
+      bytes: overlay.bytes,
+      nativeBytes: overlay.bytes,
+      pageCount: await pageCountOf(overlay.bytes, password),
       outcomes: [],
       inPlace: 0,
       contentStream: 0,
       fallback: 0,
       manualReview: 0,
+      covers: 0,
+      rasterised: overlay.rasterisedObjectIds.size,
       usedNativeEngine: false,
       strategy,
       verification: { ok: true, checks: [] },
@@ -986,6 +1194,9 @@ export async function editPdfText(
   // per page. A document that cannot be read simply yields no maps.
   const fonts = await readFontCharcodes(data, password);
   const native = applyNativeTextEdits(module, data, edits, ctx, password, fonts);
+  if (native.warnings.length > 0) {
+    warnings.push(...native.warnings);
+  }
 
   // Stage 2: reopen the serialized native bytes and look for each replacement.
   const outcomes: TextEditOutcome[] = native.outcomes.map((outcome) => ({ ...outcome }));
@@ -1163,6 +1374,60 @@ export async function editPdfText(
     }
   }
 
+  // C-07: an explicit leftover-cover request. The removal must have completed;
+  // the background is sampled once per page, and a coloured page is refused
+  // with a warning rather than given a visible white rectangle.
+  const coverObjects: EditorObject[] = [];
+  let covers = 0;
+  const coverBoxesByPage = new Map<number, { edit: TextEdit; boxes: TextEditBox[] }[]>();
+  for (const outcome of outcomes) {
+    const edit = edits.find((candidate) => candidate.id === outcome.id);
+    if (!edit || edit.coverPolicy !== 'leftover-cover') continue;
+    if (outcome.mode !== 'in-place' && outcome.mode !== 'content-stream') continue;
+    const boxes = edit.layout
+      ? edit.layout.beforeLines.map((line) => line.box)
+      : outcome.box || edit.box
+        ? [outcome.box ?? edit.box!]
+        : [];
+    if (boxes.length === 0) continue;
+    const list = coverBoxesByPage.get(edit.pageIndex);
+    if (list) list.push({ edit, boxes });
+    else coverBoxesByPage.set(edit.pageIndex, [{ edit, boxes }]);
+  }
+  for (const [pageIndex, entries] of coverBoxesByPage) {
+    const allBoxes = entries.flatMap((entry) => entry.boxes);
+    const decision = await detectWhiteBackground(data, pageIndex, allBoxes, {
+      ...(password ? { password } : {}),
+      ...(options.canvasFactory ? { canvasFactory: options.canvasFactory } : {}),
+    });
+    if (!decision.white) {
+      warnings.push(
+        `leftover-cover-skipped: page ${pageIndex + 1}: ${decision.reason ?? 'background is not white'}; ` +
+          'the glyphs are still removed, but a faint edge may remain.',
+      );
+      continue;
+    }
+    for (const entry of entries) {
+      entry.boxes.forEach((box, index) => {
+        const padded = coverBox(box);
+        coverObjects.push({
+          id: `leftover-cover-${entry.edit.id}-${index}`,
+          kind: 'whiteout',
+          role: 'decoration',
+          pageIndex,
+          ...padded,
+        });
+        covers += 1;
+      });
+    }
+  }
+  if (covers > 0) {
+    warnings.push(
+      `leftover-cover: ${covers} small patch${covers === 1 ? '' : 'es'} added over completed removals to hide antialiased edges. ` +
+        'This is a visual patch, not redaction; the original glyphs are absent from the text layer.',
+    );
+  }
+
   // `native-only` is a strict promise: no content-stream rewrite and no overlay.
   // If any edit could not be rewritten as a real text object, fail instead of
   // quietly turning it into a painted replacement.
@@ -1200,16 +1465,21 @@ export async function editPdfText(
   // field while a text edit succeeded natively silently dropped the form value.
   const formValues = options.formValues ?? {};
   const hasFormValues = Object.keys(formValues).length > 0;
-  const hasOverlay = fallbackObjects.length > 0 || overlayObjects.length > 0 || hasFormValues;
-  const finalBytes = hasOverlay
+  const hasOverlay =
+    fallbackObjects.length > 0 || coverObjects.length > 0 || overlayObjects.length > 0 || hasFormValues;
+  const overlay = hasOverlay
     ? await applyOverlayPass(
         workingBytes,
-        [...overlayObjects, ...fallbackObjects],
+        [...overlayObjects, ...coverObjects, ...fallbackObjects],
         options.formValues,
         ctx,
         password,
+        options.canvasFactory,
       )
-    : workingBytes;
+    : undefined;
+  if (overlay) warnings.push(...overlay.warnings);
+  const finalBytes = overlay?.bytes ?? workingBytes;
+  const rasterisedObjectIds = overlay?.rasterisedObjectIds ?? new Set<string>();
 
   if (fallbackObjects.length > 0) {
     warnings.push(
@@ -1237,7 +1507,11 @@ export async function editPdfText(
     return mode === 'in-place' || mode === 'content-stream';
   };
   const finalExpectations: TextEditExpectation[] = edits
-    .filter((edit) => edit.replace.length > 0 || nativelyApplied(edit.id))
+    .filter(
+      (edit) =>
+        !rasterisedObjectIds.has(edit.id) &&
+        (edit.replace.length > 0 || nativelyApplied(edit.id)),
+    )
     .map((edit) => ({
       label: edit.id,
       pageIndex: edit.pageIndex,
@@ -1327,6 +1601,10 @@ export async function editPdfText(
   const contentStream = outcomes.filter((outcome) => outcome.mode === 'content-stream').length;
   const fallback = outcomes.filter((outcome) => outcome.mode === 'fallback').length;
   const manualReview = outcomes.filter((outcome) => outcome.mode === 'manual-review').length;
+  for (const outcome of outcomes) {
+    if (rasterisedObjectIds.has(outcome.id)) outcome.rasterised = true;
+  }
+  const rasterised = outcomes.filter((outcome) => outcome.rasterised).length;
   return {
     bytes: finalBytes,
     nativeBytes: native.bytes,
@@ -1336,6 +1614,8 @@ export async function editPdfText(
     contentStream,
     fallback,
     manualReview,
+    covers,
+    rasterised,
     usedNativeEngine: inPlace > 0 || contentStream > 0,
     strategy,
     verification,
@@ -1344,22 +1624,35 @@ export async function editPdfText(
   };
 }
 
+interface OverlayPassResult {
+  bytes: Uint8Array;
+  warnings: string[];
+  rasterisedObjectIds: Set<string>;
+}
+
 async function applyOverlayPass(
   data: Uint8Array,
   objects: EditorObject[],
   formValues: Record<string, string | boolean> | undefined,
   ctx: JobContext,
   password?: string,
-): Promise<Uint8Array> {
+  canvasFactory?: CanvasFactory,
+): Promise<OverlayPassResult> {
   const doc = await loadPdfDocument(data, { ...(password ? { password } : {}) });
   const expectedPages = doc.getPageCount();
-  await applyEdits(doc, objects, ctx);
+  const warnings: string[] = [];
+  const rasterisedObjectIds = new Set<string>();
+  await applyEdits(doc, objects, ctx, {
+    warnings,
+    rasterisedObjectIds,
+    ...(canvasFactory ? { canvasFactory } : {}),
+  });
   applyFormValues(doc, formValues ?? {});
   ctx.throwIfAborted();
   const saved = await doc.save({ useObjectStreams: false });
   const bytes = new Uint8Array(saved);
   await validateExport(bytes, expectedPages);
-  return bytes;
+  return { bytes, warnings, rasterisedObjectIds };
 }
 
 async function pageCountOf(data: Uint8Array, password?: string): Promise<number> {

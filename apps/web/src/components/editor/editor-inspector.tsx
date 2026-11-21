@@ -364,6 +364,56 @@ export function EditorInspector({
                 </div>
               </div>
 
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5">
+                <div className="flex flex-col gap-1.5">
+                  <SectionLabel>Rotation</SectionLabel>
+                  <div className="relative">
+                    <input
+                      id="inspector-text-rotation"
+                      aria-label="Text rotation in degrees"
+                      data-testid="inspector-text-rotation"
+                      type="number"
+                      step={15}
+                      min={-180}
+                      max={180}
+                      className="h-8 w-full rounded-md border bg-background px-2 pr-6 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      value={Math.round(object.rotationDeg ?? 0)}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        if (!Number.isFinite(value)) return;
+                        // 15-degree snap is the editor's rotate control; a typed
+                        // value outside -180..180 is wrapped rather than refused.
+                        const wrapped = ((((value + 180) % 360) + 360) % 360) - 180;
+                        onPatch({ rotationDeg: wrapped });
+                      }}
+                    />
+                    <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                      °
+                    </span>
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <SectionLabel>Quick rotate</SectionLabel>
+                  <div className="flex items-center gap-1">
+                    {[0, 90, 180, 270].map((angle) => (
+                      <Button
+                        key={angle}
+                        type="button"
+                        variant={(object.rotationDeg ?? 0) === (angle > 180 ? angle - 360 : angle) ? 'default' : 'ghost'}
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        aria-label={`Rotate text ${angle} degrees`}
+                        aria-pressed={(object.rotationDeg ?? 0) === (angle > 180 ? angle - 360 : angle)}
+                        data-testid={`inspector-text-rotate-${angle}`}
+                        onClick={() => onPatch({ rotationDeg: angle > 180 ? angle - 360 : angle })}
+                      >
+                        {angle}°
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex flex-col gap-2">
                 <SectionLabel>Text color</SectionLabel>
                 <Swatches
@@ -379,9 +429,11 @@ export function EditorInspector({
                   className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
                   data-testid="inspector-native-style-note"
                 >
-                  Styled paragraph text exports as an overlay so your size, weight, colour and
-                  alignment are kept. The original words stay selectable underneath until the
-                  native styling path lands; the export receipt names the overlay.
+                  Styled paragraph text is applied to the rewritten text objects: size, colour,
+                  alignment and rotation are carried natively. If the document face has no bold or
+                  italic variant, a standard face is substituted and the export receipt names it.
+                  The overlay remains the fallback, and then the original words stay selectable
+                  underneath until the edit is redacted.
                 </p>
               ) : null}
             </>

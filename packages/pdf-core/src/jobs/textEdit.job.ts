@@ -43,6 +43,8 @@ export interface TextEditJobReport {
   contentStream: number;
   fallback: number;
   manualReview: number;
+  covers: number;
+  rasterised: number;
   usedNativeEngine: boolean;
   strategy: TextEngineStrategy;
   verification: TextEditVerification;
@@ -126,6 +128,8 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         contentStream: result.contentStream,
         fallback: result.fallback,
         manualReview: result.manualReview,
+        covers: result.covers,
+        rasterised: result.rasterised,
         usedNativeEngine: result.usedNativeEngine,
         strategy: result.strategy,
         verification: result.verification,

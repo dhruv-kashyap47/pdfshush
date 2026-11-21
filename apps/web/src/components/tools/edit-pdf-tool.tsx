@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import {
   ChevronLeft,
   ChevronRight,
+  FilePlus2,
   Loader2,
   Maximize2,
   Settings2,
@@ -157,6 +158,7 @@ import {
   paragraphLineHeightRatio,
   paragraphStyleDiff,
   selectionFromAnchors,
+  singleRunDeletion,
   type ParagraphEditRecord,
   type ParagraphEditState,
   type ParagraphTextMutation,
@@ -464,6 +466,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const pageScrollFrame = useRef<number | null>(null);
   const fileRef = useRef<File | null>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  /** E-09: pages from another PDF, appended without discarding edits. */
+  const insertPagesInputRef = useRef<HTMLInputElement>(null);
+  const [insertingPages, setInsertingPages] = useState(false);
   const infoRef = useRef<DocInfo | null>(null);
   const zoomRef = useRef(zoom);
   const toolRef = useRef(tool);
@@ -815,6 +820,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             // fallback) and the structured layout the text overlay uses.
             includeLayout: true,
             includeCapabilities,
+            // C-11: one bounded render per page supplies the document's ink
+            // colour, so a replacement starts from the real colour rather than
+            // a near-black default.
+            includeColors: true,
           });
           // Runs belong to the document they were read from; writing them into a
           // newer one would let "click to replace" quote a different PDF.
@@ -2316,6 +2325,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         width: run.width + 2,
         height: run.height + 2,
       };
+      // C-11: start from the colour the page actually uses when the model has
+      // sampled it, rather than a near-black default.
+      const sampledColor = layoutsByPageRef.current[pageIndex]?.paragraphs.find(
+        (paragraph) => paragraph.text.includes(run.text) || run.text.includes(paragraph.text),
+      )?.typography.color;
       const text: EditTextObject = {
         id: newObjectId(),
         kind: 'text',
@@ -2329,7 +2343,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         bold: run.bold,
         italic: run.italic,
         fontFamily: run.fontFamily,
-        color: '#111827',
+        color: sampledColor ?? '#111827',
+        rasterFallback: true,
         // Remember the run being replaced so the save can rewrite it in place
         // instead of whiteouting and redrawing. The whiteout is kept only as the
         // fallback and is excluded from the overlay pass when the rewrite works.
@@ -2771,6 +2786,133 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     });
   }, [organizeRunner, pageOrder]);
 
+  /**
+   * E-09: append pages from other PDFs without discarding the session.
+   *
+   * The composed document is rebuilt in the rail's current order, so every
+   * object's `pageIndex` is remapped from its original page to its new position,
+   * and the rail order becomes identity. Old rasters/layouts stay valid because
+   * their pages are copied unchanged; only the new pages need fetching.
+   */
+  const insertPagesFromPdf = useCallback(
+    async (incoming: File[]) => {
+      const file = fileRef.current;
+      const currentBytes = sourceBytesRef.current;
+      if (!file || !currentBytes || incoming.length === 0 || insertingPages) return;
+      setInsertingPages(true);
+      try {
+        const extraInput = await readAsInputFilesOrToast(incoming);
+        if (!extraInput) return;
+        const extraInfo = await inspectRunner.run(extraInput);
+        if (!extraInfo.ok) {
+          if (!extraInfo.aborted) toast.error(extraInfo.message);
+          return;
+        }
+        const refs: PageRef[] = pageOrder.map((pageIndex) => ({ docIndex: 0, pageIndex }));
+        const extraIndexes: number[] = [];
+        for (const [index, doc] of extraInfo.result.documents.entries()) {
+          for (let pageIndex = 0; pageIndex < doc.pageCount; pageIndex += 1) {
+            refs.push({ docIndex: index + 1, pageIndex });
+            extraIndexes.push(refs.length - 1);
+          }
+        }
+        const currentInput = await readAsInputFilesOrToast([file]);
+        const extraBytes = await readAsInputFilesOrToast(incoming);
+        if (!currentInput || !extraBytes) return;
+        const composed = await organizeRunner.run(
+          [currentInput[0]!, ...extraBytes],
+          {
+            pageOrder: refs,
+            outputName: file.name,
+          },
+          { timeoutMs: timeoutForPageCount(refs.length) },
+        );
+        // `organize` is also the page-organise tool's result runner; leaving it
+        // in `done` would replace the editor with its download panel after an
+        // insert. The composed bytes are local now, so clear the runner state.
+        organizeRunner.reset();
+        if (!composed.ok) {
+          if (!composed.aborted) toast.error(composed.message);
+          return;
+        }
+        const nextBytes = new Uint8Array(composed.result.data);
+        const inspected = await inspectRunner.run([
+          { name: file.name, type: 'application/pdf', data: nextBytes.slice() },
+        ]);
+        if (!inspected.ok) {
+          if (!inspected.aborted) toast.error(inspected.message);
+          return;
+        }
+        const nextDoc = inspected.result.documents[0];
+        if (!nextDoc) {
+          toast.error('The document with inserted pages could not be read.');
+          return;
+        }
+        const nextFile = new File([nextBytes], file.name, { type: 'application/pdf' });
+        fileRef.current = nextFile;
+        setFiles([nextFile]);
+        infoRef.current = nextDoc;
+        setInfo(nextDoc);
+        sourceBytesRef.current = nextBytes;
+        // Map each original page index to its position after composition. An
+        // object on a page the rail reordered follows that page, not its old
+        // number. Duplicates map to their first occurrence.
+        const positionByOriginal = new Map<number, number>();
+        pageOrder.forEach((original, position) => {
+          if (!positionByOriginal.has(original)) positionByOriginal.set(original, position);
+        });
+        const remapPage = (index: number): number => positionByOriginal.get(index) ?? index;
+        editor.apply((doc) => ({
+          ...doc,
+          objects: doc.objects.map((object) => ({
+            ...object,
+            pageIndex: remapPage(object.pageIndex),
+          })),
+          ...(doc.paragraphRecords
+            ? {
+                paragraphRecords: doc.paragraphRecords.map((record) => ({
+                  ...record,
+                  pageIndex: remapPage(record.pageIndex),
+                })),
+              }
+            : {}),
+        }));
+        // Page order is session state, not part of the editable document. The
+        // composed file is already in the rail's old order, so its identity
+        // becomes the new baseline (not a dirty reorder).
+        editor.resetPageOrder(refs.length);
+        savedDocRef.current = null;
+        setCurrentPage(pageOrder.length);
+        const eager = Math.min(WARM_RASTER_PAGES, nextDoc.pageCount);
+        for (let index = pageOrder.length; index < eager + pageOrder.length; index += 1) {
+          if (index < nextDoc.pageCount) void ensureRaster(index);
+        }
+        void ensureRuns(
+          Array.from(
+            { length: Math.min(WARM_RUN_PAGES, extraIndexes.length) },
+            (_, offset) => pageOrder.length + offset,
+          ),
+        );
+        toast.success(
+          `Inserted ${extraIndexes.length} page${extraIndexes.length === 1 ? '' : 's'} from ${incoming.length} PDF${incoming.length === 1 ? '' : 's'}.`,
+        );
+      } finally {
+        setInsertingPages(false);
+        if (insertPagesInputRef.current) insertPagesInputRef.current.value = '';
+      }
+    },
+    [
+      editor.apply,
+      editor.resetPageOrder,
+      ensureRaster,
+      ensureRuns,
+      insertingPages,
+      inspectRunner,
+      organizeRunner,
+      pageOrder,
+    ],
+  );
+
   const goToDisplayPage = useCallback(
     (position: number) => {
       const page = displayPages[Math.min(displayPages.length - 1, Math.max(0, position))];
@@ -3010,24 +3152,61 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           : {}),
         ...(fallback.length > 0 ? { fallback } : {}),
       };
-      if (plan.styled) {
-        // T-06 UI half: the native reflow would keep the document's original
-        // style. Rather than silently ignoring the controls, request the overlay
-        // path explicitly; the request carries the styled text object, and the
-        // receipt says it was drawn as an overlay.
-        edits.push({ ...base, strategy: 'localized-reconstruction' });
-      } else {
+      // C-05: a pure deletion inside one original line is a stream deletion,
+      // not a paragraph rewrite. It removes only the selected word and never
+      // needs a cosmetic cover; if the stream cannot anchor it, the engine
+      // refuses rather than hiding the text.
+      const deletion = plan.styled
+        ? null
+        : singleRunDeletion(plan.before, plan.after, plan.beforeLines);
+      if (deletion) {
         edits.push({
-          ...base,
-          layout: {
-            ...(plan.paragraphId ? { paragraphId: plan.paragraphId } : {}),
-            ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
-            beforeLines: plan.beforeLines,
-            reflow,
-          },
-          ...(plan.strategy ? { strategy: plan.strategy } : {}),
+          id: object.id,
+          pageIndex: object.pageIndex,
+          find: deletion.text,
+          replace: '',
+          box: deletion.line.box,
+          coverPolicy: 'leftover-cover',
         });
+        linked.add(object.id);
+        for (const cover of covers) linked.add(cover.id);
+        if (plan.paragraphId) {
+          editParagraphs.set(object.id, {
+            pageIndex: object.pageIndex,
+            paragraphId: plan.paragraphId,
+          });
+        }
+        continue;
       }
+
+      // T-06: a style change is now carried into the native layout edit. The
+      // engine applies size/colour/alignment and substitutes a standard face
+      // only when the document face has no matching weight/style; the overlay
+      // remains the fallback and still shows exactly what the user chose.
+      const style =
+        plan.styled && object.kind === 'text'
+          ? {
+              fontSize: object.fontSize,
+              color: object.color,
+              bold: Boolean(object.bold),
+              italic: Boolean(object.italic),
+              fontFamily: object.fontFamily,
+              align: object.align,
+              ...(object.rotationDeg !== undefined ? { rotationDeg: object.rotationDeg } : {}),
+            }
+          : undefined;
+      edits.push({
+        ...base,
+        coverPolicy: 'leftover-cover',
+        layout: {
+          ...(plan.paragraphId ? { paragraphId: plan.paragraphId } : {}),
+          ...(plan.fontFamily ? { fontFamily: plan.fontFamily } : {}),
+          beforeLines: plan.beforeLines,
+          reflow,
+          ...(style ? { style } : {}),
+        },
+        ...(plan.strategy ? { strategy: plan.strategy } : {}),
+      });
       if (plan.paragraphId) {
         editParagraphs.set(object.id, {
           pageIndex: object.pageIndex,
@@ -4497,6 +4676,17 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                           type="button"
                           variant="outline"
                           size="sm"
+                          data-testid="insert-pages-button"
+                          disabled={saving || insertingPages}
+                          onClick={() => insertPagesInputRef.current?.click()}
+                        >
+                          <FilePlus2 className="mr-1.5 size-3.5" />
+                          {insertingPages ? 'Inserting pages' : 'Insert pages from PDF'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           disabled={!pageOrderDirty || saving}
                           onClick={() => editor.resetPageOrder(info.pageCount)}
                         >
@@ -4885,6 +5075,21 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
               const picked = event.target.files?.[0];
               event.target.value = '';
               if (picked) void handleFiles([picked]);
+            }}
+          />
+
+          <input
+            ref={insertPagesInputRef}
+            type="file"
+            accept={PDF_ACCEPT}
+            multiple
+            className="hidden"
+            aria-hidden
+            tabIndex={-1}
+            data-testid="insert-pages-input"
+            onChange={(event) => {
+              const picked = event.target.files ? [...event.target.files] : [];
+              if (picked.length > 0) void insertPagesFromPdf(picked);
             }}
           />
 

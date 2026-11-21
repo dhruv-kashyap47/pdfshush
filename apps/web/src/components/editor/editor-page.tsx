@@ -26,6 +26,7 @@ import { isFormWidgetChecked } from '@/lib/form-widgets';
 import { normalizeInk, sampleInk, type InkPoint } from '@/lib/ink';
 import { DEFAULT_STAMP_PRESET, type StampPreset } from '@/lib/stamp-presets';
 import { formatStampDate } from '@/lib/stamp-date';
+import { snapBox, type SnapGuides } from '@/lib/snap';
 import type { ParagraphEditState, TextSelectionState } from '@/lib/text-editing';
 import { cn } from '@/lib/utils';
 
@@ -105,7 +106,16 @@ export interface EditorPageProps {
 type Gesture =
   | { kind: 'create'; startX: number; startY: number }
   | { kind: 'ink'; points: InkPoint[] }
-  | { kind: 'move'; id: string; startLocalX: number; startLocalY: number; origX: number; origY: number }
+  | {
+      kind: 'move';
+      id: string;
+      startLocalX: number;
+      startLocalY: number;
+      origX: number;
+      origY: number;
+      width: number;
+      height: number;
+    }
   | { kind: 'resize'; id: string; corner: 'nw' | 'ne' | 'sw' | 'se'; orig: Rect };
 
 const MIN_SIZE = 8;
@@ -181,6 +191,7 @@ function objectForTool(
         text: '',
         fontSize: 16,
         color: DEFAULT_COLORS.text,
+        rasterFallback: true,
         width: Math.max(rect.width, 60),
         height: Math.max(rect.height, 20),
       };
@@ -245,6 +256,7 @@ function objectForTool(
         text: stamp.text,
         fontSize: 14,
         color: DEFAULT_COLORS.text,
+        rasterFallback: true,
         width: Math.max(rect.width, 170),
         height: Math.max(rect.height, 20),
       };
@@ -435,6 +447,11 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
    */
   const detachGestureListeners = useRef<() => void>(() => {});
   const [ghost, setGhost] = useState<Rect | null>(null);
+  /** E-07: guide lines shown only while a move is actually snapped. */
+  const [snapGuides, setSnapGuides] = useState<SnapGuides>({
+    vertical: [],
+    horizontal: [],
+  });
   /** Live freehand stroke while the pen is down (display space). */
   const [inkGhost, setInkGhost] = useState<InkPoint[] | null>(null);
   const propsRef = useRef(props);
@@ -474,6 +491,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
   const stopGesture = () => {
     gestureRef.current = null;
     detachGestureListeners.current();
+    setSnapGuides({ vertical: [], horizontal: [] });
   };
 
   /** Escape abandons an in-flight draw: no object, no undo entry. */
@@ -516,11 +534,19 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       return;
     }
     if (gesture.kind === 'move') {
-      p.onMoveLive(
-        gesture.id,
-        Math.round(gesture.origX + (point.x - gesture.startLocalX)),
-        Math.round(gesture.origY + (point.y - gesture.startLocalY)),
+      const rawX = gesture.origX + (point.x - gesture.startLocalX);
+      const rawY = gesture.origY + (point.y - gesture.startLocalY);
+      // E-07: page edges/centres and other objects, within 6 screen pixels.
+      // Alt bypasses entirely; the coordinates stay sub-point so a snap does
+      // not quantise a free move to integers.
+      const snap = snapBox(
+        { x: rawX, y: rawY, width: gesture.width, height: gesture.height },
+        { width, height },
+        p.objects.filter((object) => object.id !== gesture.id),
+        { thresholdPt: 6 / Math.max(0.05, p.zoom), disabled: event.altKey },
       );
+      setSnapGuides(snap.guides);
+      p.onMoveLive(gesture.id, snap.x, snap.y);
       return;
     }
     // resize: rebuild the rect from the original box and the active corner.
@@ -778,6 +804,26 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
         ) : (
           <Skeleton className="absolute inset-0 h-full w-full rounded-none" data-testid="editor-page-loading" />
         )}
+
+        {/* E-07 snap guides: visible only while the move is actually snapped. */}
+        {snapGuides.vertical.map((x) => (
+          <div
+            key={`snap-v-${x}`}
+            aria-hidden
+            data-testid="snap-guide-vertical"
+            className="pointer-events-none absolute top-0 z-30 w-px bg-blue-500/80"
+            style={{ left: x * zoom, height: displayH }}
+          />
+        ))}
+        {snapGuides.horizontal.map((y) => (
+          <div
+            key={`snap-h-${y}`}
+            aria-hidden
+            data-testid="snap-guide-horizontal"
+            className="pointer-events-none absolute left-0 z-30 h-px bg-blue-500/80"
+            style={{ top: y * zoom, width: displayW }}
+          />
+        ))}
 
         {/* Redaction review surface. Invisible and pointer-transparent: the page
             itself owns the gesture, this layer only gives the E2E/UI a stable
@@ -1050,6 +1096,8 @@ function ObjectView({
       startLocalY: rect.y,
       origX: object.x,
       origY: object.y,
+      width: object.width,
+      height: object.height,
     });
   };
 

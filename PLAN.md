@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-11-18
+**Last updated:** 2026-11-21
 
 ---
 
@@ -48,7 +48,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
 | **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 301 |
-| **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; bug pass fixed 10 boundary defects; pdf-core 639+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waits on C-07 |
+| **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; bug pass fixed 10 boundary defects; pdf-core 639+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waited on C-07 |
+| **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 650+1 expected fail, web 309, corpus 2/2, `text-ux` 51/51, main 150.4 kB / 0 engines; **Gate C met** |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -97,19 +98,31 @@ measured 735–966 ms on the dev stack. This is the branch evidence, not a re-ru
 containerised gates. `rea-uplift` was then synced with `origin/main` (`30fde40`, the
 dark-only frontend) in merge `4390264`; `pnpm test:merge-clean` reports no conflicts.
 **2026-11-21 rea-uplift Sprint 4:** engine core landed on `rea-uplift` (C-01..C-04,
-C-06, C-12..C-14 and G-03 complete; C-05/C-07/C-08..C-11 remain Sprint 5). New
+C-06, C-12..C-14 and G-03 complete). New
 `textedit/stream/{lexer,metrics,surgery}.ts`: untouched tokens emit byte-identically,
 inline images no longer abort the page, font advances come from `/W`/`/Widths`/Type3
 `FontMatrix`/base-14 AFM, and a removed glyph's advance is written back as a `TJ`
 kern so kept glyphs stay put. `ops/edit.ts` wraps source content in `q … Q` before
 appending overlays; stream outcomes carry a glyph box and report `stream-incomplete`
-for Form-XObject/Type3/malformed text. Fresh gates: `pnpm typecheck` all 8 projects,
-`pnpm test` - pdf-core **639 pass + 1 expected fail**, web 301, api 243, mcp 19,
-ai-agent 152, ai-provider 375; `pnpm build` (63 routes), `pnpm test:bundle` main
-**150.4 kB / 0 engines**, `pnpm test:provenance` clean, new `pnpm test:corpus` **2/2**.
-25 new pdf-core tests cover the lexer, metrics, removal/compensation, untouched-page
-verification, coverage and stream honesty. Browser E2E suites were not re-run this
-pass. Gate C is **not** claimed: it still requires C-07 (Sprint 5).
+for Form-XObject/Type3/malformed text.
+**2026-11-21 rea-uplift Sprint 5:** fidelity landed on `rea-uplift` (C-05,
+C-07..C-11, T-06 engine half, T-07, E-07, E-09 complete). A one-line word deletion
+now goes through stream surgery (`singleRunDeletion`); `coverPolicy:'leftover-cover'`
+adds engine patches only over completed removals on white paint, decided from the
+page's fill/image operators; `Tz` fit and word-by-word drawing are in the overlay
+path; `ops/textRaster.ts` renders an uncodable line locally and reports
+`glyph-rasterised`; native style is applied by matrix scale/shear/rotation and
+fill/stroke with synthetic-bold/italic receipts; ink colour is sampled from one
+bounded page render; snap guides, Alt bypass and insert-pages landed in the editor.
+Fresh gates: `pnpm typecheck` all 8 projects, `pnpm test` - pdf-core **650 pass +
+1 expected fail**, web 309, api 243, mcp 19, ai-agent 152, ai-provider 375;
+`pnpm build` (63 routes), `pnpm test:bundle` main **150.4 kB / 0 engines**,
+`pnpm test:provenance` clean, `pnpm test:corpus` **2/2**. Browser: `text-ux` **51/51**
+(snap, native style, rotation, insert pages), `text-edit` and `editor-quick-parity`
+green against the dev web app. New unit coverage: `textFidelity.test.ts` (10),
+`snap.test.ts` (5), text-editing deletion cases (3). **Gate C is met**;
+`S-06` back/forward blocking and E-10's remaining rail truth stay open for the final
+hardening sprint. See §40.
 The 2026-10-21 next-tools batch (§8, 2026-10-21
 entry) sits on top of **P6.4 hardening over the new surface** plus the **landing MCP console** - the
 P5 AI port (§23), the gap-closing pass (§23.7), the Phase 1-5 security review + `redactSecrets`
@@ -7754,3 +7767,137 @@ green against the dev web app. Total new pdf-core coverage is 38 tests.
   server-backed steps). The remaining suites were not re-run for this sprint.
 - Non-Identity Type0, Type3 and Form-XObject text are refused with
   `stream-incomplete`, not rewritten.
+
+---
+
+## 40. Sprint 5 - fidelity (2026-11-21)
+
+Branch `rea-uplift`, sprint 5 of 7. Scope: C-05, C-07..C-11, T-06 engine half,
+T-07, E-07 and E-09. The goal was to make every remaining "we could not" into
+either a real, narrow capability or an explicit, receipted fallback.
+
+### 40.1 Partial-run deletion (C-05)
+
+`apps/web/src/lib/text-editing.ts` recognises a pure deletion inside one
+original line (`singleRunDeletion`): common prefix/suffix, no insertion or
+replacement, no newline, exactly one owning line. The save path emits a
+`find: removed, replace: ''` edit instead of a paragraph rewrite, so the
+content-stream pass removes only those glyphs and compensates their advance.
+A deletion the stream cannot anchor still refuses; it is never covered.
+
+### 40.2 Leftover covers (C-07)
+
+`textedit/cover.ts` answers "is the paint behind this box white?" from the page
+itself: a fill-operator walker tracks `q/Q`, `cm`, `g/rg/k/sc/scn` and path
+rectangles, and a `Do` check treats an image or form under the box as unknown.
+Only an `in-place` or `content-stream` removal gets patches, one per removed
+line/run, padded by 0.75 pt. A coloured panel or image skips them with
+`leftover-cover-skipped`; a white page gets `leftover-cover: N patches`. The
+report carries a `covers` count and the receipt says "visual patch, not
+redaction; the glyphs are absent from the text layer".
+
+### 40.3 `Tz` fit and word-by-word (C-08)
+
+`fitTextToWidth` clamps horizontal scale to 40-250% and flags the readable band
+(70-140%). The overlay draw path writes `Tz` with `setCharacterSqueeze`, resets
+it to 100 after each line, and emits `text-squeeze` outside the band. When the
+chosen face cannot encode U+0020, words are positioned at measured advances
+instead of asking for a missing space glyph.
+
+### 40.4 Raster-word fallback (C-09)
+
+`ops/textRaster.ts` renders one uncodable line locally with the nearest CSS
+family at a bounded 1-6x scale / 4 MP, returns PNG bytes, and the overlay pass
+embeds it. Objects opt in with `rasterFallback:true`; validation then skips the
+WinAnsi refusal, and the draw path either rasterises or fails loudly. The export
+reports `glyph-rasterised`, `TextEditOutcome.rasterised` is set, and the final
+text expectation is skipped for that edit, so the verifier does not demand text
+that was deliberately turned into pixels.
+
+### 40.5 Rotated glyphs and native rotation (C-10/T-07)
+
+Stream removal already tracked rotated text matrices; Sprint 5 pins 180° and
+270° show operators. Native reflow applies `rotationDeg` as a PDF matrix
+rotation around the line baseline and reports the rotated AABB to the collision
+and visual gates. The inspector adds a numeric angle, 15° steps and 0/90/180/270
+quick buttons. E2E extracts a styled paragraph at -90° while the neighbour is
+untouched.
+
+### 40.6 Ink colour (C-11)
+
+`TextTypography.color` is now optional and populated by
+`render/colors.ts`: one 720 px page render, paper sampled from the edges, ink
+pixels selected by distance from paper, the strongest 40% averaged, 240 lines
+per page. `text-runs` opts in with `includeColors`; the editor seeds both the
+paragraph replacement and click-to-replace object with that colour instead of
+`#111827`.
+
+### 40.7 Native style (T-06)
+
+The engine applies style to the existing objects rather than creating new ones:
+
+| Control | Native mechanism |
+| --- | --- |
+| size | scale the text matrix linear part by requested/source size |
+| colour | `FPDFPageObj_SetFillColor` |
+| bold | synthetic fill+stroke (`FPDFTextObj_SetTextRenderMode(2)`) |
+| italic | 12° shear on the matrix |
+| rotation | matrix rotation around the baseline |
+| alignment | reposition each line origin; left preserves original indentation |
+
+A requested family change, or un-bolding/un-italicising a face with that style
+baked in, returns a reason and falls back to the overlay with
+`font-substituted`. Synthetic styles emit `synthetic-bold`/`synthetic-italic`.
+New text-object creation is refused by this PDFium build (`SetText`/`SetMatrix`
+trap on a fresh object), so a styled replacement that needs more lines than the
+original falls back honestly instead of leaving a half-styled page. This is a
+deliberate limitation of the current build, not a silent demotion.
+
+### 40.8 Snap guides (E-07)
+
+`apps/web/src/lib/snap.ts` is pure: page edges/centres and every other object's
+edges/centres, independent axes, a 6 px threshold converted to points by zoom,
+and sub-point coordinates. `editor-page.tsx` turns the result into guide lines
+that exist only while snapped; Alt disables snapping; the gesture remains one
+undo step.
+
+### 40.9 Insert pages (E-09)
+
+The page-organisation inspector opens a multi-file picker. The handler inspects
+the extras, composes the current document plus extras in rail order through the
+`organize` job, remaps every object/paragraph `pageIndex` to its new position,
+resets the rail baseline to identity, replaces the source bytes, and inspects
+the combined file. Existing rasters/layouts stay valid because their pages are
+copied unchanged; the new pages lazy-load normally. The `organize` runner is
+reset afterwards so its result panel cannot replace the editor.
+
+### 40.10 Verification
+
+| Gate | Result |
+| --- | --- |
+| `pnpm typecheck` (8 projects) | pass |
+| `pnpm test` | pdf-core **650 + 1 expected fail**, web 309, api 243, mcp 19, ai-agent 152, ai-provider 375 |
+| `pnpm build` | pass, 63 routes prerendered |
+| `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
+| `pnpm test:provenance` | clean |
+| `pnpm test:corpus` | 2/2 |
+| `pnpm test:merge-clean` | no conflicts |
+| Browser E2E | `text-ux` **51/51** (snap, native style, synthetic-bold receipt, rotation, insert pages), `text-edit` and `editor-quick-parity` green against the dev web app |
+
+New tests: `textFidelity.test.ts` (10: fit boundaries, native size/colour/bold,
+rotation, 180/270 stream removal, white/coloured leftover covers, raster
+fallback, ink sampling), `snap.test.ts` (5), text-editing `singleRunDeletion`
+(3), and the raster-fallback validation case in `editor.test.ts`.
+
+### 40.11 Deliberately not claimed
+
+- **Gate C is met**; the remaining O/X/H scope is Gate D.
+- Native style cannot create new line objects in this PDFium build. A style
+  that needs more lines is drawn by the overlay and the receipt says so; it is
+  not reported as an in-place rewrite.
+- `S-06` browser back/forward route blocking and E-10's remaining rail/
+  capability truth are still open (Sprint 7).
+- `C-11` reads colour from pixels, not from fill operators for every source.
+  Fill operators are used by C-07's background walker; the text model uses the
+  bounded render because pdf.js does not expose per-run fill colour.
+- The containerised `test:api`/`test:hardening` gates were not re-run.

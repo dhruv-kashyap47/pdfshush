@@ -19,6 +19,8 @@ import { buildPageLayout, type LayoutBuildOptions } from '../document/group.js';
 import { buildDocumentLayout } from '../document/document.js';
 import { computeStructureConfidence } from '../document/confidence.js';
 import { loadPdfForRender } from './pdfjsRuntime.js';
+import { applySampledTextColors } from './colors.js';
+import type { CanvasFactory } from './canvas.js';
 import { imageBoxesFromOperatorList, type OperatorListLike } from './imageBoxes.js';
 import {
   clusterTextRuns,
@@ -38,6 +40,10 @@ export interface ExtractLayoutsOptions {
    * grow into. On by default; the same parse is reused by the renderer.
    */
   includeImages?: boolean;
+  /** C-11: sample ink colour from one bounded page render. Off by default. */
+  includeColors?: boolean;
+  /** Canvas for colour sampling (tests inject a polyfill). */
+  canvasFactory?: CanvasFactory;
 }
 
 /**
@@ -156,6 +162,20 @@ export async function extractPageLayouts(
             layout.warnings = [...new Set([...layout.warnings, imageResult.error])];
           }
         }
+        if (options.includeColors) {
+          try {
+            await applySampledTextColors(page, layout, viewport, {
+              ...(options.canvasFactory ? { canvasFactory: options.canvasFactory } : {}),
+            });
+          } catch (error) {
+            layout.warnings = [
+              ...new Set([
+                ...layout.warnings,
+                `Text colour unavailable: ${error instanceof Error ? error.message : String(error)}`,
+              ]),
+            ];
+          }
+        }
         layout.structureConfidence = computeStructureConfidence(layout);
         layouts.push(layout);
       } finally {
@@ -198,6 +218,7 @@ export async function extractTextRunsAndLayouts(
   ctx?: JobContext,
   password?: string,
   layoutOptions?: LayoutBuildOptions,
+  colorOptions?: { includeColors?: boolean; canvasFactory?: CanvasFactory },
 ): Promise<{ runs: TextRun[][]; layouts: PageLayout[] }> {
   const loaded = await loadPdfForRender(data, { ...(password ? { password } : {}) });
   try {
@@ -249,6 +270,20 @@ export async function extractTextRunsAndLayouts(
         layout.images = imageResult.images;
         if (imageResult.error) {
           layout.warnings = [...new Set([...layout.warnings, imageResult.error])];
+        }
+        if (colorOptions?.includeColors) {
+          try {
+            await applySampledTextColors(page, layout, viewport, {
+              ...(colorOptions.canvasFactory ? { canvasFactory: colorOptions.canvasFactory } : {}),
+            });
+          } catch (error) {
+            layout.warnings = [
+              ...new Set([
+                ...layout.warnings,
+                `Text colour unavailable: ${error instanceof Error ? error.message : String(error)}`,
+              ]),
+            ];
+          }
         }
         layout.structureConfidence = computeStructureConfidence(layout);
         layouts.push(layout);

@@ -22,6 +22,8 @@ function report(overrides: Partial<TextEditJobReport> = {}): TextEditJobReport {
     contentStream: 0,
     fallback: 0,
     manualReview: 0,
+    covers: 0,
+    rasterised: 0,
     usedNativeEngine: false,
     strategy: 'auto',
     verification: { ok: true, checks: [{ name: 'reopened', ok: true, detail: 'reopened' }] },
