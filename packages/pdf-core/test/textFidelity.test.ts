@@ -270,6 +270,31 @@ describe('leftover covers (C-07)', () => {
     expect(result.warnings.some((warning) => warning.startsWith('leftover-cover:'))).toBe(true);
   });
 
+  it('never patches a replacement, because that would hide the new glyphs', async () => {
+    const source = await makeParagraphFixture();
+    const result = await editPdfText(
+      source,
+      {
+        edits: [
+          {
+            id: 'replace',
+            pageIndex: 0,
+            find: 'KEEP THIS NEIGHBOUR',
+            replace: 'NEW NEIGHBOUR',
+            box: { x: 70, y: 160, width: 140, height: 18 },
+            coverPolicy: 'leftover-cover',
+          },
+        ],
+        canvasFactory,
+        verifyVisual: false,
+      },
+      testContext(),
+    );
+    expect(result.outcomes[0]!.mode).toBe('in-place');
+    expect(result.covers).toBe(0);
+    expect(await pageText(result.bytes)).toContain('NEW NEIGHBOUR');
+  });
+
   it('skips the patch on a coloured background and says why', async () => {
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);

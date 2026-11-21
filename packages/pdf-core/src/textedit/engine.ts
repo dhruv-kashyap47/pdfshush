@@ -1383,6 +1383,10 @@ export async function editPdfText(
   for (const outcome of outcomes) {
     const edit = edits.find((candidate) => candidate.id === outcome.id);
     if (!edit || edit.coverPolicy !== 'leftover-cover') continue;
+    // A replacement already occupies the removed box; painting a patch after a
+    // native rewrite would cover the new glyphs. Only a deletion leaves an
+    // empty region where a leftover edge can show.
+    if (edit.replace.length !== 0) continue;
     if (outcome.mode !== 'in-place' && outcome.mode !== 'content-stream') continue;
     const boxes = edit.layout
       ? edit.layout.beforeLines.map((line) => line.box)
