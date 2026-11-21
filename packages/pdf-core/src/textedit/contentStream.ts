@@ -350,8 +350,11 @@ export async function applyContentStreamEdits(
           mode: 'content-stream',
           fidelity: 'high',
           // A caller-supplied box is the region the UI already told the visual
-          // gate to expect; keep it. Only derive one when none was supplied.
+          // gate to expect; keep it. Only derive `box` when none was supplied.
+          // `removedBox` is always the exact glyph range, so C-07 does not patch
+          // the whole line around a one-word deletion.
           ...(box && !edit.box ? { box: displayBox(page, box) ?? undefined } : {}),
+          ...(box ? { removedBox: displayBox(page, box) ?? undefined } : {}),
         });
         applied += 1;
         continue;
@@ -386,6 +389,7 @@ export async function applyContentStreamEdits(
         mode: 'content-stream',
         fidelity: 'high',
         ...(box && !edit.box ? { box: displayBox(page, box) ?? undefined } : {}),
+        ...(box ? { removedBox: displayBox(page, box) ?? undefined } : {}),
       });
       applied += 1;
     }

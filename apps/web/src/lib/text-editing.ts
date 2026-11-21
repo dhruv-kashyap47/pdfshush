@@ -433,6 +433,8 @@ export function buildParagraphEditObjects(
       x: paragraph.bbox.x,
       maxLines: maxLinesInSpace(paragraph, layout, lineHeight),
     },
+    originalAlign: normalizedAlign(paragraph.alignment),
+    originalFontFamily: resolvedFontFamily(typography),
     ...(options.strategy ? { strategy: options.strategy } : {}),
   };
 

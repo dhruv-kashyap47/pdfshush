@@ -87,6 +87,15 @@ async function makeParagraphFixture(color = rgb(0, 0, 0)): Promise<Uint8Array> {
   return doc.save({ useObjectStreams: false });
 }
 
+async function makeTwoLineFixture(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  page.drawText('First line of block', { x: 72, y: 500, size: 14, font });
+  page.drawText('Second line of block', { x: 72, y: 484, size: 14, font });
+  return doc.save({ useObjectStreams: false });
+}
+
 async function makeSingleLineFixture(): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -182,6 +191,31 @@ describe('native style (T-06)', () => {
     expect(object?.renderMode).toBe(2);
   });
 
+  it('scales a source object that already has a matrix transform', async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([612, 792]);
+    page.node.set(
+      PDFName.of('Contents'),
+      doc.context.register(
+        doc.context.flateStream('BT /F1 12 Tf 2 0 0 2 72 500 Tm (Scaled source) Tj ET\n'),
+      ),
+    );
+    page.node.set(PDFName.of('Resources'), doc.context.obj({ Font: { F1: font.ref } }));
+    const source = await doc.save({ useObjectStreams: false });
+    const edit = await layoutEdit(
+      source,
+      'Scaled source',
+      { style: { fontSize: 36 } },
+      'Scaled source',
+    );
+    const result = await editPdfText(source, { edits: [edit], canvasFactory }, testContext());
+    expect(result.outcomes[0]!.mode, result.outcomes[0]!.reason).toBe('in-place');
+    const runs = await extractTextRuns(result.bytes, [0]);
+    const styled = runs[0]!.find((run) => run.text.includes('Scaled source'))!;
+    expect(styled.fontSize).toBeCloseTo(36, 0);
+  });
+
   it('keeps the document face when only the colour changes', async () => {
     const source = await makeParagraphFixture();
     const edit = await layoutEdit(source, 'Recoloured paragraph', {
@@ -218,6 +252,79 @@ describe('rotated text (T-07/C-10)', () => {
     const rotated = runs[0]!.find((run) => run.text.includes('Rotated'));
     expect(rotated?.horizontal, JSON.stringify(runs[0])).toBe(false);
     expect(await pageText(result.bytes)).toContain('Rotated paragraph');
+  });
+
+  it('rotates a multi-line paragraph around one pivot, not each line', async () => {
+    const source = await makeTwoLineFixture();
+    const edit = await layoutEdit(
+      source,
+      'First line of block\nSecond line of block',
+      { style: { rotationDeg: 90 } },
+      'First line',
+    );
+    edit.fallback = [
+      {
+        id: 'rotated-block',
+        kind: 'text',
+        pageIndex: 0,
+        x: edit.box!.x,
+        y: edit.box!.y,
+        width: 240,
+        height: 60,
+        text: 'First line of block\nSecond line of block',
+        fontSize: 14,
+        rotationDeg: 90,
+        rasterFallback: true,
+      },
+    ];
+    const result = await editPdfText(source, { edits: [edit], canvasFactory }, testContext());
+    expect(result.outcomes[0]!.mode, result.outcomes[0]!.reason).toBe('fallback');
+    const runs = await extractTextRuns(result.bytes, [0]);
+    // The fallback leaves the original horizontal lines under the overlay, so
+    // look at the new vertical runs specifically.
+    const block = runs[0]!.filter(
+      (run) =>
+        !run.horizontal &&
+        (run.text.includes('First line') || run.text.includes('Second line')),
+    );
+    expect(block.length).toBe(2);
+    // Lines must not stack on the same anchor after rotation.
+    expect(Math.abs(block[0]!.x - block[1]!.x)).toBeGreaterThan(5);
+  });
+
+  it('rotates a multi-line overlay block around one pivot', async () => {
+    const source = await makeTwoLineFixture();
+    const result = await editPdfText(
+      source,
+      {
+        edits: [],
+        objects: [
+          {
+            id: 'rotated-lines',
+            kind: 'text',
+            pageIndex: 0,
+            x: 72,
+            y: 200,
+            width: 220,
+            height: 40,
+            text: 'Alpha line\nBeta line',
+            fontSize: 14,
+            rotationDeg: 90,
+            rasterFallback: true,
+          },
+        ],
+        canvasFactory,
+        verifyVisual: false,
+      },
+      testContext(),
+    );
+    const runs = await extractTextRuns(result.bytes, [0]);
+    const block = runs[0]!.filter(
+      (run) => run.text.includes('Alpha line') || run.text.includes('Beta line'),
+    );
+    expect(block.length).toBe(2);
+    expect(block.every((run) => !run.horizontal)).toBe(true);
+    expect(Math.abs(block[0]!.x - block[1]!.x)).toBeGreaterThan(5);
   });
 
   it('removes glyphs from 180- and 270-degree stream fixtures', async () => {
@@ -293,6 +400,25 @@ describe('leftover covers (C-07)', () => {
     expect(result.outcomes[0]!.mode).toBe('in-place');
     expect(result.covers).toBe(0);
     expect(await pageText(result.bytes)).toContain('NEW NEIGHBOUR');
+  });
+
+  it('reports the exact removed glyph box, not the caller line box', async () => {
+    const fixture = await buildTextSurgeryFixture('partial-word');
+    const fonts = await readFontCharcodes(fixture.bytes);
+    const lineBox = { x: 30, y: 40, width: 220, height: 30 };
+    const stream = await applyContentStreamEdits(
+      fixture.bytes,
+      [{ id: 'word', pageIndex: 0, find: '2026', replace: '', box: lineBox }],
+      fonts,
+      testContext(),
+    );
+    expect(stream.outcomes[0]!.mode).toBe('content-stream');
+    expect(stream.outcomes[0]!.removedBox).toBeDefined();
+    expect(stream.outcomes[0]!.removedBox!.width).toBeLessThan(lineBox.width / 2);
+    const text = await pageText(stream.bytes);
+    expect(text).toContain('INVOICE');
+    expect(text).toContain('0042');
+    expect(text).not.toContain('2026');
   });
 
   it('skips the patch on a coloured background and says why', async () => {

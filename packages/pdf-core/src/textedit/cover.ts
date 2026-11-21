@@ -33,6 +33,8 @@ import type { TextEditBox } from './types.js';
 export interface CoverDecision {
   /** True when the page background is white enough for an invisible patch. */
   white: boolean;
+  /** The actual paper fill (`#rrggbb`), so an off-white page gets an off-white patch. */
+  paper?: string;
   /** Detail for the receipt when the patch was skipped. */
   reason?: string;
 }
@@ -60,6 +62,14 @@ function apply(matrix: Matrix, x: number, y: number): [number, number] {
 
 function isWhite(color: Rgb): boolean {
   return color.every((part) => part >= 0.96);
+}
+
+function toHex(color: Rgb): string {
+  const part = (value: number): string =>
+    Math.max(0, Math.min(255, Math.round(value * 255)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${part(color[0])}${part(color[1])}${part(color[2])}`;
 }
 
 function cmykToRgb(c: number, m: number, y: number, k: number): Rgb {
@@ -184,6 +194,8 @@ export async function detectWhiteBackground(
     let ctm: Matrix = [1, 0, 0, 1, 0, 0];
     let fill: Rgb = [0, 0, 0];
     let fillKnown = true;
+    let colorSpace = 'DeviceGray';
+    let paper: string | undefined;
     let path = emptyPath();
     const stack: Array<{ ctm: Matrix; fill: Rgb; fillKnown: boolean }> = [];
 
@@ -233,16 +245,40 @@ export async function detectWhiteBackground(
           }
           break;
         }
+        case 'cs': {
+          colorSpace = nameAt(operation, 0) ?? '';
+          // Separation/DeviceN/ICCBased/Pattern components are not RGB values;
+          // do not classify their paint as white from a numeric operand.
+          if (!/^(DeviceGray|DeviceRGB|DeviceCMYK|G|RGB|CMYK)$/i.test(colorSpace)) {
+            fillKnown = false;
+          } else {
+            fillKnown = true;
+          }
+          break;
+        }
         case 'sc':
         case 'scn': {
           const values = [0, 1, 2, 3]
             .map((index) => numberAt(operation, index))
             .filter((value): value is number => value !== undefined);
-          if (values.length === 1) fill = [values[0]!, values[0]!, values[0]!];
-          else if (values.length === 3) fill = [values[0]!, values[1]!, values[2]!];
-          else if (values.length === 4) fill = cmykToRgb(values[0]!, values[1]!, values[2]!, values[3]!);
-          else fillKnown = false;
-          if (operation.name === 'sc' && values.length > 0) fillKnown = true;
+          if (values.length === 1 && !/^(DeviceGray|G)$/i.test(colorSpace)) {
+            fillKnown = false;
+            break;
+          }
+          if (values.length === 1) {
+            fill = [values[0]!, values[0]!, values[0]!];
+            fillKnown = true;
+          } else if (values.length === 3) {
+            fill = [values[0]!, values[1]!, values[2]!];
+            fillKnown = true;
+          } else if (values.length === 4) {
+            fill = cmykToRgb(values[0]!, values[1]!, values[2]!, values[3]!);
+            fillKnown = true;
+          } else {
+            // A pattern/named colour space: the paint is not a simple RGB we
+            // can classify, so treat it as unknown rather than guessing white.
+            fillKnown = false;
+          }
           break;
         }
         case 're': {
@@ -295,6 +331,7 @@ export async function detectWhiteBackground(
                 reason: 'a filled shape behind the removed text is not white',
               };
             }
+            paper ??= toHex(fill);
           }
           path = emptyPath();
           break;
@@ -304,6 +341,18 @@ export async function detectWhiteBackground(
         case 's':
           path = emptyPath();
           break;
+        case 'sh':
+          // A shading has no simple path box; it can cover the removal with
+          // any colour. Skipping the patch is safer than a visible white bar.
+          return {
+            white: false,
+            reason: 'a shading fills the page behind the removed text',
+          };
+        case 'BI':
+          return {
+            white: false,
+            reason: 'an inline image sits behind the removed text',
+          };
         case 'Do': {
           // An image or form under the removal is visually unknown; skipping
           // the patch is the only honest answer without sampling pixels.
@@ -341,7 +390,7 @@ export async function detectWhiteBackground(
           break;
       }
     }
-    return { white: true };
+    return { white: true, ...(paper ? { paper } : {}) };
   } finally {
     // pdf-lib documents do not need explicit close.
   }

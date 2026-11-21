@@ -219,6 +219,12 @@ export interface TextEditOutcome {
   /** Display-space region the applied edit occupied (used by visual verification). */
   box?: TextEditBox;
   /**
+   * The exact glyph range a content-stream removal took out. A caller's `box`
+   * may be the whole line; this is the smallest region the engine actually
+   * changed, which is what a leftover-cover patch must use (C-07).
+   */
+  removedBox?: TextEditBox;
+  /**
    * C-09: the replacement was drawn as a raster image because no font could
    * encode it. The text is not selectable, and the export verifier must not
    * expect it in the extracted text layer.

@@ -125,7 +125,7 @@ export function formatEditReceipt(input: EditReceiptInput): string {
     if (report.covers > 0) {
       lines.push(
         `  ${plural(report.covers, 'leftover-cover patch', 'leftover-cover patches')} — ` +
-          'a small white patch over a completed removal hides antialiased edges. ' +
+          'a small patch in the page paper colour over a completed removal hides antialiased edges. ' +
           'It is a visual patch, not redaction; the glyphs are absent from the text layer.',
       );
     }

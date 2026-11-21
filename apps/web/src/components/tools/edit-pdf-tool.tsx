@@ -538,6 +538,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const runsFetched = useRef(new Set<number>());
   const runsInflight = useRef(new Set<number>());
   const capabilitiesFetched = useRef(new Set<number>());
+  const colorsFetched = useRef(new Set<number>());
   const runFailures = useRef(new Map<number, number>());
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pendingImageRef = useRef<{ pageIndex: number; x: number; y: number } | null>(null);
@@ -793,13 +794,18 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   /* --------------------------------------------------------- text runs */
 
   const ensureRuns = useCallback(
-    async (indexes: number[], options: { capabilities?: boolean } = {}): Promise<void> => {
+    async (
+      indexes: number[],
+      options: { capabilities?: boolean; colors?: boolean } = {},
+    ): Promise<void> => {
       const file = fileRef.current;
       const generation = docGeneration.current;
       const wantCapabilities = options.capabilities ?? true;
+      const wantColors = options.colors !== false;
       const wanted = indexes.filter((index) => {
         if (runsInflight.current.has(index)) return false;
         if (!runsFetched.current.has(index)) return true;
+        if (wantColors && !colorsFetched.current.has(index)) return true;
         return wantCapabilities && !capabilitiesFetched.current.has(index);
       });
       if (!file || wanted.length === 0) return;
@@ -813,6 +819,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           // inspection it will never read.
           const includeCapabilities =
             wantCapabilities && chunk.some((page) => !capabilitiesFetched.current.has(page));
+          const includeColors =
+            wantColors && chunk.some((page) => !colorsFetched.current.has(page));
           const input = [{ name: file.name, data: new Uint8Array(await file.arrayBuffer()) }];
           const result = await jobPool.run<TextRunsOutput>('text-runs', input, {
             pageIndexes: chunk,
@@ -822,8 +830,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             includeCapabilities,
             // C-11: one bounded render per page supplies the document's ink
             // colour, so a replacement starts from the real colour rather than
-            // a near-black default.
-            includeColors: true,
+            // a near-black default. Find/replace opts out, and a page whose
+            // colour is already known is not re-rendered for capabilities.
+            includeColors,
           });
           // Runs belong to the document they were read from; writing them into a
           // newer one would let "click to replace" quote a different PDF.
@@ -857,6 +866,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           for (const index of chunk) {
             runsFetched.current.add(index);
             runFailures.current.delete(index);
+            if (wantColors) colorsFetched.current.add(index);
             if (result.capabilities) capabilitiesFetched.current.add(index);
           }
           } catch {
@@ -915,6 +925,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     runsFetched.current.clear();
     runsInflight.current.clear();
     capabilitiesFetched.current.clear();
+    colorsFetched.current.clear();
     runFailures.current.clear();
     rasterRequested.current.clear();
     rasterPending.current.clear();
@@ -1421,6 +1432,13 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           // the receipt can name it -- never silently ignore the control.
           const diff = paragraphStyleDiff(paragraph, next);
           const ratio = paragraphLineHeightRatio(paragraph, layout);
+          if (diff.family || diff.bold || diff.italic) {
+            // The overlay must honour the chosen face/weight. Keeping the
+            // document font key would make drawText prefer the original face
+            // and quietly ignore "bold" or "serif" when the native path falls
+            // back.
+            delete (next as { fontKey?: string }).fontKey;
+          }
           next.native = {
             ...next.native,
             styled: diff.any,
@@ -2247,7 +2265,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           if (pageCount > 0) {
             await ensureRuns(
               Array.from({ length: pageCount }, (_, index) => index),
-              { capabilities: false },
+              { capabilities: false, colors: false },
             );
           }
           if (cancelled || sequence !== findSequence.current) return;
@@ -2849,6 +2867,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           return;
         }
         const nextFile = new File([nextBytes], file.name, { type: 'application/pdf' });
+        // Rasters/runs/layouts are keyed by the old page indices. After a
+        // compose in rail order those keys no longer point at the same pages
+        // (especially when the rail was reordered), so let them reload against
+        // the new document rather than showing the wrong page.
+        invalidateDocumentCaches();
         fileRef.current = nextFile;
         setFiles([nextFile]);
         infoRef.current = nextDoc;
@@ -2862,18 +2885,27 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           if (!positionByOriginal.has(original)) positionByOriginal.set(original, position);
         });
         const remapPage = (index: number): number => positionByOriginal.get(index) ?? index;
-        editor.apply((doc) => ({
+        // A page remap is not an editing action; keeping it out of the undo
+        // stack means Undo cannot desync object page indexes from the file.
+        editor.live((doc) => ({
           ...doc,
-          objects: doc.objects.map((object) => ({
-            ...object,
-            pageIndex: remapPage(object.pageIndex),
-          })),
+          // Objects on a page the rail already removed have no position in the
+          // composed file; drop them rather than pointing them at a different
+          // page. Live pages keep their edits through the remap.
+          objects: doc.objects
+            .filter((object) => positionByOriginal.has(object.pageIndex))
+            .map((object) => ({
+              ...object,
+              pageIndex: remapPage(object.pageIndex),
+            })),
           ...(doc.paragraphRecords
             ? {
-                paragraphRecords: doc.paragraphRecords.map((record) => ({
-                  ...record,
-                  pageIndex: remapPage(record.pageIndex),
-                })),
+                paragraphRecords: doc.paragraphRecords
+                  .filter((record) => positionByOriginal.has(record.pageIndex))
+                  .map((record) => ({
+                    ...record,
+                    pageIndex: remapPage(record.pageIndex),
+                  })),
               }
             : {}),
         }));
@@ -2881,6 +2913,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         // composed file is already in the rail's old order, so its identity
         // becomes the new baseline (not a dirty reorder).
         editor.resetPageOrder(refs.length);
+        // Save outcomes are keyed by the object ids that just changed page
+        // indices; stale page numbers in the details drawer would be wrong.
+        setLastOutcomes({});
         savedDocRef.current = null;
         setCurrentPage(pageOrder.length);
         const eager = Math.min(WARM_RASTER_PAGES, nextDoc.pageCount);
@@ -2902,12 +2937,13 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       }
     },
     [
-      editor.apply,
+      editor.live,
       editor.resetPageOrder,
       ensureRaster,
       ensureRuns,
       insertingPages,
       inspectRunner,
+      invalidateDocumentCaches,
       organizeRunner,
       pageOrder,
     ],
@@ -3188,6 +3224,18 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       // engine applies size/colour/alignment and substitutes a standard face
       // only when the document face has no matching weight/style; the overlay
       // remains the fallback and still shows exactly what the user chose.
+      const alignChanged =
+        object.kind === 'text' &&
+        object.align !== undefined &&
+        (plan.originalAlign
+          ? object.align !== plan.originalAlign
+          : object.align !== 'left');
+      const familyChanged =
+        object.kind === 'text' &&
+        object.fontFamily !== undefined &&
+        (plan.originalFontFamily
+          ? object.fontFamily !== plan.originalFontFamily
+          : object.fontFamily !== 'helvetica');
       const style =
         plan.styled && object.kind === 'text'
           ? {
@@ -3195,8 +3243,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
               color: object.color,
               bold: Boolean(object.bold),
               italic: Boolean(object.italic),
-              fontFamily: object.fontFamily,
-              align: object.align,
+              ...(familyChanged ? { fontFamily: object.fontFamily } : {}),
+              ...(alignChanged ? { align: object.align } : {}),
               ...(object.rotationDeg !== undefined ? { rotationDeg: object.rotationDeg } : {}),
             }
           : undefined;

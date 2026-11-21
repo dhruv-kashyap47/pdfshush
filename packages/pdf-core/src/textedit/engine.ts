@@ -28,6 +28,7 @@ import { applyEdits, validateExport, type EditorObject } from '../ops/edit.js';
 import { applyFormValues, extractFormWidgets } from '../ops/forms.js';
 import { loadPdfDocument } from '../ops/pages.js';
 import type { CanvasFactory } from '../render/canvas.js';
+import { TEXT_ASCENT } from '../ops/textMetrics.js';
 import { wrapText } from '../document/reflow.js';
 import type { BBox } from '../document/types.js';
 import { encodeWithMap, readFontCharcodes, type FontCharcodesByPage } from './charcodes.js';
@@ -399,8 +400,10 @@ interface LayoutMetrics {
   align?: 'left' | 'center' | 'right';
   /** Clockwise display-space rotation requested by T-07. */
   rotationDeg?: number;
-  /** Requested size / source size, applied to the object matrix. */
-  fontScale: number;
+  /** True when the requested size differs from the source size. */
+  scaleToSize: boolean;
+  /** The object's nominal font size before the edit. */
+  sourceFontSize: number;
   syntheticBold: boolean;
   syntheticItalic: boolean;
 }
@@ -412,12 +415,21 @@ function asciiCharcodeMap(): Map<number, number> {
   return map;
 }
 
-/** AABB of an upright display box rotated clockwise about its baseline start. */
-function rotatedBox(box: BBox, baselineY: number, degreesClockwise: number): BBox {
+/** Rotates a display-space offset clockwise (display y points down). */
+function rotateClockwise(dx: number, dy: number, degreesClockwise: number): [number, number] {
   const radians = (degreesClockwise * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
-  const pivotX = box.x;
+  return [dx * cos - dy * sin, dx * sin + dy * cos];
+}
+
+/** AABB of an upright display box rotated clockwise about a block pivot. */
+function rotatedBox(
+  box: BBox,
+  pivotX: number,
+  pivotY: number,
+  degreesClockwise: number,
+): BBox {
   const corners: Array<[number, number]> = [
     [box.x, box.y],
     [box.x + box.width, box.y],
@@ -425,9 +437,8 @@ function rotatedBox(box: BBox, baselineY: number, degreesClockwise: number): BBo
     [box.x, box.y + box.height],
   ];
   const points = corners.map(([x, y]) => {
-    const dx = x - pivotX;
-    const dy = y - baselineY;
-    return [pivotX + dx * cos - dy * sin, baselineY + dx * sin + dy * cos] as const;
+    const [rx, ry] = rotateClockwise(x - pivotX, y - pivotY, degreesClockwise);
+    return [pivotX + rx, pivotY + ry] as const;
   });
   const xs = points.map(([x]) => x);
   const ys = points.map(([, y]) => y);
@@ -439,6 +450,19 @@ function rotatedBox(box: BBox, baselineY: number, degreesClockwise: number): BBo
     width: Math.max(...xs) - minX,
     height: Math.max(...ys) - minY,
   };
+}
+
+/** Display region an overlay object paints, including a rotated text block. */
+function objectVerifyBox(object: EditorObject): TextEditBox {
+  if (object.kind === 'text' && object.rotationDeg) {
+    return rotatedBox(
+      { x: object.x, y: object.y, width: object.width, height: object.height },
+      object.x,
+      object.y + object.fontSize * TEXT_ASCENT,
+      object.rotationDeg,
+    );
+  }
+  return { x: object.x, y: object.y, width: object.width, height: object.height };
 }
 
 /** `#rrggbb`/`#rgb` -> unit RGB. Invalid values fall back to black. */
@@ -526,7 +550,7 @@ function planLayoutEdit(
   // fill+stroke (synthetic bold). A requested family that is not the document's
   // own, or un-bolding/un-italicising a face that has that style baked in,
   // cannot be expressed and goes to the overlay with a receipt.
-  if (style?.fontFamily && style.fontFamily !== sourceFamily && sourceFamily !== 'other') {
+  if (style?.fontFamily !== undefined && style.fontFamily !== sourceFamily) {
     warnings.push(
       `font-substituted: "${fontName ?? 'the document font'}" cannot become ${style.fontFamily} in place; ` +
         'the replacement is drawn with the requested standard face instead.',
@@ -581,6 +605,12 @@ function planLayoutEdit(
         'the styled replacement needs more line objects than the original; this build cannot create them, so the overlay carries the style',
     };
   }
+  if (style?.rotationDeg !== undefined && plan.beforeLines.length > 1) {
+    return {
+      reason:
+        'a rotated multi-line paragraph is drawn by the overlay so its lines share one pivot',
+    };
+  }
   const x = plan.reflow.x ?? plan.beforeLines[0]!.box.x;
   const top = plan.reflow.firstBaselineY - fontSize * 0.82;
   const geom = doc.geom(pageIndex);
@@ -606,7 +636,7 @@ function planLayoutEdit(
     // A rotated block's collision/verification box is the AABB of its corners,
     // not the upright line box.
     const bbox = rotationDeg
-      ? rotatedBox(rawBox, plan.reflow.firstBaselineY + index * plan.reflow.lineHeight, rotationDeg)
+      ? rotatedBox(rawBox, x, plan.reflow.firstBaselineY, rotationDeg)
       : rawBox;
     if (bbox.x < -0.5 || bbox.y < -0.5 || bbox.x + bbox.width > pageWidth + 0.5 || bbox.y + bbox.height > pageHeight + 0.5) {
       return { reason: 'reflowed paragraph would leave the page' };
@@ -653,7 +683,9 @@ function planLayoutEdit(
       color,
       ...(align ? { align } : {}),
       ...(rotationDeg !== undefined ? { rotationDeg } : {}),
-      fontScale: fontSize / Math.max(0.01, sourceSize),
+      scaleToSize:
+        style?.fontSize !== undefined && Math.abs(style.fontSize - sourceSize) > 0.01,
+      sourceFontSize: sourceSize,
       syntheticBold,
       syntheticItalic,
     },
@@ -761,10 +793,17 @@ function applyLayoutEdit(
       const original = doc.objectMatrix(first.ptr);
       if (original) {
         let [a, b, c, d] = original;
-        a *= metrics.fontScale;
-        b *= metrics.fontScale;
-        c *= metrics.fontScale;
-        d *= metrics.fontScale;
+        if (metrics.scaleToSize) {
+          // The matrix already carries the document's own scale. Divide it out
+          // so a requested 24 pt is 24 pt, not 24 multiplied by whatever
+          // transform the source object happened to use.
+          const matrixScale = Math.hypot(original[0], original[1]) || 1;
+          const fontScale = metrics.fontSize / Math.max(0.01, metrics.sourceFontSize * matrixScale);
+          a *= fontScale;
+          b *= fontScale;
+          c *= fontScale;
+          d *= fontScale;
+        }
         if (metrics.syntheticItalic) {
           // Shear x by y: 12 degrees is the conventional oblique angle.
           const shear = Math.tan((12 * Math.PI) / 180);
@@ -787,27 +826,48 @@ function applyLayoutEdit(
         }
         const beforeLine = edit.layout!.beforeLines[index]?.box;
         const firstBefore = edit.layout!.beforeLines[0]?.box;
-        const alignMoves = metrics.align === 'center' || metrics.align === 'right';
+        const alignMoves = metrics.align !== undefined;
         const needsOrigin =
           Boolean(edit.layout!.reflow.moved) || alignMoves || metrics.rotationDeg !== undefined;
         let e = original[4];
         let f = original[5];
         if (needsOrigin) {
-          const lineX = edit.layout!.reflow.moved
+          const baseX = edit.layout!.reflow.moved
             ? metrics.x + (beforeLine && firstBefore ? beforeLine.x - firstBefore.x : 0)
             : alignMoves
               ? metrics.lines[index]!.x
               : beforeLine?.x ?? metrics.lines[index]!.x;
-          const baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
-          [e, f] = doc.viewPointToPdf(pageIndex, { x: lineX, y: baselineY });
+          let baselineX = baseX;
+          let baselineY = edit.layout!.reflow.firstBaselineY + index * metrics.lineHeight;
+          if (metrics.rotationDeg !== undefined) {
+            // Rotate the whole block around the first line's baseline start,
+            // not each line around its own origin. Otherwise the second line of
+            // a rotated paragraph lands on top of the first.
+            const pivotX = metrics.x;
+            const pivotY = edit.layout!.reflow.firstBaselineY;
+            const [rx, ry] = rotateClockwise(
+              baseX - pivotX,
+              baselineY - pivotY,
+              metrics.rotationDeg,
+            );
+            baselineX = pivotX + rx;
+            baselineY = pivotY + ry;
+          }
+          [e, f] = doc.viewPointToPdf(pageIndex, { x: baselineX, y: baselineY });
         }
         if (!doc.setObjectMatrix(first.ptr, [a, b, c, d, e, f])) {
           throw new LayoutMutationError('PDFium refused to style a reflowed line');
         }
         if (metrics.color) {
-          doc.setObjectFillColor(first.ptr, metrics.color);
-          if (metrics.syntheticBold && metrics.source.renderMode !== 3) {
-            doc.setSyntheticBold(first.ptr, metrics.color, metrics.fontSize * 0.03);
+          if (!doc.setObjectFillColor(first.ptr, metrics.color)) {
+            throw new LayoutMutationError('PDFium refused to apply the text colour');
+          }
+          if (
+            metrics.syntheticBold &&
+            metrics.source.renderMode !== 3 &&
+            !doc.setSyntheticBold(first.ptr, metrics.color, metrics.fontSize * 0.03)
+          ) {
+            throw new LayoutMutationError('PDFium refused to apply synthetic bold');
           }
         }
       }
@@ -1097,6 +1157,75 @@ function assertEditsValid(edits: TextEdit[]): void {
         detail: `layout edit "${edit.id}" has no original lines to anchor against`,
       });
     }
+    const style = edit.layout?.style;
+    if (style) {
+      if (
+        style.fontSize !== undefined &&
+        (!Number.isFinite(style.fontSize) || style.fontSize <= 0 || style.fontSize > 288)
+      ) {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `layout edit "${edit.id}" has an invalid style font size`,
+        });
+      }
+      if (
+        style.color !== undefined &&
+        !/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(style.color.trim())
+      ) {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `layout edit "${edit.id}" has an invalid style colour`,
+        });
+      }
+      if (
+        style.bold !== undefined &&
+        typeof style.bold !== 'boolean'
+      ) {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `layout edit "${edit.id}" has an invalid bold flag`,
+        });
+      }
+      if (style.italic !== undefined && typeof style.italic !== 'boolean') {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `layout edit "${edit.id}" has an invalid italic flag`,
+        });
+      }
+      if (
+        style.fontFamily !== undefined &&
+        !['helvetica', 'times', 'courier'].includes(style.fontFamily)
+      ) {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `layout edit "${edit.id}" has an invalid font family`,
+        });
+      }
+      if (
+        style.align !== undefined &&
+        !['left', 'center', 'right'].includes(style.align)
+      ) {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `layout edit "${edit.id}" has an invalid alignment`,
+        });
+      }
+      if (
+        style.rotationDeg !== undefined &&
+        (!Number.isFinite(style.rotationDeg) || Math.abs(style.rotationDeg) > 360)
+      ) {
+        reasons.push({
+          kind: 'invalid-edit',
+          detail: `layout edit "${edit.id}" has an invalid rotation`,
+        });
+      }
+    }
+    if (edit.coverPolicy !== undefined && edit.coverPolicy !== 'leftover-cover') {
+      reasons.push({
+        kind: 'invalid-edit',
+        detail: `edit "${edit.id}" has an unknown cover policy`,
+      });
+    }
     if (
       edit.find.length > LIMITS.tool.maxTextEditChars ||
       edit.replace.length > LIMITS.tool.maxTextEditChars
@@ -1176,7 +1305,7 @@ export async function editPdfText(
       usedNativeEngine: false,
       strategy,
       verification: { ok: true, checks: [] },
-      warnings,
+      warnings: [...new Set(warnings)],
       name: options.outputName ?? 'edited.pdf',
     };
   }
@@ -1390,8 +1519,8 @@ export async function editPdfText(
     if (outcome.mode !== 'in-place' && outcome.mode !== 'content-stream') continue;
     const boxes = edit.layout
       ? edit.layout.beforeLines.map((line) => line.box)
-      : outcome.box || edit.box
-        ? [outcome.box ?? edit.box!]
+      : outcome.removedBox || outcome.box || edit.box
+        ? [outcome.removedBox ?? outcome.box ?? edit.box!]
         : [];
     if (boxes.length === 0) continue;
     const list = coverBoxesByPage.get(edit.pageIndex);
@@ -1400,10 +1529,18 @@ export async function editPdfText(
   }
   for (const [pageIndex, entries] of coverBoxesByPage) {
     const allBoxes = entries.flatMap((entry) => entry.boxes);
-    const decision = await detectWhiteBackground(data, pageIndex, allBoxes, {
-      ...(password ? { password } : {}),
-      ...(options.canvasFactory ? { canvasFactory: options.canvasFactory } : {}),
-    });
+    let decision;
+    try {
+      decision = await detectWhiteBackground(data, pageIndex, allBoxes, {
+        ...(password ? { password } : {}),
+      });
+    } catch (error) {
+      warnings.push(
+        `leftover-cover-skipped: page ${pageIndex + 1}: could not read the page background ` +
+          `(${error instanceof Error ? error.message : String(error)}); the glyphs are removed but no patch was added.`,
+      );
+      continue;
+    }
     if (!decision.white) {
       warnings.push(
         `leftover-cover-skipped: page ${pageIndex + 1}: ${decision.reason ?? 'background is not white'}; ` +
@@ -1416,8 +1553,11 @@ export async function editPdfText(
         const padded = coverBox(box);
         coverObjects.push({
           id: `leftover-cover-${entry.edit.id}-${index}`,
-          kind: 'whiteout',
+          // A plain `rect` with the page's own paper colour: on an off-white
+          // page a pure-white whiteout would be visible.
+          kind: 'rect',
           role: 'decoration',
+          fill: decision.paper ?? '#ffffff',
           pageIndex,
           ...padded,
         });
@@ -1474,7 +1614,9 @@ export async function editPdfText(
   const overlay = hasOverlay
     ? await applyOverlayPass(
         workingBytes,
-        [...overlayObjects, ...coverObjects, ...fallbackObjects],
+        // Covers first: a user-added shape on the same page must sit above the
+        // generated patch, not be erased by it. Fallback text stays on top.
+        [...coverObjects, ...overlayObjects, ...fallbackObjects],
         options.formValues,
         ctx,
         password,
@@ -1525,12 +1667,7 @@ export async function editPdfText(
   const editedRegions: VisualEditRegion[] = [];
   for (const edit of edits) {
     const outcomeBox = outcomes.find((outcome) => outcome.id === edit.id)?.box;
-    const fallbackBoxes = (edit.fallback ?? []).map((object) => ({
-      x: object.x,
-      y: object.y,
-      width: object.width,
-      height: object.height,
-    }));
+    const fallbackBoxes = (edit.fallback ?? []).map(objectVerifyBox);
     if (fallbackBoxes.length > 0 || outcomeBox || edit.box) {
       const boxes = [
         ...fallbackBoxes,
@@ -1564,7 +1701,7 @@ export async function editPdfText(
   for (const object of overlayObjects) {
     editedRegions.push({
       pageIndex: object.pageIndex,
-      box: { x: object.x, y: object.y, width: object.width, height: object.height },
+      box: objectVerifyBox(object),
     });
   }
   // Filling a field legitimately repaints its widget appearance. The visual gate
@@ -1623,7 +1760,7 @@ export async function editPdfText(
     usedNativeEngine: inPlace > 0 || contentStream > 0,
     strategy,
     verification,
-    warnings,
+    warnings: [...new Set(warnings)],
     name: options.outputName ?? 'edited.pdf',
   };
 }

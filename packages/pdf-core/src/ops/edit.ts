@@ -90,6 +90,18 @@ export interface EditTextNativePlan {
     /** The replacement was deliberately moved; native rewrite follows it. */
     moved?: boolean;
   };
+  /**
+   * Paragraph alignment before the edit. The save path only sends `align` when
+   * it actually changed, so choosing "left" on an originally centred paragraph
+   * repositions it instead of silently doing nothing.
+   */
+  originalAlign?: 'left' | 'center' | 'right';
+  /**
+   * Standard family the editor resolved for the original paragraph. A requested
+   * family is only sent when it differs from this, so an unknown document face
+   * does not look like an explicit substitution.
+   */
+  originalFontFamily?: 'helvetica' | 'times' | 'courier';
   strategy?: 'native-object' | 'content-stream' | 'localized-reconstruction' | 'manual-review';
   /**
    * T-06 native style controls. When present the engine makes these true on the
@@ -716,6 +728,8 @@ export async function applyEdits(
   // key for the same reason (and so italic/bold variants are embedded once).
   const imageCache = new Map<string, PDFImage>();
   const fontCache = new Map<string, PDFFont>();
+  const warnings = options.warnings ?? [];
+  const rasterisedObjectIds = options.rasterisedObjectIds ?? new Set<string>();
   const fontPages = new Set(
     objects.flatMap((object) =>
       object.kind === 'text' && object.fontKey ? [object.pageIndex] : [],
@@ -745,8 +759,8 @@ export async function applyEdits(
       imageCache,
       fontCache,
       documentFonts,
-      warnings: options.warnings ?? [],
-      rasterisedObjectIds: options.rasterisedObjectIds ?? new Set<string>(),
+      warnings,
+      rasterisedObjectIds,
       canvasFactory: options.canvasFactory,
     });
     progress.step(i, objects.length, 'Applying edits');
@@ -1014,7 +1028,20 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
           : align === 'right'
             ? object.width - raster.width
             : 0;
-      const [ax, ay] = viewToPdf(geom, object.x + offset, baselineY - raster.height + fontSize * TEXT_ASCENT);
+      // Rotate the bitmap's top-left anchor with the same block pivot used for
+      // drawn lines, so a rasterised line does not jump on a rotated block.
+      const radians = ((object.rotationDeg ?? 0) * Math.PI) / 180;
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      const pivotX = object.x;
+      const pivotY = object.y + fontSize * TEXT_ASCENT;
+      const rawX = offset;
+      const rawY = baselineY - raster.height + fontSize * TEXT_ASCENT - pivotY;
+      const [ax, ay] = viewToPdf(
+        geom,
+        pivotX + rawX * cos - rawY * sin,
+        pivotY + rawX * sin + rawY * cos,
+      );
       page.drawImage(image, {
         x: ax,
         y: ay,
@@ -1035,8 +1062,8 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
     if (fit.percent !== 100) {
       lineWidth = fit.width;
       fonts.warnings.push(
-        `text-squeeze: "${line.slice(0, 40)}" was drawn at ${Math.round(fit.percent)}% width ` +
-          `${fit.unreadable ? '(outside the readable 70-140% band)' : ''}`.trim(),
+        `text-squeeze: "${line.slice(0, 40)}" was drawn at ${Math.round(fit.percent)}% width` +
+          (fit.unreadable ? ' (outside the readable 70-140% band)' : ''),
       );
     }
     const offset =
@@ -1046,12 +1073,24 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
           ? object.width - lineWidth
           : 0;
 
+    const rotation = object.rotationDeg ?? 0;
+    const pivotX = object.x;
+    const pivotY = object.y + fontSize * TEXT_ASCENT;
     const drawLine = (value: string, dx: number): void => {
-      const [x, y] = viewToPdf(geom, object.x + offset + dx, baselineY);
+      // Rotate the whole text block: line 2's baseline offset must follow the
+      // rotated perpendicular, not stay horizontal underneath line 1.
+      const radians = (rotation * Math.PI) / 180;
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      const rawX = offset + dx;
+      const rawY = baselineY - pivotY;
+      const x = pivotX + rawX * cos - rawY * sin;
+      const y = pivotY + rawX * sin + rawY * cos;
+      const [pdfX, pdfY] = viewToPdf(geom, x, y);
       if (fit.percent !== 100) page.pushOperators(setCharacterSqueeze(fit.percent));
       page.drawText(value, {
-        x,
-        y,
+        x: pdfX,
+        y: pdfY,
         size: fontSize,
         font,
         color,
@@ -1070,10 +1109,13 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
     }
     const words = line.split(/\s+/).filter((word) => word.length > 0);
     const spaceWidth = fontSize * 0.28;
+    const scale = fit.percent / 100;
     let cursor = 0;
     for (const word of words) {
       drawLine(word, cursor);
-      cursor += measureLine(font, word, fontSize) + spaceWidth;
+      // Positions advance in the drawn (squeezed) space, or the words walk
+      // past the line's right edge when `Tz` is active.
+      cursor += (measureLine(font, word, fontSize) + spaceWidth) * scale;
     }
   }
 }
