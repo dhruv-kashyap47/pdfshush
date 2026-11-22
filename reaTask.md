@@ -196,7 +196,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | 6 | Export trust and metadata | X-01..X-06 | 6 | 0 | `[x]` |
 | 7 | Hardening and parity sweep | H-01..H-08 | 8 | 0 | `[x]` |
 
-**Queue:** Sprint 6 complete → Sprint 7 (H-01, H-02, H-03, H-05..H-08).
+**Queue:** all seven sprints complete; Gate D met for the documented scope. Remaining partials are G-02/G-05/F-01/E-10/S-06, named in `docs/PARITY-REPORT.md`.
 **Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. **Gate C is met** (2026-11-21): C-01..C-04, C-06, C-07, C-12..C-14 green on the corpus.
 
 ### 4.2 Full board
@@ -995,6 +995,7 @@ The editor shell was rebuilt around the document, not around panels:
 - O, X, H complete.
 - Cross-browser recorded; perf ceilings in CI; redaction verifier still green; no egress.
 - Parity report published.
+- **Met 2026-11-22** (Sprint 7): `docs/PARITY-REPORT.md`, `docs/CROSS-BROWSER.md`, `pnpm test:editor-perf`, axe interactive contexts, touch and cross-browser loops. The recorded exceptions (Playwright WebKit OffscreenCanvas, physical iOS/Android, the five partial cards) are named in the report.
 
 ---
 
