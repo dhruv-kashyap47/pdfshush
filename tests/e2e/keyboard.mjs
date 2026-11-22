@@ -142,6 +142,58 @@ try {
       (await page.locator('[data-object-id]').count()) > 0,
     );
 
+    // H-01: the sheet is generated from the registry the handler reads.
+    await page.keyboard.press('Shift+/');
+    await page.getByTestId('editor-shortcuts-dialog').waitFor({ timeout: 5_000 });
+    const sheetText = await page.getByTestId('editor-shortcuts-dialog').innerText();
+    check(
+      'the generated shortcut sheet lists edit and find bindings',
+      sheetText.includes('Find and replace') && sheetText.includes('Undo'),
+    );
+    check('the sheet lists the tool shortcuts', sheetText.includes('Add or edit text'));
+    await page.keyboard.press('Escape');
+
+    await page.keyboard.press('Control+f');
+    check(
+      'Ctrl+F opens find from the canvas',
+      (await page.getByTestId('editor-find-panel').count()) === 1,
+    );
+    await page.keyboard.press('Escape');
+
+    for (const [key, tool] of [
+      ['v', 'select'],
+      ['t', 'text'],
+      ['i', 'image'],
+      ['h', 'highlight'],
+      ['p', 'pen'],
+      ['k', 'check'],
+      ['x', 'cross'],
+      ['d', 'date'],
+      ['m', 'stamp'],
+    ]) {
+      await page.keyboard.press(key);
+      const pressed = await page.getByTestId(`editor-tool-${tool}`).getAttribute('aria-pressed');
+      check(`the ${key.toUpperCase()} shortcut arms ${tool}`, pressed === 'true');
+    }
+
+    await page.keyboard.press('v');
+    await page.locator('[data-object-id]').last().click();
+    await page.keyboard.press('Control+d');
+    await page.waitForTimeout(150);
+    check(
+      'Ctrl+D duplicates the selected object',
+      (await page.locator('[data-object-id]').count()) === 2,
+    );
+    await page.keyboard.press('Control+c');
+    await page.keyboard.press('Control+v');
+    await page.waitForTimeout(150);
+    check(
+      'Ctrl+C / Ctrl+V pastes the object clipboard',
+      (await page.locator('[data-object-id]').count()) === 3,
+    );
+    await page.keyboard.press('Control+z');
+    await page.keyboard.press('Control+z');
+
     // Select mode: Enter on the page selects the topmost object, so the
     // keyboard path does not depend on the text tool staying active.
     await page.keyboard.press('s');

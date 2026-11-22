@@ -700,7 +700,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       {/* Hover: a soft block outline plus a stronger paragraph tint. */}
       {hoverBlock && hoverBlock.id !== selectedBlockId ? (
         <div
-          className="pointer-events-none absolute rounded-[2px] border border-dashed border-blue-500/35"
+          className="pointer-events-none absolute rounded-[1px] border border-dashed border-slate-500/35"
           style={{
             left: hoverBlock.bbox.x * zoom,
             top: hoverBlock.bbox.y * zoom,
@@ -712,7 +712,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
       ) : null}
       {hoverParagraph && hoverParagraph.id !== editingParagraph?.id ? (
         <div
-          className="pointer-events-none absolute rounded-[2px] bg-blue-500/[0.06] ring-1 ring-blue-500/20 ring-inset"
+          className="pointer-events-none absolute rounded-[1px] bg-slate-900/[0.035] ring-1 ring-slate-900/15 ring-inset"
           style={{
             left: hoverParagraph.bbox.x * zoom,
             top: hoverParagraph.bbox.y * zoom,
@@ -725,7 +725,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
 
       {selectedBlock ? (
         <div
-          className="pointer-events-none absolute rounded-[3px] outline-2 outline-blue-600/70 outline-offset-[3px]"
+          className="pointer-events-none absolute rounded-[1px] outline-[1.5px] outline-slate-900/90 outline-offset-[2px]"
           style={{
             left: selectedBlock.bbox.x * zoom,
             top: selectedBlock.bbox.y * zoom,
@@ -789,7 +789,7 @@ export const TextLayer = memo(function TextLayer(props: TextLayerProps) {
             wordBreak: 'break-word',
             background: 'transparent',
             color: '#111827',
-            caretColor: '#1d4ed8',
+            caretColor: '#111827',
             zIndex: 2,
           }}
           onFocus={(event) => {

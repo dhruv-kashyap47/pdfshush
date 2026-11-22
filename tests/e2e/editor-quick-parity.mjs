@@ -196,9 +196,11 @@ async function main() {
     // ---- detected-text outline --------------------------------------------
     await page.getByTestId('editor-tool-select').click();
     await page.getByTestId('editor-text-layer').first().waitFor({ timeout: 20_000 });
-    // Deselect so the Document panel (which owns the debug toggle) is visible.
+    // Deselect so the Document panel can own the debug toggle; the panel is an
+    // explicit drawer now, so open it from the top bar.
     const emptySpot = await visibleAt(0.08, 0.5);
     await page.mouse.click(emptySpot.x, emptySpot.y);
+    await page.getByTestId('editor-document-info').click();
     await page.getByTestId('editor-outline-toggle').check();
     await page.getByTestId('editor-text-outline-layer').first().waitFor({ timeout: 10_000 });
     const paragraphs = await page.getByTestId('editor-text-outline-paragraph').count();

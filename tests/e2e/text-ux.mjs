@@ -278,13 +278,16 @@ async function formattingScenario(browser) {
 
     // E-07: drag the object so its centre lands on the page centre; a guide
     // must appear while the gesture is live and disappear on release.
-    const pageBox = await page.getByTestId('editor-page-0').boundingBox();
+    const pageBox = await page.getByTestId('editor-page').first().boundingBox();
     if (!pageBox) throw new Error('page has no box');
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(pageBox.x + pageBox.width / 2, pageBox.y + pageBox.height / 2, {
       steps: 8,
     });
+    // Land on the exact centre once more: the guide is live only while the box
+    // is actually snapped, so the final pointer position must be the snapped one.
+    await page.mouse.move(pageBox.x + pageBox.width / 2, pageBox.y + pageBox.height / 2);
     await waitFor(
       async () => (await page.getByTestId('snap-guide-vertical').count()) > 0,
       5_000,
@@ -519,6 +522,10 @@ async function legibilityScenario(browser) {
       10_000,
       'committed replacement',
     );
+    // Clear the selection so the screenshot compares text against text, not the
+    // direct-manipulation box the committed object now correctly carries.
+    await page.mouse.click(pageBox.x + 20, pageBox.y + pageBox.height - 30);
+    await page.waitForTimeout(200);
     const after = await page.screenshot({ clip });
     await writeFile(path.join(WORK, 'legibility-after.png'), after);
     const diff = await difference(clip, during, after);

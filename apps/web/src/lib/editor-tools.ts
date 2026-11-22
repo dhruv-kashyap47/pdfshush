@@ -295,6 +295,41 @@ export function defaultToolForMode(mode: EditorMode): EditorTool {
   return 'select';
 }
 
+/**
+ * One-line, honest explanation for every tool. The context bar, the mobile
+ * action sheet and the shortcut sheet read this record, so a newly added tool
+ * cannot ship without copy.
+ */
+export const TOOL_HELP: Record<EditorTool, string> = {
+  select: 'Select text or an object, then drag to move it. Double-click text to edit.',
+  text: 'Click a paragraph to edit it in place, or drag on empty space to add a text box.',
+  image: 'Click the page to place an image, then drag or use the corner handles.',
+  signature: 'Click where the signature belongs, then draw, type or upload it.',
+  highlight: 'Drag across a line to highlight it. The mark stays editable.',
+  strikeout: 'Drag across a line to strike it through. The line itself is untouched.',
+  underline: 'Drag across a line to underline it.',
+  whiteout: 'Covers content with white paint. This is cosmetic, not redaction.',
+  rect: 'Drag to draw a rectangle. Hold Shift for a square.',
+  ellipse: 'Drag to draw an ellipse. Hold Shift for a circle.',
+  line: 'Drag to draw a straight line.',
+  arrow: 'Drag to draw an arrow from start to end.',
+  pen: 'Draw freehand ink. The stroke is exported as vectors, not an image.',
+  check: 'Click to place a check mark, or drag to size it.',
+  cross: 'Click to place a cross mark, or drag to size it.',
+  date: "Click to stamp today's date. It stays selectable and editable.",
+  stamp: 'Choose a preset, then click the page to place a bordered stamp.',
+  redact: 'Drag a permanent mark over content. Redaction rebuilds the page without it.',
+  ai: 'Describe the change you want. Nothing is written until you review and apply.',
+};
+
+/** Tool-specific limitations that deserve more than a one-liner. */
+export const TOOL_LIMITS: Partial<Record<EditorTool, string>> = {
+  text: 'Native rewriting works for standard fonts and full or partial deletions. Embedded faces and styled extra lines fall back to a declared overlay, and the receipt names the fallback.',
+  whiteout: 'Whiteout only paints over content. Use Redact when the underlying text must be removed from the file.',
+  pen: 'Ink is capped at 5,000 points per stroke and is exported as vector segments.',
+  redact: 'Redaction rasterises every page it touches, so selectable text, links and form fields are lost by design.',
+};
+
 /** Short, honest label for the active tool used in the status bar. */
 export function toolStatusLabel(id: EditorTool): string {
   switch (id) {

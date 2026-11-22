@@ -46,6 +46,11 @@ jobs:
       # hang or crash on a hostile stream obvious in the CI log.
       - run: pnpm test:fuzz
 
+      # H-03: editor ceilings. Unit-speed, no browser or stack required.
+      - run: pnpm test:editor-perf
+        env:
+          EDITOR_BENCH_CI: '1'
+
       # `pnpm build` is the web build; `test:bundle` scans the chunks it emits.
       - run: pnpm build
 
@@ -72,11 +77,11 @@ jobs:
       # `--with-deps` shells out to apt. A transient DNS failure on the Ubuntu
       # mirror used to fail the whole job before a single test ran, so let apt
       # retry its own downloads and retry the whole step a few times.
-      - name: Install Chromium
+      - name: Install browsers
         run: |
           echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries
           for attempt in 1 2 3; do
-            if pnpm exec playwright install --with-deps chromium; then
+            if pnpm exec playwright install --with-deps chromium firefox webkit; then
               exit 0
             fi
             echo "::warning::Playwright install failed (attempt ${attempt}/3); retrying in 20s"
@@ -92,6 +97,14 @@ jobs:
       - run: pnpm test:perf
       - run: pnpm test:e2e:a11y
       - run: pnpm test:e2e:keyboard
+      - name: Cross-browser editor loop
+        run: pnpm test:e2e:cross-browser
+        env:
+          E2E_BASE_URL: http://localhost:4173
+      - name: Touch/mobile editor loop
+        run: pnpm test:e2e:editor-touch
+        env:
+          E2E_BASE_URL: http://localhost:4173
       - name: Text UX, find/replace and draft recovery
         run: pnpm test:e2e:text-ux
         env:

@@ -38,6 +38,7 @@ import {
   ShieldAlert,
   Sparkles,
   Type as TypeIcon,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -105,6 +106,7 @@ import { loadAiMode, saveAiMode, type AiMode } from '@/lib/ai/mode';
 import { EditorInspector } from '@/components/editor/editor-inspector';
 import { EditorParagraphDetails } from '@/components/editor/editor-paragraph-details';
 import { EditorFindPanel } from '@/components/editor/editor-find-panel';
+import { EditorShortcutsDialog } from '@/components/editor/editor-shortcuts-dialog';
 import { ExportReceipt } from '@/components/editor/export-receipt';
 import { StructurePanel } from '@/components/editor/structure-panel';
 import { EditorPage } from '@/components/editor/editor-page';
@@ -126,11 +128,12 @@ import { editorIsDirty } from '@/lib/editor-dirty';
 import type { EditorDoc } from '@/lib/editor-state';
 import {
   defaultToolForMode,
+  TOOL_HELP,
   toolsForMode,
   type EditorMode,
   type EditorProposalMarker,
-  type EditorTool,
 } from '@/lib/editor-tools';
+import { matchEditorShortcut, type ShortcutContext } from '@/lib/editor-shortcuts';
 import { clampToPage, offsetOnPage } from '@/lib/object-placement';
 import { cloneObjectForPaste, detachEditIntent } from '@/lib/object-copy';
 import { scaleInkPoints } from '@/lib/ink';
@@ -227,21 +230,6 @@ const NO_OBJECTS: EditorObject[] = [];
 const NO_WIDGETS: FormWidgetInfo[] = [];
 const NO_FORM_VALUES: Record<string, string | boolean> = {};
 const NO_PARAGRAPHS: Paragraph[] = [];
-
-const KEY_TOOLS: Record<string, EditorTool> = {
-  v: 'select',
-  s: 'select',
-  t: 'text',
-  i: 'image',
-  h: 'highlight',
-  a: 'ai',
-  r: 'redact',
-  p: 'pen',
-  k: 'check',
-  x: 'cross',
-  d: 'date',
-  m: 'stamp',
-};
 
 let objectCounter = 0;
 function newObjectId(): string {
@@ -448,6 +436,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const navigate = useNavigate();
   /** Phone properties sheet. Closed by default so the canvas keeps its height. */
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  /** Keyboard reference generated from the one shortcut registry. */
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  /** Desktop document panel; the empty inspector no longer occupies a column. */
+  const [documentPanelOpen, setDocumentPanelOpen] = useState(false);
   /** Page rail multi-selection (organise mode). */
   const [selectedPages, setSelectedPages] = useState<Set<number>>(() => new Set());
   /** AI proposals are read-only overlays until the ledger is applied. */
@@ -1599,7 +1591,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const endEdit = useCallback(() => {
     setEditingId(null);
     editor.endTx();
-  }, [editor.endTx]);
+    // Finishing a text box returns to the pointer: the object is already
+    // selected, and the direct-manipulation handles (move grip and edge dots)
+    // only exist for the pointer tool. Staying armed with Text after every
+    // commit made a freshly typed box look unselected.
+    setTool('select');
+  }, [editor.endTx, setTool]);
 
   const editText = useCallback(
     (id: string, text: string) => {
@@ -1637,6 +1634,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
   const select = useCallback((id: string | null) => {
     setSelectedId(id);
+    if (id) setDocumentPanelOpen(false);
     // An object and a text block are never selected at the same time: the
     // inspector would otherwise describe two things and Delete would be
     // ambiguous. Clicking empty page space also lands here with `null`.
@@ -2088,8 +2086,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
   const selectTextBlock = useCallback((pageIndex: number, blockId: string | null) => {
     setSelectedTextBlock(blockId ? { pageIndex, blockId } : null);
-    if (blockId) setSelectedId(null);
-    else {
+    if (blockId) {
+      setSelectedId(null);
+      setDocumentPanelOpen(false);
+    } else {
       setFocusedParagraph(null);
       setParagraphDetailsOpen(false);
     }
@@ -3624,71 +3624,14 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       const mod = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
 
-      // Find belongs to the document, not the focused field: Ctrl/Cmd+F opens
-      // it even from the paragraph textarea (where the browser's own find would
-      // search the DOM textarea, not the PDF).
-      if (mod && key === 'f') {
-        event.preventDefault();
-        openFind();
-        return;
-      }
-
-      // Escape closes Find first; the panel stops propagation when it owns the
-      // key itself, so this is the canvas/editor path.
-      if (event.key === 'Escape' && findOpen) {
-        event.preventDefault();
-        closeFind();
-        return;
-      }
-
-      // Text editing keeps its native undo. Document-level undo while typing is
-      // not merely surprising: text edits are applied with live (no history
-      // entry of their own), so Ctrl+Z inside a text box would skip past the
-      // keystrokes and delete the whole object instead of the last character.
-      if (typing && mod) {
-        if (key === 's') {
-          event.preventDefault();
-          void onSave();
-        }
-        return;
-      }
-
-      if (mod && key === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) redo();
-        else undo();
-        return;
-      }
-      if (mod && key === 'y') {
-        event.preventDefault();
-        redo();
-        return;
-      }
-      if (mod && event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        void onSave();
-        return;
-      }
-      // Desktop-editor zoom shortcuts. Relative to the current level, so they
-      // work from a fit-width zoom that is not one of the presets.
-      if (mod && (key === '=' || event.key === '+')) {
-        event.preventDefault();
-        const next = editorStepZoom(zoomRef.current, 'in');
-        if (next !== null) onZoomChange(next);
-        return;
-      }
-      if (mod && key === '-') {
-        event.preventDefault();
-        const next = editorStepZoom(zoomRef.current, 'out');
-        if (next !== null) onZoomChange(next);
-        return;
-      }
-      if (mod && key === '0') {
-        event.preventDefault();
-        fitWidth();
-        return;
-      }
+      // Escape is context-sensitive: it must be able to close Find, cancel an
+      // inline edit or clear a selection even while a field has focus.
       if (event.key === 'Escape') {
+        if (findOpen) {
+          event.preventDefault();
+          closeFind();
+          return;
+        }
         if (paragraphEditRef.current) {
           cancelParagraphEdit();
           return;
@@ -3706,86 +3649,133 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           return;
         }
         setSelectedId(null);
+        setDocumentPanelOpen(false);
         return;
       }
-      // Everything below acts on the document. While a form field, composer or
-      // inline text editor has focus, its own keyboard handling owns the keys.
-      if (typing) return;
-      if (event.key === 'PageDown' || event.key === 'PageUp') {
+
+      // Find belongs to the document, not the focused field: Ctrl/Cmd+F opens
+      // it even from the paragraph textarea (where the browser's own find would
+      // search the DOM textarea, not the PDF).
+      if (mod && key === 'f') {
         event.preventDefault();
-        goToPage(currentPage + (event.key === 'PageDown' ? 1 : -1));
+        openFind();
         return;
       }
-      if (mod && key === 'd') {
-        event.preventDefault();
-        transformSelected('duplicate');
+
+      // Text editing keeps its native undo. Document-level undo while typing is
+      // not merely surprising: text edits are applied with live (no history
+      // entry of their own), so Ctrl+Z inside a text box would skip past the
+      // keystrokes and delete the whole object instead of the last character.
+      if (typing && mod) {
+        if (key === 's') {
+          event.preventDefault();
+          void onSave();
+        }
         return;
       }
-      // Structured text selection: clipboard operations act on the extracted
-      // text, not on the overlay objects. Editing a paragraph uses native
-      // textarea clipboard handling above.
-      if (mod && textSelectionRef.current) {
-        if (key === 'c') {
+
+      const shortcut = matchEditorShortcut(event, {
+        typing,
+        hasObject: Boolean(selectedId),
+        hasTextSelection: Boolean(textSelectionRef.current),
+        hasObjectClipboard: Boolean(objectClipboard.current),
+        findOpen,
+        saving,
+        canEdit: true,
+      } satisfies ShortcutContext);
+      if (!shortcut) {
+        if (event.key.startsWith('Arrow') && selectedId && !saving) {
           event.preventDefault();
-          void copyTextSelection();
-          return;
+          const step = event.shiftKey ? 10 : 1;
+          const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0;
+          const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0;
+          transformSelected('nudge', dx, dy);
         }
-        if (key === 'x') {
-          event.preventDefault();
-          void cutTextSelection();
-          return;
-        }
-        if (key === 'v') {
-          event.preventDefault();
-          void pasteTextSelection();
-          return;
-        }
-      }
-      // Object clipboard: only when there is no text selection and focus is not
-      // in a field (the typing guard above already returned).
-      if (mod && !textSelectionRef.current) {
-        if (key === 'c' && selectedId) {
-          event.preventDefault();
-          copySelectedObject();
-          return;
-        }
-        if (key === 'x' && selectedId) {
-          event.preventDefault();
-          cutSelectedObject();
-          return;
-        }
-        if (key === 'v' && objectClipboard.current) {
-          event.preventDefault();
-          pasteObject();
-          return;
-        }
-      }
-      if ((event.key === 'Delete' || event.key === 'Backspace') && textSelectionRef.current) {
-        event.preventDefault();
-        deleteTextSelection();
         return;
       }
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
-        event.preventDefault();
-        deleteSelected();
-        return;
-      }
-      if (event.key.startsWith('Arrow') && selectedId && !saving) {
-        event.preventDefault();
-        const step = event.shiftKey ? 10 : 1;
-        const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0;
-        const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0;
-        transformSelected('nudge', dx, dy);
-        return;
-      }
-      const next = KEY_TOOLS[event.key.toLowerCase()];
-      if (
-        next &&
-        !mod &&
-        !event.altKey &&
-        toolsForMode(mode).some((entry) => entry.id === next)
-      ) {
-        setTool(next);
+
+      switch (shortcut.id) {
+        case 'find':
+          event.preventDefault();
+          openFind();
+          return;
+        case 'save':
+          event.preventDefault();
+          void onSave();
+          return;
+        case 'undo':
+          event.preventDefault();
+          undo();
+          return;
+        case 'redo':
+        case 'redo-alt':
+          event.preventDefault();
+          redo();
+          return;
+        case 'duplicate':
+          event.preventDefault();
+          transformSelected('duplicate');
+          return;
+        case 'copy':
+          event.preventDefault();
+          if (textSelectionRef.current) void copyTextSelection();
+          else copySelectedObject();
+          return;
+        case 'cut':
+          event.preventDefault();
+          if (textSelectionRef.current) void cutTextSelection();
+          else cutSelectedObject();
+          return;
+        case 'paste':
+          event.preventDefault();
+          if (textSelectionRef.current) void pasteTextSelection();
+          else pasteObject();
+          return;
+        case 'delete':
+          event.preventDefault();
+          if (textSelectionRef.current) deleteTextSelection();
+          else deleteSelected();
+          return;
+        case 'zoom-in': {
+          event.preventDefault();
+          const next = editorStepZoom(zoomRef.current, 'in');
+          if (next !== null) onZoomChange(next);
+          return;
+        }
+        case 'zoom-out': {
+          event.preventDefault();
+          const next = editorStepZoom(zoomRef.current, 'out');
+          if (next !== null) onZoomChange(next);
+          return;
+        }
+        case 'fit-width':
+          event.preventDefault();
+          fitWidth();
+          return;
+        case 'fit-page':
+          event.preventDefault();
+          fitPage();
+          return;
+        case 'prev-page':
+          event.preventDefault();
+          goToPage(currentPage - 1);
+          return;
+        case 'next-page':
+          event.preventDefault();
+          goToPage(currentPage + 1);
+          return;
+        case 'help':
+          event.preventDefault();
+          setShortcutsOpen(true);
+          return;
+        default:
+          if (
+            shortcut.tool &&
+            toolsForMode(mode).some((entry) => entry.id === shortcut.tool)
+          ) {
+            event.preventDefault();
+            setTool(shortcut.tool);
+          }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -3803,6 +3793,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     transformSelected,
     onZoomChange,
     fitWidth,
+    fitPage,
     goToPage,
     cancelParagraphEdit,
     copyTextSelection,
@@ -4369,9 +4360,22 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       : `${selectedObject.kind[0]!.toUpperCase()}${selectedObject.kind.slice(1)} selected`
     : textSelection
       ? `${textSelection.text.length.toLocaleString()} characters selected`
-      : isOrganize && selectedPages.size > 0
-        ? `${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'} selected`
-        : null;
+      : selectedBlockModel
+        ? `Text block selected · ${selectedBlockParagraphs.length} paragraph${
+            selectedBlockParagraphs.length === 1 ? '' : 's'
+          }`
+        : isOrganize && selectedPages.size > 0
+          ? `${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'} selected`
+          : null;
+  const inspectorHasContent =
+    assistantActive ||
+    isRedact ||
+    isOrganize ||
+    saving ||
+    Boolean(selectedObject) ||
+    paragraphDetailsOpen ||
+    Boolean(selectedBlockModel) ||
+    documentPanelOpen;
   const pageCapability = capabilitiesByPage[currentPage] ?? null;
   const ocrRunning = ocrLayerRunner.state.status === 'running';
   const currentOcr = ocrProvenance[currentPage] ?? null;
@@ -4388,12 +4392,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     : 'Inspecting fonts and page objects.';
   const currentMetaPage = displayPages[currentDisplayPosition];
   const toolHint = isRedact
-    ? 'Marks are destructive'
+    ? TOOL_HELP.redact
     : isOrganize
       ? 'Drag pages to reorder'
       : assistantActive
-        ? 'Review before applying'
-        : 'Ready';
+        ? 'Review proposals before applying'
+        : TOOL_HELP[tool];
   const handleDelete = () => {
     if (textSelection) {
       deleteTextSelection();
@@ -4414,6 +4418,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             fileName={files[0]?.name ?? 'Document'}
             mode={mode}
             pageCount={pageCount}
+            currentPage={currentDisplayPosition + 1}
             dirty={dirty || aiChangeCount > 0}
             saving={saving}
             saveLabel={saveLabel}
@@ -4426,6 +4431,17 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             onChangeFile={requestChangeFile}
             onReset={requestStartOver}
             onBack={requestExit}
+            onPrevPage={() => goToDisplayPage(currentDisplayPosition - 1)}
+            onNextPage={() => goToDisplayPage(currentDisplayPosition + 1)}
+            onGoToPage={(pageNumber) => goToPage(pageNumber - 1)}
+            canUndo={editor.canUndo}
+            canRedo={editor.canRedo}
+            onUndo={undo}
+            onRedo={redo}
+            onFind={openFind}
+            onShortcuts={() => setShortcutsOpen(true)}
+            onDocumentInfo={() => setDocumentPanelOpen((open) => !open)}
+            documentInfoOpen={documentPanelOpen}
             modes={
               initialMode === 'sign'
                 ? undefined
@@ -4670,6 +4686,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                 className="editor-workspace"
                 data-rail={editor.railOpen ? 'open' : 'closed'}
                 data-inspector={mobileInspectorOpen ? 'open' : 'closed'}
+                data-inspector-empty={inspectorHasContent ? 'false' : 'true'}
                 data-panel={
                   assistantActive
                     ? 'ai'
@@ -4861,7 +4878,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
                 <aside
                   className="editor-inspector-rail"
-                  data-empty={!selectedObject && !assistantActive && !isRedact && !isOrganize}
+                  data-empty={inspectorHasContent ? 'false' : 'true'}
                   aria-label="Properties inspector"
                 >
                   <div className="h-full min-h-0" hidden={!assistantActive}>
@@ -5168,14 +5185,26 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         Double-click a paragraph to edit it. Drag across text to select and copy.
                       </p>
                     </div>
-                  ) : !assistantActive ? (
+                  ) : !assistantActive && documentPanelOpen ? (
                     <div className="editor-panel" data-testid="editor-inspector-empty">
-                      <p className="editor-panel-kicker">Document</p>
-                      <p className="editor-panel-title">
-                        {currentMetaPage
-                          ? `Page ${currentDisplayPosition + 1} of ${pageCount}`
-                          : 'No page selected'}
-                      </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="editor-panel-kicker">Document</p>
+                          <p className="editor-panel-title">
+                            {currentMetaPage
+                              ? `Page ${currentDisplayPosition + 1} of ${pageCount}`
+                              : 'No page selected'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="editor-topbar-icon"
+                          aria-label="Close document details"
+                          onClick={() => setDocumentPanelOpen(false)}
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
                       <p className="editor-panel-copy">{pageEditStatus}</p>
 
                       <div className="editor-panel-actions">
@@ -5248,33 +5277,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         onShowLimits={() => setLimitsOpen(true)}
                       />
 
-                      <div className="editor-panel-keys">
-                        <p className="editor-panel-kicker">Keyboard</p>
-                        <ul>
-                          <li>
-                            <kbd>V</kbd> Select <kbd>T</kbd> Text <kbd>H</kbd> Highlight
-                          </li>
-                          <li>
-                            <kbd>P</kbd> Pen <kbd>K</kbd> Check <kbd>X</kbd> Cross
-                          </li>
-                          <li>
-                            <kbd>D</kbd> Date <kbd>M</kbd> Stamp
-                          </li>
-                          <li>
-                            <kbd>Ctrl</kbd> <kbd>Z</kbd> Undo <kbd>Ctrl</kbd> <kbd>Shift</kbd>{' '}
-                            <kbd>Z</kbd> Redo
-                          </li>
-                          <li>
-                            <kbd>Del</kbd> Remove <kbd>Ctrl</kbd> <kbd>D</kbd> Duplicate{' '}
-                            <kbd>Ctrl</kbd> <kbd>C</kbd>/<kbd>X</kbd>/<kbd>V</kbd> Copy
-                          </li>
-                          <li>
-                            <kbd>Ctrl</kbd> <kbd>0</kbd> Fit width <kbd>+</kbd> <kbd>-</kbd> Zoom
-                          </li>
-                          <li>
-                            <kbd>Ctrl</kbd> <kbd>F</kbd> Find and replace
-                          </li>
-                        </ul>
+                      <div className="editor-panel-actions">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShortcutsOpen(true)}
+                        >
+                          Keyboard shortcuts
+                        </Button>
                       </div>
 
                       {/*
@@ -5336,6 +5347,22 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           <span className="sr-only" data-testid="editor-draft-saved" aria-live="polite">
             {draftSavedAt ? 'Draft saved' : ''}
           </span>
+          <span className="sr-only" data-testid="editor-live-status" aria-live="polite">
+            {ocrRunning
+              ? 'Reading the scan'
+              : findSearching
+                ? 'Searching the document'
+                : saving
+                  ? 'Saving a verified copy'
+                  : (selectionLabel ?? '')}
+          </span>
+
+          <EditorShortcutsDialog
+            open={shortcutsOpen}
+            onOpenChange={setShortcutsOpen}
+            mode={mode}
+            tools={toolsForMode(mode)}
+          />
 
           {confirmRedact ? (
             <div

@@ -8041,3 +8041,152 @@ save-guard scenario.
 | OCR copy | An empty recognition result told the user the page “already has a searchable text layer”. | Distinguish skipped pages from pages with no readable words. |
 | Fuzz | No explicit timeout, and replacement planning was not fuzzed. | Per-test timeouts and `planRunReplacement` coverage with random encoded bytes. |
 | Insert Pages | The new File lost `lastModified`, so draft/signature identity changed. | Preserve it. |
+
+---
+
+## 42. Sprint 7 - hardening, parity and the editor UI pass (2026-11-22)
+
+Branch `rea-uplift`, sprint 7 of 7. H-01..H-08 closed Gate D. The sprint also
+rebuilt the editor's visible surface, because the hardening work made the old
+permanent inspector and uppercase group headings feel like scaffolding rather
+than a document application.
+
+### 42.1 One keyboard registry (H-01)
+
+`apps/web/src/lib/editor-shortcuts.ts` is now the only declaration of a binding.
+The window handler resolves an event to a named action (`find`, `save`, `undo`,
+`redo`, `duplicate`, `copy`/`cut`/`paste`, `delete`, zoom, fit, page navigation,
+`help`, tool keys). The generated shortcut sheet and the rail read the same
+records, and a hidden `S` select alias preserves the old key without advertising
+it.
+
+- Matching is context-aware: a command can require an object, a text selection
+  or the clipboard, so Delete and Paste cannot fire into nothing.
+- `Ctrl+Shift+0` is fit page; `Ctrl+0` remains fit width. `Ctrl++` accepts the
+  shifted physical key.
+- `?` opens the sheet; `Shift+/` is accepted for layouts that report `/`.
+- The handler still owns the context-sensitive guards: Escape closes Find,
+  cancels an inline edit or clears a selection; typing keeps native undo; Save
+  still works from a field.
+
+### 42.2 Accessibility (H-02)
+
+- The tool rail is a vertical toolbar with a roving tabindex. Only the active
+  tool is in the tab order; Arrow/Home/End move focus and arm the tool.
+- Live regions cover find status (already present), OCR, save and selection.
+- Snap guides are 2 px sky-600 with a white halo; the paragraph caret is ink
+  black; editor focus rings are neutral, not brand green.
+- Pointer resize handles are 24 px hit areas with 7 px visuals. They are
+  `aria-hidden` pointer affordances; the inspector now has exact Width and
+  Height fields as the keyboard-accessible resize path. This also removed the
+  target-size overlap inherent in four corner handles on a short text box.
+- `a11y.mjs` now audits four interactive contexts in addition to routes: Find
+  open, the inline paragraph editor, the pen context bar and the phone
+  properties sheet. All pass zero critical/serious.
+
+### 42.3 Editor ceilings (H-03)
+
+`packages/pdf-core/test/editorBench.test.ts` measures engine work, not route
+render:
+
+| measurement | local | ceiling |
+| --- | ---: | ---: |
+| open/inspect 100 pages | 31 ms | 4,000 ms |
+| PDFium capabilities, 100 pages | 33 ms | 10,000 ms |
+| 10k ink points export | 366 ms | 2,500 ms |
+| one text edit, 100-page doc | 107 ms | 1,500 ms |
+| content-stream tokenise/emit (1.1 MB, 100k ops) | 230 ms | 2,000 ms |
+
+The ink row uses two 5,000-point strokes because the engine cap is per object.
+`pnpm test:editor-perf` is a named CI step; `EDITOR_BENCH_CI=1` uses the wider
+shared-runner budget. Record: `tests/benchmarks/editor-ceilings.md`.
+
+### 42.4 Cross-browser and touch (H-05/H-06)
+
+`tests/e2e/cross-browser.mjs` runs open → keyboard text → nudge → find → save →
+reopen on Chromium, Firefox and WebKit. All three completed the loop and the
+downloaded text was present. The Playwright WebKit build has no
+`OffscreenCanvas`; its worker page-raster capability is recorded UNSUPPORTED
+while editing and export pass. The record is `docs/CROSS-BROWSER.md`; no
+physical iOS pass is claimed.
+
+`tests/e2e/editor-touch.mjs` runs an iPhone-13 Chromium profile: Find is a bottom
+sheet, properties are a dismissible sheet, Select keeps `pan-y`, drawing uses
+`touch-action: none`, and one finger paints one ink object while a wide palm
+contact is rejected. Page-level gestures capture their pointer; `editor-page`
+ignores any pointer that does not own the active gesture.
+
+### 42.5 Help and parity (H-07/H-08)
+
+`TOOL_HELP` gives every tool a one-line explanation; `TOOL_LIMITS` states the
+whiteout/redaction, pen cap and text-fallback boundaries. Tooltips carry the
+explanation, the Text hint now says a paragraph needs the pointer and Add Text
+is a drag on empty space, and the shortcut sheet is generated from the live
+registry.
+
+`docs/PARITY-REPORT.md` maps all 63 cards with verdicts and evidence. It is
+linked from `README.md`. Partial rows (G-02, G-05, F-01, E-10, S-06) and the
+remaining risks are stated rather than rounded up.
+
+### 42.6 The editor UI pass
+
+The document is the surface again:
+
+- **Full application frame.** The marketing header is hidden while a document is
+  open; `.editor-route-shell` owns the viewport. The top bar carries Back, the
+  file name, page control, workspace tabs, undo/redo/find, details, shortcuts
+  and the one high-contrast action.
+- **Ink, not brand green.** Editor-scoped tokens map primary and focus to ink.
+  The Save button is white on dark; there are no green/red status dots. Red is
+  reserved for destructive actions and redaction.
+- **Quiet rail.** Uppercase INSERT/MARK/DRAW labels are gone. Dividers group
+  tools; tooltips explain each one. The page rail starts collapsed and opens
+  itself in the Pages workspace. The empty "Document" inspector no longer
+  occupies a column; details are an explicit top-bar toggle.
+- **Direct manipulation.** A selected object is a thin neutral box with 7 px
+  white corner squares, round side dots for text width and an attached 24 px
+  grip to move it. Hover is a neutral dashed/tinted paragraph outline.
+- **Reference-style formatting bar.** A selected text object gets font, a real
+  − / size / + stepper, bold, italic, alignment, colour and object actions in
+  the contextual bar, instead of a "Text" heading and a wall of meta.
+- **Honest status.** The bottom bar reports the active tool's one-line help or
+  the selection, page navigation, object count and save state, with no
+  decorative dot or "Ready" filler.
+
+### 42.7 Bug pass in this sprint
+
+| Area | Bug | Fix |
+| --- | --- | --- |
+| Save ending a text edit | The tool stayed armed as Text after commit, so the selected box had no move/resize affordances. | `endEdit` returns to Select; the object is already selected. |
+| Pointer capture | Touch drags could be stolen by a second finger; object handles had no capture. | One gesture owns its `pointerId`; pages/objects/handles capture; wide contacts are rejected as palms. |
+| Target size | Four 7 px corner handles failed WCAG 2.2 target size and overlapped on short text. | 24 px invisible hit areas; handles pointer-only; exact width/height inspector fields are the keyboard alternative. |
+| Shortcut sheet | The sheet could list a key the handler ignored (and vice versa). | One registry drives handler, sheet and rail; unit tests pin tool, find, undo, aliases and context requirements. |
+| Find labels | Visible `Aa`/`Ab` did not match their accessible names. | Names start with the visible text (`Aa match case`, `Ab whole word`). |
+| WebKit raster | The Playwright WebKit build has no OffscreenCanvas, so the raster job throws. | Recorded as an unsupported capability; text editing/export still pass; no false "tested on Safari" claim. |
+| Snap E2E | The formatting test dragged to the outer wrapper's centre, so the final step was not snapped. | Drag to the inner page centre and land once more; the app's snapping was correct. |
+| Smoke no-op save | After "continue editing" the document is clean, so Save is correctly disabled. | The test makes one change before the second save. |
+
+### 42.8 Verification
+
+| Gate | Result |
+| --- | --- |
+| `pnpm typecheck` (8 projects) | pass |
+| `pnpm test` | pdf-core **697 + 1 expected fail**, web **318**, api 243, mcp 19, ai-agent 152, ai-provider 375 |
+| `pnpm build` | pass, 63 routes prerendered |
+| `pnpm test:editor-perf` | 6/6, numbers above |
+| `pnpm test:corpus` | 2/2 (from Sprint 6) |
+| `pnpm test:fuzz` | 4/4 |
+| `text-ux` | **57/57** |
+| `sprint6-trust` | **21/21** |
+| `editor-quick-parity` | 20/20 |
+| `text-edit` | 7/7 |
+| `sign`, `signature-upload` | all checks |
+| `keyboard` | 31 checks |
+| `a11y` | all routes + 4 interactive contexts clean |
+| `editor-touch` | 11/11 |
+| `cross-browser` | Chromium/Firefox/WebKit editor loop green; WebKit raster recorded unsupported |
+| `smoke` | tool and editor sections green; three accounts-off checks need a frontend-only deployment and were not claimed here |
+
+Gate D is met for the documented scope. The partial cards and the two
+environment limits (WebKit OffscreenCanvas, physical iOS/Android) remain visible
+in `docs/PARITY-REPORT.md` rather than being folded into a clean-sounding claim.

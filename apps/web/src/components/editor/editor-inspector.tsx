@@ -583,15 +583,80 @@ export function EditorInspector({
         </div>
       </div>
 
-      <div className={cn('flex shrink-0 items-center justify-between gap-2 border-t', docked ? 'px-4 py-2.5' : 'px-3 py-2')}>
-        <span className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-          Size
-        </span>
-        <span className="text-[11px] text-muted-foreground tabular-nums">
-          {Math.round(object.width)} × {Math.round(object.height)} pt
-        </span>
+      <div
+        className={cn(
+          'grid shrink-0 grid-cols-2 gap-2 border-t',
+          docked ? 'px-4 py-2.5' : 'px-3 py-2',
+        )}
+      >
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            Width
+          </span>
+          <DimensionInput
+            ariaLabel="Object width in points"
+            testId="inspector-width"
+            value={object.width}
+            onCommit={(width) => onPatch({ width })}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            Height
+          </span>
+          <DimensionInput
+            ariaLabel="Object height in points"
+            testId="inspector-height"
+            value={object.height}
+            onCommit={(height) => onPatch({ height })}
+          />
+        </label>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Exact dimensions are the keyboard-accessible alternative to the pointer
+ * resize handles. Committed on blur or Enter so typing a number is one undo
+ * step, the same contract as the font-size field.
+ */
+function DimensionInput({
+  value,
+  onCommit,
+  ariaLabel,
+  testId,
+}: {
+  value: number;
+  onCommit: (value: number) => void;
+  ariaLabel: string;
+  testId: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (raw: string) => {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) onCommit(Math.min(20_000, Math.max(2, parsed)));
+    setDraft(null);
+  };
+  return (
+    <Input
+      aria-label={ariaLabel}
+      type="number"
+      min={2}
+      max={20_000}
+      className="h-8 tabular-nums"
+      data-testid={testId}
+      value={draft ?? String(Math.round(value))}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => commit(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commit((event.target as HTMLInputElement).value);
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
+    />
   );
 }
 

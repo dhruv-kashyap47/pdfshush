@@ -17,16 +17,33 @@
   --editor-rail: oklch(0.085 0 0);
   --editor-hairline: oklch(1 0 0 / 9%);
   --editor-hover: oklch(1 0 0 / 6%);
-  --editor-accent-wash: oklch(0.7 0.17 152 / 0.16);
+  --editor-accent-wash: oklch(1 0 0 / 0.1);
   --editor-page-shadow: 0 1px 2px oklch(0 0 0 / 55%), 0 22px 44px -24px oklch(0 0 0 / 90%);
+}
+
+/* Inside the document application the brand green is not a UI accent. Primary
+   is ink; the only colour on screen belongs to the document and to destructive
+   actions. This also neutrals the focus ring, which was green app-wide. */
+.editor-shell,
+.editor-shortcuts-dialog {
+  --primary: oklch(0.96 0 0);
+  --primary-foreground: oklch(0.09 0 0);
+  --ring: oklch(0.82 0 0 / 0.85);
 }
 
 body.editor-app-active .editor-route-shell {
   background: var(--editor-canvas);
 }
 
+/* The editor is a document application, not a page inside the marketing site.
+   Removing the site header gives the canvas the full viewport and matches the
+   focused editors people already know. The top bar owns the way back. */
+body.editor-app-active .site-nav {
+  display: none;
+}
+
 .editor-route-shell {
-  inset: var(--site-header-height) 0 0;
+  inset: 0;
   background: var(--editor-canvas);
 }
 .editor-shell {
@@ -38,13 +55,59 @@ body.editor-app-active .editor-route-shell {
 /* ── top bar ─────────────────────────────────────────────────────────────── */
 .editor-topbar {
   display: flex;
-  min-height: 3rem;
+  min-height: 3.25rem;
   flex-shrink: 0;
   align-items: center;
   gap: 0.75rem;
   border-bottom: 1px solid var(--editor-hairline);
   background: var(--editor-chrome);
   padding-inline: 0.75rem;
+}
+.editor-topbar-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.625rem;
+}
+.editor-topbar-center {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+.editor-topbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+.editor-topbar-icon {
+  display: inline-flex;
+  width: 1.875rem;
+  height: 1.875rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.editor-topbar-icon:hover:not(:disabled) {
+  background: var(--editor-hover);
+  color: var(--foreground);
+}
+.editor-topbar-icon[aria-pressed='true'] {
+  background: var(--editor-hover);
+  color: var(--foreground);
+}
+.editor-topbar-icon:disabled {
+  opacity: 0.32;
+}
+.editor-topbar-icon--help {
+  display: inline-flex;
 }
 .editor-doc-glyph {
   display: inline-flex;
@@ -69,10 +132,20 @@ body.editor-app-active .editor-route-shell {
   letter-spacing: -0.01em;
 }
 .editor-doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   margin: 1px 0 0;
   font-size: 0.6875rem;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
+}
+.editor-doc-edited {
+  border-radius: 0.25rem;
+  background: var(--editor-hover);
+  padding: 0 0.25rem;
+  font-size: 0.625rem;
+  color: var(--foreground);
 }
 .editor-topbar-action {
   height: 1.75rem;
@@ -81,11 +154,59 @@ body.editor-app-active .editor-route-shell {
   font-size: 0.75rem;
   color: var(--muted-foreground);
 }
+.editor-page-nav {
+  display: flex;
+  height: 1.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.125rem;
+  border: 1px solid var(--editor-hairline);
+  border-radius: 0.4375rem;
+  background: var(--editor-rail);
+  padding: 2px;
+}
+.editor-page-nav-button {
+  display: inline-flex;
+  width: 1.375rem;
+  height: 1.375rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.editor-page-nav-button:hover:not(:disabled) {
+  background: var(--editor-hover);
+  color: var(--foreground);
+}
+.editor-page-nav-button:disabled {
+  opacity: 0.3;
+}
+.editor-page-nav-input {
+  width: 1.75rem;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  outline: none;
+}
+.editor-page-nav-input:focus {
+  border-radius: 0.25rem;
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+.editor-page-nav-total {
+  padding-right: 0.25rem;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
 .editor-mode-switcher {
   display: flex;
   align-items: center;
   gap: 1px;
-  margin-inline: auto;
   padding: 2px;
   border: 1px solid var(--editor-hairline);
   border-radius: 0.5rem;
@@ -125,7 +246,18 @@ body.editor-app-active .editor-route-shell {
   padding-inline: 0.75rem;
   font-size: 0.75rem;
   font-weight: 600;
+  /* The document action is the one high-contrast control in the chrome. */
+  background: var(--foreground);
+  color: var(--background);
   box-shadow: 0 1px 2px oklch(0 0 0 / 0.12);
+}
+.editor-save-button:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--foreground) 88%, var(--background));
+}
+.editor-save-button:disabled {
+  background: var(--editor-hover);
+  color: var(--muted-foreground);
+  box-shadow: none;
 }
 .editor-signer-strip {
   display: flex;
@@ -177,12 +309,12 @@ body.editor-app-active .editor-route-shell {
   position: relative;
   z-index: 1;
   display: flex;
-  width: 2rem;
-  height: 2rem;
+  width: 1.9375rem;
+  height: 1.9375rem;
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: 0.4375rem;
   background: transparent;
   color: color-mix(in oklab, var(--foreground) 62%, transparent);
   transition: color 120ms ease, background-color 120ms ease;
@@ -192,7 +324,10 @@ body.editor-app-active .editor-route-shell {
   color: var(--foreground);
 }
 .editor-tool-button[data-active] {
-  color: var(--primary);
+  color: var(--foreground);
+}
+.editor-tool-button[data-active] .lucide {
+  stroke-width: 2;
 }
 .editor-tool-button:disabled {
   opacity: 0.4;
@@ -202,12 +337,12 @@ body.editor-app-active .editor-route-shell {
   z-index: 0;
   top: 0;
   left: 50%;
-  width: 2rem;
-  height: 2rem;
-  margin-left: -1rem;
-  border-radius: 0.5rem;
-  background: var(--editor-accent-wash);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--primary) 32%, transparent);
+  width: 1.9375rem;
+  height: 1.9375rem;
+  margin-left: -0.96875rem;
+  border-radius: 0.4375rem;
+  background: var(--editor-hover);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent);
   pointer-events: none;
 }
 .editor-rail-divider {
@@ -348,8 +483,51 @@ body.editor-app-active .editor-route-shell {
 }
 .editor-context-chip[aria-pressed='true'] {
   border-color: var(--editor-hairline);
-  background: var(--editor-accent-wash);
-  color: var(--primary);
+  background: var(--editor-hover);
+  color: var(--foreground);
+}
+.editor-size-stepper {
+  display: flex;
+  height: 1.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid var(--editor-hairline);
+  border-radius: 0.3125rem;
+  background: var(--card);
+}
+.editor-size-step {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.editor-size-step:hover:not(:disabled) {
+  color: var(--foreground);
+}
+.editor-size-step:disabled {
+  opacity: 0.35;
+}
+.editor-size-stepper .editor-context-size {
+  width: 2.125rem;
+  border: 0;
+  border-inline: 1px solid var(--editor-hairline);
+  border-radius: 0;
+  background: transparent;
+  text-align: center;
+  appearance: textfield;
+}
+.editor-size-stepper .editor-context-size::-webkit-outer-spin-button,
+.editor-size-stepper .editor-context-size::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+.editor-context-icon--active {
+  background: var(--editor-hover);
+  color: var(--foreground);
 }
 .editor-swatch {
   display: inline-flex;
@@ -366,7 +544,7 @@ body.editor-app-active .editor-route-shell {
   transform: scale(1.12);
 }
 .editor-swatch[aria-pressed='true'] {
-  box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--primary);
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--foreground);
 }
 .editor-zoom-readout {
   width: 2.5rem;
@@ -390,6 +568,14 @@ body.editor-app-active .editor-route-shell {
 }
 .editor-workspace[data-rail='closed'] {
   grid-template-columns: 0 minmax(0, 1fr) clamp(18.5rem, 22vw, 22rem);
+}
+/* The old empty "Document" inspector took a permanent 19rem column. The canvas
+   gets it back; details are an explicit toggle in the top bar. */
+.editor-workspace[data-inspector-empty='true'] {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.editor-workspace[data-inspector-empty='true'] .editor-inspector-rail {
+  display: none;
 }
 .editor-canvas {
   min-width: 0;
@@ -427,6 +613,40 @@ body.editor-app-active .editor-route-shell {
   scroll-margin-top: 1rem;
 }
 
+/* Direct-manipulation chrome lives on the page, not in a panel. The thin
+   neutral box and grip read on white paper and on photos. */
+.editor-object-selected {
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.85);
+}
+.editor-move-handle {
+  position: absolute;
+  z-index: 20;
+  left: -31px;
+  top: -12px;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid oklch(0.25 0 0 / 0.8);
+  border-radius: 5px;
+  background: white;
+  color: oklch(0.2 0 0);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.24);
+  cursor: grab;
+  touch-action: none;
+}
+.editor-move-handle:hover {
+  background: oklch(0.97 0 0);
+}
+.editor-move-handle:active {
+  cursor: grabbing;
+}
+.editor-move-handle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ── page rail ───────────────────────────────────────────────────────────── */
 .editor-page-rail {
   display: flex;
@@ -451,10 +671,8 @@ body.editor-app-active .editor-route-shell {
   justify-content: space-between;
   padding-inline: 0.625rem;
   border-bottom: 1px solid var(--editor-hairline);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.6875rem;
+  font-weight: 500;
   color: var(--muted-foreground);
 }
 .editor-page-rail-list {
@@ -495,14 +713,14 @@ body.editor-app-active .editor-route-shell {
   display: block;
 }
 .editor-page-thumb:hover .editor-page-thumb-frame {
-  border-color: color-mix(in oklab, var(--primary) 40%, var(--editor-hairline));
+  border-color: color-mix(in oklab, var(--foreground) 26%, var(--editor-hairline));
 }
 .editor-page-thumb.is-active .editor-page-thumb-frame {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--editor-accent-wash), 0 2px 6px oklch(0 0 0 / 0.12);
+  border-color: var(--foreground);
+  box-shadow: 0 0 0 1px var(--foreground), 0 2px 6px oklch(0 0 0 / 0.12);
 }
 .editor-page-thumb.is-selected .editor-page-thumb-frame {
-  box-shadow: 0 0 0 2px var(--primary);
+  box-shadow: 0 0 0 2px var(--foreground);
 }
 .editor-page-thumb.is-dragging {
   z-index: 20;
@@ -538,11 +756,15 @@ body.editor-app-active .editor-route-shell {
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 999px;
-  background: var(--primary);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--card) 90%, transparent);
+  display: inline-flex;
+  width: 0.875rem;
+  height: 0.875rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  background: oklch(0.16 0 0 / 0.78);
+  color: white;
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.12);
 }
 .editor-page-thumb-actions {
   position: absolute;
@@ -682,7 +904,7 @@ body.editor-app-active .editor-route-shell {
 }
 .editor-panel-note {
   margin: 0.625rem 0 0;
-  border-left: 2px solid color-mix(in oklab, var(--primary) 52%, transparent);
+  border-left: 2px solid color-mix(in oklab, var(--foreground) 44%, transparent);
   padding-left: 0.5rem;
   font-size: 0.6875rem;
   line-height: 1.55;
@@ -767,9 +989,9 @@ body.editor-app-active .editor-route-shell {
   color: var(--muted-foreground);
 }
 .editor-structure-band--high {
-  color: color-mix(in oklab, var(--primary) 76%, var(--foreground));
-  border-color: color-mix(in oklab, var(--primary) 34%, transparent);
-  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  color: var(--foreground);
+  border-color: var(--editor-hairline);
+  background: var(--editor-hover);
 }
 .editor-structure-band--medium {
   color: color-mix(in oklab, var(--foreground) 74%, transparent);
@@ -813,7 +1035,7 @@ body.editor-app-active .editor-route-shell {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: color-mix(in oklab, var(--primary) 68%, transparent);
+  background: color-mix(in oklab, var(--foreground) 58%, transparent);
   transition: width 180ms ease;
 }
 .editor-structure-facet[data-band='medium'] .editor-structure-bar > span {
@@ -1225,8 +1447,8 @@ body.editor-app-active .editor-route-shell {
   z-index: 3;
   pointer-events: none;
   border-radius: 2px;
-  border: 1.5px dashed var(--primary);
-  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  border: 1.5px dashed oklch(0.55 0.16 250);
+  background: oklch(0.55 0.16 250 / 0.12);
 }
 .editor-proposal-marker[data-tone='text'] {
   border-color: oklch(0.55 0.16 250);
@@ -1294,11 +1516,23 @@ body.editor-app-active .editor-route-shell {
   margin-top: 0.875rem;
 }
 
+/* The way back is part of the application chrome at every width; the marketing
+   header is hidden while a document is open. */
+.editor-mobile-back {
+  display: inline-flex;
+}
+body.editor-app-active .editor-mobile-back {
+  display: inline-flex;
+}
+
 /* ── responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 1199px) {
   .editor-workspace,
   .editor-workspace[data-panel='ai'] {
     grid-template-columns: auto minmax(0, 1fr) clamp(17rem, 26vw, 20rem);
+  }
+  .editor-workspace[data-inspector-empty='true'] {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 }
 /* Tablet: 768–1099 covers portrait and landscape iPads. 1024px is included on
@@ -1361,9 +1595,19 @@ body.editor-app-active .editor-route-shell {
     gap: 0.375rem 0.5rem;
     padding: 0.375rem 0.5rem;
   }
-  .editor-topbar > :first-child {
+  .editor-topbar-left {
     min-width: 0;
     flex: 1 1 auto;
+  }
+  .editor-topbar-center {
+    order: 3;
+    width: 100%;
+    flex: 0 0 auto;
+    justify-content: space-between;
+    gap: 0.375rem;
+  }
+  .editor-topbar-actions {
+    gap: 0.125rem;
   }
   .editor-doc-name {
     max-width: 11rem;
@@ -1372,9 +1616,8 @@ body.editor-app-active .editor-route-shell {
     white-space: nowrap;
   }
   .editor-mode-switcher {
-    order: 3;
-    width: 100%;
-    margin: 0;
+    width: auto;
+    min-width: 0;
     overflow-x: auto;
   }
   .editor-mode-tab {
@@ -1396,6 +1639,9 @@ body.editor-app-active .editor-route-shell {
     width: 1.5rem;
   }
   .editor-context-title {
+    display: none;
+  }
+  .editor-topbar-icon--help {
     display: none;
   }
 }
@@ -1666,13 +1912,24 @@ body.editor-app-active .editor-route-shell {
   .editor-mode-switcher,
   .editor-mode-label,
   .editor-topbar-action,
-  .editor-topbar-reset {
+  .editor-topbar-reset,
+  .editor-topbar-center,
+  .editor-topbar-icon {
     display: none;
   }
-  .editor-topbar > .flex:nth-child(2) {
+  .editor-topbar-icon--find {
+    display: inline-flex;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.625rem;
+  }
+  .editor-topbar-left {
     min-width: 0;
     flex: 1 1 auto;
     gap: 0;
+  }
+  .editor-topbar-actions {
+    flex-shrink: 0;
   }
   .editor-doc-name {
     max-width: 100%;
@@ -2202,14 +2459,14 @@ body.editor-app-active .editor-route-shell {
   color: var(--foreground);
 }
 .editor-find-result[aria-current='true'] {
-  background: var(--editor-accent-wash);
+  background: var(--editor-hover);
   color: var(--foreground);
 }
 .editor-find-result-page {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--foreground);
 }
 
 /* Shown under the inline paragraph editor: the lines the commit will cover. */
@@ -2219,4 +2476,84 @@ body.editor-app-active .editor-route-shell {
   border-radius: 1px;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.2);
+}
+
+/* ── keyboard sheet ──────────────────────────────────────────────────────── */
+.editor-shortcut-key {
+  display: inline-flex;
+  min-width: 1.375rem;
+  height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0 0.3125rem;
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+/* ── phone find sheet ───────────────────────────────────────────────────── */
+@media (max-width: 599px) {
+  .editor-find-panel {
+    position: fixed;
+    z-index: 26;
+    right: 0;
+    bottom: calc(3.5rem + env(safe-area-inset-bottom));
+    left: 0;
+    max-height: min(50svh, 26rem);
+    flex-wrap: wrap;
+    align-content: flex-start;
+    border-top: 1px solid var(--editor-hairline);
+    border-bottom: 0;
+    border-radius: 1rem 1rem 0 0;
+    background: color-mix(in oklab, var(--editor-chrome) 97%, transparent);
+    padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    box-shadow: 0 -24px 48px -34px oklch(0 0 0 / 0.65);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+  .editor-find-panel::before {
+    content: '';
+    order: -1;
+    display: block;
+    width: 2.5rem;
+    height: 0.25rem;
+    margin: -0.25rem auto 0.25rem;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--foreground) 22%, transparent);
+  }
+  .editor-find-input {
+    width: 100%;
+    height: 2.5rem;
+  }
+  .editor-find-panel .editor-context-chip,
+  .editor-find-panel button {
+    min-height: 2.25rem;
+  }
+  .editor-find-results {
+    max-height: 12rem;
+  }
+  .editor-find-result {
+    min-height: 2.25rem;
+    align-items: center;
+  }
+}
+
+/* The editor's primary action is ink, not the marketing brand green. This keeps
+   the product surfaces coherent with the white document and the dark chrome. */
+.editor-shell .bg-primary {
+  background-color: var(--foreground);
+  color: var(--background);
+}
+.editor-shell .bg-primary:hover {
+  background-color: color-mix(in oklab, var(--foreground) 88%, var(--background));
+}
+.editor-shell .text-primary {
+  color: var(--foreground);
 }

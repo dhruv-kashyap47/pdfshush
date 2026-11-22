@@ -69,7 +69,7 @@ export function useEditorSession(mode: EditorMode, pageCount = 0): EditorSession
   const [tool, setToolState] = useState<EditorTool>(() => defaultToolForMode(mode));
   const [zoom, setZoom] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
-  const [railOpen, setRailOpen] = useState(true);
+  const [railOpen, setRailOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pageOrder, setPageOrderState] = useState<number[]>(() =>

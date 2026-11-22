@@ -135,7 +135,7 @@ export function EditorFindPanel({
           type="button"
           className="editor-context-chip"
           aria-pressed={caseSensitive}
-          aria-label="Match case"
+          aria-label="Aa match case"
           title="Match case"
           data-testid="editor-find-case"
           onClick={onToggleCase}
@@ -146,7 +146,7 @@ export function EditorFindPanel({
           type="button"
           className="editor-context-chip"
           aria-pressed={wholeWord}
-          aria-label="Whole word"
+          aria-label="Ab whole word"
           title="Whole word"
           data-testid="editor-find-word"
           onClick={onToggleWholeWord}

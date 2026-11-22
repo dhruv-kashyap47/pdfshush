@@ -194,7 +194,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | 4 | Content-stream surgery | C-01..C-14 | 14 | 0 | `[x]` |
 | 5 | OCR inside the editor | O-01..O-05 | 5 | 0 | `[x]` |
 | 6 | Export trust and metadata | X-01..X-06 | 6 | 0 | `[x]` |
-| 7 | Hardening and parity sweep | H-01..H-08 | 1 | 4 | `[~]` |
+| 7 | Hardening and parity sweep | H-01..H-08 | 8 | 0 | `[x]` |
 
 **Queue:** Sprint 6 complete → Sprint 7 (H-01, H-02, H-03, H-05..H-08).
 **Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. **Gate C is met** (2026-11-21): C-01..C-04, C-06, C-07, C-12..C-14 green on the corpus.
@@ -258,14 +258,14 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | X-04 | Metadata + document-level preservation | P1 | M | done 2026-11-22 | `[x]` |
 | X-05 | Download guard | P1 | S | done 2026-11-22 | `[x]` |
 | X-06 | Progress/cancel assertion | P2 | S | done | `[x]` |
-| H-01 | Keyboard parity + unified registry | P2 | M | ~60% | `[~]` |
-| H-02 | Accessibility for new controls | P1 | M | ~70% baseline | `[~]` |
-| H-03 | Editor performance ceilings | P2 | M | 0% | `[ ]` |
+| H-01 | Keyboard parity + unified registry | P2 | M | done 2026-11-22 | `[x]` |
+| H-02 | Accessibility for new controls | P1 | M | done 2026-11-22 | `[x]` |
+| H-03 | Editor performance ceilings | P2 | M | done 2026-11-22 | `[x]` |
 | H-04 | Fuzz lexer/emitter | P0 | M | done 2026-11-22 | `[x]` |
-| H-05 | Firefox + Safari | P2 | M | 0% | `[ ]` |
-| H-06 | Touch/mobile for new tools | P2 | M | ~40% | `[~]` |
-| H-07 | Help copy + discoverability | P2 | S | ~60% | `[~]` |
-| H-08 | Parity report | P1 | S | 0% | `[ ]` |
+| H-05 | Firefox + Safari | P2 | M | done 2026-11-22 (WebKit build records OffscreenCanvas gap) | `[x]` |
+| H-06 | Touch/mobile for new tools | P2 | M | done 2026-11-22 | `[x]` |
+| H-07 | Help copy + discoverability | P2 | S | done 2026-11-22 | `[x]` |
+| H-08 | Parity report | P1 | S | done 2026-11-22 | `[x]` |
 
 ---
 
@@ -930,6 +930,47 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 
 ---
 
+## Sprint 7 close (2026-11-22)
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| H-01 | `[x]` | New `lib/editor-shortcuts.ts` is the single registry for the window handler, the generated shortcut sheet and the rail. It adds find, object/text clipboard, Alt-snap note, fit page, PageUp/Down, `?`, the legacy `S` select alias and Escape semantics. Unit: 9 registry tests; E2E `keyboard` exercises every tool key plus find, the sheet, duplicate and copy/paste. |
+| H-02 | `[x]` | Roving tabindex and arrow/Home/End movement in the tool rail; live regions for find, OCR, save and selection; neutral focus/guide/caret contrast. The pointer resize handles are pointer-only affordances with exact width/height fields as the keyboard alternative. Axe passes with find open, the inline paragraph editor open, the pen context bar and the phone properties sheet. |
+| H-03 | `[x]` | `test/editorBench.test.ts` measures a 100-page inspect (31 ms), 100-page PDFium capabilities (33 ms), 10k ink points across two capped strokes (366 ms), one text edit on a 100-page document (107 ms) and 1.1 MB / 100k operation tokenise→emit (230 ms), with byte identity. Numbers: `tests/benchmarks/editor-ceilings.md`; `pnpm test:editor-perf` is a CI step with a wider runner budget. |
+| H-04 | `[x]` | Already landed in Sprint 6; remains in `pnpm test` and as its own CI step. |
+| H-05 | `[x]` | `tests/e2e/cross-browser.mjs` runs Chromium, Firefox and WebKit through open → keyboard text → nudge → find → save → reopen. Results: `docs/CROSS-BROWSER.md`. The Playwright WebKit build has no OffscreenCanvas, so worker page raster is recorded UNSUPPORTED while text editing/export pass; physical iOS is not claimed. |
+| H-06 | `[x]` | Pointer capture on pages, objects and handles; a gesture is owned by one pointer (second finger/palm ignored); contacts wider than 40 px are rejected; Select keeps `pan-y`, drawing uses `none`; find is a phone bottom sheet; properties are a dismissible sheet. `tests/e2e/editor-touch.mjs` 11/11 on an iPhone 13 profile. |
+| H-07 | `[x]` | `TOOL_HELP` and `TOOL_LIMITS` give every tool one honest line; tooltips carry the explanation; the shortcut sheet is generated; the misleading Text hint now says a paragraph needs the pointer/selection and that Add Text is a drag on empty space. |
+| H-08 | `[x]` | `docs/PARITY-REPORT.md` maps all 63 cards, names reproduced/improved/invented/partial/declined rows with evidence, and lists remaining risk. Linked from `README.md`. |
+
+### 7.1 UI pass in the same sprint
+
+The editor shell was rebuilt around the document, not around panels:
+
+- The marketing header is hidden while a document is open; the editor owns the
+  full viewport and the top bar carries the way back.
+- The top bar gained a page control (`◀ 1 / 3 ▶`), undo/redo/find, document
+  details and the shortcut sheet. The green primary action became ink; editor
+  tokens override brand green and the green focus ring.
+- The tool rail lost its uppercase group headings and the empty inspector no
+  longer occupies a permanent column. The page rail starts collapsed and opens
+  itself in the Pages workspace.
+- Selection is the reference editor's direct-manipulation language: a thin
+  neutral box, small square corners, round side dots and an attached grip to
+  move. Pointer handles are 24 px hit areas with 7 px visuals; exact width and
+  height inputs are in the inspector.
+- Text selection gets the reference's inline formatting bar: move grip on the
+  object, font, a real − / size / + stepper, bold, italic, alignment, colour and
+  object actions. No green/red status dots and no uppercase meta headings.
+- The status bar reports the active tool's one-line help and the save state
+  without decorative dots. Find becomes a bottom sheet on phones.
+
+**Verification:** `pnpm typecheck` (8 projects); `pnpm test` — pdf-core **697 + 1 expected fail**, web **318**, api 243, mcp 19, ai-agent 152, ai-provider 375; `pnpm build` (63 routes); `pnpm test:editor-perf` 5/5; **`text-ux` 57/57**, `sprint6-trust` 21/21, `editor-quick-parity` 20/20, `text-edit` 7/7, `sign`, `signature-upload`, `keyboard` (31 checks), `a11y` (all contexts clean), `editor-touch` 11/11, `cross-browser` all installed engines passed. `smoke` passed the editor and tool sections; its three accounts-off checks depend on a frontend-only deployment and were run against a preview with no API.
+
+**Remaining, recorded not hidden:** Playwright WebKit has no OffscreenCanvas (raster previews unsupported there); physical iOS/Android was not run; G-02/G-05/E-10/F-01/S-06 keep their Sprint-1 partial status; the smoke accounts-off checks are environment-gated.
+
+---
+
 ## 8. Release gates
 
 ### Gate A — Foundation + parity
@@ -1031,3 +1072,4 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-21 | **Sprint 5 bug-fix session.** Partial deletions now report the exact removed glyph box, so C-07 patches the word rather than whiteout-ing the whole line; covers use the page's own paper colour, ignore shades/inline images, are drawn below user objects, and a background-read failure is a warning rather than a failed export. Multi-line rotation rotates the whole block around one pivot in both native and overlay paths (native multi-line rotation falls back explicitly). Styled size divides out an existing matrix scale; word-by-word positions advance in squeezed space; alignment/family are sent only when changed and overlay text drops the document `fontKey` when weight/family changes so the chosen face is real. Insert Pages invalidates page-index-keyed caches, remaps through `live` (not undo), drops objects on pages the rail removed, and clears stale outcomes. Find & replace no longer pays for colour renders, and untrusted layout style values are validated before any PDFium work. |
 | 2026-11-22 | **Sprint 6 landed.** O-01..O-05, X-01..X-05 and H-04 complete. New `ocr/textLayer.ts` + `ocr-text-layer` job append invisible text to existing pages (no rebuild) with per-page confidence/structure, a scan banner, session provenance and teardown. `warnings.ts` adds coded/deduped warnings across text-edit/OCR/redaction; receipts carry engine stats and every export renders one. Object-only and OCR-only saves run the real export gate; untouched-page fingerprint failures can be knowingly accepted and are receipted. Metadata preservation covers creator/producer/dates plus outline/page labels/AcroForm in edit/export; Save is disabled when nothing changed. Seeded fuzz found and fixed a stray-`>` scanner loop and runs as `pnpm test:fuzz` in CI. pdf-core 691+1 expected fail, web 310, api 243, mcp 19, agent 152, provider 375; build/bundle 150.4 kB / 0 engines; corpus 2/2; E2E `sprint6-trust` 21/21, `text-ux` 57/57, `text-edit` 7/7, `editor-quick-parity` 20/20, `ocr`, `keyboard`, `a11y` green. |
 | 2026-11-22 | **Sprint 6 bug pass.** OCR coordinates now come from pdf.js's viewport inverse (`/Rotate 90/180/270` and CropBox offsets, not MediaBox guesses); the page cap applies to requested pages, so one page in a 101-page scan is allowed; an explicit missing page refuses instead of being silently dropped. Provenance survives a second OCR run and follows insert-page remapping; Save and OCR cannot overlap, a no-change Organize export can no longer slip through the keyboard path, and the beforeunload guard tracks source-only changes and clears after save. Receipts no longer call an OCR-only export an object/page-order change, count removed characters only for native consumption, and do not count invisible objects as drawn. Inspect dates are validated ISO strings (JSON-safe across the API). OCR empty-page copy is distinguished from "already has text"; the Save-disabled control explains itself. Fuzz now covers replacement planning and has explicit timeouts. PDF-core 691+1 expected fail, web 310, E2E `sprint6-trust` 21/21, text-ux 57/57. |
+| 2026-11-22 | **Sprint 7 landed.** H-01..H-08 complete. One shortcut registry drives the handler, generated sheet and rail; roving rail focus, live regions and axe contexts for find/paragraph/ink/phone sheet; editor ceilings with a CI step; Chromium/Firefox/WebKit loop and a touch/palm-rejection suite; per-tool help copy; the 63-card parity report. The same pass rebuilt the editor UI: full-viewport document, top page/undo/find/details bar, no group headings or empty inspector column, ink-not-green primary, direct-manipulation selection (thin box, corner squares, side dots, attached move grip) and the reference-style inline text formatting bar. pdf-core 697+1 expected fail, web 318; text-ux 57/57, editor-parity 20/20, keyboard 31 checks, a11y all contexts, editor-touch 11/11, cross-browser all installed engines. |

@@ -80,6 +80,15 @@ When you use an AI tool, the text you choose to send goes to your AI provider, n
 
 Nothing is sent anywhere in between.
 
+## Engineering record
+
+The editor uplift and its parity sweep are documented instead of advertised:
+[`docs/PARITY-REPORT.md`](./docs/PARITY-REPORT.md) maps every task to shipped
+evidence and names what remains partial; [`PLAN.md`](./PLAN.md) carries the
+sprint records and gate results; [`tests/benchmarks/editor-ceilings.md`](./tests/benchmarks/editor-ceilings.md)
+publishes the measured editor numbers, and [`docs/CROSS-BROWSER.md`](./docs/CROSS-BROWSER.md)
+records the engine and touch matrix.
+
 ## Run it yourself
 
 pdfshush is open source. The frontend runs on its own. No Docker, no database, no API keys.

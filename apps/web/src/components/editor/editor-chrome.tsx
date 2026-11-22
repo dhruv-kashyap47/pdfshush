@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
 import {
@@ -32,13 +33,17 @@ import {
   GripVertical,
   Highlighter,
   Italic,
+  Keyboard,
   LayoutGrid,
   Loader2,
   Maximize2,
+  Minus,
   MoreVertical,
+  Info,
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
+  Plus,
   Redo2,
   RotateCcw,
   Save,
@@ -79,7 +84,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useMotionScope } from '@/hooks/use-motion';
 import {
   TOOL_GROUP_LABELS,
-  toolStatusLabel,
+  TOOL_HELP,
   toolsForMode,
   type EditorMode,
   type EditorTool,
@@ -97,6 +102,7 @@ export interface EditorTopBarProps {
   fileName: string;
   mode: EditorMode;
   pageCount: number;
+  currentPage: number;
   dirty: boolean;
   saving: boolean;
   saveDisabled?: boolean;
@@ -112,12 +118,24 @@ export interface EditorTopBarProps {
   modes?: Array<{ id: EditorMode; label: string }>;
   onModeChange?: (mode: EditorMode) => void;
   status?: ReactNode;
+  onPrevPage?: () => void;
+  onNextPage?: () => void;
+  onGoToPage?: (pageNumber: number) => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onFind?: () => void;
+  onShortcuts?: () => void;
+  onDocumentInfo?: () => void;
+  documentInfoOpen?: boolean;
 }
 
 export function EditorTopBar({
   fileName,
   mode,
   pageCount,
+  currentPage,
   dirty,
   saving,
   saveDisabled,
@@ -131,25 +149,42 @@ export function EditorTopBar({
   modes,
   onModeChange,
   status,
+  onPrevPage,
+  onNextPage,
+  onGoToPage,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+  onFind,
+  onShortcuts,
+  onDocumentInfo,
+  documentInfoOpen,
 }: EditorTopBarProps) {
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [pageDraft, setPageDraft] = useState<string | null>(null);
   const run = (action: () => void) => {
     setActionsOpen(false);
     action();
   };
+  const commitPage = (raw: string) => {
+    const next = Number.parseInt(raw, 10);
+    if (Number.isFinite(next)) onGoToPage?.(Math.min(pageCount, Math.max(1, next)));
+    setPageDraft(null);
+  };
 
   return (
     <header className="editor-topbar" data-testid="editor-topbar">
-      <button
-        type="button"
-        className="editor-mobile-icon editor-mobile-back"
-        aria-label="Close document and return to the file picker"
-        onClick={onBack ?? onReset}
-      >
-        <ChevronLeft className="size-5" />
-      </button>
+      <div className="editor-topbar-left">
+        <button
+          type="button"
+          className="editor-mobile-icon editor-mobile-back"
+          aria-label="Close document and return to the file picker"
+          onClick={onBack ?? onReset}
+        >
+          <ChevronLeft className="size-5" />
+        </button>
 
-      <div className="flex min-w-0 items-center gap-2.5">
         <span className="editor-doc-glyph" aria-hidden>
           <FileText className="size-3.5" />
         </span>
@@ -157,10 +192,10 @@ export function EditorTopBar({
           <p className="editor-doc-name" title={fileName}>
             {fileName}
           </p>
-          <p className="editor-doc-meta" aria-live="polite">
+          <p className="editor-doc-meta" title={dirty ? 'Unsaved changes' : 'Up to date'}>
             {pageCount.toLocaleString()} page{pageCount === 1 ? '' : 's'}
-            <span aria-hidden> / </span>
-            <span data-testid="editor-dirty-state">
+            {dirty ? <span className="editor-doc-edited">Edited</span> : null}
+            <span className="sr-only" data-testid="editor-dirty-state">
               {saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Up to date'}
             </span>
           </p>
@@ -179,27 +214,141 @@ export function EditorTopBar({
         </Button>
       </div>
 
-      {modes && modes.length > 1 && onModeChange ? (
-        <nav className="editor-mode-switcher" aria-label="Workspace">
-          {modes.map((entry) => (
+      <div className="editor-topbar-center">
+        {onPrevPage && onNextPage ? (
+          <div className="editor-page-nav" aria-label="Page navigation">
             <button
-              key={entry.id}
               type="button"
-              className="editor-mode-tab"
-              aria-current={entry.id === mode ? 'page' : undefined}
-              data-testid={`editor-mode-${entry.id}`}
-              onClick={() => onModeChange(entry.id)}
+              className="editor-page-nav-button"
+              aria-label="Previous page"
+              data-testid="editor-top-prev-page"
+              disabled={currentPage <= 1}
+              onClick={onPrevPage}
             >
-              {entry.label}
+              <ChevronLeft className="size-3.5" />
             </button>
-          ))}
-        </nav>
-      ) : (
-        <span className="editor-mode-label">{modeLabel(mode)}</span>
-      )}
+            <input
+              type="text"
+              inputMode="numeric"
+              className="editor-page-nav-input"
+              aria-label="Page number"
+              data-testid="editor-page-input"
+              value={pageDraft ?? String(Math.min(currentPage, Math.max(1, pageCount)))}
+              onChange={(event) => setPageDraft(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={(event) => commitPage(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  commitPage((event.target as HTMLInputElement).value);
+                  (event.target as HTMLInputElement).blur();
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  setPageDraft(null);
+                  (event.target as HTMLInputElement).blur();
+                }
+              }}
+            />
+            <span className="editor-page-nav-total">/ {pageCount}</span>
+            <button
+              type="button"
+              className="editor-page-nav-button"
+              aria-label="Next page"
+              data-testid="editor-top-next-page"
+              disabled={currentPage >= pageCount}
+              onClick={onNextPage}
+            >
+              <ChevronRight className="size-3.5" />
+            </button>
+          </div>
+        ) : null}
 
-      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {modes && modes.length > 1 && onModeChange ? (
+          <nav className="editor-mode-switcher" aria-label="Workspace">
+            {modes.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className="editor-mode-tab"
+                aria-current={entry.id === mode ? 'page' : undefined}
+                data-testid={`editor-mode-${entry.id}`}
+                onClick={() => onModeChange(entry.id)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <span className="editor-mode-label">{modeLabel(mode)}</span>
+        )}
+      </div>
+
+      <div className="editor-topbar-actions">
         {status}
+        {onFind ? (
+          <button
+            type="button"
+            className="editor-topbar-icon editor-topbar-icon--find"
+            aria-label="Find and replace"
+            title="Find and replace (Ctrl+F)"
+            data-testid="editor-find-open"
+            onClick={onFind}
+          >
+            <Search className="size-4" />
+          </button>
+        ) : null}
+        {onUndo ? (
+          <button
+            type="button"
+            className="editor-topbar-icon"
+            aria-label="Undo"
+            title="Undo (Ctrl+Z)"
+            data-testid="editor-undo"
+            disabled={!canUndo}
+            onClick={onUndo}
+          >
+            <Undo2 className="size-4" />
+          </button>
+        ) : null}
+        {onRedo ? (
+          <button
+            type="button"
+            className="editor-topbar-icon"
+            aria-label="Redo"
+            title="Redo (Ctrl+Shift+Z)"
+            data-testid="editor-redo"
+            disabled={!canRedo}
+            onClick={onRedo}
+          >
+            <Redo2 className="size-4" />
+          </button>
+        ) : null}
+        {onDocumentInfo ? (
+          <button
+            type="button"
+            className="editor-topbar-icon"
+            aria-label={documentInfoOpen ? 'Hide document details' : 'Document details'}
+            aria-pressed={documentInfoOpen}
+            title="Document details"
+            data-testid="editor-document-info"
+            onClick={onDocumentInfo}
+          >
+            <Info className="size-4" />
+          </button>
+        ) : null}
+        {onShortcuts ? (
+          <button
+            type="button"
+            className="editor-topbar-icon editor-topbar-icon--help"
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+            data-testid="editor-shortcuts-open"
+            onClick={onShortcuts}
+          >
+            <Keyboard className="size-4" />
+          </button>
+        ) : null}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -494,9 +643,33 @@ export const EditorToolRail = memo(function EditorToolRail({
   }, [motion, tool, mode]);
 
   const groups: ToolGroup[] = ['edit', 'insert', 'markup', 'shape'];
+  const focusTool = (id: EditorTool) => {
+    buttonRefs.current.get(id)?.focus();
+    onToolChange(id);
+  };
+  const onToolKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const last = tools.length - 1;
+    let next = index;
+    if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = last;
+    else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = index >= last ? 0 : index + 1;
+    else next = index <= 0 ? last : index - 1;
+    const target = tools[next];
+    if (target) focusTool(target.id);
+  };
   return (
     <aside className="editor-tool-rail" aria-label="Editor tools" data-testid="editor-toolbar">
-      <div className="relative flex flex-col items-center gap-1 pt-2">
+      <div
+        className="relative flex flex-col items-center gap-1 pt-2"
+        role="toolbar"
+        aria-label="Editor tools"
+        aria-orientation="vertical"
+      >
         <span
           ref={indicatorRef}
           aria-hidden
@@ -506,15 +679,16 @@ export const EditorToolRail = memo(function EditorToolRail({
           const entries = tools.filter((entry) => entry.group === group);
           if (entries.length === 0) return null;
           return (
-            <div key={group} className="contents">
-              {TOOL_GROUP_LABELS[group] ? (
-                <span className="editor-tool-group" aria-hidden>
-                  {TOOL_GROUP_LABELS[group]}
-                </span>
-              ) : null}
+            <div
+              key={group}
+              className="contents"
+              role="group"
+              aria-label={TOOL_GROUP_LABELS[group] ?? undefined}
+            >
               {entries.map((entry) => {
                 const Icon = entry.icon;
                 const active = tool === entry.id;
+                const index = tools.findIndex((candidate) => candidate.id === entry.id);
                 return (
                   <Tooltip key={entry.id}>
                     <TooltipTrigger asChild>
@@ -531,19 +705,26 @@ export const EditorToolRail = memo(function EditorToolRail({
                           entry.shortcut ? `${entry.label} (${entry.shortcut.toUpperCase()})` : entry.label
                         }
                         aria-pressed={active}
+                        tabIndex={active ? 0 : -1}
                         disabled={disabled}
                         onClick={() => onToolChange(entry.id)}
+                        onKeyDown={(event) => onToolKeyDown(event, index)}
                       >
                         <Icon className="size-[17px]" strokeWidth={1.75} />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {entry.label}
-                      {entry.shortcut ? (
-                        <kbd className="ml-1.5 rounded border border-white/20 px-1 text-[10px] opacity-70">
-                          {entry.shortcut.toUpperCase()}
-                        </kbd>
-                      ) : null}
+                    <TooltipContent side="right" className="max-w-56">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        {entry.label}
+                        {entry.shortcut ? (
+                          <kbd className="rounded border border-white/20 px-1 text-[10px] opacity-70">
+                            {entry.shortcut.toUpperCase()}
+                          </kbd>
+                        ) : null}
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-snug opacity-70">
+                        {TOOL_HELP[entry.id]}
+                      </span>
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -634,13 +815,9 @@ export function EditorContextBar(props: EditorContextBarProps) {
     tool,
     selectedObject,
     hasSelection,
-    canUndo,
-    canRedo,
     canReorder,
     canSendBack,
     onPatch,
-    onUndo,
-    onRedo,
     onDelete,
     onReorder,
     onDuplicate,
@@ -662,13 +839,10 @@ export function EditorContextBar(props: EditorContextBarProps) {
     onRestoreOrder,
     aiChangeCount = 0,
     onOpenAssistant,
-    onFind,
   } = props;
 
   return (
     <div className="editor-context-bar" role="toolbar" aria-label="Tool options">
-      <span className="editor-context-title">{toolStatusLabel(tool)}</span>
-      <span className="editor-context-divider" aria-hidden />
       <div className="min-w-0 flex-1">
         <AnimatedContent
           key={`${mode}-${tool}-${selectedObject?.id ?? 'none'}`}
@@ -709,27 +883,6 @@ export function EditorContextBar(props: EditorContextBarProps) {
             <SlidersHorizontal className="size-3.5" />
           </ContextIcon>
         ) : null}
-        {onFind ? (
-          <ContextIcon
-            label="Find and replace (Ctrl+F)"
-            testId="editor-find-open"
-            disabled={disabled}
-            onClick={onFind}
-          >
-            <Search className="size-3.5" />
-          </ContextIcon>
-        ) : null}
-        <ContextIcon label="Undo (Ctrl+Z)" testId="editor-undo" disabled={!canUndo} onClick={onUndo}>
-          <Undo2 className="size-3.5" />
-        </ContextIcon>
-        <ContextIcon
-          label="Redo (Ctrl+Shift+Z)"
-          testId="editor-redo"
-          disabled={!canRedo}
-          onClick={onRedo}
-        >
-          <Redo2 className="size-3.5" />
-        </ContextIcon>
         {onDuplicate ? (
           <ContextIcon
             label="Duplicate (Ctrl+D)"
@@ -864,6 +1017,7 @@ function ContextIcon({
   disabled,
   onClick,
   destructive,
+  pressed,
   className,
   children,
 }: {
@@ -872,6 +1026,7 @@ function ContextIcon({
   disabled?: boolean;
   onClick: () => void;
   destructive?: boolean;
+  pressed?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -883,9 +1038,11 @@ function ContextIcon({
           className={cn(
             'editor-context-icon',
             destructive && 'editor-context-icon--danger',
+            pressed && 'editor-context-icon--active',
             className,
           )}
           aria-label={label}
+          aria-pressed={pressed}
           data-testid={testId}
           disabled={disabled}
           onClick={onClick}
@@ -1052,7 +1209,7 @@ function ToolContext({
   }
 
   if (tool === 'text') {
-    return <Hint>Click a paragraph to edit it, or drag to place a new text box.</Hint>;
+    return <Hint>{TOOL_HELP.text}</Hint>;
   }
 
   if (object?.kind === 'highlight' || object?.kind === 'strikeout' || object?.kind === 'underline') {
@@ -1109,19 +1266,19 @@ function ToolContext({
   }
 
   if (object?.kind === 'image') {
-    return <Hint>Drag to move. Corner handles resize. The inspector keeps the exact bounds.</Hint>;
+    return <Hint>{TOOL_HELP.image}</Hint>;
   }
 
   if (tool === 'pen') {
-    return <Hint>Draw on the page. The stroke is exported as vectors, not an image.</Hint>;
+    return <Hint>{TOOL_HELP.pen}</Hint>;
   }
 
   if (tool === 'check' || tool === 'cross') {
-    return <Hint>Click the page to place the mark, or drag to size it.</Hint>;
+    return <Hint>{TOOL_HELP[tool]}</Hint>;
   }
 
   if (tool === 'date') {
-    return <Hint>Click the page to stamp today&apos;s date. It stays editable as text.</Hint>;
+    return <Hint>{TOOL_HELP.date}</Hint>;
   }
 
   if (mode === 'sign') {
@@ -1129,10 +1286,10 @@ function ToolContext({
   }
 
   if (tool === 'select') {
-    return <Hint>Select an object to inspect it. Drag across text to select, double-click to edit.</Hint>;
+    return <Hint>Select text or an object. Drag to move, double-click to edit.</Hint>;
   }
 
-  return <Hint>Drag on the page to add this mark.</Hint>;
+  return <Hint>{TOOL_HELP[tool]}</Hint>;
 }
 
 function TextControls({
@@ -1154,6 +1311,11 @@ function TextControls({
     if (Number.isFinite(value)) onPatch({ fontSize: Math.min(72, Math.max(4, value)) });
     else setSize(String(Math.round(object.fontSize)));
   };
+  const stepSize = (delta: number) => {
+    const next = Math.min(72, Math.max(4, object.fontSize + delta));
+    setSize(String(Math.round(next)));
+    onPatch({ fontSize: next });
+  };
 
   return (
     <>
@@ -1169,40 +1331,64 @@ function TextControls({
         <option value="times">Serif</option>
         <option value="courier">Mono</option>
       </select>
-      <input
-        className="editor-context-size"
-        aria-label="Font size"
-        data-testid="editor-font-size"
-        type="number"
-        min={4}
-        max={72}
-        value={size}
-        disabled={disabled}
-        onChange={(event) => setSize(event.target.value)}
-        onBlur={commitSize}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            commitSize();
-            (event.target as HTMLInputElement).blur();
-          }
-        }}
-      />
+      <div className="editor-size-stepper">
+        <button
+          type="button"
+          className="editor-size-step"
+          aria-label="Decrease font size"
+          data-testid="editor-font-size-down"
+          disabled={disabled || object.fontSize <= 4}
+          onClick={() => stepSize(-1)}
+        >
+          <Minus className="size-3" />
+        </button>
+        <input
+          className="editor-context-size"
+          aria-label="Font size"
+          data-testid="editor-font-size"
+          type="number"
+          min={4}
+          max={72}
+          value={size}
+          disabled={disabled}
+          onChange={(event) => setSize(event.target.value)}
+          onBlur={commitSize}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              commitSize();
+              (event.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="editor-size-step"
+          aria-label="Increase font size"
+          data-testid="editor-font-size-up"
+          disabled={disabled || object.fontSize >= 72}
+          onClick={() => stepSize(1)}
+        >
+          <Plus className="size-3" />
+        </button>
+      </div>
       <ContextIcon
         label="Bold"
         testId="editor-bold"
         disabled={disabled}
+        pressed={Boolean(object.bold)}
         onClick={() => onPatch({ bold: !object.bold })}
       >
-        <Bold className={cn('size-3.5', object.bold && 'text-primary')} />
+        <Bold className="size-3.5" />
       </ContextIcon>
       <ContextIcon
         label="Italic"
         testId="editor-italic"
         disabled={disabled}
+        pressed={Boolean(object.italic)}
         onClick={() => onPatch({ italic: !object.italic })}
       >
-        <Italic className={cn('size-3.5', object.italic && 'text-primary')} />
+        <Italic className="size-3.5" />
       </ContextIcon>
       <span className="editor-context-divider" aria-hidden />
       {(['left', 'center', 'right'] as const).map((align) => {
@@ -1213,9 +1399,10 @@ function TextControls({
             label={`Align ${align}`}
             testId={`editor-align-${align}`}
             disabled={disabled}
+            pressed={(object.align ?? 'left') === align}
             onClick={() => onPatch({ align })}
           >
-            <Icon className={cn('size-3.5', (object.align ?? 'left') === align && 'text-primary')} />
+            <Icon className="size-3.5" />
           </ContextIcon>
         );
       })}
@@ -1342,8 +1529,9 @@ export const EditorPageRail = memo(function EditorPageRail({
       data-mode={mode}
     >
       <div className="editor-page-rail-head">
-        <span>Pages</span>
-        <span className="tabular-nums">{items.length}</span>
+        <span>
+          {items.length === 0 ? 0 : currentPage + 1} / {items.length}
+        </span>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext
@@ -1510,7 +1698,9 @@ function PageRailThumb({
               data-testid="ai-changed-page"
               title="The assistant has a proposed change on this page"
               aria-label="Proposed change on this page"
-            />
+            >
+              <Sparkles className="size-2" strokeWidth={2.5} />
+            </span>
           ) : null}
         </span>
       </button>
@@ -1591,9 +1781,8 @@ export function EditorStatusBar({
   return (
     <footer className="editor-status-bar" data-testid="editor-status-bar">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="editor-status-dot" data-dirty={dirty || undefined} aria-hidden />
         <span className="truncate" data-testid="editor-selection-status">
-          {selectionLabel ?? toolHint ?? 'Ready'}
+          {selectionLabel ?? toolHint ?? 'Select text or an object'}
         </span>
         {objectCount > 0 ? (
           <span className="editor-status-muted tabular-nums">
@@ -1665,16 +1854,15 @@ export function EditorStatusBar({
           </>
         ) : dirty ? (
           <>
-            <span className="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
             <span className="truncate">Unsaved changes</span>
           </>
         ) : hasEdits ? (
           <>
-            <Check className="size-3.5 shrink-0 text-primary" aria-hidden />
+            <Check className="size-3.5 shrink-0 text-foreground/60" aria-hidden />
             <span className="truncate">All changes saved</span>
           </>
         ) : (
-          <span className="truncate">No changes yet</span>
+          <span className="truncate">No changes</span>
         )}
         </AnimatedContent>
       </div>

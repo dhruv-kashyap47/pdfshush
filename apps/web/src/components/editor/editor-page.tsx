@@ -18,6 +18,7 @@ import {
   type PageLayout,
   type TextRun,
 } from '@pdfshush/pdf-core';
+import { GripVertical } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TextLayer } from '@/components/editor/text-layer';
 import type { EditorTool } from '@/lib/editor-tools';
@@ -116,7 +117,7 @@ type Gesture =
       width: number;
       height: number;
     }
-  | { kind: 'resize'; id: string; corner: 'nw' | 'ne' | 'sw' | 'se'; orig: Rect };
+  | { kind: 'resize'; id: string; corner: 'nw' | 'ne' | 'sw' | 'se' | 'e' | 'w'; orig: Rect };
 
 const MIN_SIZE = 8;
 const MIN_DRAG = 6;
@@ -437,6 +438,10 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
+  /** The pointer that owns the current gesture; other fingers are palms. */
+  const gesturePointerId = useRef<number | null>(null);
+  /** Element that captured the gesture pointer, so it can release on cancel. */
+  const pointerCaptureElement = useRef<HTMLElement | null>(null);
   /**
    * Removal for the window-level gesture listeners, recorded against the
    * exact identities that were attached. Every render recreates
@@ -488,8 +493,34 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     };
   };
 
+  /** Capture the pointer so a drag that leaves the page still delivers moves. */
+  const beginPointer = (element: HTMLElement, pointerId: number) => {
+    gesturePointerId.current = pointerId;
+    pointerCaptureElement.current = element;
+    try {
+      element.setPointerCapture(pointerId);
+    } catch {
+      // A synthetic/ended pointer cannot be captured. The window listeners
+      // still work, so this is a capability fallback, not a failure.
+    }
+  };
+
+  const releasePointer = () => {
+    const element = pointerCaptureElement.current;
+    const pointerId = gesturePointerId.current;
+    pointerCaptureElement.current = null;
+    gesturePointerId.current = null;
+    if (!element || pointerId === null) return;
+    try {
+      if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+    } catch {
+      // The pointer may already be gone; nothing to release.
+    }
+  };
+
   const stopGesture = () => {
     gestureRef.current = null;
+    releasePointer();
     detachGestureListeners.current();
     setSnapGuides({ vertical: [], horizontal: [] });
   };
@@ -519,6 +550,10 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     const gesture = gestureRef.current;
     const p = propsRef.current;
     if (!gesture || !containerRef.current) return;
+    // Palm rejection: once one pointer owns the gesture, every other finger
+    // event is ignored until release. This is the common tablet failure where
+    // a resting palm drags the stroke away from the pen.
+    if (gesturePointerId.current !== null && event.pointerId !== gesturePointerId.current) return;
     const point = toLocal(event.clientX, event.clientY);
 
     if (gesture.kind === 'create') {
@@ -571,6 +606,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
   function onWindowUp(event: PointerEvent) {
     const gesture = gestureRef.current;
     const p = propsRef.current;
+    if (gesturePointerId.current !== null && event.pointerId !== gesturePointerId.current) return;
     stopGesture();
     if (!gesture) return;
 
@@ -669,6 +705,9 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
     if (event.button !== 0) return;
     const p = propsRef.current;
     if (p.readOnly) return;
+    // A large touch contact is a palm, not a finger or pen. Reject it before it
+    // can select text or start a stroke; the page still scrolls normally.
+    if (event.pointerType === 'touch' && event.width > 40) return;
     const point = toLocal(event.clientX, event.clientY);
 
     if (p.tool === 'select') {
@@ -703,10 +742,12 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       }
     }
     if (p.tool === 'pen') {
+      beginPointer(event.currentTarget, event.pointerId);
       setInkGhost([{ x: point.x, y: point.y }]);
       startGesture({ kind: 'ink', points: [{ x: point.x, y: point.y }] });
       return;
     }
+    beginPointer(event.currentTarget, event.pointerId);
     startGesture({ kind: 'create', startX: point.x, startY: point.y });
   };
 
@@ -811,7 +852,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             key={`snap-v-${x}`}
             aria-hidden
             data-testid="snap-guide-vertical"
-            className="pointer-events-none absolute top-0 z-30 w-px bg-blue-500/80"
+            className="pointer-events-none absolute top-0 z-30 w-[2px] bg-sky-600 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
             style={{ left: x * zoom, height: displayH }}
           />
         ))}
@@ -820,7 +861,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             key={`snap-h-${y}`}
             aria-hidden
             data-testid="snap-guide-horizontal"
-            className="pointer-events-none absolute left-0 z-30 h-px bg-blue-500/80"
+            className="pointer-events-none absolute left-0 z-30 h-[2px] bg-sky-600 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
             style={{ top: y * zoom, width: displayW }}
           />
         ))}
@@ -1013,9 +1054,6 @@ function ObjectView({
   onAutoHeight,
   onEndEdit,
   startGesture,
-  onBeginTx,
-  onResizeLive,
-  onEndTx,
 }: ObjectViewProps) {
   const box: CSSProperties = {
     left: object.x * zoom,
@@ -1087,6 +1125,11 @@ function ObjectView({
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!interactive || editing) return;
     event.stopPropagation();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic pointers cannot be captured; window listeners still work.
+    }
     onSelect(object.id);
     const rect = containerPoint(event);
     startGesture({
@@ -1101,7 +1144,7 @@ function ObjectView({
     });
   };
 
-  function containerPoint(event: ReactPointerEvent<HTMLDivElement>) {
+  function containerPoint(event: ReactPointerEvent<HTMLElement>) {
     const parent = (event.currentTarget.parentElement as HTMLElement | null)?.getBoundingClientRect();
     if (!parent) return { x: object.x, y: object.y };
     return { x: (event.clientX - parent.left) / zoom, y: (event.clientY - parent.top) / zoom };
@@ -1114,11 +1157,11 @@ function ObjectView({
       className={cn(
         'absolute rounded-[1px] transition-[box-shadow,outline-color] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600',
         interactive && !selected && !editing &&
-          'hover:outline hover:outline-1 hover:outline-blue-500/40 hover:outline-offset-1',
+          'hover:outline hover:outline-1 hover:outline-slate-900/35 hover:outline-offset-1',
         selected && !editing &&
           (object.role === 'redaction'
-            ? 'outline-2 outline-red-600 outline-offset-2 shadow-[0_0_0_4px_rgba(220,38,38,0.14)]'
-            : 'outline-2 outline-blue-600 outline-offset-2 shadow-[0_0_0_4px_rgba(37,99,235,0.12)]'),
+            ? 'outline-[1.5px] outline-red-600 outline-dashed outline-offset-1'
+            : 'editor-object-selected outline-[1.5px] outline-slate-900/90 outline-offset-0'),
       )}
       style={style}
       data-testid={
@@ -1155,10 +1198,21 @@ function ObjectView({
       {renderBody()}
       {selected && interactive ? (
         <>
-          <ResizeHandle corner="nw" cursor="nwse-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
-          <ResizeHandle corner="ne" cursor="nesw-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
-          <ResizeHandle corner="sw" cursor="nesw-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
-          <ResizeHandle corner="se" cursor="nwse-resize" object={object} startGesture={startGesture} onBeginTx={onBeginTx} onResizeLive={onResizeLive} onEndTx={onEndTx} />
+          <MoveHandle
+            object={object}
+            startGesture={startGesture}
+            containerPoint={containerPoint}
+          />
+          <ResizeHandle corner="nw" cursor="nwse-resize" object={object} startGesture={startGesture} />
+          <ResizeHandle corner="ne" cursor="nesw-resize" object={object} startGesture={startGesture} />
+          <ResizeHandle corner="sw" cursor="nesw-resize" object={object} startGesture={startGesture} />
+          <ResizeHandle corner="se" cursor="nwse-resize" object={object} startGesture={startGesture} />
+          {object.kind === 'text' ? (
+            <>
+              <ResizeHandle corner="w" cursor="ew-resize" object={object} startGesture={startGesture} />
+              <ResizeHandle corner="e" cursor="ew-resize" object={object} startGesture={startGesture} />
+            </>
+          ) : null}
         </>
       ) : null}
     </div>
@@ -1404,70 +1458,88 @@ function ObjectView({
   }
 }
 
+function MoveHandle({
+  object,
+  startGesture,
+  containerPoint,
+}: {
+  object: EditorObject;
+  startGesture: (gesture: Gesture) => void;
+  containerPoint: (event: ReactPointerEvent<HTMLElement>) => { x: number; y: number };
+}) {
+  return (
+    <button
+      type="button"
+      className="editor-move-handle"
+      data-testid="editor-move-handle"
+      aria-label={`Move ${describeEditorObject(object)}`}
+      title="Drag to move"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Synthetic pointers are not capturable; the window listeners handle it.
+        }
+        const point = containerPoint(event);
+        startGesture({
+          kind: 'move',
+          id: object.id,
+          startLocalX: point.x,
+          startLocalY: point.y,
+          origX: object.x,
+          origY: object.y,
+          width: object.width,
+          height: object.height,
+        });
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <GripVertical className="size-3" strokeWidth={2.2} aria-hidden />
+    </button>
+  );
+}
+
 function ResizeHandle({
   corner,
   cursor,
   object,
   startGesture,
-  onBeginTx,
-  onResizeLive,
-  onEndTx,
 }: {
-  corner: 'nw' | 'ne' | 'sw' | 'se';
+  corner: 'nw' | 'ne' | 'sw' | 'se' | 'e' | 'w';
   cursor: string;
   object: EditorObject;
   startGesture: (gesture: Gesture) => void;
-  onBeginTx: () => void;
-  onResizeLive: (id: string, rect: Rect) => void;
-  onEndTx: () => void;
 }) {
   const positions: Record<string, CSSProperties> = {
     // Sit just outside the selection box so handles do not cover the first or
     // last glyph of tightly fitted text at low zoom.
-    nw: { left: -3, top: -3 },
-    ne: { left: 'calc(100% + 3px)', top: -3 },
-    sw: { left: -3, top: 'calc(100% + 3px)' },
-    se: { left: 'calc(100% + 3px)', top: 'calc(100% + 3px)' },
+    nw: { left: -4, top: -4 },
+    ne: { left: 'calc(100% + 4px)', top: -4 },
+    sw: { left: -4, top: 'calc(100% + 4px)' },
+    se: { left: 'calc(100% + 4px)', top: 'calc(100% + 4px)' },
+    // Text uses the reference editor's side dots: one on each edge to change
+    // the line width without touching the height.
+    e: { left: 'calc(100% + 4px)', top: '50%' },
+    w: { left: -4, top: '50%' },
   };
 
-  const keyboardResize = (dx: number, dy: number) => {
-    let { x, y, width, height } = object;
-    if (corner.includes('e')) width = Math.max(MIN_SIZE, width + dx);
-    if (corner.includes('w')) {
-      const next = Math.max(MIN_SIZE, width - dx);
-      x += width - next;
-      width = next;
-    }
-    if (corner.includes('s')) height = Math.max(MIN_SIZE, height + dy);
-    if (corner.includes('n')) {
-      const next = Math.max(MIN_SIZE, height - dy);
-      y += height - next;
-      height = next;
-    }
-    onBeginTx();
-    onResizeLive(object.id, { x, y, width, height });
-    onEndTx();
-  };
-
+  const side = corner === 'e' || corner === 'w';
   return (
     <div
-      className="absolute z-10 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border-[1.5px] border-blue-600 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.35)] transition-transform hover:scale-110 focus-visible:scale-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+      className="absolute z-10 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
       style={{ ...positions[corner], cursor }}
       data-testid={`editor-handle-${corner}`}
-      role="button"
-      tabIndex={0}
-      aria-label={`Resize from the ${corner} corner. Use arrow keys; hold Shift for a larger step.`}
-      onKeyDown={(event) => {
-        if (!event.key.startsWith('Arrow')) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const step = event.shiftKey ? 10 : 1;
-        const dx = event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0;
-        const dy = event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0;
-        keyboardResize(dx, dy);
-      }}
+      aria-hidden
       onPointerDown={(event) => {
         event.stopPropagation();
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Synthetic pointers are not capturable; the window listeners handle it.
+        }
         startGesture({
           kind: 'resize',
           id: object.id,
@@ -1476,9 +1548,19 @@ function ResizeHandle({
         });
       }}
       // NB: no pointerup/click handlers here -- the window-level gesture
-      // listener must receive those, or the drag would never end.
+      // listener must receive those, or the drag would never end. Keyboard
+      // resizing lives in the inspector's exact width/height fields, so these
+      // pointer affordances do not compete for focus or 24px touch targets.
       onDoubleClick={(event) => event.stopPropagation()}
-    />
+    >
+      <span
+        aria-hidden
+        className={cn(
+          'block size-[7px] border-[1.25px] border-slate-900 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.28)]',
+          side ? 'rounded-full' : 'rounded-[1px]',
+        )}
+      />
+    </div>
   );
 }
 

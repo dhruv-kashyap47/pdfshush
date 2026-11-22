@@ -514,7 +514,7 @@ async function main() {
   console.log('\n15. Edit PDF tool');
   await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'networkidle' });
   // The editor mounts a second (image picker) file input, so pick the PDF dropzone.
-  await page.locator('input[accept*="application/pdf"]').setInputFiles([fileA]);
+  await page.locator('input[accept*="application/pdf"]').first().setInputFiles([fileA]);
   await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'editor mounted');
   check('editor mounts with toolbar', await page.getByTestId('editor-toolbar').isVisible());
   const rasterCount = await waitFor(
@@ -796,7 +796,15 @@ async function main() {
       (await page.locator('[data-testid="editor-object-highlight"]').count()) === 1,
   );
 
-  // Starting over must not carry the previous document's objects into the next.
+  // X-05: a saved document has nothing to save, so make one deliberate change
+  // first. The point of this step is the Start over reset, not a second no-op save.
+  await page.getByTestId('editor-object-text').first().click();
+  await page.keyboard.press('ArrowRight');
+  await waitFor(
+    async () => !(await page.getByTestId('editor-save').isDisabled()),
+    5_000,
+    'save enabled after a change',
+  );
   await page.getByTestId('editor-save').click();
   await page.getByText('-edited.pdf').waitFor({ timeout: 90_000 });
   await page.getByRole('button', { name: 'Start over' }).click();
@@ -805,7 +813,7 @@ async function main() {
     15_000,
     'dropzone back',
   );
-  await page.locator('input[accept*="application/pdf"]').setInputFiles([fileA]);
+  await page.locator('input[accept*="application/pdf"]').first().setInputFiles([fileA]);
   await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'editor reopened');
   const leftoverObjects = await waitFor(
     async () => (await page.locator('[data-testid^="editor-object-"]').count()) === 0,
@@ -851,7 +859,7 @@ async function main() {
   );
   const beforeSwap = await settledRasters();
   await page.getByRole('button', { name: 'Change file' }).click();
-  await page.locator('input[accept*="application/pdf"]').setInputFiles([fileB]);
+  await page.locator('input[accept*="application/pdf"]').first().setInputFiles([fileB]);
   await waitFor(async () => (await page.getByTestId('editor').count()) === 1, 60_000, 'beta loaded');
   const afterSwap = await settledRasters();
   const reused = afterSwap.filter((url) => beforeSwap.includes(url));
@@ -924,7 +932,7 @@ async function main() {
 
   const openInEditor = async (file) => {
     await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'networkidle' });
-    await page.locator('input[accept*="application/pdf"]').setInputFiles([file]);
+    await page.locator('input[accept*="application/pdf"]').first().setInputFiles([file]);
     await waitFor(
       async () => (await page.getByTestId('editor').count()) === 1,
       60_000,

@@ -24,6 +24,18 @@ const BASE = (process.env.E2E_BASE_URL ?? 'http://localhost:4173').replace(/\/$/
 const AXE_PATH = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Chromium occasionally rejects Playwright's own `Browser.setDownloadBehavior`
+ * when an editor context closes while the page still has an autosave timer.
+ * It is a harness teardown race, not a page error; narrow it so a real
+ * rejection still fails the run.
+ */
+process.on('unhandledRejection', (error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('Browser.setDownloadBehavior')) return;
+  throw error;
+});
+
 const ROUTES = [
   '/',
   '/tools/edit-pdf',
@@ -102,6 +114,24 @@ async function settle(page) {
     }
     for (const animation of running()) animation.finish();
   });
+}
+
+async function axeViolations(page) {
+  await page.addScriptTag({ path: AXE_PATH });
+  return page.evaluate(async () => {
+    // @ts-expect-error axe is injected at runtime
+    const result = await window.axe.run(document, {
+      runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
+      resultTypes: ['violations'],
+    });
+    return result.violations;
+  });
+}
+
+function serious(violations) {
+  return violations.filter(
+    (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+  );
 }
 
 try {
@@ -184,6 +214,94 @@ try {
           console.log(`         ${violation.id}: ${node.target.join(' ')}`);
         }
       }
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The interactive surfaces the route audit cannot see: find, the inline
+  // paragraph editor, the pen context bar, and the phone properties sheet.
+  {
+    const context = await auditContext();
+    const page = await context.newPage();
+    try {
+      await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.locator('input[type=file]').setInputFiles(path.join(HERE, 'fixtures', 'alpha.pdf'));
+      await page.getByTestId('editor-page').first().waitFor({ timeout: 90_000 });
+      await page.getByTestId('editor-text-layer').first().waitFor({ timeout: 30_000 });
+      await page.waitForTimeout(1_200);
+
+      await page.keyboard.press('Control+f');
+      await page.getByTestId('editor-find-panel').waitFor({ timeout: 5_000 });
+      await settle(page);
+      let violations = serious(await axeViolations(page));
+      check(
+        'find and replace has zero critical/serious axe violations',
+        violations.length === 0,
+        violations.map((v) => `${v.id} (${v.impact}, ${v.nodes.length})`).join(', ') || 'clean',
+      );
+      await page.keyboard.press('Escape');
+
+      await page.getByTestId('editor-tool-pen').click();
+      await settle(page);
+      violations = serious(await axeViolations(page));
+      check(
+        'the pen tool context bar has zero critical/serious axe violations',
+        violations.length === 0,
+        violations.map((v) => `${v.id} (${v.impact}, ${v.nodes.length})`).join(', ') || 'clean',
+      );
+
+      await page.getByTestId('editor-tool-select').click();
+      const pageBox = await page.getByTestId('editor-page').first().boundingBox();
+      if (pageBox) {
+        const zoom = pageBox.width / 595;
+        const point = { x: pageBox.x + 130 * zoom, y: pageBox.y + 62 * zoom };
+        await page.mouse.move(point.x, point.y);
+        await page.getByTestId('editor-text-hover-paragraph').first().waitFor({ timeout: 15_000 });
+        const hover = await page.getByTestId('editor-text-hover-paragraph').first().boundingBox();
+        if (!hover) throw new Error('paragraph hover has no box');
+        await page.mouse.dblclick(hover.x + hover.width / 2, hover.y + hover.height / 2);
+        await page.getByTestId('editor-paragraph-input').waitFor({ timeout: 10_000 });
+        await settle(page);
+        violations = serious(await axeViolations(page));
+        check(
+          'the inline paragraph editor has zero critical/serious axe violations',
+          violations.length === 0,
+          violations.map((v) => `${v.id} (${v.impact}, ${v.nodes.length})`).join(', ') || 'clean',
+        );
+      }
+    } finally {
+      await context.close();
+    }
+  }
+
+  {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      reducedMotion: 'reduce',
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.locator('input[type=file]').setInputFiles(path.join(HERE, 'fixtures', 'alpha.pdf'));
+      await page.getByTestId('editor-page').first().waitFor({ timeout: 90_000 });
+      await page.getByTestId('editor-page').first().focus();
+      await page.keyboard.press('t');
+      await page.keyboard.press('Enter');
+      await page.getByTestId('editor-text-input').waitFor({ timeout: 10_000 });
+      await page.keyboard.type('mobile accessibility');
+      await page.keyboard.press('Escape');
+      await page.getByTestId('editor-toggle-inspector').tap();
+      await page.getByTestId('editor-inspector').waitFor({ timeout: 5_000 });
+      await settle(page);
+      const violations = serious(await axeViolations(page));
+      check(
+        'the phone properties sheet has zero critical/serious axe violations',
+        violations.length === 0,
+        violations.map((v) => `${v.id} (${v.impact}, ${v.nodes.length})`).join(', ') || 'clean',
+      );
     } finally {
       await context.close();
     }
