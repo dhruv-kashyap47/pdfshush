@@ -13,6 +13,7 @@ import { composePageRefs } from '../src/ops/compose.js';
 import { extractFormWidgets } from '../src/ops/forms.js';
 import { loadPdfDocument } from '../src/ops/pages.js';
 import { textEditJob } from '../src/jobs/textEdit.job.js';
+import { inspectJob } from '../src/jobs/inspect.job.js';
 import { configurePdfiumRuntime, loadPdfiumModule } from '../src/textedit/runtime.js';
 import { testContext } from './fixtures.js';
 
@@ -141,5 +142,15 @@ describe('X-04 document-level preservation', () => {
     );
     const output = await loadPdfDocument(new Uint8Array(result.data));
     expect(extractFormWidgets(output).map((widget) => widget.name)).toContain('signer');
+  }, 60_000);
+
+  test('inspect reports the creation date as a JSON-safe ISO string', async () => {
+    const source = await richDocument();
+    const result = await inspectJob.run(
+      { files: [{ name: 'preserve.pdf', data: source }] },
+      testContext(),
+    );
+    expect(result.documents[0]?.metadata.creationDate).toBe('2020-01-02T03:04:05.000Z');
+    expect(result.documents[0]?.metadata.producer).toBe('Fixture Producer');
   }, 60_000);
 });

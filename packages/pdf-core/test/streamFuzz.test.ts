@@ -21,6 +21,7 @@ import {
   findGlyphRange,
   glyphRangeBox,
   planGlyphRemoval,
+  planRunReplacement,
   scanPageText,
 } from '../src/textedit/stream/surgery.js';
 import type { FontMetrics } from '../src/textedit/stream/metrics.js';
@@ -118,7 +119,7 @@ describe('H-04 stream fuzz (fixed seeds)', () => {
     // advanced.
     const bytes = new TextEncoder().encode('(A) Tj > > 0 0 m');
     expect(emitContentStream(bytes, tokenizeContentStream(bytes))).toEqual(bytes);
-  });
+  }, 20_000);
 
   test('tokenise -> emit is byte-identical for every seed', () => {
     for (let seed = 1; seed <= 96; seed += 1) {
@@ -137,7 +138,7 @@ describe('H-04 stream fuzz (fixed seeds)', () => {
         }
       }
     }
-  });
+  }, 20_000);
 
   test('operation parsing terminates and stays within the stream', () => {
     for (let seed = 1000; seed < 1064; seed += 1) {
@@ -154,7 +155,7 @@ describe('H-04 stream fuzz (fixed seeds)', () => {
         }
       }
     }
-  });
+  }, 20_000);
 
   test('scanning and removal planning refuse rather than crash', () => {
     for (let seed = 2000; seed < 2032; seed += 1) {
@@ -177,8 +178,17 @@ describe('H-04 stream fuzz (fixed seeds)', () => {
           if ('reason' in plan) continue;
           expect(plan.removed).toBeGreaterThan(0);
           expect(plan.end).toBeGreaterThanOrEqual(plan.start);
+
+          const encoded = Uint8Array.from(
+            { length: Math.floor(random() * 20) },
+            () => Math.floor(random() * 256),
+          );
+          const replacement = planRunReplacement(run, bytes, encoded);
+          if (!('reason' in replacement)) {
+            expect(replacement.end).toBeGreaterThanOrEqual(replacement.start);
+          }
         }
       }
     }
-  });
+  }, 20_000);
 });

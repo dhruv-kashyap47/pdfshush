@@ -162,7 +162,7 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         warnings: collectWarnings(result.warnings),
         stats:
           options.ocrPages !== undefined
-            ? { ...result.stats, ocrPages: options.ocrPages }
+            ? { ...result.stats, ocrPages: Math.min(result.pageCount, options.ocrPages) }
             : result.stats,
       },
     };

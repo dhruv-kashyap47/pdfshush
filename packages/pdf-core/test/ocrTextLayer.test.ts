@@ -128,6 +128,79 @@ describe('O-02 text-layer-only OCR', () => {
     expect(invoice.x).toBeLessThan(80);
   }, 60_000);
 
+  test('maps /Rotate 180 and 270 pages back into their unrotated coordinates', async () => {
+    for (const [rotation, width, height] of [
+      [180, 600, 400],
+      [270, 400, 600],
+    ] as const) {
+      const doc = await PDFDocument.create();
+      const page = doc.addPage([600, 400]);
+      page.setRotation(degrees(rotation));
+      const source = await doc.save({ useObjectStreams: false });
+      const result = await addOcrTextLayer(
+        source,
+        {
+          pageIndexes: [0],
+          engineFactory: fakeEngine,
+          renderPage: fakeRender(width, height),
+        },
+        testContext(),
+      );
+      const runs = (await extractTextRuns(result.data, [0], testContext()))[0]!;
+      expect(runs.map((run) => run.text).join(' ')).toContain('INVOICE 2026');
+      const invoice = runs.find((run) => run.text.includes('INVOICE'))!;
+      expect(invoice.x).toBeGreaterThan(20);
+      expect(invoice.x).toBeLessThan(80);
+    }
+  }, 60_000);
+
+  test('honours a CropBox offset on a rotated page', async () => {
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([600, 400]);
+    page.setCropBox(50, 40, 500, 300);
+    page.setRotation(degrees(90));
+    const source = await doc.save({ useObjectStreams: false });
+    const result = await addOcrTextLayer(
+      source,
+      {
+        pageIndexes: [0],
+        engineFactory: fakeEngine,
+        // Rotated crop viewport: 300 wide x 500 tall.
+        renderPage: fakeRender(300, 500),
+      },
+      testContext(),
+    );
+    const runs = (await extractTextRuns(result.data, [0], testContext()))[0]!;
+    expect(runs.map((run) => run.text).join(' ')).toContain('INVOICE 2026');
+    const invoice = runs.find((run) => run.text.includes('INVOICE'))!;
+    expect(invoice.x).toBeGreaterThan(10);
+    expect(invoice.x).toBeLessThan(60);
+  }, 60_000);
+
+  test('refuses an explicit page that does not exist', async () => {
+    const source = await scanSource();
+    await expect(
+      addOcrTextLayer(
+        source,
+        { pageIndexes: [5], engineFactory: fakeEngine, renderPage: fakeRender(1000, 500) },
+        testContext(),
+      ),
+    ).rejects.toThrow(/does not exist/i);
+  }, 60_000);
+
+  test('one page in a large document is still allowed', async () => {
+    const doc = await PDFDocument.create();
+    for (let index = 0; index < 101; index += 1) doc.addPage([100, 100]);
+    const source = await doc.save({ useObjectStreams: false });
+    const result = await addOcrTextLayer(
+      source,
+      { pageIndexes: [0], engineFactory: fakeEngine, renderPage: fakeRender(1000, 500) },
+      testContext(),
+    );
+    expect(result.ocrPages).toEqual([1]);
+    expect(result.pageCount).toBe(101);
+  }, 60_000);
+
   test('returns the original bytes when every page is already searchable', async () => {
     const source = await scanSource();
     const result = await addOcrTextLayer(

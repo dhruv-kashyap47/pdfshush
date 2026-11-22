@@ -7946,7 +7946,7 @@ rebuild path: the two operations have different promises and different names.
 | Piece | Behaviour |
 | --- | --- |
 | scope | current page or every page; pages with a real text layer are skipped and reported |
-| coordinates | placements are built in display space; `/Rotate 90/180/270` maps the origin and baseline back into unrotated PDF space |
+| coordinates | placements are built in display space; pdf.js's viewport inverse maps them back into PDF space (rotation, CropBox origin, user units) |
 | verification | page count, page text present, untouched-page fingerprints; a failed check refuses the output |
 | provenance | per-page mean confidence, words, lines, approximate paragraphs, up to 40 point-space blocks |
 | runtime | engine created lazily and terminated in `finally`; pdf.js destroyed; page proxies cleaned per page |
@@ -7991,29 +7991,31 @@ ran — is gone because object-only saves run the real export gate.
 
 `test/streamFuzz.test.ts` uses a fixed mulberry32 PRNG (no new dependency). It
 asserts tokenise→emit byte identity for arbitrary bytes, bounded operation
-ranges, and that scanning/planning either succeeds or refuses explicitly. The
-first run found a real infinite loop: `>` is a PDF delimiter, no token branch
-claimed a lone one, so `readWord` returned a zero-width token and the scanner
-never advanced. It now consumes an unclaimed delimiter and a regression test
-pins it. `pnpm test:fuzz` is a named CI step; the normal suite also runs it.
+ranges, and that scanning, removal planning and replacement planning either
+succeed or refuse explicitly; each test has an explicit timeout. The first run
+found a real infinite loop: `>` is a PDF delimiter, no token branch claimed a
+lone one, so `readWord` returned a zero-width token and the scanner never
+advanced. It now consumes an unclaimed delimiter and a regression test pins it.
+`pnpm test:fuzz` is a named CI step; the normal suite also runs it.
 
 ### 41.5 Verification
 
 | Gate | Result |
 | --- | --- |
 | `pnpm typecheck` (8 projects) | pass |
-| `pnpm test` | pdf-core **685 + 1 expected fail**, web 309, api 243, mcp 19, ai-agent 152, ai-provider 375 |
+| `pnpm test` | pdf-core **691 + 1 expected fail**, web 310, api 243, mcp 19, ai-agent 152, ai-provider 375 |
 | `pnpm build` | pass, 63 routes prerendered |
 | `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
 | `pnpm test:provenance` | clean |
 | `pnpm test:corpus` | 2/2 |
 | `pnpm test:fuzz` | 4/4 |
-| Browser E2E | `sprint6-trust` **20/20**; `text-ux` **57/57**; `text-edit` 7/7; `editor-quick-parity` 20/20; `ocr` all checks; `keyboard`/`a11y` green against the production preview |
+| Browser E2E | `sprint6-trust` **21/21**; `text-ux` **57/57**; `text-edit` 7/7; `editor-quick-parity` 20/20; `ocr` all checks; `keyboard`/`a11y` green against the production preview |
 
-New unit coverage: `ocrTextLayer.test.ts` (7: skip, rotation, no-op bytes,
-termination, layout summary, registration/validation), `warnings.test.ts` (8),
-`exportTrust.test.ts` (6), `metadataPreservation.test.ts` (3),
-`streamFuzz.test.ts` (4), plus the text-ux save-guard scenario.
+New unit coverage: `ocrTextLayer.test.ts` (11: skip, four rotations, CropBox,
+one page of 101, missing page, no-op bytes, termination, layout summary,
+registration/validation), `warnings.test.ts` (8), `exportTrust.test.ts` (7),
+`metadataPreservation.test.ts` (4), `streamFuzz.test.ts` (4), plus the text-ux
+save-guard scenario.
 
 ### 41.6 Deliberately not claimed
 
@@ -8023,3 +8025,19 @@ termination, layout summary, registration/validation), `warnings.test.ts` (8),
 - X-04 composition preserves metadata/dates; outlines and page labels survive
   in-place edit/export, not page recomposition.
 - The containerised `test:api`/`test:hardening` gates were not re-run.
+
+### 41.7 Bug pass (2026-11-22)
+
+| Area | Bug | Fix |
+| --- | --- | --- |
+| OCR coordinates | Placement used MediaBox width/height and a hand-written rotation table: `/Rotate 180/270` was untested and a CropBox offset put text in the wrong place. | Convert through pdf.js's own viewport inverse, which owns rotation, CropBox origin and user units; tests cover 90/180/270 and a rotated CropBox. |
+| OCR scope | A 300-page document refused OCR even for the current page, because the cap counted every page in the file. | Cap the requested page set; one page of 101 is a test. An explicit missing page now refuses instead of being silently filtered. |
+| OCR provenance | A second OCR run cleared the first page's confidence; Insert Pages cleared all of it. | Merge before invalidating, and remap provenance through the same page map objects use. |
+| OCR/save race | Saving while OCR ran could export the pre-OCR bytes and then clear the dirty flag for the OCR layer. | Save is disabled and guarded while OCR runs; OCR refuses to start while a save is in flight. |
+| X-05 | A no-op Organize save could still run through Ctrl+S because the guard sat after the organize branch. Save had no explanation when disabled. | Guard before every branch; aria-label/title says “no changes to save”. |
+| beforeunload | Source-only changes (OCR) were not considered because the doc reference was unchanged; the handler could also stay armed after a successful save. | One unsaved predicate includes source bytes, and the effect re-runs when `saving` settles. |
+| Receipts | OCR-only exports said “changed objects/forms/page order only”; fallback characters were reported as removed; invisible objects counted as drawn. | OCR-specific copy, `countCharacterChanges` (removed only for native consumption), and `drawObject` reports whether it drew. |
+| Inspect | `creationDate` was a `Date`, which the server JSON turns into a string, and an invalid date would throw. | Validate and emit an ISO string. |
+| OCR copy | An empty recognition result told the user the page “already has a searchable text layer”. | Distinguish skipped pages from pages with no readable words. |
+| Fuzz | No explicit timeout, and replacement planning was not fuzzed. | Per-test timeouts and `planRunReplacement` coverage with random encoded bytes. |
+| Insert Pages | The new File lost `lastModified`, so draft/signature identity changed. | Preserve it. |

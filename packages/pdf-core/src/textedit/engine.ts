@@ -1316,6 +1316,29 @@ function assertEditsValid(edits: TextEdit[]): void {
 }
 
 /**
+ * X-02: character counts that do not lie about overlays.
+ *
+ * A fallback draws new text over the original, so its replacement characters
+ * were added but the original characters were *not* removed from the file. Only
+ * `in-place` and `content-stream` outcomes consume the original text.
+ */
+export function countCharacterChanges(
+  edits: readonly TextEdit[],
+  outcomes: readonly TextEditOutcome[],
+): { removed: number; added: number } {
+  const modeById = new Map(outcomes.map((outcome) => [outcome.id, outcome.mode] as const));
+  let removed = 0;
+  let added = 0;
+  for (const edit of edits) {
+    const mode = modeById.get(edit.id);
+    if (!mode || mode === 'manual-review') continue;
+    added += edit.replace.length;
+    if (mode === 'in-place' || mode === 'content-stream') removed += edit.find.length;
+  }
+  return { removed, added };
+}
+
+/**
  * Full edit path: native rewrite, verification-driven demotion, overlay pass for
  * the demoted edits (and any extra editor objects), then a final verified save.
  */
@@ -1825,16 +1848,10 @@ export async function editPdfText(
     if (rasterisedObjectIds.has(outcome.id)) outcome.rasterised = true;
   }
   const rasterised = outcomes.filter((outcome) => outcome.rasterised).length;
-  const appliedIds = new Set(
-    outcomes.filter((outcome) => outcome.mode !== 'manual-review').map((outcome) => outcome.id),
+  const { removed: charactersRemoved, added: charactersAdded } = countCharacterChanges(
+    edits,
+    outcomes,
   );
-  let charactersRemoved = 0;
-  let charactersAdded = 0;
-  for (const edit of edits) {
-    if (!appliedIds.has(edit.id)) continue;
-    charactersRemoved += edit.find.length;
-    charactersAdded += edit.replace.length;
-  }
   const stats: EditStats = {
     pages: native.pageCount,
     textEdits: edits.length,

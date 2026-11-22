@@ -77,16 +77,19 @@ function clampInt(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
-function normaliseRotation(angle: number): 0 | 90 | 180 | 270 {
-  const normalised = ((Math.round(angle / 90) * 90) % 360 + 360) % 360;
-  return normalised === 90 || normalised === 180 || normalised === 270 ? normalised : 0;
-}
-
 function requestedIndexes(values: number[] | undefined, pageCount: number): number[] {
-  const raw = values && values.length > 0 ? values : Array.from({ length: pageCount }, (_, i) => i);
-  return [...new Set(raw)]
-    .filter((value) => Number.isInteger(value) && value >= 0 && value < pageCount)
-    .sort((a, b) => a - b);
+  const raw =
+    values && values.length > 0
+      ? [...new Set(values)]
+      : Array.from({ length: pageCount }, (_, i) => i);
+  for (const value of raw) {
+    if (!Number.isInteger(value) || value < 0 || value >= pageCount) {
+      throw new Error(
+        `Page ${Number.isFinite(value) ? value + 1 : String(value)} does not exist; this document has ${pageCount} page${pageCount === 1 ? '' : 's'}.`,
+      );
+    }
+  }
+  return raw.sort((a, b) => a - b);
 }
 
 function meanConfidence(page: OcrPage): number {
@@ -135,12 +138,12 @@ export async function addOcrTextLayer(
 
   try {
     const pageCount = rendered.doc.numPages;
-    if (pageCount > OCR_LIMITS.maxPages) {
+    const requested = requestedIndexes(options.pageIndexes, pageCount);
+    if (requested.length > OCR_LIMITS.maxPages) {
       throw new Error(
-        `That document has ${pageCount} pages; OCR is limited to ${OCR_LIMITS.maxPages} per run. Split it first.`,
+        `That OCR run covers ${requested.length} pages; the limit is ${OCR_LIMITS.maxPages}. Choose fewer pages or split the document.`,
       );
     }
-    const requested = requestedIndexes(options.pageIndexes, pageCount);
     if (requested.length === 0) {
       return {
         data: data.slice(),
@@ -173,6 +176,22 @@ export async function addOcrTextLayer(
         }
 
         const viewport = proxy.getViewport({ scale: 1 });
+        // pdf.js owns the PDF↔viewport transform: it already includes /Rotate,
+        // the CropBox origin and any offset. Converting with it is what makes
+        // rotated and cropped scans land under the visible words.
+        const [originX, originY] = viewport.convertToPdfPoint(0, viewport.height);
+        const [unitX, unitY] = viewport.convertToPdfPoint(1, viewport.height);
+        const rotationDeg = (Math.atan2(unitY - originY, unitX - originX) * 180) / Math.PI;
+        const toPdfPlacement = (placement: {
+          x: number;
+          y: number;
+        }): { x: number; y: number; rotationDeg: number } => {
+          const [x, y] = viewport.convertToPdfPoint(
+            placement.x,
+            viewport.height - placement.y,
+          );
+          return { x, y, rotationDeg };
+        };
         const image = await renderPage(proxy, {
           targetWidthPx,
           format: 'jpeg',
@@ -231,12 +250,7 @@ export async function addOcrTextLayer(
 
         font ??= await out.embedFont(StandardFonts.Helvetica);
         const page = out.getPage(pageIndex);
-        const rotation = normaliseRotation(page.getRotation().angle);
-        drawOcrTextLayer(page, font, placements, {
-          rotation,
-          pageWidth: page.getWidth(),
-          pageHeight: page.getHeight(),
-        });
+        drawOcrTextLayer(page, font, placements, toPdfPlacement);
         placementsByPage.set(pageNumber, placements.length);
         placementsTotal += placements.length;
 
@@ -325,7 +339,7 @@ export async function addOcrTextLayer(
     if (!verification.ok) {
       const failures = verification.checks.filter((check) => !check.ok);
       throw new Error(
-        `The OCR text layer did not survive verification: ${failures
+        `Refusing to export the OCR text layer: it did not survive verification: ${failures
           .map((check) => `${check.name}: ${check.detail}`)
           .join('; ')}`,
       );

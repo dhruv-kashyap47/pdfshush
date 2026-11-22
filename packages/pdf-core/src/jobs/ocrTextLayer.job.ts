@@ -62,7 +62,7 @@ export const ocrTextLayerJob: JobDefinition<OcrTextLayerJobInput, OcrTextLayerJo
       issues.push({ message: 'Quality must be between 0.3 and 1' });
     }
     const pages = input.options?.pageIndexes ?? [];
-    if (pages.length > OCR_LIMITS.maxPages) {
+    if (new Set(pages).size > OCR_LIMITS.maxPages) {
       issues.push({ message: `OCR is limited to ${OCR_LIMITS.maxPages} pages per run` });
     }
     if (pages.some((page) => !Number.isInteger(page) || page < 0)) {
@@ -72,7 +72,9 @@ export const ocrTextLayerJob: JobDefinition<OcrTextLayerJobInput, OcrTextLayerJo
   },
 
   estimate(input, pageCount) {
-    const pages = input.options?.pageIndexes?.length ?? pageCount;
+    const pages = input.options?.pageIndexes?.length
+      ? new Set(input.options.pageIndexes).size
+      : pageCount;
     const bytes = totalInputBytes(input);
     return {
       memoryBytes: bytes * 3 + pages * LIMITS.client.bytesPerRenderedPage,

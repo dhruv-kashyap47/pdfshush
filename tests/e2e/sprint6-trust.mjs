@@ -53,8 +53,10 @@ async function writeScanFixture() {
   const jpeg = scanJpeg();
   const doc = await PDFDocument.create();
   const image = await doc.embedJpg(jpeg);
-  const page = doc.addPage([595, 842]);
-  page.drawImage(image, { x: 0, y: 0, width: 595, height: 842 });
+  for (let index = 0; index < 2; index += 1) {
+    const page = doc.addPage([595, 842]);
+    page.drawImage(image, { x: 0, y: 0, width: 595, height: 842 });
+  }
   const file = path.join(WORK, 'sprint6-scan.pdf');
   await writeFile(file, await doc.save({ useObjectStreams: false }));
   return file;
@@ -150,6 +152,34 @@ async function main() {
     );
     check('OCR makes the document saveable', !(await page.getByTestId('editor-save').isDisabled()));
 
+    // OCR the second scan page, then return to the first: its confidence must
+    // survive the second run rather than being cleared by the cache invalidation.
+    await page.getByTestId('editor-page-1').scrollIntoViewIfNeeded();
+    await page.getByTestId('editor-page-1').click({ position: { x: 90, y: 90 } });
+    await waitFor(
+      async () => (await page.getByTestId('ocr-scan-banner').count()) === 1,
+      30_000,
+      'second scan banner',
+    );
+    await page.getByTestId('ocr-read-page').click();
+    await waitFor(
+      async () => (await page.getByTestId('ocr-provenance').count()) === 1,
+      300_000,
+      'second OCR provenance',
+    );
+
+    await page.getByTestId('editor-page-0').scrollIntoViewIfNeeded();
+    await page.getByTestId('editor-page-0').click({ position: { x: 90, y: 90 } });
+    await waitFor(
+      async () => (await page.getByTestId('ocr-provenance').count()) === 1,
+      30_000,
+      'first OCR provenance after second run',
+    );
+    check(
+      'the first page keeps its confidence after a second OCR run',
+      /% mean confidence/i.test(await page.getByTestId('ocr-provenance').innerText()),
+    );
+
     const ocrBytes = await saveAndDownload(page, '-edited.pdf');
     check('the OCR output is a PDF', ocrBytes.subarray(0, 5).toString('latin1') === '%PDF-');
     const extracted = (await extractText(ocrBytes)).replace(/\s+/g, ' ');
@@ -166,7 +196,7 @@ async function main() {
       !/No verification checks were run/i.test(verification),
       verification.slice(0, 160),
     );
-    check('the receipt counts the OCR page', /1 OCR page/i.test(verification), verification.slice(0, 160));
+    check('the receipt counts the OCR pages', /2 OCR pages/i.test(verification), verification.slice(0, 160));
     const idle = await waitFor(async () => {
       const stats = await poolStats(page);
       return stats && stats.busy === 0 && stats.queued === 0 ? stats : null;

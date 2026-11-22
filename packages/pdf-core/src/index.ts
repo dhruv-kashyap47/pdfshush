@@ -185,7 +185,7 @@ export type { DeskewOptions, DeskewResult } from './deskew/deskew.js';
 export { sanitizeOcrText, buildOcrPlacements, summarizeOcrPage } from './ocr/layout.js';
 export type { OcrPageMapping, OcrPlacement, OcrBlockSummary, OcrLayoutSummary } from './ocr/layout.js';
 export { drawOcrTextLayer } from './ocr/draw.js';
-export type { OcrLayerTransform } from './ocr/draw.js';
+export type { OcrLayerTransform, OcrPdfPlacement, OcrPlacementConverter } from './ocr/draw.js';
 export { configureOcrRuntime, createOcrEngine, hasOcrRuntime } from './ocr/runtime.js';
 export type { OcrRuntimeConfig } from './ocr/runtime.js';
 export { ocrDocument, pageHasTextLayer } from './ocr/ocr.js';

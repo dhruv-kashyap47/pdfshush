@@ -10,7 +10,7 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { PDFDocument, StandardFonts } from '@cantoo/pdf-lib';
 import { textEditJob } from '../src/jobs/textEdit.job.js';
-import { enforceVerification } from '../src/textedit/engine.js';
+import { countCharacterChanges, enforceVerification } from '../src/textedit/engine.js';
 import { verifyExportArtifact } from '../src/textedit/exportVerify.js';
 import { configurePdfjsRuntime } from '../src/render/pdfjsRuntime.js';
 import { configurePdfiumRuntime, loadPdfiumModule } from '../src/textedit/runtime.js';
@@ -48,6 +48,28 @@ async function twoPageDocument(): Promise<Uint8Array> {
 }
 
 describe('X-02 receipt stats', () => {
+  test('character counts distinguish removal from an overlay', () => {
+    const edits = [
+      { id: 'a', pageIndex: 0, find: 'hello', replace: 'hi' },
+      { id: 'b', pageIndex: 0, find: 'fallback', replace: 'X' },
+      { id: 'c', pageIndex: 0, find: 'manual', replace: 'Y' },
+      { id: 'd', pageIndex: 0, find: 'delete', replace: '' },
+    ];
+    const outcomes = [
+      { id: 'a', pageIndex: 0, mode: 'in-place' },
+      { id: 'b', pageIndex: 0, mode: 'fallback' },
+      { id: 'c', pageIndex: 0, mode: 'manual-review' },
+      { id: 'd', pageIndex: 0, mode: 'content-stream' },
+    ] as Parameters<typeof countCharacterChanges>[1];
+    expect(countCharacterChanges(edits, outcomes)).toEqual({
+      // Only the two natively consumed originals count as removed.
+      removed: 'hello'.length + 'delete'.length,
+      // Added text is present for both native and overlaid replacements;
+      // manual-review added nothing.
+      added: 'hi'.length + 'X'.length,
+    });
+  });
+
   test('validates the override and OCR-count options', () => {
     const files = [{ name: 'a.pdf', type: 'application/pdf', data: new Uint8Array() }];
     expect(
@@ -108,6 +130,18 @@ describe('X-02 receipt stats', () => {
               width: 80,
               height: 30,
               fill: '#ff0000',
+            },
+            {
+              // No fill and no stroke: validated but invisible, so it must not
+              // inflate the receipt's "objects drawn" count.
+              id: 'invisible',
+              kind: 'rect',
+              role: 'content',
+              pageIndex: 0,
+              x: 150,
+              y: 150,
+              width: 10,
+              height: 10,
             },
           ],
           verifyVisual: false,

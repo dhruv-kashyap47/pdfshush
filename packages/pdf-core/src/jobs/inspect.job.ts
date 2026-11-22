@@ -23,9 +23,15 @@ export interface InspectOutput {
       keywords?: string;
       creator?: string;
       producer?: string;
-      creationDate?: Date;
+      /** ISO-8601; kept JSON-safe because the server can run `inspect`. */
+      creationDate?: string;
     };
   }[];
+}
+
+/** A malformed date must not make inspection fail. */
+function isoDate(value: Date | undefined): string | undefined {
+  return value && Number.isFinite(value.getTime()) ? value.toISOString() : undefined;
 }
 
 /**
@@ -70,8 +76,8 @@ export const inspectJob: JobDefinition<InspectInput, InspectOutput> = {
           ...(info.metadata.keywords !== undefined ? { keywords: info.metadata.keywords } : {}),
           ...(info.metadata.creator !== undefined ? { creator: info.metadata.creator } : {}),
           ...(info.metadata.producer !== undefined ? { producer: info.metadata.producer } : {}),
-          ...(info.metadata.creationDate !== undefined
-            ? { creationDate: info.metadata.creationDate }
+          ...(isoDate(info.metadata.creationDate) !== undefined
+            ? { creationDate: isoDate(info.metadata.creationDate)! }
             : {}),
         },
       });

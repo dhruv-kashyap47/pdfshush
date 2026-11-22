@@ -100,6 +100,8 @@ export interface EditorTopBarProps {
   dirty: boolean;
   saving: boolean;
   saveDisabled?: boolean;
+  /** Why Save is disabled; used for the accessible name and tooltip. */
+  saveDisabledReason?: string;
   saveLabel: string;
   onSave: () => void;
   onChangeFile: () => void;
@@ -119,6 +121,7 @@ export function EditorTopBar({
   dirty,
   saving,
   saveDisabled,
+  saveDisabledReason,
   saveLabel,
   onSave,
   onChangeFile,
@@ -218,7 +221,14 @@ export function EditorTopBar({
           className="editor-save-button"
           data-testid="editor-save"
           disabled={saving || saveDisabled}
-          aria-label={saving ? 'Saving' : saveLabel}
+          aria-label={
+            saving
+              ? 'Saving'
+              : saveDisabled
+                ? `${saveLabel} (${saveDisabledReason ?? 'unavailable'})`
+                : saveLabel
+          }
+          title={saveDisabled && !saving ? (saveDisabledReason ?? 'Saving is unavailable') : undefined}
           onClick={onSave}
           hidden={!showSave}
         >
@@ -248,6 +258,16 @@ export function EditorTopBar({
                 type="button"
                 className="editor-action-row"
                 disabled={saving || saveDisabled}
+                aria-label={
+                  saveDisabled && !saving
+                    ? `${saveLabel} (${saveDisabledReason ?? 'unavailable'})`
+                    : saveLabel
+                }
+                title={
+                  saveDisabled && !saving
+                    ? (saveDisabledReason ?? 'Saving is unavailable')
+                    : undefined
+                }
                 onClick={() => run(onSave)}
               >
                 <span className="editor-action-glyph" aria-hidden>

@@ -26,12 +26,40 @@ export interface OcrLayerTransform {
   pageHeight: number;
 }
 
+/** A placement's target in PDF user space, with its baseline direction. */
+export interface OcrPdfPlacement {
+  x: number;
+  y: number;
+  /** Counter-clockwise text angle in degrees. */
+  rotationDeg: number;
+}
+
+/**
+ * Converts a display-space placement. Production passes a converter derived
+ * from pdf.js's own viewport transform, which also handles CropBox offsets and
+ * any rotation; the simple struct is kept for callers that only have a page.
+ */
+export type OcrPlacementConverter = (placement: OcrPlacement) => OcrPdfPlacement;
+
 export function drawOcrTextLayer(
   page: PDFPage,
   font: PDFFont,
   placements: readonly OcrPlacement[],
-  transform: OcrLayerTransform = { rotation: 0, pageWidth: page.getWidth(), pageHeight: page.getHeight() },
+  transform:
+    | OcrLayerTransform
+    | OcrPlacementConverter = {
+    rotation: 0,
+    pageWidth: page.getWidth(),
+    pageHeight: page.getHeight(),
+  },
 ): void {
+  const convert: OcrPlacementConverter =
+    typeof transform === 'function'
+      ? transform
+      : (placement) => ({
+          ...rotatePlacement(placement, transform),
+          rotationDeg: transform.rotation,
+        });
   for (const placement of placements) {
     if (placement.text.length === 0 || !(placement.width > 0) || !(placement.fontSize > 0)) {
       continue;
@@ -62,7 +90,7 @@ export function drawOcrTextLayer(
       }
     }
 
-    const point = rotatePlacement(placement, transform);
+    const point = convert(placement);
     page.drawText(placement.text, {
       x: point.x,
       y: point.y,
@@ -70,7 +98,7 @@ export function drawOcrTextLayer(
       font,
       color: rgb(0, 0, 0),
       renderMode: TextRenderingMode.Invisible,
-      ...(transform.rotation !== 0 ? { rotate: degrees(transform.rotation) } : {}),
+      ...(point.rotationDeg !== 0 ? { rotate: degrees(point.rotationDeg) } : {}),
       ...(characterSpacing !== undefined ? { characterSpacing } : {}),
     });
   }

@@ -32,6 +32,7 @@ export function ExportReceipt({ fileName, pageCount, sizeBytes, report }: Export
   const [copied, setCopied] = useState(false);
   const summaries = summarizeEditModes(report);
   const total = totalEdits(report);
+  const ocrOnly = total === 0 && report.stats.ocrPages > 0;
   const recoverable = hasRecoverableOriginal(report);
   const text = formatEditReceipt({ fileName, pageCount, sizeBytes, report });
   const receiptName = receiptFileNameFor(fileName);
@@ -58,9 +59,11 @@ export function ExportReceipt({ fileName, pageCount, sizeBytes, report }: Export
         <div>
           <p className="editor-panel-kicker">Export receipt</p>
           <p className="editor-receipt-title">
-            {total === 0
-              ? 'No text was rewritten'
-              : `${total.toLocaleString()} text edit${total === 1 ? '' : 's'}`}
+            {ocrOnly
+              ? `OCR text layer added to ${report.stats.ocrPages.toLocaleString()} page${report.stats.ocrPages === 1 ? '' : 's'}`
+              : total === 0
+                ? 'No text was rewritten'
+                : `${total.toLocaleString()} text edit${total === 1 ? '' : 's'}`}
           </p>
         </div>
         {recoverable && (
@@ -87,7 +90,9 @@ export function ExportReceipt({ fileName, pageCount, sizeBytes, report }: Export
 
       {total === 0 && (
         <p className="editor-receipt-detail">
-          This export changed objects, forms or page order only. No text object was replaced.
+          {ocrOnly
+            ? 'No existing text object was replaced. The recognised words were added as an invisible layer over the scan; check them for accuracy.'
+            : 'This export changed objects, forms or page order only. No text object was replaced.'}
         </p>
       )}
 

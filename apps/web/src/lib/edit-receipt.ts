@@ -106,6 +106,7 @@ export function formatEditReceipt(input: EditReceiptInput): string {
   const total = totalEdits(report);
   const checks = report.verification.checks;
   const failedChecks = checks.filter((check) => !check.ok);
+  const stats = report.stats;
 
   const lines: string[] = [
     'pdfshush edit receipt',
@@ -116,7 +117,11 @@ export function formatEditReceipt(input: EditReceiptInput): string {
   ];
 
   if (total === 0) {
-    lines.push('Text edits: none. This export changed objects, forms or page order only.');
+    lines.push(
+      stats.ocrPages > 0
+        ? `Text edits: none. This export added an invisible OCR text layer to ${plural(stats.ocrPages, 'page')}.`
+        : 'Text edits: none. This export changed objects, forms or page order only.',
+    );
   } else {
     lines.push(`Text edits: ${plural(total, 'edit')}`);
     for (const summary of summaries) {
@@ -124,7 +129,6 @@ export function formatEditReceipt(input: EditReceiptInput): string {
     }
   }
 
-  const stats = report.stats;
   lines.push(
     '',
     'What changed:',

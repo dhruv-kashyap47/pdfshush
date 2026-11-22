@@ -2893,11 +2893,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           toast.error('The document with inserted pages could not be read.');
           return;
         }
-        const nextFile = new File([nextBytes], file.name, { type: 'application/pdf' });
+        const nextFile = new File([nextBytes], file.name, {
+          type: 'application/pdf',
+          lastModified: file.lastModified,
+        });
         // Rasters/runs/layouts are keyed by the old page indices. After a
         // compose in rail order those keys no longer point at the same pages
         // (especially when the rail was reordered), so let them reload against
         // the new document rather than showing the wrong page.
+        const priorProvenance = ocrProvenance;
         invalidateDocumentCaches();
         fileRef.current = nextFile;
         setFiles([nextFile]);
@@ -2913,6 +2917,14 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           if (!positionByOriginal.has(original)) positionByOriginal.set(original, position);
         });
         const remapPage = (index: number): number => positionByOriginal.get(index) ?? index;
+        // OCR provenance follows the same page remap as objects: a reordered
+        // OCR'd page keeps its confidence, and a removed page's entry is dropped.
+        const nextProvenance: typeof ocrProvenance = {};
+        for (const [index, value] of Object.entries(priorProvenance)) {
+          const position = positionByOriginal.get(Number(index));
+          if (position !== undefined) nextProvenance[position] = value;
+        }
+        setOcrProvenance(nextProvenance);
         // A page remap is not an editing action; keeping it out of the undo
         // stack means Undo cannot desync object page indexes from the file.
         editor.live((doc) => ({
@@ -2973,6 +2985,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       inspectRunner,
       invalidateDocumentCaches,
       organizeRunner,
+      ocrProvenance,
       pageOrder,
     ],
   );
@@ -2987,6 +3000,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       const file = fileRef.current;
       const bytes = sourceBytesRef.current;
       if (!file || !bytes || ocrLayerRunner.state.status === 'running') return;
+      if (savingRef.current) {
+        toast.info('Wait for the save to finish before running OCR.');
+        return;
+      }
       const pageIndexes = scope === 'page' ? [currentPage] : [];
       const pageCount = infoRef.current?.pageCount ?? 1;
       const input = [
@@ -3006,7 +3023,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       }
       const result = outcome.result;
       if (result.ocrPages.length === 0) {
-        toast.info('Those pages already have a searchable text layer.');
+        if (result.skippedPages.length > 0) {
+          toast.info('Those pages already have a searchable text layer.');
+        } else {
+          toast.warning('OCR found no readable words on that page.', {
+            description:
+              result.warnings[0]?.message ??
+              'Try a sharper scan; the page was left unchanged.',
+          });
+        }
         return;
       }
       const nextBytes = new Uint8Array(result.data);
@@ -3014,23 +3039,24 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         type: 'application/pdf',
         lastModified: file.lastModified,
       });
+      // Preserve provenance from earlier OCR runs in this document: the cache
+      // invalidation below clears the state, but page 1's confidence is still
+      // true after page 2 is recognized.
+      const nextProvenance = { ...ocrProvenance };
+      for (const page of result.pages) {
+        if (!result.ocrPages.includes(page.pageIndex + 1)) continue;
+        nextProvenance[page.pageIndex] = {
+          confidence: page.confidence,
+          wordCount: page.wordCount,
+          paragraphCount: page.paragraphCount,
+        };
+      }
       invalidateDocumentCaches();
       fileRef.current = nextFile;
       sourceBytesRef.current = nextBytes;
       setFiles([nextFile]);
       setSourceDirty(true);
-      setOcrProvenance((prev) => {
-        const next = { ...prev };
-        for (const page of result.pages) {
-          if (!result.ocrPages.includes(page.pageIndex + 1)) continue;
-          next[page.pageIndex] = {
-            confidence: page.confidence,
-            wordCount: page.wordCount,
-            paragraphCount: page.paragraphCount,
-          };
-        }
-        return next;
-      });
+      setOcrProvenance(nextProvenance);
       const inspected = await inspectRunner.run([
         { name: nextFile.name, type: 'application/pdf', data: nextBytes.slice() },
       ]);
@@ -3058,6 +3084,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       inspectRunner,
       invalidateDocumentCaches,
       ocrLayerRunner,
+      ocrProvenance,
     ],
   );
 
@@ -3199,6 +3226,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     ) {
       return;
     }
+    // A source-byte change (OCR) and a save must not overlap: the save would
+    // either export the pre-OCR bytes or clear the dirty flag for them.
+    if (ocrLayerRunner.state.status === 'running') {
+      toast.info('Wait for OCR to finish before saving.');
+      return;
+    }
     if (isRedact) {
       if (redactMarks.length === 0) {
         toast.error('Drag on the page to mark content first.');
@@ -3207,13 +3240,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       setConfirmRedact(true);
       return;
     }
-    if (isOrganize) {
-      await runOrganize();
-      return;
-    }
     // X-05: a no-change export is not a document operation. The button is
     // disabled for the same reason, but keyboard and mobile paths reach this
-    // guard directly.
+    // guard directly. This runs before the organize branch so a no-op page
+    // export cannot slip through the keyboard shortcut.
     const hasChanges =
       editorIsDirty({
         doc: editor.doc,
@@ -3224,6 +3254,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       }) || sourceDirty;
     if (!hasChanges && aiChangeCount === 0) {
       toast.info('There are no changes to save.');
+      return;
+    }
+    if (isOrganize) {
+      await runOrganize();
       return;
     }
     const file = fileRef.current;
@@ -3794,14 +3828,19 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       paragraphEdit !== null ||
       sourceDirty ||
       (stage === 'editing' && pageOrderDirty);
-    if (!hasWork || editor.doc === savedDocRef.current) return;
+    const unsaved =
+      editor.doc !== savedDocRef.current ||
+      sourceDirty ||
+      paragraphEdit !== null ||
+      (stage === 'editing' && pageOrderDirty);
+    if (!hasWork || !unsaved) return;
     const handler = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [stage, editor.doc, editor.pageOrderDirty, paragraphEdit, pageOrderDirty, sourceDirty]);
+  }, [stage, editor.doc, editor.pageOrderDirty, paragraphEdit, pageOrderDirty, sourceDirty, saving]);
 
   const dirty =
     editorIsDirty({
@@ -4135,12 +4174,21 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         onContinue={continueEditing}
         continueLabel="Continue editing"
         footerNote={
-          <>
-            Saved, re-parsed and verified ({result.pageCount} page
-            {result.pageCount === 1 ? '' : 's'}) before this download was enabled.
-            {isSign && ' The audit note is a local record: it never certifies identity, and it'
-              + ' is not our server acknowledging anything.'}
-          </>
+          result.report.verification.ok ? (
+            <>
+              Saved, re-parsed and verified ({result.pageCount} page
+              {result.pageCount === 1 ? '' : 's'}) before this download was enabled.
+              {isSign && ' The audit note is a local record: it never certifies identity, and it'
+                + ' is not our server acknowledging anything.'}
+            </>
+          ) : (
+            <>
+              Saved, but {result.report.verification.checks.filter((check) => !check.ok).length} of{' '}
+              {result.report.verification.checks.length} verification check
+              {result.report.verification.checks.length === 1 ? '' : 's'} failed. This download was
+              only offered after you accepted the difference; the receipt names every check.
+            </>
+          )
         }
       >
         <div className="space-y-3">
@@ -4182,6 +4230,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const hasEdits =
     objectCount > 0 ||
     Object.keys(editor.doc.formValues).length > 0 ||
+    sourceDirty ||
     (isOrganize && pageOrderDirty) ||
     (isRedact && redactMarks.length > 0);
   const assistantActive = mode === 'ai' || tool === 'ai';
@@ -4368,7 +4417,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             dirty={dirty || aiChangeCount > 0}
             saving={saving}
             saveLabel={saveLabel}
-            saveDisabled={!dirty && aiChangeCount === 0}
+            saveDisabled={ocrRunning || (!dirty && aiChangeCount === 0)}
+            saveDisabledReason={
+              ocrRunning ? 'wait for OCR to finish' : 'no changes to save'
+            }
             showSave={!isAi || hasEdits}
             onSave={() => void onSave()}
             onChangeFile={requestChangeFile}

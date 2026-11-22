@@ -116,6 +116,17 @@ describe('formatEditReceipt', () => {
     expect(text).not.toContain('0 ×');
   });
 
+  it('does not call an OCR-only export an object/page-order change', () => {
+    const text = formatEditReceipt({
+      ...input,
+      report: report({
+        stats: { ...report().stats, ocrPages: 2, objectsDrawn: 0, textEdits: 0 },
+      }),
+    });
+    expect(text).toContain('added an invisible OCR text layer to 2 pages');
+    expect(text).not.toContain('changed objects, forms or page order only');
+  });
+
   it('reports failed checks with the engine detail instead of a bare count', () => {
     const text = formatEditReceipt({
       ...input,

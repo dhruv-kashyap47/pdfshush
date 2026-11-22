@@ -739,6 +739,7 @@ export async function applyEdits(
   const fontCache = new Map<string, PDFFont>();
   const embeddedFonts = new Set<string>();
   let imagesDrawn = 0;
+  let objectsDrawn = 0;
   const warnings = options.warnings ?? [];
   const rasterisedObjectIds = options.rasterisedObjectIds ?? new Set<string>();
   const fontPages = new Set(
@@ -766,7 +767,7 @@ export async function applyEdits(
       isolated.add(object.pageIndex);
     }
     const geom = geomFor(object.pageIndex);
-    await drawObject(page, geom, object, {
+    const drawn = await drawObject(page, geom, object, {
       imageCache,
       fontCache,
       embeddedFonts,
@@ -778,9 +779,10 @@ export async function applyEdits(
         imagesDrawn += 1;
       },
     });
+    if (drawn) objectsDrawn += 1;
     progress.step(i, objects.length, 'Applying edits');
   }
-  return { objectsDrawn: objects.length, imagesDrawn, fontsEmbedded: embeddedFonts.size };
+  return { objectsDrawn, imagesDrawn, fontsEmbedded: embeddedFonts.size };
 }
 
 /**
@@ -887,34 +889,41 @@ async function drawObject(
   geom: PageGeom,
   object: EditorObject,
   fonts: FontSet,
-): Promise<void> {
+): Promise<boolean> {
   switch (object.kind) {
     case 'text':
+      if (object.text.length === 0) return false;
       await drawText(page, geom, object, fonts);
-      return;
-    case 'image':
+      return true;
+    case 'image': {
+      const raw = object.data instanceof Uint8Array ? object.data : new Uint8Array(object.data);
+      if (raw.byteLength === 0) return false;
       await drawImage(page, geom, object, fonts);
-      return;
+      return true;
+    }
     case 'rect':
+      if (!object.fill && !object.stroke) return false;
       drawRect(page, geom, object);
-      return;
+      return true;
     case 'ellipse':
+      if (!object.fill && !object.stroke) return false;
       drawEllipse(page, geom, object);
-      return;
+      return true;
     case 'line':
     case 'arrow':
       drawLine(page, geom, object);
-      return;
+      return true;
     case 'ink':
+      if (object.points.length === 0) return false;
       drawInk(page, geom, object);
-      return;
+      return true;
     case 'check':
     case 'cross':
       drawCheck(page, geom, object);
-      return;
+      return true;
     case 'stamp':
       await drawStamp(page, geom, object, fonts);
-      return;
+      return true;
     case 'highlight': {
       const box = viewRectToPdf(geom, object);
       page.drawRectangle({
@@ -925,7 +934,7 @@ async function drawObject(
         color: parseHexColor(object.color, rgb(1, 0.88, 0.4)),
         opacity: 0.45,
       });
-      return;
+      return true;
     }
     case 'whiteout': {
       const box = viewRectToPdf(geom, object);
@@ -936,7 +945,7 @@ async function drawObject(
         height: box.height,
         color: rgb(1, 1, 1),
       });
-      return;
+      return true;
     }
     case 'strikeout':
     case 'underline': {
@@ -955,9 +964,10 @@ async function drawObject(
       const [sx, sy] = viewToPdf(geom, object.x, barY);
       const [ex, ey] = viewToPdf(geom, object.x + object.width, barY);
       page.drawLine({ start: { x: sx, y: sy }, end: { x: ex, y: ey }, thickness, color });
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 function canDrawText(font: PDFFont, isStandard: boolean, text: string): boolean {
