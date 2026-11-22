@@ -8178,7 +8178,7 @@ The document is the surface again:
 | `pnpm test:fuzz` | 4/4 |
 | `text-ux` | **57/57** |
 | `sprint6-trust` | **21/21** |
-| `editor-quick-parity` | 20/20 |
+| `editor-quick-parity` | 23/23 |
 | `text-edit` | 7/7 |
 | `sign`, `signature-upload` | all checks |
 | `keyboard` | 31 checks |
@@ -8210,7 +8210,7 @@ suites could not see. All are fixed before the main merge:
 | Portal colour | Radix sheets/popovers outside `.editor-shell` still inherited brand-green primary and focus. | Editor tokens are set on `body.editor-app-active`, so every portal is ink-neutral too. |
 
 Re-verified after the pass: `pnpm typecheck` (8 projects), `pnpm test` (pdf-core
-697+1 expected fail, web 318), `pnpm build`, `editor-quick-parity` 22/22 (adds
+697+1 expected fail, web 318), `pnpm build`, `editor-quick-parity` 23/23 (adds
 both Escape-cancel checks), `keyboard` 31 checks, `a11y` all contexts,
 `text-ux` 57/57, `editor-touch` 11/11, and the `smoke` editor/tool sections.
 The smoke accounts-off checks still depend on a frontend-only deployment.
