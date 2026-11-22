@@ -11,13 +11,26 @@
  * shrink the run's height and break the line clustering pdf.js rebuilds.
  */
 
-import { TextRenderingMode, rgb, type PDFFont, type PDFPage } from '@cantoo/pdf-lib';
+import { TextRenderingMode, degrees, rgb, type PDFFont, type PDFPage } from '@cantoo/pdf-lib';
 import type { OcrPlacement } from './layout.js';
+
+/**
+ * The page's own /Rotate. Placements are built in display space (what the
+ * recognizer saw); a rotated page needs their origin and baseline rotated back
+ * into unrotated PDF space, or the invisible words land somewhere else.
+ */
+export interface OcrLayerTransform {
+  rotation: 0 | 90 | 180 | 270;
+  /** Unrotated page size in points. */
+  pageWidth: number;
+  pageHeight: number;
+}
 
 export function drawOcrTextLayer(
   page: PDFPage,
   font: PDFFont,
   placements: readonly OcrPlacement[],
+  transform: OcrLayerTransform = { rotation: 0, pageWidth: page.getWidth(), pageHeight: page.getHeight() },
 ): void {
   for (const placement of placements) {
     if (placement.text.length === 0 || !(placement.width > 0) || !(placement.fontSize > 0)) {
@@ -49,14 +62,34 @@ export function drawOcrTextLayer(
       }
     }
 
+    const point = rotatePlacement(placement, transform);
     page.drawText(placement.text, {
-      x: placement.x,
-      y: placement.y,
+      x: point.x,
+      y: point.y,
       size,
       font,
       color: rgb(0, 0, 0),
       renderMode: TextRenderingMode.Invisible,
+      ...(transform.rotation !== 0 ? { rotate: degrees(transform.rotation) } : {}),
       ...(characterSpacing !== undefined ? { characterSpacing } : {}),
     });
+  }
+}
+
+/** display-space bottom-left point → unrotated PDF user space. */
+function rotatePlacement(
+  placement: OcrPlacement,
+  transform: OcrLayerTransform,
+): { x: number; y: number } {
+  const { rotation, pageWidth: width, pageHeight: height } = transform;
+  switch (rotation) {
+    case 90:
+      return { x: width - placement.y, y: placement.x };
+    case 180:
+      return { x: width - placement.x, y: height - placement.y };
+    case 270:
+      return { x: placement.y, y: height - placement.x };
+    default:
+      return { x: placement.x, y: placement.y };
   }
 }

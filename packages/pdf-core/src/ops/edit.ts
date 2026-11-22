@@ -690,6 +690,15 @@ export function imagePixelSize(
   return null;
 }
 
+export interface ApplyEditsStats {
+  /** Objects the final pass drew (covers and generated patches included). */
+  objectsDrawn: number;
+  /** Of those, images (including rasterised text lines). */
+  imagesDrawn: number;
+  /** Distinct fonts embedded by this pass. */
+  fontsEmbedded: number;
+}
+
 export interface ApplyEditsOptions {
   /** Collected fidelity warnings (`text-squeeze`, `glyph-rasterised`). */
   warnings?: string[];
@@ -705,8 +714,8 @@ export async function applyEdits(
   objects: EditorObject[],
   ctx: JobContext,
   options: ApplyEditsOptions = {},
-): Promise<void> {
-  if (objects.length === 0) return;
+): Promise<ApplyEditsStats> {
+  if (objects.length === 0) return { objectsDrawn: 0, imagesDrawn: 0, fontsEmbedded: 0 };
   const progress = createProgressReporter(ctx);
   const pages = doc.getPages();
   const isolated = new Set<number>();
@@ -728,6 +737,8 @@ export async function applyEdits(
   // key for the same reason (and so italic/bold variants are embedded once).
   const imageCache = new Map<string, PDFImage>();
   const fontCache = new Map<string, PDFFont>();
+  const embeddedFonts = new Set<string>();
+  let imagesDrawn = 0;
   const warnings = options.warnings ?? [];
   const rasterisedObjectIds = options.rasterisedObjectIds ?? new Set<string>();
   const fontPages = new Set(
@@ -758,13 +769,18 @@ export async function applyEdits(
     await drawObject(page, geom, object, {
       imageCache,
       fontCache,
+      embeddedFonts,
       documentFonts,
       warnings,
       rasterisedObjectIds,
       canvasFactory: options.canvasFactory,
+      onImageDrawn: () => {
+        imagesDrawn += 1;
+      },
     });
     progress.step(i, objects.length, 'Applying edits');
   }
+  return { objectsDrawn: objects.length, imagesDrawn, fontsEmbedded: embeddedFonts.size };
 }
 
 /**
@@ -850,6 +866,10 @@ function isolatePageContent(page: PDFPage): void {
 interface FontSet {
   /** Standard-font key (family:bold:italic) → embedded font, so repeats cost nothing. */
   fontCache: Map<string, PDFFont>;
+  /** Keys of every font this pass actually embedded, for the receipt. */
+  embeddedFonts: Set<string>;
+  /** Image hit/miss callback, counted once per drawn object. */
+  onImageDrawn?: () => void;
   /** mime + content hash → embedded image, so repeats cost nothing. */
   imageCache: Map<string, PDFImage>;
   /** Document programmes extracted from the source, when a text object asks for one. */
@@ -956,10 +976,14 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
   if (object.text.length === 0) return;
   const fontFamily = object.fontFamily ?? 'helvetica';
   const standard = await embedStandardFont(page.doc, fonts.fontCache, fontFamily, Boolean(object.bold), Boolean(object.italic));
+  if (standard) fonts.embeddedFonts.add(`standard:${fontFamily}:${Boolean(object.bold)}:${Boolean(object.italic)}`);
   let font = standard;
   if (object.fontKey && fonts.documentFonts) {
     const documentFont = await fonts.documentFonts.embed(object.fontKey);
-    if (documentFont && canEncodeDocumentText(documentFont, object.text)) font = documentFont;
+    if (documentFont && canEncodeDocumentText(documentFont, object.text)) {
+      font = documentFont;
+      fonts.embeddedFonts.add(`document:${object.fontKey}`);
+    }
   }
   if (!font) return;
   const fontSize = clamp(object.fontSize, MIN_FONT_SIZE, MAX_FONT_SIZE);
@@ -1049,6 +1073,7 @@ async function drawText(page: PDFPage, geom: PageGeom, object: EditTextObject, f
         height: raster.height,
         rotate: angle,
       });
+      fonts.onImageDrawn?.();
       fonts.rasterisedObjectIds.add(object.id);
       fonts.warnings.push(
         `glyph-rasterised: "${line.slice(0, 40)}" was drawn as an image because no available font can encode it; the text is not selectable.`,
@@ -1142,6 +1167,7 @@ async function drawImage(page: PDFPage, geom: PageGeom, object: EditImageObject,
     height: Math.max(1, object.height),
     rotate: degrees(displayAngle(geom)),
   });
+  fonts.onImageDrawn?.();
 }
 
 /** FNV-1a over the bytes: cheap identity for "same image, second paste". */
@@ -1309,6 +1335,7 @@ async function drawStamp(
   });
 
   const font = await embedStandardFont(page.doc, fonts.fontCache, 'helvetica', true, false);
+  if (font) fonts.embeddedFonts.add('standard:helvetica:true:false');
   if (!font || object.text.length === 0) return;
   // Draw the label exactly as stored. Uppercasing here could turn a valid
   // WinAnsi code point into a non-WinAnsi one (µ -> Greek Mu) after validation

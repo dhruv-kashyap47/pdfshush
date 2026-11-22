@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, Download, Pencil, RotateCcw, Sparkles } from 'lucide-react';
+import type { JobWarning } from '@pdfshush/pdf-core';
 import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/format';
 import { announceLocalProcessing } from '@/lib/privacy';
@@ -18,7 +19,7 @@ interface ResultPanelProps {
   onContinue?: () => void;
   continueLabel?: string;
   /** Non-blocking notices from the engine; the download is still usable. */
-  warnings?: string[];
+  warnings?: Array<string | JobWarning>;
   children?: ReactNode;
   footerNote?: ReactNode;
 }
@@ -43,7 +44,9 @@ export function ResultPanel({
 }: ResultPanelProps) {
   const slug = useToolSlug();
   const next = slug ? nextFor(slug) : [];
-  const notices = (warnings ?? []).filter((warning) => warning.trim().length > 0);
+  const notices = (warnings ?? [])
+    .map((warning) => (typeof warning === 'string' ? warning : warning.message))
+    .filter((warning) => warning.trim().length > 0);
 
   useEffect(() => {
     announceLocalProcessing(pageCount);

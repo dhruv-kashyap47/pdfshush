@@ -213,3 +213,71 @@ function imageBaselineFromBox(line: OcrLine): number {
   const height = Math.max(0, line.box.y1 - line.box.y0);
   return line.box.y1 - height * 0.2;
 }
+
+export interface OcrBlockSummary {
+  text: string;
+  confidence: number;
+  /** Display-space box in PDF points. */
+  box: { x: number; y: number; width: number; height: number };
+}
+
+export interface OcrLayoutSummary {
+  wordCount: number;
+  lineCount: number;
+  /** Consecutive lines close enough vertically to read as one paragraph. */
+  paragraphCount: number;
+  /** Up to 40 blocks, for provenance without shipping an unbounded payload. */
+  blocks: OcrBlockSummary[];
+}
+
+/**
+ * O-03: the editor needs confidence at page level and a small amount of
+ * structure, not a second copy of the recognizer's whole output. Paragraphs are
+ * grouped by vertical proximity; a column jump also starts a new paragraph.
+ * The grouping is deliberately simple and honest — the words themselves are
+ * what extraction uses.
+ */
+export function summarizeOcrPage(page: OcrPage, mapping: OcrPageMapping): OcrLayoutSummary {
+  if (!validMapping(mapping)) {
+    return { wordCount: 0, lineCount: 0, paragraphCount: 0, blocks: [] };
+  }
+  const lines = page.lines
+    .map((line) => {
+      const words = line.words.filter((word) => sanitizeOcrText(word.text).length > 0);
+      const box = toPointBox(line.box, mapping);
+      return { line, words, box, height: Math.max(0.1, box.top - box.bottom) };
+    })
+    .filter((entry) => entry.words.length > 0)
+    .sort((a, b) => b.box.top - a.box.top || a.box.left - b.box.left);
+
+  let paragraphCount = lines.length > 0 ? 1 : 0;
+  for (let index = 1; index < lines.length; index += 1) {
+    const previous = lines[index - 1]!;
+    const current = lines[index]!;
+    const gap = previous.box.bottom - current.box.top;
+    const jumpedLeft = current.box.left < previous.box.left - previous.height * 2;
+    if (gap > previous.height * 1.5 || jumpedLeft) paragraphCount += 1;
+  }
+
+  const blocks: OcrBlockSummary[] = [];
+  for (const entry of lines.slice(0, 40)) {
+    const text = entry.words.map((word) => sanitizeOcrText(word.text)).join(' ').trim();
+    if (text.length === 0) continue;
+    blocks.push({
+      text,
+      confidence: entry.line.confidence,
+      box: {
+        x: entry.box.left,
+        y: entry.box.bottom,
+        width: Math.max(0, entry.box.right - entry.box.left),
+        height: entry.height,
+      },
+    });
+  }
+  return {
+    wordCount: lines.reduce((total, entry) => total + entry.words.length, 0),
+    lineCount: lines.length,
+    paragraphCount,
+    blocks,
+  };
+}

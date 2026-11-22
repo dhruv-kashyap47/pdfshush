@@ -13,7 +13,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:fuzz": "vitest run test/streamFuzz.test.ts"
   },
   "dependencies": {
     "@cantoo/fontkit": "^2.0.12",

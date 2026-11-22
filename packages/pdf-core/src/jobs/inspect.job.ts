@@ -16,7 +16,15 @@ export interface InspectOutput {
     pages: PageInfo[];
     /** AcroForm widgets with display-space rects (editor form filling). */
     fields: FormWidgetInfo[];
-    metadata: { title?: string; author?: string; creator?: string };
+    metadata: {
+      title?: string;
+      author?: string;
+      subject?: string;
+      keywords?: string;
+      creator?: string;
+      producer?: string;
+      creationDate?: Date;
+    };
   }[];
 }
 
@@ -58,7 +66,13 @@ export const inspectJob: JobDefinition<InspectInput, InspectOutput> = {
         metadata: {
           ...(info.metadata.title !== undefined ? { title: info.metadata.title } : {}),
           ...(info.metadata.author !== undefined ? { author: info.metadata.author } : {}),
+          ...(info.metadata.subject !== undefined ? { subject: info.metadata.subject } : {}),
+          ...(info.metadata.keywords !== undefined ? { keywords: info.metadata.keywords } : {}),
           ...(info.metadata.creator !== undefined ? { creator: info.metadata.creator } : {}),
+          ...(info.metadata.producer !== undefined ? { producer: info.metadata.producer } : {}),
+          ...(info.metadata.creationDate !== undefined
+            ? { creationDate: info.metadata.creationDate }
+            : {}),
         },
       });
     }

@@ -30,6 +30,8 @@ export interface DocumentMetadata {
   author?: string;
   subject?: string;
   keywords?: string;
+  creator?: string;
+  producer?: string;
 }
 
 /** Reads the semantic fields, treating malformed or empty values as absent. */
@@ -50,24 +52,30 @@ export function readDocumentMetadata(doc: PDFDocument): DocumentMetadata {
   const author = pick(safe(() => doc.getAuthor()));
   const subject = pick(safe(() => doc.getSubject()));
   const keywords = pick(safe(() => doc.getKeywords()));
+  const creator = pick(safe(() => doc.getCreator()));
+  const producer = pick(safe(() => doc.getProducer()));
   return {
     ...(title !== undefined ? { title } : {}),
     ...(author !== undefined ? { author } : {}),
     ...(subject !== undefined ? { subject } : {}),
     ...(keywords !== undefined ? { keywords } : {}),
+    ...(creator !== undefined ? { creator } : {}),
+    ...(producer !== undefined ? { producer } : {}),
   };
 }
 
 /**
  * Copies semantic metadata onto a freshly composed document. Fields absent
- * from the source stay absent (the new document never invents a title); dates
- * are deliberately handled by `applyDocumentDates`.
+ * from the source stay absent (the new document never invents a title). Creator
+ * and producer travel as provenance; dates are handled by `applyDocumentDates`.
  */
 export function applyDocumentMetadata(doc: PDFDocument, metadata: DocumentMetadata): void {
   if (metadata.title !== undefined) doc.setTitle(clampField(metadata.title));
   if (metadata.author !== undefined) doc.setAuthor(clampField(metadata.author));
   if (metadata.subject !== undefined) doc.setSubject(clampField(metadata.subject));
   if (metadata.keywords !== undefined) doc.setKeywords([clampField(metadata.keywords)]);
+  if (metadata.creator !== undefined) doc.setCreator(clampField(metadata.creator));
+  if (metadata.producer !== undefined) doc.setProducer(clampField(metadata.producer));
 }
 
 function clampField(value: string): string {

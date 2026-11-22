@@ -331,6 +331,11 @@ class Scanner {
     ) {
       this.index += 1;
     }
+    // A lone delimiter that no earlier branch claimed (`>` is the one that
+    // reaches here) would otherwise return a zero-width token and leave the
+    // scanner in place forever. Consume it as an operator so the stream stays
+    // partitioned.
+    if (this.index === start) this.index += 1;
     const text = byteString(this.bytes, start, this.index);
     if (text === 'true' || text === 'false' || text === 'null') {
       return { kind: 'keyword', start, end: this.index, text };

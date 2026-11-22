@@ -24,6 +24,8 @@ export interface EditorParagraphDetailsProps {
   capability: PageTextCapability | null;
   record: ParagraphEditRecord | null;
   outcome: TextEditOutcome | null;
+  /** O-04: session confidence when this page was OCR'd here. */
+  ocrConfidence?: number | null;
   onBack: () => void;
   onEdit: () => void;
   onRevert: () => void;
@@ -75,6 +77,7 @@ export function EditorParagraphDetails({
   capability,
   record,
   outcome,
+  ocrConfidence,
   onBack,
   onEdit,
   onRevert,
@@ -111,12 +114,19 @@ export function EditorParagraphDetails({
         `${Math.round(paragraph.confidence * 100)}%${paragraph.ambiguous ? ' · ambiguous grouping' : ''}`,
       ),
       fact('Text layer', textLayerLabel(capability)),
-      fact('Colour', 'Not detected yet (arrives with the native colour model)'),
-      fact('Source', 'Page-level model (OCR provenance is reported per page)'),
+      fact('Colour', paragraph.typography.color ?? 'Not detected'),
+      fact(
+        'Source',
+        capability?.textLayer === 'ocr' || capability?.textLayer === 'mixed'
+          ? ocrConfidence !== undefined && ocrConfidence !== null
+            ? `OCR · ${Math.round(ocrConfidence)}% page confidence (check the text)`
+            : 'OCR text layer · confidence not recorded in this session'
+          : 'Page-level model',
+      ),
       fact('Char spacing', paragraph.typography.charSpacing !== undefined ? `${paragraph.typography.charSpacing.toFixed(2)} pt` : 'Not reported'),
       fact('Paragraph id', paragraph.id),
     ],
-    [capability, firstLine, paragraph],
+    [capability, firstLine, ocrConfidence, paragraph],
   );
 
   const copyText = `Paragraph ${paragraph.id}\n${facts

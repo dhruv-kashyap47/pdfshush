@@ -159,10 +159,14 @@ describe('page-copy pipelines: metadata (PDF-ENGINE-002)', () => {
       testContext(),
     );
     const info = await inspectPdf(out.data);
+    const sourceInfo = await inspectPdf(readAuditFixture('metadata.pdf'));
     expect(info.metadata.title).toBe('pdfshush metadata fixture');
     expect(info.metadata.author).toBe('pdfshush audit');
     expect(info.metadata.subject).toBe('Metadata preservation probe');
     expect(info.metadata.keywords).toBe('pdf-audit metadata FIXTURE');
+    // X-04: creator/producer are provenance, not decoration; composition keeps them.
+    expect(info.metadata.creator).toBe(sourceInfo.metadata.creator);
+    expect(info.metadata.producer).toBe(sourceInfo.metadata.producer);
   });
 
   it('merge and combine use the first document metadata', async () => {

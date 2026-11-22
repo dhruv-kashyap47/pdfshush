@@ -12,6 +12,8 @@
  * be it.
  */
 
+import type { JobWarning } from '../warnings.js';
+
 /** A rectangle to destroy, in the editor's display space. */
 export interface RedactRegion {
   pageIndex: number;
@@ -71,7 +73,7 @@ export interface RedactionReport {
   /** Total page-image bytes, i.e. what actually replaced the original content. */
   totalImageBytes: number;
   verification: VerificationResult;
-  warnings: string[];
+  warnings: JobWarning[];
 }
 
 export interface RedactResult {

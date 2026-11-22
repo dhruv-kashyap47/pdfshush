@@ -7,6 +7,7 @@
  */
 
 import { LIMITS, timeoutForPageCount } from './limits.js';
+import type { JobWarning } from './warnings.js';
 
 export interface JobProgress {
   /** Short human label, e.g. "Rendering pages". */
@@ -66,7 +67,12 @@ export interface JobCost {
  * alpha channel) without turning a usable output into an error.
  */
 export interface JobWarnings {
-  warnings?: string[];
+  /**
+   * Coded, deduplicated fidelity notices. Kept as an additive field so a job
+   * that predates the registry can still omit it; the migrated jobs always
+   * populate it and derive their legacy text from `message`.
+   */
+  warnings?: JobWarning[];
 }
 
 export interface JobDefinition<I extends JobInputBase = JobInputBase, O = unknown> {

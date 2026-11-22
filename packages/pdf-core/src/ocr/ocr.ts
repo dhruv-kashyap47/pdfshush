@@ -287,7 +287,7 @@ async function verifyOcrOutput(
  * preserves their original fonts and search quality instead of replacing them
  * with a raster and an approximation.
  */
-async function pageHasTextLayer(page: PDFPageProxy): Promise<boolean> {
+export async function pageHasTextLayer(page: PDFPageProxy): Promise<boolean> {
   try {
     const content = await page.getTextContent();
     let count = 0;

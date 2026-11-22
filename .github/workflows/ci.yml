@@ -42,6 +42,10 @@ jobs:
 
       - run: pnpm test
 
+      # H-04: the seeded fuzz is part of `pnpm test`, but a named step makes a
+      # hang or crash on a hostile stream obvious in the CI log.
+      - run: pnpm test:fuzz
+
       # `pnpm build` is the web build; `test:bundle` scans the chunks it emits.
       - run: pnpm build
 

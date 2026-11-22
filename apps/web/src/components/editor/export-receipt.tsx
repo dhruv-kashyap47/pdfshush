@@ -91,6 +91,30 @@ export function ExportReceipt({ fileName, pageCount, sizeBytes, report }: Export
         </p>
       )}
 
+      <ul className="editor-receipt-warnings" data-testid="edit-receipt-stats">
+        <li>
+          {report.stats.pages.toLocaleString()} page{report.stats.pages === 1 ? '' : 's'} ·{' '}
+          {report.stats.charactersRemoved.toLocaleString()} characters rewritten ·{' '}
+          {report.stats.objectsDrawn.toLocaleString()} object
+          {report.stats.objectsDrawn === 1 ? '' : 's'} drawn
+        </li>
+        <li>
+          {report.stats.fontsEmbedded.toLocaleString()} font
+          {report.stats.fontsEmbedded === 1 ? '' : 's'} embedded ·{' '}
+          {report.stats.fontsSubstituted.toLocaleString()} substituted ·{' '}
+          {report.stats.strategy === 'native-only' ? 'native only' : 'verified ladder'}
+        </li>
+        {(report.stats.glyphsRasterised > 0 || report.stats.ocrPages > 0) && (
+          <li>
+            {report.stats.glyphsRasterised > 0 &&
+              `${report.stats.glyphsRasterised.toLocaleString()} glyph${report.stats.glyphsRasterised === 1 ? '' : 's'} rasterised`}
+            {report.stats.glyphsRasterised > 0 && report.stats.ocrPages > 0 ? ' · ' : ''}
+            {report.stats.ocrPages > 0 &&
+              `${report.stats.ocrPages.toLocaleString()} OCR page${report.stats.ocrPages === 1 ? '' : 's'}`}
+          </li>
+        )}
+      </ul>
+
       <p className="editor-receipt-verification">
         {report.verification.checks.length === 0
           ? 'No verification checks were run for this export.'
@@ -102,7 +126,7 @@ export function ExportReceipt({ fileName, pageCount, sizeBytes, report }: Export
       {report.warnings.length > 0 && (
         <ul className="editor-receipt-warnings" data-testid="edit-receipt-warnings">
           {report.warnings.map((warning) => (
-            <li key={warning}>{warning}</li>
+            <li key={`${warning.code}:${warning.detail}`}>{warning.message}</li>
           ))}
         </ul>
       )}

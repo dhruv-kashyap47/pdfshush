@@ -50,12 +50,14 @@ import {
   rasterWidthWithinBudget,
   replaceMatches,
   timeoutForPageCount,
+  ocrTimeoutForPageCount,
   type EditorObject,
   type EditTextNativePlan,
   type EditTextObject,
   type FormWidgetInfo,
   type InspectOutput,
   type OrganizeJobOutput,
+  type OcrTextLayerJobOutput,
   type PageLayout,
   type PageRef,
   type PageTextCapability,
@@ -166,7 +168,6 @@ import {
 } from '@/lib/text-editing';
 import { recordRecent } from '@/tools/recent';
 import { TEXT_MODEL_LIMITS } from '@/lib/text-model-limits';
-import { totalEdits } from '@/lib/edit-receipt';
 import {
   DRAFT_DEBOUNCE_MS,
 
@@ -398,6 +399,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const [capabilitiesByPage, setCapabilitiesByPage] = useState<
     Record<number, PageTextCapability>
   >({});
+  /**
+   * O-04: confidence for pages OCR'd in this session. The capability snapshot
+   * proves a page has an invisible layer; only this map knows how confident the
+   * recognizer was. It is deliberately session-local: a reload keeps the layer
+   * and says the confidence was not recorded, rather than inventing one.
+   */
+  const [ocrProvenance, setOcrProvenance] = useState<
+    Record<number, { confidence: number; wordCount: number; paragraphCount: number }>
+  >({});
   const [textSelection, setTextSelection] = useState<TextSelectionState | null>(null);
   const [selectedTextBlock, setSelectedTextBlock] = useState<{
     pageIndex: number;
@@ -461,6 +471,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const editRunner = useJobRunner<TextEditJobOutput>('text-edit');
   const redactRunner = useJobRunner<RedactJobOutput>('redact');
   const organizeRunner = useJobRunner<OrganizeJobOutput>('organize');
+  const ocrLayerRunner = useJobRunner<OcrTextLayerJobOutput>('ocr-text-layer');
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageScrollFrame = useRef<number | null>(null);
@@ -476,6 +487,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const zoomTouchedRef = useRef(false);
   /** Doc snapshot handed to the last save: the "unsaved changes" baseline. */
   const savedDocRef = useRef<typeof editor.doc | null>(null);
+  /** O-02/E-09: the working source bytes changed (OCR text layer or inserted pages). */
+  const [sourceDirty, setSourceDirty] = useState(false);
+  const sourceDirtyRef = useRef(false);
+  sourceDirtyRef.current = sourceDirty;
+  /** X-03: verification refused only because an untouched page's text changed. */
+  const [untouchedBlocked, setUntouchedBlocked] = useState<string | null>(null);
   /** Monotonic id for file-selection requests; a stale one must not win. */
   const loadSequence = useRef(0);
   /** Timestamp of the last arrow-key nudge, and whether its tx is still open. */
@@ -914,6 +931,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     layoutsByPageRef.current = {};
     setCapabilitiesByPage({});
     capabilitiesByPageRef.current = {};
+    setOcrProvenance({});
     setTextSelection(null);
     setSelectedTextBlock(null);
     setParagraphEdit(null);
@@ -955,6 +973,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setCurrentPage(0);
     zoomTouchedRef.current = false;
     savedDocRef.current = null;
+    setSourceDirty(false);
+    setUntouchedBlocked(null);
     pendingSignatureRef.current = null;
     setSignatureDialogOpen(false);
     setSignerLabel('');
@@ -991,6 +1011,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     redactRunner.reset();
     organizeRunner.reset();
     inspectRunner.reset();
+    ocrLayerRunner.reset();
   }, [
     editor.reset,
     editor.resetPageOrder,
@@ -1000,6 +1021,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     redactRunner.reset,
     organizeRunner.reset,
     inspectRunner.reset,
+    ocrLayerRunner.reset,
     invalidateDocumentCaches,
   ]);
 
@@ -1074,6 +1096,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     // and objects before anything reads them, or page 1 keeps showing the old
     // file's page 1.
     invalidateDocumentCaches();
+    ocrLayerRunner.reset();
     editor.reset();
     editor.resetPageOrder(doc.pageCount);
     editor.setTool(defaultToolForMode(mode));
@@ -1084,6 +1107,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setAiResultPages(null);
     setSelectedPages(new Set());
     savedDocRef.current = null;
+    setSourceDirty(false);
+    setUntouchedBlocked(null);
     setFiles(incoming);
     fileRef.current = file;
     infoRef.current = doc;
@@ -1800,7 +1825,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       editorDocRef.current.objects.length === 0 &&
       Object.keys(editorDocRef.current.formValues).length === 0 &&
       (editorDocRef.current.paragraphRecords ?? []).length === 0 &&
-      !editor.pageOrderDirty
+      !editor.pageOrderDirty &&
+      !sourceDirtyRef.current
     ) {
       return;
     }
@@ -1850,6 +1876,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     editor.pageOrder,
     editor.pageOrderDirty,
     mode,
+    sourceDirty,
     tool,
     zoom,
   ]);
@@ -2877,6 +2904,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         infoRef.current = nextDoc;
         setInfo(nextDoc);
         sourceBytesRef.current = nextBytes;
+        setSourceDirty(true);
         // Map each original page index to its position after composition. An
         // object on a page the rail reordered follows that page, not its old
         // number. Duplicates map to their first occurrence.
@@ -2946,6 +2974,90 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       invalidateDocumentCaches,
       organizeRunner,
       pageOrder,
+    ],
+  );
+
+  /**
+   * O-01/O-02/O-04: run the text-layer OCR pass for the current page or every
+   * scanned page. The original pages stay in place; only invisible text is
+   * appended, so objects, paragraph ids and page indices survive.
+   */
+  const runOcrLayer = useCallback(
+    async (scope: 'page' | 'document') => {
+      const file = fileRef.current;
+      const bytes = sourceBytesRef.current;
+      if (!file || !bytes || ocrLayerRunner.state.status === 'running') return;
+      const pageIndexes = scope === 'page' ? [currentPage] : [];
+      const pageCount = infoRef.current?.pageCount ?? 1;
+      const input = [
+        { name: file.name, type: 'application/pdf', data: bytes.slice() },
+      ];
+      const outcome = await ocrLayerRunner.run(
+        input,
+        {
+          ...(pageIndexes.length > 0 ? { pageIndexes } : {}),
+          quality: 0.9,
+        },
+        { timeoutMs: ocrTimeoutForPageCount(pageIndexes.length || pageCount) },
+      );
+      if (!outcome.ok) {
+        if (!outcome.aborted) toast.error(outcome.message);
+        return;
+      }
+      const result = outcome.result;
+      if (result.ocrPages.length === 0) {
+        toast.info('Those pages already have a searchable text layer.');
+        return;
+      }
+      const nextBytes = new Uint8Array(result.data);
+      const nextFile = new File([nextBytes], file.name, {
+        type: 'application/pdf',
+        lastModified: file.lastModified,
+      });
+      invalidateDocumentCaches();
+      fileRef.current = nextFile;
+      sourceBytesRef.current = nextBytes;
+      setFiles([nextFile]);
+      setSourceDirty(true);
+      setOcrProvenance((prev) => {
+        const next = { ...prev };
+        for (const page of result.pages) {
+          if (!result.ocrPages.includes(page.pageIndex + 1)) continue;
+          next[page.pageIndex] = {
+            confidence: page.confidence,
+            wordCount: page.wordCount,
+            paragraphCount: page.paragraphCount,
+          };
+        }
+        return next;
+      });
+      const inspected = await inspectRunner.run([
+        { name: nextFile.name, type: 'application/pdf', data: nextBytes.slice() },
+      ]);
+      if (inspected.ok) {
+        const doc = inspected.result.documents[0];
+        if (doc) {
+          infoRef.current = doc;
+          setInfo(doc);
+        }
+      }
+      const touched = result.ocrPages.map((pageNumber) => pageNumber - 1);
+      for (const index of touched) void ensureRaster(index);
+      void ensureRuns(touched, { colors: false });
+      toast.success(
+        `Searchable text added to ${result.ocrPages.length} page${result.ocrPages.length === 1 ? '' : 's'}`,
+        {
+          description: `Mean confidence ${Math.round(result.averageConfidence)}%. Check the text before relying on it — the page is still the scan you supplied.`,
+        },
+      );
+    },
+    [
+      currentPage,
+      ensureRaster,
+      ensureRuns,
+      inspectRunner,
+      invalidateDocumentCaches,
+      ocrLayerRunner,
     ],
   );
 
@@ -3079,7 +3191,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
   /* --------------------------------------------------------------- save */
 
-  const onSave = useCallback(async () => {
+  const onSave = useCallback(async (acceptUntouched = false) => {
     if (
       isAi &&
       editor.doc.objects.length === 0 &&
@@ -3097,6 +3209,21 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     }
     if (isOrganize) {
       await runOrganize();
+      return;
+    }
+    // X-05: a no-change export is not a document operation. The button is
+    // disabled for the same reason, but keyboard and mobile paths reach this
+    // guard directly.
+    const hasChanges =
+      editorIsDirty({
+        doc: editor.doc,
+        saved: savedDocRef.current,
+        paragraphEditActive: paragraphEditRef.current !== null,
+        pageOrderDirty: isOrganize && editor.pageOrderDirty,
+        redactMarkCount: isRedact ? redactMarks.length : 0,
+      }) || sourceDirty;
+    if (!hasChanges && aiChangeCount === 0) {
+      toast.info('There are no changes to save.');
       return;
     }
     const file = fileRef.current;
@@ -3294,6 +3421,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         edits,
         objects,
         formValues: snapshot.formValues,
+        ...(acceptUntouched ? { acceptUntouchedPageChanges: true } : {}),
+        ...(Object.keys(ocrProvenance).length > 0
+          ? { ocrPages: Object.keys(ocrProvenance).length }
+          : {}),
         // Fill & Sign says what happened; the default "-edited" would lie.
         outputName: isSign
           ? `${file.name.replace(/\.pdf$/i, '')}-signed`
@@ -3302,9 +3433,18 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       { timeoutMs: timeoutForPageCount(infoRef.current?.pageCount ?? 1) },
     );
     if (!outcome.ok) {
-      if (!outcome.aborted) toast.error(outcome.message);
+      if (!outcome.aborted) {
+        // X-03: a mismatch on a page the edit did not touch is the one refusal
+        // a user may knowingly override. Everything else stays a hard stop.
+        if (!acceptUntouched && /untouched[- ]page/i.test(outcome.detail)) {
+          setUntouchedBlocked(outcome.detail);
+          return;
+        }
+        toast.error(outcome.message);
+      }
       return;
     }
+    setUntouchedBlocked(null);
     // Tell the user honestly which edits were genuine rewrites and which were
     // overlays, rather than implying every edit replaced the original text.
     const report = outcome.result.report;
@@ -3324,6 +3464,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     // one's edits are still unsaved.
     if (fileRef.current === file && infoRef.current !== null) {
       savedDocRef.current = snapshot;
+      setSourceDirty(false);
       // The saved artifact now contains these outcomes; the details drawer can
       // say what actually happened instead of predicting it.
       const mapped: Record<string, TextEditOutcome> = {};
@@ -3397,6 +3538,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     runOrganize,
     signerLabel,
     appendMutationObjects,
+    aiChangeCount,
+    sourceDirty,
+    ocrProvenance,
   ]);
 
   const continueEditing = useCallback(() => {
@@ -3648,6 +3792,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       editor.doc.objects.length > 0 ||
       Object.keys(editor.doc.formValues).length > 0 ||
       paragraphEdit !== null ||
+      sourceDirty ||
       (stage === 'editing' && pageOrderDirty);
     if (!hasWork || editor.doc === savedDocRef.current) return;
     const handler = (event: BeforeUnloadEvent) => {
@@ -3656,15 +3801,16 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [stage, editor.doc, editor.pageOrderDirty, paragraphEdit, pageOrderDirty]);
+  }, [stage, editor.doc, editor.pageOrderDirty, paragraphEdit, pageOrderDirty, sourceDirty]);
 
-  const dirty = editorIsDirty({
-    doc: editor.doc,
-    saved: savedDocRef.current,
-    paragraphEditActive: paragraphEdit !== null,
-    pageOrderDirty: isOrganize && pageOrderDirty,
-    redactMarkCount: isRedact ? redactMarks.length : 0,
-  });
+  const dirty =
+    editorIsDirty({
+      doc: editor.doc,
+      saved: savedDocRef.current,
+      paragraphEditActive: paragraphEdit !== null,
+      pageOrderDirty: isOrganize && pageOrderDirty,
+      redactMarkCount: isRedact ? redactMarks.length : 0,
+    }) || sourceDirty;
 
   // Offer the last draft at idle. The banner is the only place that can restore
   // it, so it loads once on mount and never fights a document being opened.
@@ -3998,14 +4144,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         }
       >
         <div className="space-y-3">
-          {(totalEdits(result.report) > 0 || result.report.warnings.length > 0) && (
-            <ExportReceipt
-              fileName={result.name}
-              pageCount={result.pageCount}
-              sizeBytes={result.data.byteLength}
-              report={result.report}
-            />
-          )}
+          <ExportReceipt
+            fileName={result.name}
+            pageCount={result.pageCount}
+            sizeBytes={result.data.byteLength}
+            report={result.report}
+          />
           {isSign && (
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -4180,11 +4324,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
         ? `${selectedPages.size} page${selectedPages.size === 1 ? '' : 's'} selected`
         : null;
   const pageCapability = capabilitiesByPage[currentPage] ?? null;
+  const ocrRunning = ocrLayerRunner.state.status === 'running';
+  const currentOcr = ocrProvenance[currentPage] ?? null;
   const pageEditStatus = pageCapability
     ? pageCapability.likelyScanned
       ? 'Image-only page. Text can be marked, but there is no text layer to rewrite.'
       : pageCapability.textLayer === 'ocr'
-        ? 'Invisible OCR text layer. Native edits preserve the render mode.'
+        ? currentOcr
+          ? `Invisible OCR text layer · ${Math.round(currentOcr.confidence)}% mean confidence. Check the text before relying on it.`
+          : 'Invisible OCR text layer. Confidence was not recorded in this session; check the text before relying on it.'
         : pageCapability.textLayer === 'mixed'
           ? 'Mixed visible and invisible text layer. Native edits are available.'
           : 'Document text objects and fonts. Edits are rewritten in place where possible.'
@@ -4220,6 +4368,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             dirty={dirty || aiChangeCount > 0}
             saving={saving}
             saveLabel={saveLabel}
+            saveDisabled={!dirty && aiChangeCount === 0}
             showSave={!isAi || hasEdits}
             onSave={() => void onSave()}
             onChangeFile={requestChangeFile}
@@ -4237,6 +4386,110 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             }
             {...(initialMode === 'sign' ? {} : { onModeChange: changeMode })}
           />
+
+          {untouchedBlocked && (
+            <div
+              role="alert"
+              data-testid="untouched-pages-block"
+              className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+            >
+              <span className="min-w-0 flex-1">
+                A page this edit did not touch changed its text, so the export was
+                blocked. Review the PDF before accepting that difference.
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setUntouchedBlocked(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setUntouchedBlocked(null);
+                  void onSave(true);
+                }}
+              >
+                Download anyway
+              </Button>
+            </div>
+          )}
+
+          {pageCapability?.likelyScanned && !ocrRunning && (
+            <div
+              data-testid="ocr-scan-banner"
+              className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm"
+            >
+              <span className="min-w-0 flex-1">
+                This page is a scan — it has no text layer. Read it with OCR? The
+                page stays exactly as supplied; only invisible, searchable text is
+                added, and nothing leaves this device.
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="ocr-read-page"
+                onClick={() => void runOcrLayer('page')}
+              >
+                Read this page
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="ocr-read-document"
+                onClick={() => void runOcrLayer('document')}
+              >
+                Read scanned pages
+              </Button>
+            </div>
+          )}
+
+          {ocrRunning && (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="ocr-progress"
+              className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm"
+            >
+              <span className="min-w-0 flex-1">
+                {ocrLayerRunner.state.status === 'running' && ocrLayerRunner.state.progress
+                  ? `${ocrLayerRunner.state.progress.phase}${
+                      ocrLayerRunner.state.progress.ratio !== undefined
+                        ? ` — ${Math.round(ocrLayerRunner.state.progress.ratio * 100)}%`
+                        : ''
+                    }`
+                  : 'Reading the scan'}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="ocr-cancel"
+                onClick={ocrLayerRunner.cancel}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+
+          {!ocrRunning &&
+            (currentOcr ||
+              pageCapability?.textLayer === 'ocr' ||
+              pageCapability?.textLayer === 'mixed') && (
+              <div
+                data-testid="ocr-provenance"
+                className="mx-3 mt-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+              >
+                {currentOcr
+                  ? `OCR text layer added in this session: ${Math.round(currentOcr.confidence)}% mean confidence, ${currentOcr.wordCount.toLocaleString()} words read. Check the text before relying on it.`
+                  : 'Invisible OCR text layer. Confidence was not recorded in this session; check the text before relying on it.'}
+              </div>
+            )}
 
           {isSign && (
             <div className="editor-signer-strip" data-testid="signer-strip">
@@ -4784,6 +5037,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                       capability={capabilitiesByPage[focusedParagraph.pageIndex] ?? null}
                       record={focusedRecord}
                       outcome={focusedOutcome}
+                      ocrConfidence={ocrProvenance[focusedParagraph.pageIndex]?.confidence ?? null}
                       disabled={saving}
                       onBack={() => setParagraphDetailsOpen(false)}
                       onEdit={() =>

@@ -83,6 +83,8 @@ export const WORKFLOW_OUTPUT_JOBS: ReadonlySet<string> = new Set([
   'deskew',
   // Scans batch (2026-11-08): document-in, searchable document-out.
   'ocr',
+  // Sprint 6: appends a text layer without rebuilding the page.
+  'ocr-text-layer',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

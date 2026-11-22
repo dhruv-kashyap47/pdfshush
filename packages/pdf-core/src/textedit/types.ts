@@ -28,8 +28,9 @@ export interface TextEditBox {
   height: number;
 }
 
-/** Editing strategies in descending order of fidelity. */
-export type EditStrategy =
+import type { JobWarning } from '../warnings.js';
+
+/** Editing strategies in descending order of fidelity. */export type EditStrategy =
   | 'native-object'
   | 'content-stream'
   | 'localized-reconstruction'
@@ -243,6 +244,35 @@ export interface TextEditVerification {
   checks: TextEditCheck[];
 }
 
+export interface EditStats {
+  /** Pages in the exported artifact. */
+  pages: number;
+  /** Text edits the engine attempted, whether in place or overlaid. */
+  textEdits: number;
+  /** Characters in the original text an applied edit matched. */
+  charactersRemoved: number;
+  /** Characters in the replacement text of an applied edit. */
+  charactersAdded: number;
+  /** Overlay objects drawn by the final pass. */
+  objectsDrawn: number;
+  /** Subset of `objectsDrawn` that were images. */
+  imagesDrawn: number;
+  /** Distinct fonts embedded by the export (document programmes + standard faces). */
+  fontsEmbedded: number;
+  /** Fonts the engine could not reproduce and substituted or overlaid. */
+  fontsSubstituted: number;
+  /** Edits whose replacement was drawn as pixels. */
+  glyphsRasterised: number;
+  /** C-07 patches added over completed removals. */
+  covers: number;
+  /** Job-level engine strategy actually used. */
+  strategy: 'auto' | 'native-only';
+  verification: 'passed' | 'failed' | 'skipped';
+  verificationChecks: number;
+  /** Pages added to the document by an OCR text-layer pass in this session. */
+  ocrPages: number;
+}
+
 export interface TextEditReport {
   outcomes: TextEditOutcome[];
   /** Edits applied by mutating the document's own text objects. */
@@ -260,7 +290,7 @@ export interface TextEditReport {
   /** True when at least one edit was applied without a cosmetic cover. */
   usedNativeEngine: boolean;
   verification: TextEditVerification;
-  warnings: string[];
+  warnings: JobWarning[];
 }
 
 export interface TextEditResult {
@@ -277,6 +307,7 @@ export type TextEditUnsafeReason =
   | { kind: 'too-many-edits'; detail: string }
   | { kind: 'invalid-edit'; detail: string }
   | { kind: 'unresolvable'; detail: string }
+  | { kind: 'untouched-page-changed'; detail: string }
   | { kind: 'verification'; detail: string };
 
 export class TextEditUnsafeError extends Error {

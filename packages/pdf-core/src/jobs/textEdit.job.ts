@@ -13,7 +13,8 @@ import type { JobDefinition } from '../job.js';
 import { LIMITS } from '../limits.js';
 import type { EditorObject } from '../ops/edit.js';
 import { defaultPdfiumEnvironment, editPdfText, TEXT_ENGINE_STRATEGIES, type TextEngineStrategy } from '../textedit/engine.js';
-import type { TextEdit, TextEditOutcome, TextEditVerification } from '../textedit/types.js';
+import type { EditStats, TextEdit, TextEditOutcome, TextEditVerification } from '../textedit/types.js';
+import { collectWarnings, type JobWarning } from '../warnings.js';
 import { baseName, safeOutputName, toArrayBuffer, totalInputBytes } from './helpers.js';
 
 /** Type alias (not interface) for the implicit index-signature constraint. */
@@ -30,6 +31,13 @@ export type TextEditJobOptions = {
   verifyVisual?: boolean;
   /** Engine strategy; defaults to `auto`. Unknown values are rejected. */
   strategy?: import('../textedit/engine.js').TextEngineStrategy;
+  /** X-03: accept a verified untouched-page text mismatch after user confirmation. */
+  acceptUntouchedPageChanges?: boolean;
+  /**
+   * X-02: pages already carrying an OCR layer in the source bytes. The editor
+   * knows this; the engine cannot infer it from the text operators alone.
+   */
+  ocrPages?: number;
 };
 
 export interface TextEditJobInput {
@@ -48,7 +56,9 @@ export interface TextEditJobReport {
   usedNativeEngine: boolean;
   strategy: TextEngineStrategy;
   verification: TextEditVerification;
-  warnings: string[];
+  warnings: JobWarning[];
+  /** X-02: pages, characters, objects, fonts and strategy, from the engine. */
+  stats: EditStats;
 }
 
 export interface TextEditJobOutput {
@@ -86,6 +96,19 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         issues: [{ message: `Unknown text engine strategy "${String(strategy)}"` }],
       };
     }
+    if (
+      input.options?.acceptUntouchedPageChanges !== undefined &&
+      typeof input.options.acceptUntouchedPageChanges !== 'boolean'
+    ) {
+      return {
+        ok: false,
+        issues: [{ message: 'acceptUntouchedPageChanges must be a boolean' }],
+      };
+    }
+    const ocrPages = input.options?.ocrPages;
+    if (ocrPages !== undefined && (!Number.isInteger(ocrPages) || ocrPages < 0)) {
+      return { ok: false, issues: [{ message: 'OCR page count must be a non-negative integer' }] };
+    }
     return { ok: true };
   },
 
@@ -109,6 +132,9 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         outputName: name,
         ...(options.verifyVisual !== undefined ? { verifyVisual: options.verifyVisual } : {}),
         ...(options.strategy ? { strategy: options.strategy } : {}),
+        ...(options.acceptUntouchedPageChanges
+          ? { acceptUntouchedPageChanges: true }
+          : {}),
       },
       ctx,
       defaultPdfiumEnvironment(),
@@ -133,7 +159,11 @@ export const textEditJob: JobDefinition<TextEditJobInput, TextEditJobOutput> = {
         usedNativeEngine: result.usedNativeEngine,
         strategy: result.strategy,
         verification: result.verification,
-        warnings: result.warnings,
+        warnings: collectWarnings(result.warnings),
+        stats:
+          options.ocrPages !== undefined
+            ? { ...result.stats, ocrPages: options.ocrPages }
+            : result.stats,
       },
     };
   },

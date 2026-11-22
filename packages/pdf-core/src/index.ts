@@ -22,10 +22,22 @@ export type {
   JobInputBase,
   JobInputFile,
   JobProgress,
+  JobWarnings,
   SerializedJobError,
   ValidationIssue,
   ValidationResult,
 } from './job.js';
+
+// Warning registry (X-01): stable codes plus the compatibility helpers.
+export {
+  WARNING_CODES,
+  WARNING_LIMIT,
+  collectWarnings,
+  hasUntouchedPageWarning,
+  toJobWarning,
+  warningMessages,
+} from './warnings.js';
+export type { JobWarning, WarningCode } from './warnings.js';
 
 // Limits
 export {
@@ -170,13 +182,20 @@ export type { DeskewOptions, DeskewResult } from './deskew/deskew.js';
 
 // OCR (2026-11-08): the engine is injected by the browser worker; sanitization
 // and pixel-to-point placement are pure so they run and are tested in Node.
-export { sanitizeOcrText, buildOcrPlacements } from './ocr/layout.js';
-export type { OcrPageMapping, OcrPlacement } from './ocr/layout.js';
+export { sanitizeOcrText, buildOcrPlacements, summarizeOcrPage } from './ocr/layout.js';
+export type { OcrPageMapping, OcrPlacement, OcrBlockSummary, OcrLayoutSummary } from './ocr/layout.js';
 export { drawOcrTextLayer } from './ocr/draw.js';
+export type { OcrLayerTransform } from './ocr/draw.js';
 export { configureOcrRuntime, createOcrEngine, hasOcrRuntime } from './ocr/runtime.js';
 export type { OcrRuntimeConfig } from './ocr/runtime.js';
-export { ocrDocument } from './ocr/ocr.js';
+export { ocrDocument, pageHasTextLayer } from './ocr/ocr.js';
 export type { OcrOptions, OcrResult } from './ocr/ocr.js';
+export { addOcrTextLayer } from './ocr/textLayer.js';
+export type {
+  OcrTextLayerOptions,
+  OcrTextLayerResult,
+  OcrTextPageResult,
+} from './ocr/textLayer.js';
 export { OcrUnavailableError } from './ocr/types.js';
 export type {
   OcrBox,
@@ -286,6 +305,12 @@ export { deskewJob } from './jobs/deskew.job.js';
 export type { DeskewJobInput, DeskewJobOutput, DeskewJobOptions } from './jobs/deskew.job.js';
 export { ocrJob } from './jobs/ocr.job.js';
 export type { OcrJobInput, OcrJobOutput, OcrJobOptions } from './jobs/ocr.job.js';
+export { ocrTextLayerJob } from './jobs/ocrTextLayer.job.js';
+export type {
+  OcrTextLayerJobInput,
+  OcrTextLayerJobOutput,
+  OcrTextLayerJobOptions,
+} from './jobs/ocrTextLayer.job.js';
 export { resizeJob } from './jobs/resize.job.js';
 export type { ResizeJobInput, ResizeJobOutput, ResizeJobOptions } from './jobs/resize.job.js';
 export { imagesJob } from './jobs/images.job.js';
@@ -486,6 +511,7 @@ export type {
   TextEditResult,
   TextEditUnsafeReason,
   TextEditVerification,
+  EditStats,
   EditStrategy,
   EditFidelity,
   TextLineTarget,

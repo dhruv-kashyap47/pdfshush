@@ -44,6 +44,7 @@ import {
 import { loadPdfiumModule } from './runtime.js';
 import {
   TextEditUnsafeError,
+  type EditStats,
   type TextEdit,
   type TextEditBox,
   type TextEditMode,
@@ -81,6 +82,12 @@ export interface TextEditOptions {
   strategy?: TextEngineStrategy;
   /** Canvas used by the C-09 raster fallback (tests inject a polyfill). */
   canvasFactory?: CanvasFactory;
+  /**
+   * X-03: a caller that has shown the user the untouched-page mismatch may
+   * choose to accept it. Only failures that are entirely about untouched-page
+   * text can be overridden; a structural or verification failure still refuses.
+   */
+  acceptUntouchedPageChanges?: boolean;
 }
 
 /** The engine strategies a job may request. */
@@ -125,6 +132,8 @@ export interface TextEditRunResult {
   verification: TextEditVerification;
   warnings: string[];
   name: string;
+  /** X-02: counts the receipt renders, taken from the pass that did the work. */
+  stats: EditStats;
 }
 
 /**
@@ -1350,12 +1359,14 @@ export async function editPdfText(
       ctx,
       password,
       options.canvasFactory,
+      { verifyOutput: true, visual: options.verifyVisual !== false },
     );
     warnings.push(...overlay.warnings);
+    enforceVerification(overlay.verification, options.acceptUntouchedPageChanges, warnings);
     return {
       bytes: overlay.bytes,
       nativeBytes: overlay.bytes,
-      pageCount: await pageCountOf(overlay.bytes, password),
+      pageCount: overlay.pageCount,
       outcomes: [],
       inPlace: 0,
       contentStream: 0,
@@ -1365,9 +1376,25 @@ export async function editPdfText(
       rasterised: overlay.rasterisedObjectIds.size,
       usedNativeEngine: false,
       strategy,
-      verification: { ok: true, checks: [] },
+      verification: overlay.verification,
       warnings: [...new Set(warnings)],
       name: options.outputName ?? 'edited.pdf',
+      stats: {
+        pages: overlay.pageCount,
+        textEdits: 0,
+        charactersRemoved: 0,
+        charactersAdded: 0,
+        objectsDrawn: overlay.stats.objectsDrawn,
+        imagesDrawn: overlay.stats.imagesDrawn,
+        fontsEmbedded: overlay.stats.fontsEmbedded,
+        fontsSubstituted: warnings.filter((warning) => warning.startsWith('font-substituted:')).length,
+        glyphsRasterised: overlay.rasterisedObjectIds.size,
+        covers: 0,
+        strategy,
+        verification: overlay.verification.ok ? 'passed' : 'failed',
+        verificationChecks: overlay.verification.checks.length,
+        ocrPages: 0,
+      },
     };
   }
 
@@ -1682,6 +1709,7 @@ export async function editPdfText(
         ctx,
         password,
         options.canvasFactory,
+        { verifyOutput: false, visual: false },
       )
     : undefined;
   if (overlay) warnings.push(...overlay.warnings);
@@ -1787,17 +1815,7 @@ export async function editPdfText(
     ctx,
     ...(password ? { password } : {}),
   });
-  if (!verification.ok) {
-    throw new TextEditUnsafeError([
-      {
-        kind: 'verification',
-        detail: verification.checks
-          .filter((check) => !check.ok)
-          .map((check) => check.detail)
-          .join('; '),
-      },
-    ]);
-  }
+  enforceVerification(verification, options.acceptUntouchedPageChanges, warnings);
 
   const inPlace = outcomes.filter((outcome) => outcome.mode === 'in-place').length;
   const contentStream = outcomes.filter((outcome) => outcome.mode === 'content-stream').length;
@@ -1807,6 +1825,32 @@ export async function editPdfText(
     if (rasterisedObjectIds.has(outcome.id)) outcome.rasterised = true;
   }
   const rasterised = outcomes.filter((outcome) => outcome.rasterised).length;
+  const appliedIds = new Set(
+    outcomes.filter((outcome) => outcome.mode !== 'manual-review').map((outcome) => outcome.id),
+  );
+  let charactersRemoved = 0;
+  let charactersAdded = 0;
+  for (const edit of edits) {
+    if (!appliedIds.has(edit.id)) continue;
+    charactersRemoved += edit.find.length;
+    charactersAdded += edit.replace.length;
+  }
+  const stats: EditStats = {
+    pages: native.pageCount,
+    textEdits: edits.length,
+    charactersRemoved,
+    charactersAdded,
+    objectsDrawn: overlay?.stats.objectsDrawn ?? 0,
+    imagesDrawn: overlay?.stats.imagesDrawn ?? 0,
+    fontsEmbedded: overlay?.stats.fontsEmbedded ?? 0,
+    fontsSubstituted: warnings.filter((warning) => warning.startsWith('font-substituted:')).length,
+    glyphsRasterised: rasterised,
+    covers,
+    strategy,
+    verification: verification.ok ? 'passed' : 'failed',
+    verificationChecks: verification.checks.length,
+    ocrPages: 0,
+  };
   return {
     bytes: finalBytes,
     nativeBytes: native.bytes,
@@ -1822,14 +1866,18 @@ export async function editPdfText(
     strategy,
     verification,
     warnings: [...new Set(warnings)],
+    stats,
     name: options.outputName ?? 'edited.pdf',
   };
 }
 
 interface OverlayPassResult {
   bytes: Uint8Array;
+  pageCount: number;
   warnings: string[];
   rasterisedObjectIds: Set<string>;
+  verification: TextEditVerification;
+  stats: { objectsDrawn: number; imagesDrawn: number; fontsEmbedded: number };
 }
 
 async function applyOverlayPass(
@@ -1839,12 +1887,16 @@ async function applyOverlayPass(
   ctx: JobContext,
   password?: string,
   canvasFactory?: CanvasFactory,
+  verify: { verifyOutput?: boolean; visual?: boolean } = {},
 ): Promise<OverlayPassResult> {
   const doc = await loadPdfDocument(data, { ...(password ? { password } : {}) });
   const expectedPages = doc.getPageCount();
   const warnings: string[] = [];
   const rasterisedObjectIds = new Set<string>();
-  await applyEdits(doc, objects, ctx, {
+  // Widget rects are read before the values change, so the visual gate knows
+  // which regions the form fill legitimately repainted (X-03).
+  const widgets = extractFormWidgets(doc);
+  const stats = await applyEdits(doc, objects, ctx, {
     warnings,
     rasterisedObjectIds,
     ...(canvasFactory ? { canvasFactory } : {}),
@@ -1854,10 +1906,62 @@ async function applyOverlayPass(
   const saved = await doc.save({ useObjectStreams: false });
   const bytes = new Uint8Array(saved);
   await validateExport(bytes, expectedPages);
-  return { bytes, warnings, rasterisedObjectIds };
+
+  const editedRegions: VisualEditRegion[] = objects.map((object) => ({
+    pageIndex: object.pageIndex,
+    box: objectVerifyBox(object),
+  }));
+  if (formValues) {
+    for (const widget of widgets) {
+      if (!Object.prototype.hasOwnProperty.call(formValues, widget.name)) continue;
+      editedRegions.push({ pageIndex: widget.pageIndex, box: widget.rect });
+    }
+  }
+  const verification =
+    verify.verifyOutput === false
+      ? { ok: true, checks: [] }
+      : await verifyExportArtifact({
+          original: data,
+          output: bytes,
+          expectedPageCount: expectedPages,
+          expectations: [],
+          editedRegions,
+          ...(verify.visual === false ? { visual: false } : {}),
+          ctx,
+          ...(password ? { password } : {}),
+        });
+  return { bytes, pageCount: expectedPages, warnings, rasterisedObjectIds, verification, stats };
 }
 
-async function pageCountOf(data: Uint8Array, password?: string): Promise<number> {
-  const doc = await loadPdfDocument(data, { ...(password ? { password } : {}) });
-  return doc.getPageCount();
+/**
+ * X-03: the untouched-page text check is the one failure a user may knowingly
+ * accept ("download anyway"). Everything else still refuses. Accepting adds an
+ * `untouched-page-accepted` warning so the receipt cannot pretend the pages
+ * matched.
+ */
+export function enforceVerification(
+  verification: TextEditVerification,
+  acceptUntouched: boolean | undefined,
+  warnings: string[],
+): void {
+  if (verification.ok) return;
+  const failures = verification.checks.filter((check) => !check.ok);
+  const untouchedOnly =
+    failures.length > 0 &&
+    failures.every(
+      (check) =>
+        check.name.startsWith('untouched-page-text') || check.name.startsWith('untouched-pages'),
+    );
+  if (acceptUntouched && untouchedOnly) {
+    warnings.push(
+      `untouched-page-accepted: ${failures.map((check) => `${check.name}: ${check.detail}`).join('; ')}`,
+    );
+    return;
+  }
+  throw new TextEditUnsafeError([
+    {
+      kind: untouchedOnly ? 'untouched-page-changed' : 'verification',
+      detail: failures.map((check) => `${check.name}: ${check.detail}`).join('; '),
+    },
+  ]);
 }

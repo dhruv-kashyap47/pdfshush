@@ -59,6 +59,8 @@ export const JOB_SLUGS = [
   'deskew',
   // Scans batch (2026-11-08).
   'ocr',
+  // Sprint 6: append an invisible text layer without rebuilding pages.
+  'ocr-text-layer',
 ] as const;
 
 export type JobSlugLiteral = (typeof JOB_SLUGS)[number];

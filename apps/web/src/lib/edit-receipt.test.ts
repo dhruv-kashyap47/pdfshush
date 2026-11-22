@@ -28,6 +28,22 @@ function report(overrides: Partial<TextEditJobReport> = {}): TextEditJobReport {
     strategy: 'auto',
     verification: { ok: true, checks: [{ name: 'reopened', ok: true, detail: 'reopened' }] },
     warnings: [],
+    stats: {
+      pages: 3,
+      textEdits: 4,
+      charactersRemoved: 120,
+      charactersAdded: 96,
+      objectsDrawn: 7,
+      imagesDrawn: 1,
+      fontsEmbedded: 2,
+      fontsSubstituted: 0,
+      glyphsRasterised: 0,
+      covers: 0,
+      strategy: 'auto',
+      verification: 'passed',
+      verificationChecks: 1,
+      ocrPages: 0,
+    },
     ...overrides,
   };
 }
@@ -130,7 +146,16 @@ describe('formatEditReceipt', () => {
   it('keeps engine warnings next to the result', () => {
     const text = formatEditReceipt({
       ...input,
-      report: report({ fallback: 1, warnings: ['content-stream fallback was not used: unsupported'] }),
+      report: report({
+        fallback: 1,
+        warnings: [
+          {
+            code: 'stream-error',
+            detail: 'content-stream fallback was not used: unsupported',
+            message: 'content-stream fallback was not used: unsupported',
+          },
+        ],
+      }),
     });
     expect(text).toContain('Warnings:');
     expect(text).toContain('content-stream fallback was not used: unsupported');

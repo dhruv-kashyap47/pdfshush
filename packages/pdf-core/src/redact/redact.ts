@@ -29,6 +29,7 @@ import { PDFDocument, PDFRef } from '@cantoo/pdf-lib';
 import { createProgressReporter, type JobContext } from '../job.js';
 import { LIMITS } from '../limits.js';
 import { createPdfjsRasterizer, type Rasterizer } from './rasterize.js';
+import { collectWarnings } from '../warnings.js';
 import { verifyRedaction } from './verify.js';
 import {
   RedactionUnsafeError,
@@ -248,7 +249,7 @@ export async function redactPdf(
       pages: reports,
       totalImageBytes: reports.reduce((total, page) => total + page.imageBytes, 0),
       verification,
-      warnings,
+      warnings: collectWarnings(warnings),
     },
   };
 }

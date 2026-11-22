@@ -128,7 +128,7 @@ describe('redaction rebuilds the document', () => {
   it('reports the disclosure the user must be shown', async () => {
     const source = await sourcePdf();
     const result = await redactPdf(source, { regions: [REGION] }, testContext(), env());
-    expect(result.report.warnings.join(' ')).toMatch(/text selection, search, links/i);
+    expect(result.report.warnings.map((warning) => warning.message).join(' ')).toMatch(/text selection, search, links/i);
   });
 
   it('carries no metadata, annotations or attachments into the output', async () => {

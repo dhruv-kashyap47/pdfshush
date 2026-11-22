@@ -17,8 +17,9 @@
  *    source PDF to inherit from, so both keys are removed rather than stamped
  *    with a fabricated timestamp.
  *
- * Only the two date keys are touched. `/Producer` and `/Creator` are constants
- * written by the library, so they do not vary between runs.
+ * Only the two date keys are touched here. `/Producer` and `/Creator` are left
+ * to the caller: a document rebuilt from pixels removes the source's claims,
+ * while composition copies the first source's values (`applyDocumentMetadata`).
  */
 
 import { PDFDict, PDFDocument, PDFName } from '@cantoo/pdf-lib';

@@ -136,6 +136,24 @@ async function revertScenario(browser) {
       'revert also removes the covers',
       (await page.getByTestId('editor-object-whiteout').count()) === 0,
     );
+    // X-05: after a full revert the document is byte-identical to its source,
+    // so there is nothing to export. The old flow saved anyway; the no-change
+    // guard is the honest outcome.
+    check(
+      'a fully reverted document has nothing to save',
+      await page.getByTestId('editor-save').isDisabled(),
+    );
+
+    // Add an unrelated object so the export can run and the reverted text can
+    // still be proven against the downloaded bytes.
+    await page.getByTestId('editor-tool-check').click();
+    const pageBox = await page.getByTestId('editor-page').first().boundingBox();
+    await page.mouse.click(pageBox.x + pageBox.width * 0.25, pageBox.y + pageBox.height * 0.2);
+    await waitFor(
+      async () => (await page.getByTestId('editor-object-check').count()) === 1,
+      10_000,
+      'check object after revert',
+    );
 
     const saved = await saveAndDownload(page);
     const text = await extractText(saved);

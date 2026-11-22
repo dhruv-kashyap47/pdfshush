@@ -122,6 +122,31 @@ export function formatEditReceipt(input: EditReceiptInput): string {
     for (const summary of summaries) {
       lines.push(`  ${summary.count} × ${summary.label.toLowerCase()} — ${summary.detail}`);
     }
+  }
+
+  const stats = report.stats;
+  lines.push(
+    '',
+    'What changed:',
+    `  Pages: ${stats.pages.toLocaleString('en-US')}`,
+    `  Characters rewritten: ${stats.charactersRemoved.toLocaleString('en-US')} removed, ` +
+      `${stats.charactersAdded.toLocaleString('en-US')} added`,
+    `  Objects drawn: ${stats.objectsDrawn.toLocaleString('en-US')}` +
+      (stats.imagesDrawn > 0 ? ` (${stats.imagesDrawn.toLocaleString('en-US')} images)` : ''),
+    `  Fonts: ${stats.fontsEmbedded.toLocaleString('en-US')} embedded, ` +
+      `${stats.fontsSubstituted.toLocaleString('en-US')} substituted`,
+    `  Strategy: ${stats.strategy === 'native-only' ? 'native only' : 'verified ladder'}`,
+  );
+  if (stats.covers > 0) {
+    lines.push(`  Leftover-cover patches: ${stats.covers.toLocaleString('en-US')}`);
+  }
+  if (stats.glyphsRasterised > 0) {
+    lines.push(`  Glyphs rasterised: ${stats.glyphsRasterised.toLocaleString('en-US')}`);
+  }
+  if (stats.ocrPages > 0) {
+    lines.push(`  OCR pages added: ${stats.ocrPages.toLocaleString('en-US')}`);
+  }
+  if (total > 0) {
     if (report.covers > 0) {
       lines.push(
         `  ${plural(report.covers, 'leftover-cover patch', 'leftover-cover patches')} — ` +
@@ -154,7 +179,7 @@ export function formatEditReceipt(input: EditReceiptInput): string {
 
   if (report.warnings.length > 0) {
     lines.push('', 'Warnings:');
-    for (const warning of report.warnings) lines.push(`  ${warning}`);
+    for (const warning of report.warnings) lines.push(`  [${warning.code}] ${warning.message}`);
   }
 
   lines.push(
