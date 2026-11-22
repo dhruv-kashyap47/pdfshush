@@ -26,7 +26,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useBlocker, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ChevronLeft,
@@ -431,7 +431,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const [confirmRedact, setConfirmRedact] = useState(false);
   /** Mobile back/close guard: leaving mid-edit must not silently drop changes. */
   const [leaveIntent, setLeaveIntent] = useState<
-    'close' | 'change-file' | 'start-over' | { navigate: string } | null
+    'close' | 'change-file' | 'start-over' | { navigate: string } | { history: true } | null
   >(null);
   const navigate = useNavigate();
   /** Phone properties sheet. Closed by default so the canvas keeps its height. */
@@ -3868,6 +3868,35 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       redactMarkCount: isRedact ? redactMarks.length : 0,
     }) || sourceDirty;
 
+  const leaveDirtyRef = useRef(false);
+  leaveDirtyRef.current = dirty || aiChangeCount > 0;
+  /**
+   * S-06: the data-router blocker covers browser Back/Forward. The existing
+   * document click interceptor covers in-app links because it can prevent the
+   * click before React Router sees it; this handles the history API path,
+   * which cannot be prevented once the browser has moved.
+   */
+  const allowHistoryLeave = useRef(false);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    if (allowHistoryLeave.current) return false;
+    if (!leaveDirtyRef.current) return false;
+    return (
+      currentLocation.pathname !== nextLocation.pathname ||
+      currentLocation.search !== nextLocation.search
+    );
+  });
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      setLeaveIntent({ history: true });
+    }
+  }, [blocker.state]);
+
+  useEffect(() => {
+    if (stage !== 'editing') allowHistoryLeave.current = false;
+  }, [stage]);
+
+
   // Offer the last draft at idle. The banner is the only place that can restore
   // it, so it loads once on mount and never fights a document being opened.
   useEffect(() => {
@@ -3950,8 +3979,6 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   }, []);
 
 
-  const leaveDirtyRef = useRef(false);
-  leaveDirtyRef.current = dirty || aiChangeCount > 0;
   useEffect(() => {
     if (stage !== 'editing' || !info) return;
     const onClick = (event: MouseEvent) => {
@@ -4345,6 +4372,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     }
     resetAll();
   };
+  const cancelLeave = () => {
+    setLeaveIntent(null);
+    if (blocker.state === 'blocked') blocker.reset();
+  };
   const confirmLeave = () => {
     if (saving) return;
     const intent = leaveIntent;
@@ -4362,8 +4393,16 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       resetAll();
       return;
     }
+    // A confirmed leave is allowed to pass the same blocker that stopped it.
+    allowHistoryLeave.current = true;
     resetAll();
-    navigate(intent.navigate);
+    if (blocker.state === 'blocked') {
+      blocker.proceed();
+    } else if ('navigate' in intent) {
+      navigate(intent.navigate);
+    } else {
+      navigate(-1);
+    }
   };
   const leaveCopy =
     leaveIntent === 'change-file'
@@ -4385,7 +4424,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
               title: 'Leave this document?',
               body: 'Your unsaved edits will be discarded when you leave this page. Save first if you want to keep them.',
               action: 'Discard and leave',
-              testId: 'editor-confirm-navigate',
+              testId:
+                'history' in leaveIntent
+                  ? 'editor-confirm-history'
+                  : 'editor-confirm-navigate',
             }
           : {
               title: 'Close this document?',
@@ -5477,7 +5519,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   event.stopPropagation();
-                  setLeaveIntent(null);
+                  cancelLeave();
                 }
               }}
             >
@@ -5495,7 +5537,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                 </h2>
                 <p className="editor-confirm-copy">{leaveCopy.body}</p>
                 <div className="editor-confirm-actions">
-                  <Button variant="ghost" size="sm" autoFocus onClick={() => setLeaveIntent(null)}>
+                  <Button variant="ghost" size="sm" autoFocus onClick={cancelLeave}>
                     Keep editing
                   </Button>
                   <Button

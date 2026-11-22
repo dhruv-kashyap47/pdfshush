@@ -13,10 +13,10 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 
 | Gate | State | Evidence |
 | --- | --- | --- |
-| A - foundation + parity | met | `pnpm test:e2e:editor-parity`, `signature-upload`, `keyboard`; `text-model` |
+| A - foundation + parity | met for documented scope (G-02, F-01, E-10 partial) | `pnpm test:e2e:editor-parity`, `signature-upload`, `keyboard`; `text-model` |
 | B - text UX + recovery | met | `pnpm test:e2e:text-ux`, `text-edit`, `text-model`; `lib/editor-draft.test.ts` |
 | C - stream v2 safe to default | met 2026-11-21 | `pnpm test:corpus` 2/2, `test:streamSurgery`, `test:streamVerification` |
-| D - ship | met by this sprint | H rows below; `pnpm test:editor-perf`, `test:e2e:cross-browser`, `test:e2e:editor-touch`, a11y axe contexts |
+| D - ship | met by this sprint | H rows below; S-06 route blocker; `pnpm test:editor-perf`, `test:e2e:cross-browser`, `test:e2e:editor-touch`, `test:e2e:editor-cancel`; a11y axe contexts |
 
 ## Task matrix
 
@@ -51,7 +51,7 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 | S-03 | Draft autosave | I | IndexedDB v4, 60 MB cap, debounce, strict restore, `resetTo` baseline |
 | S-04 | Restore/discard banner | I | restore survives reload and first undo; discard survives reload |
 | S-05 | Error taxonomy | I | `empty`, `not-a-pdf`, `out-of-memory` with own copy; negative controls |
-| S-06 | Data-loss guards | P | in-app leave sheet, beforeunload and draft guards; browser back/forward route interception is not claimed |
+| S-06 | Data-loss guards | I | in-app leave sheet, beforeunload, draft guard and a data-router `useBlocker` for browser Back/Forward; `editor-cancel-save` proves cancel and confirm |
 | C-01 | Lexer + emitter v2 | I | byte-identical tokenise→emit, inline images, byte ranges, fuzz |
 | C-02 | Metrics, ToUnicode, AFM | R | Type0 `/W`, simple `/Widths`, Type3 matrix, base-14 AFM, reliable flag |
 | C-03 | Per-glyph removal | I | only the owning show run rewrites; glyph quads; duplicate needle refused |
@@ -117,7 +117,8 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 | G-05 has no pixel-table vision gate | visual checks are region assertions, not screenshots of every page |
 | F-01 embedded/custom face creation still overlays | receipt names `font-substituted`; not claimed as in-place |
 | E-10 capability truth is snapshot-based | the document panel states the current page's real layer; no permanent promise |
-| S-06 browser back/forward is not intercepted | the in-app leave sheet and `beforeunload` cover close/refresh; history traversal is a known gap |
+| S-06 browser back/forward | closed 2026-11-23: data-router `useBlocker` stops history traversal with the leave sheet; cancel restores, confirm proceeds |
+| S-06 test hygiene | `smoke` now writes generated `smoke-alpha.pdf`/`smoke-beta.pdf`, not the tracked `alpha.pdf` |
 | O-03 paragraph counts are proximity summaries | copy says so; confidence is session-local |
 | X-04 composition preserves metadata/dates, not outlines/labels | in-place export preserves them; recomposition does not claim to |
 | Touch tests use a Chromium phone profile | a physical iOS/Android pass is still the right next check |

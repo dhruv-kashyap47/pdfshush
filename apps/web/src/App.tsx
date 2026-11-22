@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  Outlet,
+  RouterProvider,
+  useLocation,
+} from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SiteFooter } from '@/components/layout/footer';
@@ -92,67 +97,79 @@ function RevealArmer() {
   return null;
 }
 
-function AppRoutes() {
+function RootLayout() {
   const { pathname } = useLocation();
   return (
-    <ErrorBoundary key={pathname}>
-      <RevealArmer />
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route
-          path="/tools/:slug"
-          element={
-            <Suspense fallback={<ToolPageFallback />}>
-              <ToolPage />
-            </Suspense>
-          }
-        />
-        <Route path="/workflows" element={<WorkflowsPage />} />
-        <Route
-          path="/trust"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <TrustPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/verify"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <VerifyPage />
-            </Suspense>
-          }
-        />
-        <Route path="/account" element={<AccountPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </ErrorBoundary>
+    <>
+      <PageReadyMark />
+      <RouteScroll />
+      <div className="flex min-h-svh flex-col bg-background text-foreground">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:outline-2 focus:outline-offset-2 focus:outline-ring focus:ring-2 focus:ring-ring/50"
+        >
+          Skip to content
+        </a>
+        <SiteHeader />
+        <UpdateBanner />
+        <main id="main" tabIndex={-1} className="flex-1 outline-none">
+          <ErrorBoundary key={pathname}>
+            <RevealArmer />
+            <Outlet />
+          </ErrorBoundary>
+        </main>
+        <SiteFooter />
+        <Toaster position="bottom-right" richColors closeButton />
+      </div>
+    </>
   );
 }
+
+/**
+ * A data router (instead of `<BrowserRouter>` + `<Routes>`) is required for the
+ * editor's `useBlocker` history guard. The route surface is unchanged.
+ */
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RootLayout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      {
+        path: 'tools/:slug',
+        element: (
+          <Suspense fallback={<ToolPageFallback />}>
+            <ToolPage />
+          </Suspense>
+        ),
+      },
+      { path: 'workflows', element: <WorkflowsPage /> },
+      {
+        path: 'trust',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <TrustPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'verify',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <VerifyPage />
+          </Suspense>
+        ),
+      },
+      { path: 'account', element: <AccountPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
+]);
 
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <PageReadyMark />
-        <RouteScroll />
-        <div className="flex min-h-svh flex-col bg-background text-foreground">
-          <a
-            href="#main"
-            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:outline-2 focus:outline-offset-2 focus:outline-ring focus:ring-2 focus:ring-ring/50"
-          >
-            Skip to content
-          </a>
-          <SiteHeader />
-          <UpdateBanner />
-          <main id="main" tabIndex={-1} className="flex-1 outline-none">
-            <AppRoutes />
-          </main>
-          <SiteFooter />
-          <Toaster position="bottom-right" richColors closeButton />
-        </div>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }

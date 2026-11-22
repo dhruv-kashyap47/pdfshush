@@ -121,9 +121,15 @@ try {
     );
 
     // Keep the gesture live, then unmount the editor while the button is still
-    // down: the exact scenario the cleanup bug missed.
+    // down: the exact scenario the cleanup bug missed. S-06 blocks the history
+    // navigation, so confirm it through the DOM (the pointer is still held).
     await page.mouse.move(object.x + object.width / 2 + 24, object.y + object.height / 2 + 24);
     await page.evaluate(() => history.back());
+    await page.getByTestId('editor-confirm-history').waitFor({ timeout: 5_000 });
+    await page.evaluate(() => {
+      const confirm = document.querySelector('[data-testid="editor-confirm-history"]');
+      if (confirm instanceof HTMLElement) confirm.click();
+    });
     await page.waitForFunction(() => location.pathname === '/', undefined, { timeout: 10_000 });
     await page.getByTestId('editor-page').first().waitFor({ state: 'detached', timeout: 10_000 });
     await page.waitForTimeout(300);

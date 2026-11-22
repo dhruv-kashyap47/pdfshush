@@ -190,13 +190,13 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | 0 | Safety rails, corpus, provenance, fonts | G-01..G-05, F-01 | 2 | 4 | `[~]` |
 | 1 | Editor capability parity | E-00..E-10 | 9 | 1 | `[~]` |
 | 2 | Text editing UX | T-01..T-07 | 7 | 0 | `[x]` |
-| 3 | Search, recovery, data-loss guards | S-01..S-06 | 5 | 1 | `[~]` |
+| 3 | Search, recovery, data-loss guards | S-01..S-06 | 6 | 0 | `[x]` |
 | 4 | Content-stream surgery | C-01..C-14 | 14 | 0 | `[x]` |
 | 5 | OCR inside the editor | O-01..O-05 | 5 | 0 | `[x]` |
 | 6 | Export trust and metadata | X-01..X-06 | 6 | 0 | `[x]` |
 | 7 | Hardening and parity sweep | H-01..H-08 | 8 | 0 | `[x]` |
 
-**Queue:** all seven sprints complete; Gate D met for the documented scope. Remaining partials are G-02/G-05/F-01/E-10/S-06, named in `docs/PARITY-REPORT.md`.
+**Queue:** all seven sprints complete; Gate D met for the documented scope. Remaining partials are G-02/G-05/F-01/E-10, named in `docs/PARITY-REPORT.md`.
 **Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. **Gate C is met** (2026-11-21): C-01..C-04, C-06, C-07, C-12..C-14 green on the corpus.
 
 ### 4.2 Full board
@@ -232,7 +232,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | S-03 | Draft autosave + `resetTo` | P1 | M | done | `[x]` |
 | S-04 | Restore/discard banner | P1 | S | done | `[x]` |
 | S-05 | Error taxonomy completion | P1 | S | done | `[x]` |
-| S-06 | Data-loss path guards | P0 | S | ~80% | `[~]` |
+| S-06 | Data-loss path guards | P0 | S | done 2026-11-23 (data-router blocker for browser history) | `[x]` |
 | C-01 | Lexer + emitter v2 | P0 | M | done | `[x]` |
 | C-02 | Glyph metrics + AFM + ToUnicode | P0 | M | done | `[x]` |
 | C-03 | Per-glyph quad removal | P0 | M | done | `[x]` |
@@ -512,13 +512,13 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Done when:** the error corpus shows intended messages.
 - **Tests:** unit mapping; E2E empty/truncated.
 
-### S-06 — Data-loss path guards
-- **Pri:** P0 · **Size:** S · **Now:** ~80% — Change file, Start over, Back and in-app link clicks share one confirmation sheet with intent-specific copy; Change file keeps the editor mounted until the picker returns; `editor-cancel-save.mjs` proves each path keeps the document. Browser back/forward still relies on `beforeunload`, not a route blocker.
+### S-06 - Data-loss path guards
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-23 - Change file, Start over, Back, in-app links and browser Back/Forward share one confirmation sheet. The app now uses a data router so `useBlocker` can stop a history navigation it cannot prevent after the fact; the click interceptor still covers in-app links before React Router sees them. `beforeunload` remains for full page loads. `editor-cancel-save.mjs` proves each path keeps the document, browser Back asks first, and confirming Back actually leaves.
 - **Why:** "Change file" and "Start over" bypass the dirty confirm and drop edits; route navigation has no guard; only Back confirms.
 - **Scope:** route both through the confirm; SPA navigation guard; keep `beforeunload`; test with unsaved edits.
-- **Anchor:** `edit-pdf-tool.tsx:2535–2549, 2864–2870, 2923–2924, 3638–3682`.
+- **Anchor:** `App.tsx` (data router); `edit-pdf-tool.tsx` (`useBlocker`, leave intent); `tests/e2e/editor-cancel-save.mjs`.
 - **Done when:** no user path silently discards edits.
-- **Tests:** E2E change-file/start-over/nav with unsaved edits.
+- **Tests:** E2E change-file/start-over/in-app/browser Back with unsaved edits.
 
 ---
 
@@ -820,7 +820,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | F-01 | `[~]` | fontkit 2.0.12, `fontPrograms.ts`, `fontKey` on paragraph commit, Greek round-trip tests |
 | E-00 | `[x]` | typed roles, redaction filter, AI batch create, role validation tests |
 | E-10 | `[~]` | dead `export`/save-state removed; new kinds still land with E-01..E-04 |
-| S-06 | `[~]` | one confirmation sheet for Change file / Start over / Back / in-app links; E2E keeps the document |
+| S-06 | `[x]` | One confirmation sheet for Change file / Start over / Back / in-app links, plus a data-router `useBlocker` for browser Back/Forward; `beforeunload` remains for full loads. E2E keeps the document on every cancel path and confirms Back leaves on confirm. |
 | X-06 | `[x]` | opt-in pool stats; `editor-cancel-save.mjs` proves terminate, no queue, edits survive |
 
 **Still open before Sprint 2:** G-02's Type3/CFF/inline-image/non-Identity fixtures; G-03's pixel table; F-01 receipt naming; S-06 browser back/forward route blocking; E-10's new object kinds. None blocks the foundation gate for the current feature set.
@@ -965,9 +965,19 @@ The editor shell was rebuilt around the document, not around panels:
 - The status bar reports the active tool's one-line help and the save state
   without decorative dots. Find becomes a bottom sheet on phones.
 
-**Verification:** `pnpm typecheck` (8 projects); `pnpm test` — pdf-core **697 + 1 expected fail**, web **318**, api 243, mcp 19, ai-agent 152, ai-provider 375; `pnpm build` (63 routes); `pnpm test:editor-perf` 5/5; **`text-ux` 57/57**, `sprint6-trust` 21/21, `editor-quick-parity` 23/23, `text-edit` 7/7, `sign`, `signature-upload`, `keyboard` (31 checks), `a11y` (all contexts clean), `editor-touch` 11/11, `cross-browser` all installed engines passed. `smoke` passed the editor and tool sections; its three accounts-off checks depend on a frontend-only deployment and were run against a preview with no API.
+### 7.2 S-06 closed (2026-11-23)
 
-**Remaining, recorded not hidden:** Playwright WebKit has no OffscreenCanvas (raster previews unsupported there); physical iOS/Android was not run; G-02/G-05/E-10/F-01/S-06 keep their Sprint-1 partial status; the smoke accounts-off checks are environment-gated.
+The app now uses a data router (`createBrowserRouter` + `RouterProvider`) so the
+editor can call `useBlocker`. Browser Back/Forward is stopped while the document
+is dirty and the same leave sheet appears; cancelling restores the entry and
+confirming proceeds. In-app links keep the capture-phase click interceptor,
+Change file/Start over/Back keep their existing sheet, and `beforeunload` still
+covers a full page load. E2E `editor-cancel-save` proves both cancel and confirm
+for browser Back, plus the three existing paths and the cancelled export.
+
+**Verification:** `pnpm typecheck` (8 projects); `pnpm test` — pdf-core **697 + 1 expected fail**, web **318**, api 243, mcp 19, ai-agent 152, ai-provider 375; `pnpm build` (63 routes); `pnpm test:editor-perf` 5/5; **`text-ux` 57/57**, `sprint6-trust` 21/21, `editor-quick-parity` 23/23, `text-edit` 7/7, `sign`, `signature-upload`, `keyboard` (31 checks), `a11y` (all contexts clean), `editor-touch` 11/11, `cross-browser` all installed engines, `editor-cancel-save` (browser Back cancel + confirm), `editor-unmount`, `reach`, `offline`, and `smoke` **ALL CHECKS PASSED** against the production preview.
+
+**Remaining, recorded not hidden:** Playwright WebKit has no OffscreenCanvas (raster previews unsupported there); physical iOS/Android was not run; G-02/G-05/F-01/E-10 keep their partial status.
 
 ---
 
@@ -1076,3 +1086,4 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-22 | **Sprint 7 landed.** H-01..H-08 complete. One shortcut registry drives the handler, generated sheet and rail; roving rail focus, live regions and axe contexts for find/paragraph/ink/phone sheet; editor ceilings with a CI step; Chromium/Firefox/WebKit loop and a touch/palm-rejection suite; per-tool help copy; the 63-card parity report. The same pass rebuilt the editor UI: full-viewport document, top page/undo/find/details bar, no group headings or empty inspector column, ink-not-green primary, direct-manipulation selection (thin box, corner squares, side dots, attached move grip) and the reference-style inline text formatting bar. pdf-core 697+1 expected fail, web 318; text-ux 57/57, editor-parity 23/23, keyboard 31 checks, a11y all contexts, editor-touch 11/11, cross-browser all installed engines. |
 | 2026-11-22 | **Sprint 7 UI/gesture bug pass.** Saving now freezes every mutating keyboard and chrome path (undo/redo/find/duplicate/cut/paste/delete/tool, Change/Start over/Back, mode tabs); page/object/move/resize gestures record their owning pointer so a second finger cannot steal them, and wide palm contacts are rejected on objects too; Document details clears the competing inspector and opens the phone sheet; Duplicate/Delete no longer enable for a detected text block while Properties does; top-bar page input and PageUp/PageDown use display order after a rail reorder; Escape cancels typed zoom/page/font/stamp/dimension values instead of committing through blur; direct organizer entry reopens the page rail; exact dimensions clamp at the 8 pt editor minimum; portal sheets inherit the editor ink tokens; dead dot/title/tool-group/keyboard-list CSS and `toolStatusLabel` removed. Re-ran typecheck, full unit, build, a11y, keyboard, text-ux, editor-parity, touch and smoke editor/tool sections. |
 | 2026-11-22 | **Test hygiene.** `smoke.mjs` now writes generated `smoke-alpha.pdf`/`smoke-beta.pdf` instead of overwriting the tracked `tests/e2e/fixtures/alpha.pdf`; a smoke run no longer dirties the worktree or changes the fixture other suites read. |
+| 2026-11-23 | **S-06 closed.** The app moved from `BrowserRouter` to a data router so the editor can use `useBlocker`; browser Back/Forward now stops on unsaved edits and shows the existing leave sheet, while in-app links keep the capture-phase interceptor and `beforeunload` still covers full loads. `editor-cancel-save` proves cancel keeps the document and confirm leaves. With the test-hygiene fix, `smoke` is fully green against the production preview. Remaining partials: G-02/G-05/F-01/E-10 only. |

@@ -436,10 +436,15 @@ async function main() {
   );
   await page.getByRole('button', { name: /Split in half/ }).click();
   await page.getByText('alpha-halves.zip').waitFor({ timeout: 60_000 });
-  check(
-    'halves ZIP lists left/right parts',
-    (await page.getByText('alpha-left.pdf and alpha-right.pdf').count()) > 0,
+  const halfParts = await waitFor(
+    async () =>
+      (await page.getByText('smoke-alpha-left.pdf and smoke-alpha-right.pdf').count()) > 0
+        ? true
+        : null,
+    10_000,
+    'halves parts',
   );
+  check('halves ZIP lists left/right parts', halfParts === true);
   const halfDl = await downloadAndAssert(page, 'Download ZIP', 'zip');
   check('halves download is a valid ZIP', halfDl.ok, `${halfDl.name} ${halfDl.bytes.length}B`);
 

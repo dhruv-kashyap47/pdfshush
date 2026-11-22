@@ -83,6 +83,20 @@ try {
     await page.getByTestId('editor-confirm-navigate').waitFor({ timeout: 5_000 });
     await page.getByRole('button', { name: 'Keep editing' }).click();
     check('an in-app link asks before leaving', true);
+
+    // S-06: browser Back cannot be prevented after the fact; the data-router
+    // blocker must stop it and show the same sheet.
+    await page.evaluate(() => window.history.back());
+    await page.getByTestId('editor-confirm-history').waitFor({ timeout: 5_000 });
+    check('browser Back asks before discarding', true);
+    await page.getByRole('button', { name: 'Keep editing' }).click();
+    await page.waitForTimeout(150);
+    check(
+      'the document is still open after cancelling browser Back',
+      (await page.locator('[data-object-id]').count()) > 0 &&
+        (await page.getByTestId('editor').count()) === 1,
+    );
+
     check('the document is still open after cancelling every dialog', (await page.locator('[data-object-id]').count()) > 0);
 
     await page.getByTestId('editor-save').click();
@@ -113,6 +127,21 @@ try {
     check('edits survive cancellation', objects > 0, `${objects} object(s)`);
     const save = page.getByTestId('editor-save');
     check('save is available again', await save.isEnabled());
+
+    // S-06: confirming the blocked Back must actually leave, not strand the user.
+    await page.evaluate(() => window.history.back());
+    await page.getByTestId('editor-confirm-history').waitFor({ timeout: 5_000 });
+    await page.getByRole('button', { name: 'Discard and leave' }).click();
+    await page.waitForFunction(
+      () => !window.location.pathname.startsWith('/tools/edit-pdf'),
+      undefined,
+      { timeout: 10_000 },
+    );
+    check(
+      'confirming browser Back leaves the editor',
+      (await page.getByTestId('editor').count()) === 0 &&
+        !new URL(page.url()).pathname.startsWith('/tools/edit-pdf'),
+    );
   } finally {
     await context.close();
   }

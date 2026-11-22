@@ -8215,3 +8215,28 @@ both Escape-cancel checks), `keyboard` 31 checks, `a11y` all contexts,
 `text-ux` 57/57, `editor-touch` 11/11, and the `smoke` editor/tool sections.
 The smoke accounts-off checks still depend on a frontend-only deployment.
 | Test hygiene | `smoke.mjs` overwrote the tracked `tests/e2e/fixtures/alpha.pdf` on every run, leaving the worktree dirty and changing the fixture other suites read. | Smoke writes `smoke-alpha.pdf` / `smoke-beta.pdf` (ignored generated fixtures); `alpha.pdf` is read-only input again. |
+| S-06 | Browser Back/Forward could leave the editor without the leave sheet because `BrowserRouter` has no route blocker; only `beforeunload` was wired. | The app now uses a data router (`createBrowserRouter` + `RouterProvider`) and the editor uses `useBlocker` with the existing leave intent. Back/Forward cancel restores the entry; confirm proceeds. In-app links keep the capture-phase click interceptor; `beforeunload` remains for full loads. |
+
+### 42.10 S-06 close and production gate (2026-11-23)
+
+`App.tsx` moved from `BrowserRouter`/`Routes` to a data router. The route surface
+is unchanged; the shell, lazy page chunks, error boundary, reveal observer and
+scroll reset live in `RootLayout` around `<Outlet />`. The only behavioural
+reason is `useBlocker`: a history navigation cannot be prevented after the
+browser has moved, so a router-level blocker plus the leave sheet is the honest
+guard. The editor's `dirty || aiChangeCount` predicate arms it, a confirmed
+leave bypasses it, and cancelling resets it.
+
+`editor-cancel-save.mjs` now proves five paths with unsaved edits: change file,
+start over, in-app link, browser Back cancel, and browser Back confirm. The
+existing export-cancel and pool assertions remain in the same suite.
+`editor-unmount.mjs` was updated to confirm the new Back sheet while the pointer
+is still held, and `smoke.mjs` now writes generated `smoke-alpha.pdf` /
+`smoke-beta.pdf` instead of overwriting the tracked `alpha.pdf` fixture.
+
+Verification after the routing change: `pnpm typecheck`; web unit 318;
+`pnpm build`; `text-ux` 57/57; `editor-quick-parity` 23/23; `keyboard` 31
+checks; `a11y` all routes + interactive contexts; `editor-touch` 11/11;
+`editor-cancel-save` including both Back paths; `editor-unmount`; `smoke`
+**ALL CHECKS PASSED** against `http://localhost:4173`; `reach` and `offline`
+green. Remaining partials are G-02, G-05, F-01 and E-10.
