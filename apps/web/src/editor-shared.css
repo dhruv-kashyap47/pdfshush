@@ -23,7 +23,9 @@
 
 /* Inside the document application the brand green is not a UI accent. Primary
    is ink; the only colour on screen belongs to the document and to destructive
-   actions. This also neutrals the focus ring, which was green app-wide. */
+   actions. `body.editor-app-active` also covers Radix portals (sheets,
+   popovers, tooltips) that are not descendants of `.editor-shell`. */
+body.editor-app-active,
 .editor-shell,
 .editor-shortcuts-dialog {
   --primary: oklch(0.96 0 0);
@@ -232,6 +234,9 @@ body.editor-app-active .site-nav {
   color: var(--foreground);
   box-shadow: 0 1px 2px oklch(0 0 0 / 0.08), inset 0 0 0 1px var(--editor-hairline);
 }
+.editor-mode-tab:disabled {
+  opacity: 0.45;
+}
 .editor-mode-label {
   margin-inline: auto;
   font-size: 0.6875rem;
@@ -293,17 +298,6 @@ body.editor-app-active .site-nav {
   border-right: 1px solid var(--editor-hairline);
   background: var(--editor-rail);
   overflow: hidden;
-}
-.editor-tool-group {
-  display: block;
-  width: 100%;
-  padding: 0.5rem 0 0.25rem;
-  text-align: center;
-  font-size: 0.5rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
 }
 .editor-tool-button {
   position: relative;
@@ -380,14 +374,6 @@ body.editor-app-active .site-nav {
   background: var(--editor-chrome);
   padding: 0.25rem 0.625rem;
   overflow: hidden;
-}
-.editor-context-title {
-  flex-shrink: 0;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: color-mix(in oklab, var(--foreground) 78%, transparent);
 }
 .editor-context-divider {
   width: 1px;
@@ -486,6 +472,9 @@ body.editor-app-active .site-nav {
   background: var(--editor-hover);
   color: var(--foreground);
 }
+.editor-context-chip:disabled {
+  opacity: 0.4;
+}
 .editor-size-stepper {
   display: flex;
   height: 1.75rem;
@@ -542,6 +531,10 @@ body.editor-app-active .site-nav {
 }
 .editor-swatch:hover {
   transform: scale(1.12);
+}
+.editor-swatch:disabled {
+  opacity: 0.45;
+  transform: none;
 }
 .editor-swatch[aria-pressed='true'] {
   box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--foreground);
@@ -935,33 +928,7 @@ body.editor-app-active .site-nav {
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
 }
-.editor-panel-keys {
-  margin-top: 1rem;
-}
-.editor-panel-keys ul {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3125rem;
-  margin: 0.375rem 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.6875rem;
-  color: var(--muted-foreground);
-}
-.editor-panel-keys kbd {
-  display: inline-block;
-  min-width: 1.125rem;
-  border: 1px solid var(--editor-hairline);
-  border-radius: 0.1875rem;
-  background: var(--editor-rail);
-  padding: 0 0.1875rem;
-  text-align: center;
-  font-family: inherit;
-  font-size: 0.625rem;
-  line-height: 1.4;
-  color: color-mix(in oklab, var(--foreground) 82%, transparent);
-}
-
+ 
 /* ── structure confidence (D4) ───────────────────────────────────────────── */
 .editor-structure {
   margin-top: 1rem;
@@ -1387,16 +1354,6 @@ body.editor-app-active .site-nav {
   font-size: 0.6875rem;
   color: var(--muted-foreground);
 }
-.editor-status-dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: var(--editor-hairline);
-}
-.editor-status-dot[data-dirty] {
-  background: var(--primary);
-}
 .editor-status-muted {
   color: var(--muted-foreground);
 }
@@ -1638,9 +1595,6 @@ body.editor-app-active .editor-mobile-back {
   .editor-context-icon {
     width: 1.5rem;
   }
-  .editor-context-title {
-    display: none;
-  }
   .editor-topbar-icon--help {
     display: none;
   }
@@ -1711,6 +1665,9 @@ body.editor-app-active .editor-mobile-back {
 }
 .editor-mobile-icon:hover {
   background: var(--editor-hover);
+}
+.editor-mobile-icon:disabled {
+  opacity: 0.4;
 }
 .editor-action-list {
   display: flex;
@@ -1801,6 +1758,9 @@ body.editor-app-active .editor-mobile-back {
   background: var(--editor-accent-wash);
   border-color: color-mix(in oklab, var(--primary) 35%, transparent);
   color: var(--primary);
+}
+.editor-action-chip:disabled {
+  opacity: 0.5;
 }
 
 /* ── Tablet: touch-friendly productivity editor ──────────────────────────── */
@@ -1996,7 +1956,6 @@ body.editor-app-active .editor-mobile-back {
   .editor-tool-rail > div + div {
     display: none;
   }
-  .editor-tool-group,
   .editor-rail-divider,
   .editor-tool-indicator {
     display: none;
@@ -2034,7 +1993,6 @@ body.editor-app-active .editor-mobile-back {
   .editor-context-bar::-webkit-scrollbar {
     display: none;
   }
-  .editor-context-title,
   .editor-context-label,
   .editor-context-hint {
     display: none;

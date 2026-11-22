@@ -633,16 +633,22 @@ function DimensionInput({
   testId: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const cancelCommit = useRef(false);
   const commit = (raw: string) => {
+    if (cancelCommit.current) {
+      cancelCommit.current = false;
+      setDraft(null);
+      return;
+    }
     const parsed = Number(raw);
-    if (Number.isFinite(parsed)) onCommit(Math.min(20_000, Math.max(2, parsed)));
+    if (Number.isFinite(parsed)) onCommit(Math.min(20_000, Math.max(8, parsed)));
     setDraft(null);
   };
   return (
     <Input
       aria-label={ariaLabel}
       type="number"
-      min={2}
+      min={8}
       max={20_000}
       className="h-8 tabular-nums"
       data-testid={testId}
@@ -653,6 +659,12 @@ function DimensionInput({
         if (event.key === 'Enter') {
           event.preventDefault();
           commit((event.target as HTMLInputElement).value);
+          (event.target as HTMLInputElement).blur();
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelCommit.current = true;
+          setDraft(null);
           (event.target as HTMLInputElement).blur();
         }
       }}
@@ -672,7 +684,13 @@ function FontSizeInput({
   onCommit: (fontSize: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const cancelCommit = useRef(false);
   const commit = (raw: string) => {
+    if (cancelCommit.current) {
+      cancelCommit.current = false;
+      setDraft(null);
+      return;
+    }
     const parsed = Number(raw);
     if (Number.isFinite(parsed)) onCommit(Math.min(72, Math.max(4, parsed)));
     setDraft(null);
@@ -696,6 +714,12 @@ function FontSizeInput({
           commit((event.target as HTMLInputElement).value);
           (event.target as HTMLInputElement).blur();
         }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelCommit.current = true;
+          setDraft(null);
+          (event.target as HTMLInputElement).blur();
+        }
       }}
     />
   );
@@ -713,7 +737,13 @@ function StampLabelInput({
   onCommit: (text: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const cancelCommit = useRef(false);
   const commit = (raw: string) => {
+    if (cancelCommit.current) {
+      cancelCommit.current = false;
+      setDraft(null);
+      return;
+    }
     const next = raw.trim();
     if (next.length > 0 && next !== value) onCommit(next);
     setDraft(null);
@@ -733,6 +763,12 @@ function StampLabelInput({
         if (event.key === 'Enter') {
           event.preventDefault();
           commit((event.target as HTMLInputElement).value);
+          (event.target as HTMLInputElement).blur();
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelCommit.current = true;
+          setDraft(null);
           (event.target as HTMLInputElement).blur();
         }
       }}

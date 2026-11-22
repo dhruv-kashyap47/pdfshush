@@ -164,8 +164,8 @@ async function main() {
 
   const pdfA = buildPdf(3, 'pdfshush A');
   const pdfB = buildPdf(2, 'pdfshush B');
-  const fileA = path.join(FIXTURES, 'alpha.pdf');
-  const fileB = path.join(FIXTURES, 'beta.pdf');
+  const fileA = path.join(FIXTURES, 'smoke-alpha.pdf');
+  const fileB = path.join(FIXTURES, 'smoke-beta.pdf');
   await writeFile(fileA, pdfA);
   await writeFile(fileB, pdfB);
 

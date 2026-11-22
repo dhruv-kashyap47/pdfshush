@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import {
   EDITOR_TOOL_DEFS,
+  TOOL_HELP,
   defaultToolForMode,
   toolDef,
-  toolStatusLabel,
   toolsForMode,
   type EditorMode,
 } from './editor-tools';
@@ -64,13 +64,13 @@ describe('editor capability registry', () => {
     }
   });
 
-  test('every declared shortcut is unique and every tool has a status label', () => {
+  test('every declared shortcut is unique and every tool has help copy', () => {
     const shortcuts = EDITOR_TOOL_DEFS.map((tool) => tool.shortcut).filter(
       (shortcut): shortcut is string => Boolean(shortcut),
     );
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
     for (const tool of EDITOR_TOOL_DEFS) {
-      expect(toolStatusLabel(tool.id).length).toBeGreaterThan(0);
+      expect(TOOL_HELP[tool.id].length).toBeGreaterThan(0);
     }
   });
 });

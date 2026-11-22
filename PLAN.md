@@ -8190,3 +8190,28 @@ The document is the surface again:
 Gate D is met for the documented scope. The partial cards and the two
 environment limits (WebKit OffscreenCanvas, physical iOS/Android) remain visible
 in `docs/PARITY-REPORT.md` rather than being folded into a clean-sounding claim.
+
+### 42.9 Deep bug pass (2026-11-22, follow-up)
+
+A second read of the new chrome and gesture path found issues that the happy-path
+suites could not see. All are fixed before the main merge:
+
+| Area | Bug | Fix |
+| --- | --- | --- |
+| Saving | Undo/redo/find/duplicate/delete/tool shortcuts and the Change/Start over/Back controls could still mutate or replace the document while an export was frozen. | The visible controls disable, the window handler refuses mutating commands, and the request handlers guard `saving`. The mode tabs and mobile action rows follow the same rule. |
+| Object gestures | Pointer capture was recorded only for page gestures; a second finger could move/resize the same object because `pointerId` ownership was not tracked for object/move/resize handles. | `beginPointer` owns the gesture pointer for every page, object, move and resize gesture; handles stop at the same boundary; a wide palm contact is rejected on objects too. |
+| Document info | Clicking the pressed Document details button while an object was selected changed state with no visible panel, and on a phone the info button could not reveal the sheet. | Document details clears the object/text inspector and opens the mobile sheet; closing it closes both states. |
+| Block selection | A detected text block enabled Duplicate/Delete (which act on objects only), and the phone Properties button was disabled for a block. | Object actions use a narrower `hasSelection`; the inspector toggle uses `canInspectSelection`, which includes a text block. |
+| Page navigation | The top bar page input and PageUp/PageDown used source page indices, so they were wrong after a rail reorder. | Both use display positions (`goToDisplayPage`); the page rail header uses the item's display number. |
+| Escape | Escape on the zoom readout/page input committed the typed value through the blur path. | Cancel refs swallow the blur commit; zoom, page, font size, stamp label and width/height inputs all cancel cleanly. |
+| Organizer entry | Direct `/tools/organize-pdf` opened with the page rail collapsed by the new default, hiding Delete page / reorder. | Organizer mode opens the rail on entry; the user can still collapse it afterwards. |
+| Exact dimensions | Width/height inputs allowed 2 pt, below the editor's 8 pt minimum. | Clamped to 8-20,000 pt and the input minimum matches. |
+| Dead chrome | The removed status dot, contextual title, tool-group labels and keyboard list left CSS and an unused `toolStatusLabel` API. | Removed; the registry test now asserts help copy instead. |
+| Portal colour | Radix sheets/popovers outside `.editor-shell` still inherited brand-green primary and focus. | Editor tokens are set on `body.editor-app-active`, so every portal is ink-neutral too. |
+
+Re-verified after the pass: `pnpm typecheck` (8 projects), `pnpm test` (pdf-core
+697+1 expected fail, web 318), `pnpm build`, `editor-quick-parity` 22/22 (adds
+both Escape-cancel checks), `keyboard` 31 checks, `a11y` all contexts,
+`text-ux` 57/57, `editor-touch` 11/11, and the `smoke` editor/tool sections.
+The smoke accounts-off checks still depend on a frontend-only deployment.
+| Test hygiene | `smoke.mjs` overwrote the tracked `tests/e2e/fixtures/alpha.pdf` on every run, leaving the worktree dirty and changing the fixture other suites read. | Smoke writes `smoke-alpha.pdf` / `smoke-beta.pdf` (ignored generated fixtures); `alpha.pdf` is read-only input again. |

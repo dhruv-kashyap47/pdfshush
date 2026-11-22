@@ -193,6 +193,24 @@ async function main() {
     const fitted = Number(await zoom.inputValue());
     check('fit page leaves 400% for a whole-page zoom', fitted > 0 && fitted < 400, `${fitted}%`);
 
+    // Escape must cancel a typed zoom/page value, not commit it through blur.
+    await zoom.fill('333');
+    await zoom.press('Escape');
+    check(
+      'Escape cancels a typed zoom instead of committing it',
+      Number(await zoom.inputValue()) === fitted,
+      `${await zoom.inputValue()}%`,
+    );
+    const pageInput = page.getByTestId('editor-page-input');
+    const pageBefore = await pageInput.inputValue();
+    await pageInput.fill('3');
+    await pageInput.press('Escape');
+    check(
+      'Escape cancels a typed page number',
+      (await pageInput.inputValue()) === pageBefore,
+      `page ${await pageInput.inputValue()}`,
+    );
+
     // ---- detected-text outline --------------------------------------------
     await page.getByTestId('editor-tool-select').click();
     await page.getByTestId('editor-text-layer').first().waitFor({ timeout: 20_000 });

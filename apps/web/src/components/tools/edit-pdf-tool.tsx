@@ -975,6 +975,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setAuditNoteError(null);
     setConfirmRedact(false);
     setSelectedPages(new Set());
+    setDocumentPanelOpen(false);
+    setShortcutsOpen(false);
+    setMobileInspectorOpen(false);
     setFindOpen(false);
     setFindMatches([]);
     setFindError(null);
@@ -1110,6 +1113,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     setStage('editing');
     setSelectedId(null);
     setEditingId(null);
+    setDocumentPanelOpen(false);
+    setShortcutsOpen(false);
+    setMobileInspectorOpen(false);
     setCurrentPage(0);
     pendingImageRef.current = null;
     if (restore) {
@@ -3657,6 +3663,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       // it even from the paragraph textarea (where the browser's own find would
       // search the DOM textarea, not the PDF).
       if (mod && key === 'f') {
+        if (saving) return;
         event.preventDefault();
         openFind();
         return;
@@ -3667,7 +3674,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
       // entry of their own), so Ctrl+Z inside a text box would skip past the
       // keystrokes and delete the whole object instead of the last character.
       if (typing && mod) {
-        if (key === 's') {
+        if (key === 's' && !saving) {
           event.preventDefault();
           void onSave();
         }
@@ -3692,6 +3699,25 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           transformSelected('nudge', dx, dy);
         }
         return;
+      }
+
+      // Saving freezes the document. The visible controls disable in this state;
+      // the keyboard path must not reach a mutation the UI hides.
+      if (saving) {
+        if (
+          shortcut.tool ||
+          shortcut.id === 'save' ||
+          shortcut.id === 'find' ||
+          shortcut.id === 'undo' ||
+          shortcut.id === 'redo' ||
+          shortcut.id === 'redo-alt' ||
+          shortcut.id === 'duplicate' ||
+          shortcut.id === 'cut' ||
+          shortcut.id === 'paste' ||
+          shortcut.id === 'delete'
+        ) {
+          return;
+        }
       }
 
       switch (shortcut.id) {
@@ -3758,11 +3784,11 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           return;
         case 'prev-page':
           event.preventDefault();
-          goToPage(currentPage - 1);
+          goToDisplayPage(currentDisplayPosition - 1);
           return;
         case 'next-page':
           event.preventDefault();
-          goToPage(currentPage + 1);
+          goToDisplayPage(currentDisplayPosition + 1);
           return;
         case 'help':
           event.preventDefault();
@@ -3785,7 +3811,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     selectedId,
     editingId,
     saving,
-    currentPage,
+    currentDisplayPosition,
     editor,
     onSave,
     deleteSelected,
@@ -3794,7 +3820,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     onZoomChange,
     fitWidth,
     fitPage,
-    goToPage,
+    goToDisplayPage,
     cancelParagraphEdit,
     copyTextSelection,
     cutTextSelection,
@@ -3956,6 +3982,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     redactState.status === 'done' ||
     organizeState.status === 'done' ||
     aiResult !== null;
+
+  // Opening the Pages workspace from any entry point (route, mode tab or a
+  // restored draft) needs the rail: page reorder, duplicate and delete live
+  // there. The effect runs on mode changes only, so the user can still collapse
+  // it while staying in Pages.
+  useEffect(() => {
+    if (stage !== 'editing') return;
+    if (mode === 'organize') editor.toggleRail(true);
+  }, [stage, mode, editor.toggleRail]);
 
   /**
    * The editor is rendered through a portal into <body>, so while it is open the
@@ -4287,6 +4322,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
 
   /** Close the document; unsaved work gets an explicit, reversible gate. */
   const requestExit = () => {
+    if (saving) return;
     if (dirty || aiChangeCount > 0) {
       setLeaveIntent('close');
       return;
@@ -4294,6 +4330,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     resetAll();
   };
   const requestChangeFile = () => {
+    if (saving) return;
     if (dirty || aiChangeCount > 0) {
       setLeaveIntent('change-file');
       return;
@@ -4301,6 +4338,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     pdfInputRef.current?.click();
   };
   const requestStartOver = () => {
+    if (saving) return;
     if (dirty || aiChangeCount > 0) {
       setLeaveIntent('start-over');
       return;
@@ -4308,6 +4346,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     resetAll();
   };
   const confirmLeave = () => {
+    if (saving) return;
     const intent = leaveIntent;
     setLeaveIntent(null);
     if (!intent) return;
@@ -4410,6 +4449,20 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
     if (isOrganize && selectedPages.size > 0) deletePages([...selectedPages]);
   };
 
+  const toggleDocumentPanel = () => {
+    const next = !documentPanelOpen;
+    setDocumentPanelOpen(next);
+    setMobileInspectorOpen(next);
+    // The inspector has one subject. Opening document details closes any object,
+    // text-range or block inspector instead of flipping a pressed button with
+    // no visible change.
+    setSelectedId(null);
+    setSelectedTextBlock(null);
+    setTextSelection(null);
+    setFocusedParagraph(null);
+    setParagraphDetailsOpen(false);
+  };
+
   const editorView =
     stage === 'editing' && info ? (
       <div className="editor-route-shell" data-testid="editor-route-shell">
@@ -4433,14 +4486,14 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
             onBack={requestExit}
             onPrevPage={() => goToDisplayPage(currentDisplayPosition - 1)}
             onNextPage={() => goToDisplayPage(currentDisplayPosition + 1)}
-            onGoToPage={(pageNumber) => goToPage(pageNumber - 1)}
+            onGoToPage={(pageNumber) => goToDisplayPage(pageNumber - 1)}
             canUndo={editor.canUndo}
             canRedo={editor.canRedo}
             onUndo={undo}
             onRedo={redo}
             onFind={openFind}
             onShortcuts={() => setShortcutsOpen(true)}
-            onDocumentInfo={() => setDocumentPanelOpen((open) => !open)}
+            onDocumentInfo={toggleDocumentPanel}
             documentInfoOpen={documentPanelOpen}
             modes={
               initialMode === 'sign'
@@ -4600,13 +4653,15 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                   textSelection !== null ||
                   (isOrganize && selectedPages.size > 0)
                 }
-                canUndo={editor.canUndo}
-                canRedo={editor.canRedo}
+                canInspectSelection={
+                  selectedObject !== null ||
+                  textSelection !== null ||
+                  selectedBlockModel !== null ||
+                  (isOrganize && selectedPages.size > 0)
+                }
                 canReorder={canReorder}
                 canSendBack={canSendBack}
                 onPatch={patchObject}
-                onUndo={undo}
-                onRedo={redo}
                 onDelete={handleDelete}
                 onReorder={(direction) => transformSelected(direction)}
                 onDuplicate={() => {
@@ -4643,7 +4698,6 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                 }}
                 aiChangeCount={aiChangeCount}
                 onOpenAssistant={() => setTool('ai')}
-                onFind={openFind}
               />
 
               <EditorFindPanel
@@ -5020,14 +5074,12 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                     </div>
                   ) : !assistantActive && isOrganize ? (
                     <div className="editor-panel" data-testid="editor-pages-inspector">
-                      <p className="editor-panel-kicker">Page organisation</p>
                       <p className="editor-panel-title">
                         {pageOrder.length} page{pageOrder.length === 1 ? '' : 's'}
                       </p>
                       <p className="editor-panel-copy">
-                        Drag a page in the rail to change its position. Selection works with
-                        Ctrl/Cmd-click. Duplicated pages point at the same source page; the output
-                        is rebuilt from the order you see.
+                        Drag pages in the rail to reorder. Ctrl/Cmd-click selects more than one;
+                        duplicated pages reuse the same source until you save.
                       </p>
                       {objectCount > 0 ? (
                         <>
@@ -5091,7 +5143,16 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         object={selectedObject}
                         onPatch={patchObject}
                         onDelete={deleteSelected}
-                        onClose={() => select(null)}
+                        onClose={() => {
+                          // On a phone the sheet is dismissible and the object
+                          // stays selected, so the next drag keeps working. On
+                          // a docked desktop inspector, Close means deselect.
+                          if (window.matchMedia?.('(max-width: 599px)').matches) {
+                            setMobileInspectorOpen(false);
+                          } else {
+                            select(null);
+                          }
+                        }}
                         docked
                       />
                     </AnimatedContent>
@@ -5200,7 +5261,10 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                           type="button"
                           className="editor-topbar-icon"
                           aria-label="Close document details"
-                          onClick={() => setDocumentPanelOpen(false)}
+                          onClick={() => {
+                            setDocumentPanelOpen(false);
+                            setMobileInspectorOpen(false);
+                          }}
                         >
                           <X className="size-4" />
                         </button>
@@ -5327,11 +5391,8 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
           />
 
           <EditorStatusBar
-            fileName={files[0]?.name ?? 'Document'}
-            mode={mode}
             pageCount={pageCount}
             currentPage={currentDisplayPosition}
-            zoom={zoom}
             dirty={dirty}
             hasEdits={hasEdits}
             saving={saving}

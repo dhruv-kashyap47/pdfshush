@@ -495,6 +495,10 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
 
   /** Capture the pointer so a drag that leaves the page still delivers moves. */
   const beginPointer = (element: HTMLElement, pointerId: number) => {
+    // A second contact must never steal a gesture that is already owned. This
+    // is also the object-move/resize path, where the old code captured without
+    // recording the owner and a second finger could drag the same object.
+    if (gestureRef.current) return false;
     gesturePointerId.current = pointerId;
     pointerCaptureElement.current = element;
     try {
@@ -503,6 +507,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       // A synthetic/ended pointer cannot be captured. The window listeners
       // still work, so this is a capability fallback, not a failure.
     }
+    return true;
   };
 
   const releasePointer = () => {
@@ -742,12 +747,12 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
       }
     }
     if (p.tool === 'pen') {
-      beginPointer(event.currentTarget, event.pointerId);
+      if (!beginPointer(event.currentTarget, event.pointerId)) return;
       setInkGhost([{ x: point.x, y: point.y }]);
       startGesture({ kind: 'ink', points: [{ x: point.x, y: point.y }] });
       return;
     }
-    beginPointer(event.currentTarget, event.pointerId);
+    if (!beginPointer(event.currentTarget, event.pointerId)) return;
     startGesture({ kind: 'create', startX: point.x, startY: point.y });
   };
 
@@ -965,6 +970,7 @@ export const EditorPage = memo(function EditorPage(props: EditorPageProps) {
             onAutoHeight={props.onAutoHeight}
             onEndEdit={props.onEndEdit}
             startGesture={startGesture}
+            capturePointer={beginPointer}
             onBeginTx={props.onBeginTx}
             onResizeLive={props.onResizeLive}
             onEndTx={props.onEndTx}
@@ -1036,6 +1042,7 @@ interface ObjectViewProps {
   onAutoHeight?: (id: string, height: number) => void;
   onEndEdit: () => void;
   startGesture: (gesture: Gesture) => void;
+  capturePointer: (element: HTMLElement, pointerId: number) => boolean;
   onBeginTx: () => void;
   onResizeLive: (id: string, rect: Rect) => void;
   onEndTx: () => void;
@@ -1054,6 +1061,7 @@ function ObjectView({
   onAutoHeight,
   onEndEdit,
   startGesture,
+  capturePointer,
 }: ObjectViewProps) {
   const box: CSSProperties = {
     left: object.x * zoom,
@@ -1124,12 +1132,9 @@ function ObjectView({
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!interactive || editing) return;
+    if (event.pointerType === 'touch' && event.width > 40) return;
     event.stopPropagation();
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // Synthetic pointers cannot be captured; window listeners still work.
-    }
+    if (!capturePointer(event.currentTarget, event.pointerId)) return;
     onSelect(object.id);
     const rect = containerPoint(event);
     startGesture({
@@ -1200,17 +1205,19 @@ function ObjectView({
         <>
           <MoveHandle
             object={object}
+            zoom={zoom}
             startGesture={startGesture}
             containerPoint={containerPoint}
+            capturePointer={capturePointer}
           />
-          <ResizeHandle corner="nw" cursor="nwse-resize" object={object} startGesture={startGesture} />
-          <ResizeHandle corner="ne" cursor="nesw-resize" object={object} startGesture={startGesture} />
-          <ResizeHandle corner="sw" cursor="nesw-resize" object={object} startGesture={startGesture} />
-          <ResizeHandle corner="se" cursor="nwse-resize" object={object} startGesture={startGesture} />
+          <ResizeHandle corner="nw" cursor="nwse-resize" object={object} startGesture={startGesture} capturePointer={capturePointer} />
+          <ResizeHandle corner="ne" cursor="nesw-resize" object={object} startGesture={startGesture} capturePointer={capturePointer} />
+          <ResizeHandle corner="sw" cursor="nesw-resize" object={object} startGesture={startGesture} capturePointer={capturePointer} />
+          <ResizeHandle corner="se" cursor="nwse-resize" object={object} startGesture={startGesture} capturePointer={capturePointer} />
           {object.kind === 'text' ? (
             <>
-              <ResizeHandle corner="w" cursor="ew-resize" object={object} startGesture={startGesture} />
-              <ResizeHandle corner="e" cursor="ew-resize" object={object} startGesture={startGesture} />
+              <ResizeHandle corner="w" cursor="ew-resize" object={object} startGesture={startGesture} capturePointer={capturePointer} />
+              <ResizeHandle corner="e" cursor="ew-resize" object={object} startGesture={startGesture} capturePointer={capturePointer} />
             </>
           ) : null}
         </>
@@ -1460,28 +1467,34 @@ function ObjectView({
 
 function MoveHandle({
   object,
+  zoom,
   startGesture,
   containerPoint,
+  capturePointer,
 }: {
   object: EditorObject;
+  zoom: number;
   startGesture: (gesture: Gesture) => void;
   containerPoint: (event: ReactPointerEvent<HTMLElement>) => { x: number; y: number };
+  capturePointer: (element: HTMLElement, pointerId: number) => boolean;
 }) {
+  // At the page edge the handle would be clipped by the page container. Tuck it
+  // just inside instead of leaving an unreachable drag affordance.
+  const insideX = object.x * zoom < 32;
+  const insideY = object.y * zoom < 12;
   return (
     <button
       type="button"
       className="editor-move-handle"
+      style={{ left: insideX ? 2 : undefined, top: insideY ? 2 : undefined }}
       data-testid="editor-move-handle"
       aria-label={`Move ${describeEditorObject(object)}`}
       title="Drag to move"
       onPointerDown={(event) => {
         event.stopPropagation();
         if (event.button !== 0) return;
-        try {
-          event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-          // Synthetic pointers are not capturable; the window listeners handle it.
-        }
+        if (event.pointerType === 'touch' && event.width > 40) return;
+        if (!capturePointer(event.currentTarget, event.pointerId)) return;
         const point = containerPoint(event);
         startGesture({
           kind: 'move',
@@ -1507,11 +1520,13 @@ function ResizeHandle({
   cursor,
   object,
   startGesture,
+  capturePointer,
 }: {
   corner: 'nw' | 'ne' | 'sw' | 'se' | 'e' | 'w';
   cursor: string;
   object: EditorObject;
   startGesture: (gesture: Gesture) => void;
+  capturePointer: (element: HTMLElement, pointerId: number) => boolean;
 }) {
   const positions: Record<string, CSSProperties> = {
     // Sit just outside the selection box so handles do not cover the first or
@@ -1535,11 +1550,8 @@ function ResizeHandle({
       aria-hidden
       onPointerDown={(event) => {
         event.stopPropagation();
-        try {
-          event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-          // Synthetic pointers are not capturable; the window listeners handle it.
-        }
+        if (event.pointerType === 'touch' && event.width > 40) return;
+        if (!capturePointer(event.currentTarget, event.pointerId)) return;
         startGesture({
           kind: 'resize',
           id: object.id,

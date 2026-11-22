@@ -256,11 +256,10 @@ export const SHORTCUT_GROUPS: ReadonlyArray<ShortcutGroup> = [
  * The sheet is generated from the same records the handler uses. Tools not in
  * the current workspace are filtered out rather than listed as dead keys.
  */
-export function shortcutsForMode(mode: string, availableTools: ReadonlySet<string>) {
+export function shortcutsForMode(_mode: string, availableTools: ReadonlySet<string>) {
   return EDITOR_SHORTCUTS.filter((shortcut) => {
     if (shortcut.hidden) return false;
     if (shortcut.tool && !availableTools.has(shortcut.tool)) return false;
-    if (shortcut.group === 'Document' && mode === 'ai') return false;
     return true;
   });
 }

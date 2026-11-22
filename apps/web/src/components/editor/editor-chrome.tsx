@@ -163,11 +163,17 @@ export function EditorTopBar({
 }: EditorTopBarProps) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [pageDraft, setPageDraft] = useState<string | null>(null);
+  const cancelPageCommit = useRef(false);
   const run = (action: () => void) => {
     setActionsOpen(false);
     action();
   };
   const commitPage = (raw: string) => {
+    if (cancelPageCommit.current) {
+      cancelPageCommit.current = false;
+      setPageDraft(null);
+      return;
+    }
     const next = Number.parseInt(raw, 10);
     if (Number.isFinite(next)) onGoToPage?.(Math.min(pageCount, Math.max(1, next)));
     setPageDraft(null);
@@ -180,6 +186,7 @@ export function EditorTopBar({
           type="button"
           className="editor-mobile-icon editor-mobile-back"
           aria-label="Close document and return to the file picker"
+          disabled={saving}
           onClick={onBack ?? onReset}
         >
           <ChevronLeft className="size-5" />
@@ -207,6 +214,7 @@ export function EditorTopBar({
           className="editor-topbar-action ml-1"
           aria-label="Change file"
           title="Open another PDF"
+          disabled={saving}
           onClick={onChangeFile}
         >
           <FileUp className="size-3.5" />
@@ -216,7 +224,7 @@ export function EditorTopBar({
 
       <div className="editor-topbar-center">
         {onPrevPage && onNextPage ? (
-          <div className="editor-page-nav" aria-label="Page navigation">
+          <div className="editor-page-nav" role="group" aria-label="Document page">
             <button
               type="button"
               className="editor-page-nav-button"
@@ -245,6 +253,7 @@ export function EditorTopBar({
                 }
                 if (event.key === 'Escape') {
                   event.preventDefault();
+                  cancelPageCommit.current = true;
                   setPageDraft(null);
                   (event.target as HTMLInputElement).blur();
                 }
@@ -273,6 +282,7 @@ export function EditorTopBar({
                 className="editor-mode-tab"
                 aria-current={entry.id === mode ? 'page' : undefined}
                 data-testid={`editor-mode-${entry.id}`}
+                disabled={saving}
                 onClick={() => onModeChange(entry.id)}
               >
                 {entry.label}
@@ -293,6 +303,7 @@ export function EditorTopBar({
             aria-label="Find and replace"
             title="Find and replace (Ctrl+F)"
             data-testid="editor-find-open"
+            disabled={saving}
             onClick={onFind}
           >
             <Search className="size-4" />
@@ -305,7 +316,7 @@ export function EditorTopBar({
             aria-label="Undo"
             title="Undo (Ctrl+Z)"
             data-testid="editor-undo"
-            disabled={!canUndo}
+            disabled={saving || !canUndo}
             onClick={onUndo}
           >
             <Undo2 className="size-4" />
@@ -318,7 +329,7 @@ export function EditorTopBar({
             aria-label="Redo"
             title="Redo (Ctrl+Shift+Z)"
             data-testid="editor-redo"
-            disabled={!canRedo}
+            disabled={saving || !canRedo}
             onClick={onRedo}
           >
             <Redo2 className="size-4" />
@@ -357,6 +368,7 @@ export function EditorTopBar({
               size="icon"
               className="editor-topbar-reset size-7 text-muted-foreground"
               aria-label="Start over"
+              disabled={saving}
               onClick={onReset}
             >
               <RotateCcw className="size-3.5" />
@@ -434,7 +446,7 @@ export function EditorTopBar({
               </button>
             ) : null}
 
-            <button type="button" className="editor-action-row" onClick={() => run(onChangeFile)}>
+            <button type="button" className="editor-action-row" disabled={saving} onClick={() => run(onChangeFile)}>
               <span className="editor-action-glyph" aria-hidden>
                 <FileUp className="size-4" />
               </span>
@@ -454,6 +466,7 @@ export function EditorTopBar({
                       type="button"
                       className="editor-action-chip"
                       aria-current={entry.id === mode ? 'page' : undefined}
+                      disabled={saving}
                       onClick={() => run(() => onModeChange(entry.id))}
                     >
                       {entry.label}
@@ -463,7 +476,7 @@ export function EditorTopBar({
               </div>
             ) : null}
 
-            <button type="button" className="editor-action-row" onClick={() => run(onReset)}>
+            <button type="button" className="editor-action-row" disabled={saving} onClick={() => run(onReset)}>
               <span className="editor-action-glyph" aria-hidden>
                 <RotateCcw className="size-4" />
               </span>
@@ -474,7 +487,7 @@ export function EditorTopBar({
             </button>
 
             {onBack ? (
-              <button type="button" className="editor-action-row" onClick={() => run(onBack)}>
+              <button type="button" className="editor-action-row" disabled={saving} onClick={() => run(onBack)}>
                 <span className="editor-action-glyph" aria-hidden>
                   <ChevronLeft className="size-4" />
                 </span>
@@ -772,13 +785,11 @@ export interface EditorContextBarProps {
   tool: EditorTool;
   selectedObject: EditorObject | null;
   hasSelection: boolean;
-  canUndo: boolean;
-  canRedo: boolean;
+  /** The inspector can describe a text block even when no object is selected. */
+  canInspectSelection?: boolean;
   canReorder?: boolean;
   canSendBack?: boolean;
   onPatch: (patch: Record<string, unknown>) => void;
-  onUndo: () => void;
-  onRedo: () => void;
   onDelete: () => void;
   onReorder?: (direction: 'forward' | 'backward') => void;
   onDuplicate?: () => void;
@@ -805,8 +816,6 @@ export interface EditorContextBarProps {
   /** AI-only summary. */
   aiChangeCount?: number;
   onOpenAssistant?: () => void;
-  /** Opens the find & replace panel (Ctrl/Cmd+F). */
-  onFind?: () => void;
 }
 
 export function EditorContextBar(props: EditorContextBarProps) {
@@ -815,6 +824,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
     tool,
     selectedObject,
     hasSelection,
+    canInspectSelection,
     canReorder,
     canSendBack,
     onPatch,
@@ -877,7 +887,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
             label={inspectorOpen ? 'Hide properties' : 'Show properties'}
             testId="editor-toggle-inspector"
             className="editor-context-mobile"
-            disabled={!hasSelection && mode !== 'redact'}
+            disabled={!canInspectSelection && mode !== 'redact'}
             onClick={onOpenInspector}
           >
             <SlidersHorizontal className="size-3.5" />
@@ -887,7 +897,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
           <ContextIcon
             label="Duplicate (Ctrl+D)"
             testId="editor-duplicate"
-            disabled={!hasSelection}
+            disabled={disabled || (!selectedObject && !(mode === 'organize' && hasSelection))}
             onClick={onDuplicate}
           >
             <Copy className="size-3.5" />
@@ -896,7 +906,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
         <ContextIcon
           label="Delete (Del)"
           testId="editor-delete"
-          disabled={!hasSelection}
+          disabled={disabled || !hasSelection}
           onClick={onDelete}
           destructive
         >
@@ -908,7 +918,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
               label="Bring forward"
               testId="editor-bring-forward"
               className="editor-context-reorder"
-              disabled={!canReorder}
+              disabled={disabled || !canReorder}
               onClick={() => onReorder('forward')}
             >
               <BringToFront className="size-3.5" />
@@ -917,7 +927,7 @@ export function EditorContextBar(props: EditorContextBarProps) {
               label="Send backward"
               testId="editor-send-backward"
               className="editor-context-reorder"
-              disabled={!canSendBack}
+              disabled={disabled || !canSendBack}
               onClick={() => onReorder('backward')}
             >
               <SendToBack className="size-3.5" />
@@ -970,7 +980,13 @@ export function EditorContextBar(props: EditorContextBarProps) {
  */
 function ZoomReadout({ zoom, onCommit }: { zoom: number; onCommit: (zoom: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const cancelCommit = useRef(false);
   const commit = (raw: string) => {
+    if (cancelCommit.current) {
+      cancelCommit.current = false;
+      setDraft(null);
+      return;
+    }
     const next = parseZoomPercent(raw);
     if (next !== null) onCommit(next);
     setDraft(null);
@@ -997,6 +1013,7 @@ function ZoomReadout({ zoom, onCommit }: { zoom: number; onCommit: (zoom: number
           }
           if (event.key === 'Escape') {
             event.preventDefault();
+            cancelCommit.current = true;
             setDraft(null);
             (event.target as HTMLInputElement).blur();
           }
@@ -1127,7 +1144,14 @@ function ToolContext({
           {pageCount} page{pageCount === 1 ? '' : 's'}
         </span>
         {orderDirty && onRestoreOrder ? (
-          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={onRestoreOrder}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7"
+            disabled={disabled}
+            onClick={onRestoreOrder}
+          >
             <RotateCcw className="mr-1.5 size-3.5" /> Restore order
           </Button>
         ) : null}
@@ -1166,6 +1190,7 @@ function ToolContext({
             className="editor-context-chip"
             aria-pressed={object.text.toUpperCase() === preset.label}
             data-testid={`editor-stamp-preset-${preset.id}`}
+            disabled={disabled}
             onClick={() => {
               onPatch({ text: preset.label, color: preset.color });
               // Keep the next placement in step with the preset the user just
@@ -1222,6 +1247,7 @@ function ToolContext({
             color={color}
             active={object.color === color}
             onPick={() => onPatch({ color })}
+            disabled={disabled}
           />
         ))}
       </>
@@ -1246,6 +1272,7 @@ function ToolContext({
             color={color}
             active={object.stroke === color}
             onPick={() => onPatch({ stroke: color })}
+            disabled={disabled}
           />
         ))}
         <span className="editor-context-divider" aria-hidden />
@@ -1256,6 +1283,7 @@ function ToolContext({
             className="editor-context-chip"
             aria-pressed={(object.strokeWidth ?? 1.5) === width}
             data-testid={`editor-stroke-${width}`}
+            disabled={disabled}
             onClick={() => onPatch({ strokeWidth: width })}
           >
             {width}
@@ -1302,11 +1330,17 @@ function TextControls({
   disabled?: boolean;
 }) {
   const [size, setSize] = useState(String(Math.round(object.fontSize)));
+  const cancelSizeCommit = useRef(false);
   useEffect(
     () => setSize(String(Math.round(object.fontSize))),
     [object.fontSize, object.id],
   );
   const commitSize = () => {
+    if (cancelSizeCommit.current) {
+      cancelSizeCommit.current = false;
+      setSize(String(Math.round(object.fontSize)));
+      return;
+    }
     const value = Number(size);
     if (Number.isFinite(value)) onPatch({ fontSize: Math.min(72, Math.max(4, value)) });
     else setSize(String(Math.round(object.fontSize)));
@@ -1357,6 +1391,12 @@ function TextControls({
             if (event.key === 'Enter') {
               event.preventDefault();
               commitSize();
+              (event.target as HTMLInputElement).blur();
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              cancelSizeCommit.current = true;
+              setSize(String(Math.round(object.fontSize)));
               (event.target as HTMLInputElement).blur();
             }
           }}
@@ -1413,6 +1453,7 @@ function TextControls({
           color={color}
           active={object.color === color}
           onPick={() => onPatch({ color })}
+          disabled={disabled}
         />
       ))}
     </>
@@ -1423,10 +1464,12 @@ function SwatchButton({
   color,
   active,
   onPick,
+  disabled,
 }: {
   color: string;
   active: boolean;
   onPick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -1436,6 +1479,7 @@ function SwatchButton({
       aria-label={`Color ${color}`}
       aria-pressed={active}
       data-testid={`editor-swatch-${color}`}
+      disabled={disabled}
       onClick={onPick}
     >
       {active ? <Check className="size-2.5 text-white" strokeWidth={3} /> : null}
@@ -1530,7 +1574,11 @@ export const EditorPageRail = memo(function EditorPageRail({
     >
       <div className="editor-page-rail-head">
         <span>
-          {items.length === 0 ? 0 : currentPage + 1} / {items.length}
+          {items.length === 0
+            ? 0
+            : (items.find((item) => item.pageIndex === currentPage)?.displayNumber ??
+              currentPage + 1)}{' '}
+          / {items.length}
         </span>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -1744,10 +1792,8 @@ function PageRailThumb({
 /* ------------------------------------------------------------ status bar */
 
 export interface EditorStatusBarProps {
-  fileName: string;
   pageCount: number;
   currentPage: number;
-  zoom: number;
   dirty: boolean;
   hasEdits: boolean;
   saving: boolean;
@@ -1758,7 +1804,6 @@ export interface EditorStatusBarProps {
   onNextPage: () => void;
   selectionLabel?: string | null;
   toolHint?: string | null;
-  mode: EditorMode;
   objectCount?: number;
 }
 
@@ -1802,7 +1847,11 @@ export function EditorStatusBar({
         >
           <ChevronLeft className="size-3.5" />
         </button>
-        <span className="min-w-24 text-center tabular-nums" data-testid="editor-page-status">
+        <span
+          className="min-w-24 text-center tabular-nums"
+          data-testid="editor-page-status"
+          aria-live="polite"
+        >
           Page {Math.min(currentPage + 1, pageCount)} of {pageCount}
         </span>
         <button

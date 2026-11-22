@@ -123,10 +123,10 @@ try {
   await page.getByTestId('editor-inspector').waitFor({ timeout: 5_000 });
   check('properties open as a bottom sheet', await page.getByTestId('editor-inspector').isVisible());
   await page.getByTestId('inspector-close').tap();
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(200);
   check(
     'properties sheet dismisses without losing the selection',
-    (await page.getByTestId('editor-inspector').count()) === 0 &&
+    !(await page.getByTestId('editor-inspector').isVisible()) &&
       (await page.getByTestId('editor-object-ink').count()) === 1,
   );
 
