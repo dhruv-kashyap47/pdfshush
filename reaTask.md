@@ -192,11 +192,11 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | 2 | Text editing UX | T-01..T-07 | 7 | 0 | `[x]` |
 | 3 | Search, recovery, data-loss guards | S-01..S-06 | 5 | 1 | `[~]` |
 | 4 | Content-stream surgery | C-01..C-14 | 14 | 0 | `[x]` |
-| 5 | OCR inside the editor | O-01..O-05 | 0 | 2 | `[~]` |
-| 6 | Export trust and metadata | X-01..X-06 | 1 | 3 | `[~]` |
-| 7 | Hardening and parity sweep | H-01..H-08 | 0 | 4 | `[~]` |
+| 5 | OCR inside the editor | O-01..O-05 | 5 | 0 | `[x]` |
+| 6 | Export trust and metadata | X-01..X-06 | 6 | 0 | `[x]` |
+| 7 | Hardening and parity sweep | H-01..H-08 | 1 | 4 | `[~]` |
 
-**Queue:** Sprint 5 complete → Sprint 6 (O-01..O-05, X-01..X-05, H-04) → Sprint 7 (H-01, H-02, H-03, H-05..H-08).
+**Queue:** Sprint 6 complete → Sprint 7 (H-01, H-02, H-03, H-05..H-08).
 **Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. **Gate C is met** (2026-11-21): C-01..C-04, C-06, C-07, C-12..C-14 green on the corpus.
 
 ### 4.2 Full board
@@ -247,21 +247,21 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | C-12 | Post-write verification completion | P0 | M | done | `[x]` |
 | C-13 | Edit coverage invariant | P0 | S | done | `[x]` |
 | C-14 | XObject/Type3/inline-image honesty | P0 | S | done | `[x]` |
-| O-01 | Scan affordance | P1 | S | ~50% engine | `[~]` |
-| O-02 | Text-layer-only OCR job | P0 | M | 0% | `[ ]` |
-| O-03 | OCR layout + confidence return | P1 | M | 0% | `[ ]` |
-| O-04 | Editor provenance + banner | P1 | S | 0% | `[ ]` |
-| O-05 | OCR cache/teardown/privacy | P1 | S | ~60% | `[~]` |
-| X-01 | Warning code registry | P1 | M | 0% | `[ ]` |
-| X-02 | Receipt stats + object-only receipt | P1 | M | ~35% | `[~]` |
-| X-03 | Untouched-page fingerprints | P1 | M | ~15% | `[~]` |
-| X-04 | Metadata + document-level preservation | P1 | M | ~85% | `[~]` |
-| X-05 | Download guard | P1 | S | 0% | `[ ]` |
+| O-01 | Scan affordance | P1 | S | done 2026-11-22 (editor banner, both scopes) | `[x]` |
+| O-02 | Text-layer-only OCR job | P0 | M | done 2026-11-22 | `[x]` |
+| O-03 | OCR layout + confidence return | P1 | M | done 2026-11-22 | `[x]` |
+| O-04 | Editor provenance + banner | P1 | S | done 2026-11-22 | `[x]` |
+| O-05 | OCR cache/teardown/privacy | P1 | S | done 2026-11-22 | `[x]` |
+| X-01 | Warning code registry | P1 | M | done 2026-11-22 | `[x]` |
+| X-02 | Receipt stats + object-only receipt | P1 | M | done 2026-11-22 | `[x]` |
+| X-03 | Untouched-page fingerprints | P1 | M | done 2026-11-22 (override path included) | `[x]` |
+| X-04 | Metadata + document-level preservation | P1 | M | done 2026-11-22 | `[x]` |
+| X-05 | Download guard | P1 | S | done 2026-11-22 | `[x]` |
 | X-06 | Progress/cancel assertion | P2 | S | done | `[x]` |
 | H-01 | Keyboard parity + unified registry | P2 | M | ~60% | `[~]` |
 | H-02 | Accessibility for new controls | P1 | M | ~70% baseline | `[~]` |
 | H-03 | Editor performance ceilings | P2 | M | 0% | `[ ]` |
-| H-04 | Fuzz lexer/emitter | P0 | M | 0% | `[ ]` |
+| H-04 | Fuzz lexer/emitter | P0 | M | done 2026-11-22 | `[x]` |
 | H-05 | Firefox + Safari | P2 | M | 0% | `[ ]` |
 | H-06 | Touch/mobile for new tools | P2 | M | ~40% | `[~]` |
 | H-07 | Help copy + discoverability | P2 | S | ~60% | `[~]` |
@@ -908,6 +908,28 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 
 ---
 
+## Sprint 6 close (2026-11-22)
+
+| Task | Result | Evidence |
+| --- | --- | --- |
+| O-01 | `[x]` | The editor detects an image-only page from the capability snapshot and offers one explicit banner: “Read this page” or “Read scanned pages”. No OCR runs automatically; an already-OCRed page is marked by its layer badge and confidence banner. Unit: capability classification already pinned; E2E `sprint6-trust` waits for the banner on a real JPEG scan. |
+| O-02 | `[x]` | New `ocr/textLayer.ts` + `ocr-text-layer` job. It opens the original with pdf-lib, renders only the requested pages for recognition, appends `Tr 3` text to those pages, and never rebuilds a page. Page count, objects, fonts, annotations, metadata and paragraph ids survive. The standalone `ocr` rebuild path is untouched. Unit: skip/already-text, rotated `/Rotate 90` mapping, original bytes returned when nothing changed, recognizer termination. E2E: editor OCR → save → download → extracted `INVOICE 2026`/`TOTAL 42`. |
+| O-03 | `[x]` | Recognition returns per-page mean confidence, word/line/paragraph counts and up to 40 point-space blocks (`summarizeOcrPage`). The job payload carries them to the editor; paragraph grouping is explicitly proximity-based, not a layout claim. Unit: word/line/paragraph summary and block geometry. |
+| O-04 | `[x]` | Session provenance map (confidence, words, paragraphs) drives a page banner and the status line; the detection-details drawer shows the confidence or says it was not recorded this session. Copy says “check the text before relying on it”. OCR paragraphs stay editable through the normal native path with the invisible render mode preserved. E2E: banner/confidence copy and an OCR-only export. |
+| O-05 | `[x]` | The recognizer is created lazily and terminated in `finally`; pdf.js is destroyed and page proxies are cleaned per page. The editor cancels/reaps the runner on Start over. Unit: terminate on a successful run. E2E records every request: the model comes from `/tessdata/` on this origin, zero external requests, job pool idle afterwards. |
+| X-01 | `[x]` | New `warnings.ts` with a `WarningCode` union, `{code, detail, message}`, prefix/legacy classification, dedupe by code+detail and a 40-entry cap. `JobWarnings` is active; text-edit, OCR and redaction now return coded warnings while keeping the human sentence. The receipt prints `[code] message`. Unit: parsing, unknown prose, dedupe/cap, override codes. |
+| X-02 | `[x]` | `EditStats` comes from the pass that did the work: pages, characters removed/added, objects/images drawn, fonts embedded/substituted, rasterised glyphs, covers, strategy, verification verdict. Every editor export now renders a receipt, including object-only and OCR-only saves; the “no checks” contradiction is gone because object-only saves run the real export gate. Unit: text and object-only jobs. |
+| X-03 | `[x]` | Untouched-page text fingerprints are part of the artifact gate for text and object-only saves. A mismatch blocks with an `untouched-page-changed` refusal; the editor offers “Download anyway”, which re-runs only that class of failure and records `untouched-page-accepted` in the receipt. Structural failures cannot be overridden. Unit: detects a changed untouched page, refuses by default, accepts only the fingerprint class. |
+| X-04 | `[x]` | `InspectOutput.metadata` now carries subject, keywords, creator, producer and creation date. Composition preserves creator/producer as well as the existing date policy. Tests prove a native text edit keeps title/author/subject/keywords/creator/producer/dates, the outline tree, page labels and AcroForm fields. |
+| X-05 | `[x]` | Save is disabled when the document has no changes (and a guard covers keyboard/mobile paths); OCR and Insert Pages mark the source bytes dirty so their work is saveable. E2E: a freshly opened document cannot be saved; placing one object enables it; a fully reverted edit has nothing to save. |
+| H-04 | `[x]` | Seeded fuzz over the lexer/emitter/planner (`test/streamFuzz.test.ts`, fixed mulberry32 seeds) proves byte-identical emission, bounded operation ranges, and explicit refusal rather than crash. It found a real infinite loop: a stray `>` delimiter produced a zero-width token. `readWord` now consumes an unclaimed delimiter; a regression test pins it. `pnpm test:fuzz` is a named CI step. |
+
+**Verification:** `pnpm typecheck` green for all 8 workspace projects; `pnpm test` — pdf-core **685 passed + 1 expected fail**, web **309**, api 243, mcp 19, ai-agent 152, ai-provider 375; `pnpm build` green; `pnpm test:bundle` main chunk **150.4 kB / 0 engines**; `pnpm test:provenance` clean; `pnpm test:corpus` **2/2**; `pnpm test:fuzz` **4/4**. Browser E2E against the dev web app: new `sprint6-trust` **20/20** (editor OCR, provenance, no egress, object-only receipt, no-change guard), `text-ux` **57/57** (updated for X-05), `text-edit` 7/7, `editor-quick-parity` 20/20, standalone `ocr` all checks green, `keyboard`/`a11y` green against the production preview.
+
+**Still open before Sprint 7:** H-01/H-02/H-03/H-05..H-08. O-03 paragraph counts are proximity summaries, not a layout engine claim; O-04 confidence is session-local after a reload (the layer itself is detected forever). X-04 composition preserves metadata/dates but not outlines/page labels (those survive in-place edit/export).
+
+---
+
 ## 8. Release gates
 
 ### Gate A — Foundation + parity
@@ -1007,3 +1029,4 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-21 | **Sprint 5 bug pass.** New-object creation was found to be refused by this PDFium build (`SetText`/`SetMatrix` trap on a freshly created text object), so native styling was redesigned to mutate existing objects; a styled replacement that would need extra lines now falls back to the overlay instead of corrupting the page. Insert Pages no longer leaves the organise runner in `done` (which hid the editor behind its result panel), and page order is updated through the session instead of the editable document. Cover detection was moved from raster sampling to a content-stream fill/image walk so `apps/api` keeps compiling without the `dom` lib; `render/canvas.ts` now uses structural canvas types and the API typecheck is clean again. The `text-ux` formatting scenario asserts a native rewrite, synthetic-bold receipt and vertical extraction rather than the old overlay demotion. |
 | 2026-11-21 | **Native new-text-object fix.** `FPDFPageObj_CreateTextObj(FPDF_FONT, …)` is the broken path in `@embedpdf/pdfium` 2.15.1: `SetMatrix`/`SetText` trap on a fresh object. Upstream `fpdf_edit.h` documents `FPDFPageObj_NewTextObj(document, font_name, size)` for standard fonts, and that path works in the same wasm. `PdfiumTextDocument.createStandardTextObject` now uses it; native reflow creates extra Helvetica/Times/Courier lines without an overlay. `textObjectCreation.test.ts` proves create → set text → set matrix → insert → generate → save → reopen → extract for regular, bold, italic and Courier faces; a second test proves a grown paragraph exports `in-place`. Embedded/custom faces and styled growth still use the declared overlay. The bundled binary was not replaced and no memory workaround was added. PDF-core 657+1 expected fail; `text-ux` 56/56 (adds a native paragraph-growth scenario). |
 | 2026-11-21 | **Sprint 5 bug-fix session.** Partial deletions now report the exact removed glyph box, so C-07 patches the word rather than whiteout-ing the whole line; covers use the page's own paper colour, ignore shades/inline images, are drawn below user objects, and a background-read failure is a warning rather than a failed export. Multi-line rotation rotates the whole block around one pivot in both native and overlay paths (native multi-line rotation falls back explicitly). Styled size divides out an existing matrix scale; word-by-word positions advance in squeezed space; alignment/family are sent only when changed and overlay text drops the document `fontKey` when weight/family changes so the chosen face is real. Insert Pages invalidates page-index-keyed caches, remaps through `live` (not undo), drops objects on pages the rail removed, and clears stale outcomes. Find & replace no longer pays for colour renders, and untrusted layout style values are validated before any PDFium work. |
+| 2026-11-22 | **Sprint 6 landed.** O-01..O-05, X-01..X-05 and H-04 complete. New `ocr/textLayer.ts` + `ocr-text-layer` job append invisible text to existing pages (no rebuild) with per-page confidence/structure, a scan banner, session provenance and teardown. `warnings.ts` adds coded/deduped warnings across text-edit/OCR/redaction; receipts carry engine stats and every export renders one. Object-only and OCR-only saves run the real export gate; untouched-page fingerprint failures can be knowingly accepted and are receipted. Metadata preservation covers creator/producer/dates plus outline/page labels/AcroForm in edit/export; Save is disabled when nothing changed. Seeded fuzz found and fixed a stray-`>` scanner loop and runs as `pnpm test:fuzz` in CI. pdf-core 685+1 expected fail, web 309, api 243, mcp 19, agent 152, provider 375; build/bundle 150.4 kB / 0 engines; corpus 2/2; E2E `sprint6-trust` 20/20, `text-ux` 57/57, `text-edit` 7/7, `editor-quick-parity` 20/20, `ocr`, `keyboard`, `a11y` green. |

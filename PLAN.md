@@ -7927,3 +7927,99 @@ round-trip and native reflow growth), `snap.test.ts` (5), text-editing
 | E-09 | After a reordered insert, rasters/text/layouts remained keyed to the old page indices; Undo could desync the page remap; removed-page objects pointed at other pages. | Invalidate page-index caches, remap with `live`, drop objects on pages no longer in the rail, and clear stale outcomes. |
 | C-11 | Find/replace paid for a colour render on every page. | `colors:false` for search, plus a `colorsFetched` set so a later visit fills colour without re-rendering known pages. |
 | Guard | Untrusted layout style values reached PDFium. | Validate size/colour/bold/italic/family/align/rotation/cover policy before the WASM pass. |
+
+## 41. Sprint 6 — OCR in the editor, export trust, fuzz (2026-11-22)
+
+Sprint 6 closes Gate D's remaining O/X tasks and the P0 fuzz gate. The theme is
+honesty at the last mile: text recognition that does not rebuild the page, a
+receipt whose numbers come from the pass that did the work, and a warning
+vocabulary that can be addressed by code instead of matched by prose.
+
+### 41.1 Text-layer-only OCR (O-01..O-05)
+
+`ocr/textLayer.ts` recognizes the requested pages and appends invisible text to
+the *existing* page. It does not call `ocrDocument`, does not rasterize the
+output and does not copy pages, so page indices, object ids, paragraph ids,
+fonts, annotations and metadata survive. The standalone `ocr` tool keeps its
+rebuild path: the two operations have different promises and different names.
+
+| Piece | Behaviour |
+| --- | --- |
+| scope | current page or every page; pages with a real text layer are skipped and reported |
+| coordinates | placements are built in display space; `/Rotate 90/180/270` maps the origin and baseline back into unrotated PDF space |
+| verification | page count, page text present, untouched-page fingerprints; a failed check refuses the output |
+| provenance | per-page mean confidence, words, lines, approximate paragraphs, up to 40 point-space blocks |
+| runtime | engine created lazily and terminated in `finally`; pdf.js destroyed; page proxies cleaned per page |
+| privacy | recognition model is same-origin `/tessdata/`; E2E records zero external requests |
+
+The editor shows one explicit scan banner (“Read this page” / “Read scanned
+pages”), a progress panel with Cancel, and a session provenance banner. The
+detection-details drawer shows the confidence, or says it was not recorded in
+this session after a reload. OCR paragraphs remain editable through the normal
+native path, which preserves their invisible render mode.
+
+### 41.2 Warning registry and receipts (X-01/X-02)
+
+`warnings.ts` defines `WarningCode`, `JobWarning { code, detail, message }`,
+legacy classification, dedupe by `code + detail` and a 40-entry cap. Text-edit,
+OCR and redaction emit coded warnings; `JobWarnings` is active. Receipts print
+`[code] message`, so two pages reporting the same loss collapse to one entry.
+
+`EditStats` is taken from the pass that did the work: pages, characters
+removed/added, objects/images drawn, fonts embedded/substituted, rasterised
+glyphs, covers, strategy and the verification verdict. Every editor export now
+renders a receipt, including object-only and OCR-only saves. The old
+contradiction — a footer claiming verification while the receipt said no checks
+ran — is gone because object-only saves run the real export gate.
+
+### 41.3 Untouched pages, metadata, download guard (X-03..X-05)
+
+- **X-03.** The untouched-page text fingerprint is part of the artifact gate for
+  text and object-only saves. A mismatch refuses with
+  `untouched-page-changed`; the editor offers “Download anyway”, which re-runs
+  only that class of failure and adds `untouched-page-accepted` to the receipt.
+  A structural failure (page count, geometry, fonts) can never be overridden.
+- **X-04.** `InspectOutput.metadata` now carries subject, keywords, creator,
+  producer and creation date. Composition copies creator/producer as well as
+  the existing date policy. Tests prove a native edit keeps the Info dictionary,
+  outline tree, page labels and AcroForm fields.
+- **X-05.** Save is disabled when the document has no changes, and the `onSave`
+  guard covers keyboard/mobile paths. OCR and Insert Pages mark the source bytes
+  dirty, so their work is saveable and guarded by `beforeunload`/drafts.
+
+### 41.4 Seeded fuzz (H-04)
+
+`test/streamFuzz.test.ts` uses a fixed mulberry32 PRNG (no new dependency). It
+asserts tokenise→emit byte identity for arbitrary bytes, bounded operation
+ranges, and that scanning/planning either succeeds or refuses explicitly. The
+first run found a real infinite loop: `>` is a PDF delimiter, no token branch
+claimed a lone one, so `readWord` returned a zero-width token and the scanner
+never advanced. It now consumes an unclaimed delimiter and a regression test
+pins it. `pnpm test:fuzz` is a named CI step; the normal suite also runs it.
+
+### 41.5 Verification
+
+| Gate | Result |
+| --- | --- |
+| `pnpm typecheck` (8 projects) | pass |
+| `pnpm test` | pdf-core **685 + 1 expected fail**, web 309, api 243, mcp 19, ai-agent 152, ai-provider 375 |
+| `pnpm build` | pass, 63 routes prerendered |
+| `pnpm test:bundle` | main 150.4 kB, 0 engines; 16 lazy chunks, 0 engines |
+| `pnpm test:provenance` | clean |
+| `pnpm test:corpus` | 2/2 |
+| `pnpm test:fuzz` | 4/4 |
+| Browser E2E | `sprint6-trust` **20/20**; `text-ux` **57/57**; `text-edit` 7/7; `editor-quick-parity` 20/20; `ocr` all checks; `keyboard`/`a11y` green against the production preview |
+
+New unit coverage: `ocrTextLayer.test.ts` (7: skip, rotation, no-op bytes,
+termination, layout summary, registration/validation), `warnings.test.ts` (8),
+`exportTrust.test.ts` (6), `metadataPreservation.test.ts` (3),
+`streamFuzz.test.ts` (4), plus the text-ux save-guard scenario.
+
+### 41.6 Deliberately not claimed
+
+- O-03 paragraph counts are proximity summaries, not a layout-engine claim.
+- O-04 confidence is session-local; a reload still detects the OCR layer but
+  cannot invent the old confidence.
+- X-04 composition preserves metadata/dates; outlines and page labels survive
+  in-place edit/export, not page recomposition.
+- The containerised `test:api`/`test:hardening` gates were not re-run.
