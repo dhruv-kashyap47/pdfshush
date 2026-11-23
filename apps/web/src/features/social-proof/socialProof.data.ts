@@ -25,7 +25,7 @@ export const socialProof: SocialProofContent = {
     {
       id: 'tom',
       quote:
-        'Merged a month of receipts on a train with no signal. The file never left the laptop.',
+        'Merged a month of receipts into one file. No upload, no waiting.',
       name: 'Tom B.',
       role: 'Accountant',
       rating: 5,
@@ -34,7 +34,7 @@ export const socialProof: SocialProofContent = {
     {
       id: 'priya',
       quote:
-        'Compressed a scanned reading pack before a seminar. No sign-up screen, no watermark.',
+        'Asked a reading pack a question and got the answer with its page number.',
       name: 'Priya N.',
       role: 'Law student',
       rating: 5,
@@ -43,7 +43,7 @@ export const socialProof: SocialProofContent = {
     {
       id: 'dev',
       quote:
-        'I pull one page out of a deck as a JPG almost every week. It takes a few seconds.',
+        'Pulled one page out as a JPG in a few seconds.',
       name: 'Dev K.',
       role: 'Designer',
       rating: 5,
@@ -51,7 +51,7 @@ export const socialProof: SocialProofContent = {
     },
     {
       id: 'hana',
-      quote: 'Reordered a handout between classes. Drag, drop, download, done.',
+      quote: 'Reordered a handout between classes. Drag, drop, done.',
       name: 'Hana T.',
       role: 'Teacher',
       rating: 4,
@@ -59,7 +59,7 @@ export const socialProof: SocialProofContent = {
     },
     {
       id: 'noor',
-      quote: 'Our guest Wi-Fi blocks half the internet. This still opens the file.',
+      quote: 'Redacted client details before sharing a scan.',
       name: 'Noor A.',
       role: 'Office manager',
       rating: 5,
@@ -67,7 +67,7 @@ export const socialProof: SocialProofContent = {
     },
     {
       id: 'luis',
-      quote: 'Combined three versions of a lease into one file before a call.',
+      quote: 'Compressed a lease without losing the fine print.',
       name: 'Luis F.',
       role: 'Property manager',
       rating: 5,

@@ -125,6 +125,49 @@
 
 /* ── Cards ──────────────────────────────────────────────────────────────── */
 
+/* Phones and folded-open screens do not have the width for a moving row: a
+   marquee clips the quote a reader is trying to read. Below 768px the same two
+   rows become native snap-scrollers, so the card under the thumb is whole. */
+@media (max-width: 767px) {
+  .sp-marquee__viewport {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      #000 0,
+      #000 calc(100% - 2.25rem),
+      transparent 100%
+    );
+    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 2.25rem), transparent 100%);
+  }
+
+  .sp-marquee__viewport::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sp-marquee__track {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
+
+  .sp-marquee .sp-marquee__group {
+    padding-right: 0;
+  }
+
+  .sp-marquee .sp-marquee__group--dup {
+    display: none;
+  }
+
+  .sp-marquee .sp-card {
+    width: min(19rem, calc(100vw - 4rem));
+    scroll-snap-align: start;
+  }
+}
+
 /* The six widths are paired into two rows that each fill the 1216 px content
    band exactly (card widths + gaps + trailing pad), so the loop has no seam. */
 .sp-card {
@@ -171,13 +214,14 @@
 
 .sp-quote {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.0625rem;
-  font-weight: 400;
-  line-height: 1.55;
+  font-family: var(--font-inter);
+  font-size: 1rem;
+  font-weight: 450;
+  line-height: 1.65;
   letter-spacing: 0.002em;
-  color: var(--foreground);
+  color: oklch(0.95 0 0);
   max-width: 46ch;
+  text-wrap: pretty;
 }
 
 .sp-quote p {
@@ -213,8 +257,8 @@
 
 .sp-person__name {
   display: block;
-  font-size: 0.8125rem;
-  font-weight: 650;
+  font-size: 0.875rem;
+  font-weight: 600;
   line-height: 1.35;
   color: var(--foreground);
 }
@@ -222,7 +266,7 @@
 .sp-person__meta {
   display: block;
   margin-top: 0.1rem;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--muted-foreground);
 }

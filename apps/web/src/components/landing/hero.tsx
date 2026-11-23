@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   ArrowRight,
+  ArrowUpRight,
   Bot,
   CheckCircle2,
   Cpu,
   FileText,
-  Image,
   LayoutGrid,
   Lock,
   Merge,
@@ -20,459 +22,503 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+  useTransform,
+} from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/format';
-import { EASE, DUR, staggerUI, timelineUI, prefersReducedMotion } from '@/lib/motion';
+import { staggerUI } from '@/lib/motion';
 import { useMotionScope } from '@/hooks/use-motion';
 import { McpShowcaseButton } from '@/components/landing/mcp-dialog';
+import './hero.css';
 
-/* Definitions are written to survive a 390px phone's half-panel chip on one
-   line: a truncated promise ("Permanent destructive sanititi...") reads worse
-   than a shorter one. */
-const QUICK_AI_ACTIONS = [
-  { slug: 'chat-with-pdf', name: 'Chat with PDF', desc: 'Answers cite pages' },
-  { slug: 'edit-pdf-with-ai', name: 'Edit with AI', desc: 'Edits you describe' },
-  { slug: 'summarize-pdf', name: 'Summarize', desc: 'Executive brief' },
-  { slug: 'redact-pdf', name: 'Redact PII', desc: 'Erased for good' },
-] as const;
-
-/* The eight jobs people open this site for. Every entry is a real route under
-   /tools and every one runs today, so the grid never lies about what is live.
-   Descriptions stay short so a chip never wraps its promise mid-sentence on a
-   phone. */
-interface ToolShortcut {
+/* Every link below is a live route. The rail is the catalogue's shortlist, not
+   a promise list: eight jobs that cover the traffic this page actually gets. */
+interface HeroTool {
   slug: string;
   label: string;
   desc: string;
   icon: LucideIcon;
-  /** Accent family mirrored from the tool registry (tool-card palette). */
-  accent: 'green' | 'blue' | 'amber' | 'orange';
-  soon?: boolean;
 }
 
-const HERO_TOOLS: ToolShortcut[] = [
-  { slug: 'merge-pdf', label: 'Merge PDF', desc: 'Combine files in any order', icon: Merge, accent: 'green' },
-  { slug: 'split-by-pages', label: 'Split PDF', desc: 'Cut into page ranges', icon: Scissors, accent: 'blue' },
-  { slug: 'compress-pdf', label: 'Compress PDF', desc: 'Smaller file, sharp text', icon: Minimize2, accent: 'orange' },
-  { slug: 'edit-pdf', label: 'Edit PDF', desc: 'Type right on the page', icon: PenTool, accent: 'green' },
-  { slug: 'pdf-to-jpg', label: 'Convert PDF', desc: 'Export pages as images', icon: Image, accent: 'amber' },
-  { slug: 'organize-pdf', label: 'Organize Pages', desc: 'Drag to reorder pages', icon: LayoutGrid, accent: 'blue' },
-  { slug: 'fill-sign', label: 'Sign PDF', desc: 'Draw or type a signature', icon: Signature, accent: 'amber' },
-  { slug: 'protect-pdf', label: 'Protect PDF', desc: 'Add an open password', icon: Lock, accent: 'blue' },
+const HERO_TOOLS: HeroTool[] = [
+  { slug: 'merge-pdf', label: 'Merge PDF', desc: 'Combine files', icon: Merge },
+  { slug: 'split-by-pages', label: 'Split PDF', desc: 'Cut page ranges', icon: Scissors },
+  { slug: 'compress-pdf', label: 'Compress PDF', desc: 'Smaller, sharp', icon: Minimize2 },
+  { slug: 'edit-pdf', label: 'Edit PDF', desc: 'Type on the page', icon: PenTool },
+  { slug: 'pdf-to-jpg', label: 'Convert PDF', desc: 'Pages as images', icon: Upload },
+  { slug: 'organize-pdf', label: 'Organize pages', desc: 'Drag to reorder', icon: LayoutGrid },
+  { slug: 'fill-sign', label: 'Sign PDF', desc: 'Draw or sign', icon: Signature },
+  { slug: 'protect-pdf', label: 'Protect PDF', desc: 'Open password', icon: Lock },
 ];
 
-/* Icon tiles mirror the accents the registry already assigns these tools, so
-   a "Merge PDF" chip and its catalog card read as the same product. */
-const ACCENT_TILE: Record<ToolShortcut['accent'], string> = {
-  green: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  blue: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-  amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  orange: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
-};
+/* Verbs offered once a document is actually staged. This replaces the old
+   always-on AI tile grid: the same four AI jobs, but shown when they can act
+   on a file instead of competing with the dropzone before one exists. */
+const STAGED_ACTIONS: Array<{
+  label: string;
+  slug: string;
+  icon: LucideIcon;
+  variant: 'default' | 'outline';
+  iconClass?: string;
+}> = [
+  { label: 'Chat & ask', slug: 'chat-with-pdf', icon: Bot, variant: 'default' },
+  {
+    label: 'Edit with AI',
+    slug: 'edit-pdf-with-ai',
+    icon: Wand2,
+    variant: 'outline',
+    iconClass: 'text-emerald-400',
+  },
+  { label: 'Summarize', slug: 'summarize-pdf', icon: Sparkles, variant: 'outline' },
+  {
+    label: 'Redact PII',
+    slug: 'redact-pdf',
+    icon: ShieldCheck,
+    variant: 'outline',
+    iconClass: 'text-rose-400',
+  },
+  { label: 'Visual editor', slug: 'edit-pdf', icon: FileText, variant: 'outline' },
+  { label: 'Merge / organize', slug: 'merge-pdf', icon: Zap, variant: 'outline' },
+];
 
-const ACCENT_TILE_RING: Record<ToolShortcut['accent'], string> = {
-  green: 'group-hover:ring-emerald-500/30',
-  blue: 'group-hover:ring-sky-500/30',
-  amber: 'group-hover:ring-amber-500/30',
-  orange: 'group-hover:ring-orange-500/30',
-};
+const PROOF = [
+  { icon: Cpu, label: 'Runs on your device', desc: 'Files never leave this tab.' },
+  { icon: Lock, label: 'Keys stay local', desc: 'Your API key never leaves the browser.' },
+  { icon: CheckCircle2, label: 'Deletion you can verify', desc: 'Redactions wipe the pixels and text.' },
+  { icon: Zap, label: 'No toll gates', desc: 'No page limits, watermarks or sign-ups.' },
+];
+
+const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 export function HeroSection() {
   const navigate = useNavigate();
+  const sectionRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragActive, setDragActive] = useState(false);
+  const spotRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const changeRef = useRef<HTMLButtonElement>(null);
+  const dragDepth = useRef(0);
   const [stagedFile, setStagedFile] = useState<{ name: string; size: number } | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const reducedMotion = useReducedMotion() === true;
+  const motionScope = useMotionScope();
 
-  /* Hero choreography lives here: one anime timeline for the headline, sub,
-     CTAs, tool grid and console. Under reduced motion the gate class never
-     renders, so the section is fully visible with zero animation. */
-  const reducedMotion = prefersReducedMotion();
-  const copyRef = useRef<HTMLDivElement>(null);
-  const consoleRef = useRef<HTMLDivElement>(null);
-  const motion = useMotionScope();
-
+  /* ── Anime.js: the headline rises word by word. ──────────────────────────
+     CSS hides the words only when scripting is on, so a failed bundle never
+     leaves an invisible h1; reduced motion pins them in place. */
   useEffect(() => {
     if (reducedMotion) return;
-    const copy = copyRef.current;
-    if (!copy) return;
+    const words = titleRef.current?.querySelectorAll('[data-word]');
+    if (!words?.length) return;
 
-    const headline = copy.querySelector('[data-motion="headline"]');
-    const subhead = copy.querySelector('[data-motion="subhead"]');
-    const actions = copy.querySelector('[data-motion="actions"]');
-    const toolGrid = copy.querySelector('[data-motion="tools"]');
-    const chips = copy.querySelectorAll<HTMLElement>('[data-tool-chip]');
-    // The console entrance targets the card itself (the wrapper stays
-    // positionable by the grid).
-    const consoleCard = consoleRef.current?.querySelector('div') ?? null;
+    motionScope.animate(words, {
+      opacity: [0, 1],
+      y: [30, 0],
+      duration: 860,
+      delay: staggerUI(55, { start: 90 }),
+      ease: 'outExpo',
+    });
+  }, [motionScope, reducedMotion]);
 
-    const tl = timelineUI({ defaults: { ease: EASE.out, duration: DUR.slow } });
-    if (headline) tl.add(headline, { opacity: [0, 1], y: [22, 0] }, 0);
-    if (subhead) tl.add(subhead, { opacity: [0, 1], y: [18, 0], duration: DUR.base }, 130);
-    if (actions) tl.add(actions, { opacity: [0, 1], y: [16, 0], duration: DUR.base }, 260);
-    if (toolGrid) tl.add(toolGrid, { opacity: [0, 1], y: [14, 0], duration: DUR.base }, 380);
-    // Chips stay transform-free (Tailwind's hover lift owns their transform
-    // afterwards), so their entrance is an opacity wave only.
-    if (chips.length) {
-      tl.add(chips, { opacity: [0, 1], duration: 460, delay: staggerUI(30) }, 430);
-    }
-    if (consoleCard) tl.add(consoleCard, { opacity: [0, 1], y: [26, 0], duration: 820 }, 320);
+  useEffect(() => {
+    if (!stagedFile) return;
+    // The element that opened the picker may have unmounted with the dropzone.
+    // Park focus on the visible Change control so Tab continues into the verbs.
+    changeRef.current?.focus({ preventScroll: true });
+  }, [stagedFile]);
 
-    motion.park(tl);
-    return undefined;
-    // copyRef/consoleRef are stable refs; the motion scope is a stable
-    // registry object, so this runs once per mount (and re-runs cleanly on
-    // StrictMode's double mount because the scope cancels everything).
-  }, [reducedMotion, motion]);
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
+  /* A file drag that ends outside the window fires no drop and no dragleave on
+     the zone. Reset the highlight, and stop the browser from navigating away
+     when a PDF is released anywhere else on the page. */
+  useEffect(() => {
+    const resetDragState = () => {
+      dragDepth.current = 0;
       setDragActive(false);
+    };
+    const blockBrowserOpen = (event: DragEvent) => {
+      const types = event.dataTransfer ? Array.from(event.dataTransfer.types) : [];
+      if (types.includes('Files')) event.preventDefault();
+    };
+
+    window.addEventListener('dragend', resetDragState);
+    window.addEventListener('drop', resetDragState);
+    window.addEventListener('dragover', blockBrowserOpen);
+    window.addEventListener('drop', blockBrowserOpen);
+
+    return () => {
+      window.removeEventListener('dragend', resetDragState);
+      window.removeEventListener('drop', resetDragState);
+      window.removeEventListener('dragover', blockBrowserOpen);
+      window.removeEventListener('drop', blockBrowserOpen);
+    };
+  }, []);
+
+  /* ── Motion: depth on the desk and the ambient plate. ─────────────────── */
+
+  // Scroll: the ambient glow lags behind the copy, which is what makes the
+  // stage feel deep without moving any readable text.
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start start', 'end start'],
+  });
+  const ambienceY = useTransform(scrollYProgress, [0, 1], [0, 150]);
+  const panelScale = useTransform(scrollYProgress, [0, 0.7], [1, 0.985]);
+
+  // Pointer tilt: ±2.6deg on a 1600px perspective. Enough to feel physical,
+  // small enough that 13px tool labels never smear.
+  const tiltX = useSpring(0, { stiffness: 160, damping: 20, mass: 0.4 });
+  const tiltY = useSpring(0, { stiffness: 160, damping: 20, mass: 0.4 });
+
+  // Magnetic primary: the button leans toward the cursor by at most ~8px.
+  const magnetX = useSpring(0, { stiffness: 260, damping: 20, mass: 0.4 });
+  const magnetY = useSpring(0, { stiffness: 260, damping: 20, mass: 0.4 });
+
+  const handleDeskPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    spotRef.current?.style.setProperty('--spot-x', `${event.clientX - rect.left}px`);
+    spotRef.current?.style.setProperty('--spot-y', `${event.clientY - rect.top}px`);
+
+    if (reducedMotion || event.pointerType !== 'mouse') return;
+    const px = (event.clientX - rect.left) / rect.width - 0.5;
+    const py = (event.clientY - rect.top) / rect.height - 0.5;
+    tiltY.set(px * 5.2);
+    tiltX.set(-py * 3.4);
+  };
+
+  const resetDeskTilt = () => {
+    tiltX.set(0);
+    tiltY.set(0);
+  };
+
+  const handleMagnetPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (reducedMotion || event.pointerType !== 'mouse') return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    magnetX.set((event.clientX - (rect.left + rect.width / 2)) * 0.12);
+    magnetY.set((event.clientY - (rect.top + rect.height / 2)) * 0.18);
+  };
+
+  const resetMagnet = () => {
+    magnetX.set(0);
+    magnetY.set(0);
+  };
+
+  const openPicker = () => fileInputRef.current?.click();
+
+  const isPdf = (file: File) =>
+    file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+
+  const stageFile = (file: File) => {
+    if (!isPdf(file)) {
+      toast.error('PDF files only', { description: `${file.name} is not a PDF.` });
+      return;
+    }
+    setStagedFile({ name: file.name, size: file.size });
+    // On phones the actions can sit below the fold after the picker closes.
+    // Bring the pane into view; nearest avoids a jump when it is already there.
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      requestAnimationFrame(() => {
+        dropRef.current?.scrollIntoView({
+          block: 'nearest',
+          behavior: reducedMotion ? 'auto' : 'smooth',
+        });
+      });
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDragEnter = (event: React.DragEvent) => {
+    event.preventDefault();
+    const types = Array.from(event.dataTransfer.types);
+    if (!types.includes('Files')) return;
+    dragDepth.current += 1;
+    setDragActive(true);
+  };
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+  };
+
+  const handleDragLeave = (event: React.DragEvent) => {
+    event.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragActive(false);
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    dragDepth.current = 0;
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      setStagedFile({ name: file.name, size: file.size });
-    }
+    const file = event.dataTransfer.files?.[0];
+    if (file) stageFile(file);
   };
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setStagedFile({ name: file.name, size: file.size });
-    }
+  const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) stageFile(file);
+    // Allow re-picking the same file after "Change".
+    event.target.value = '';
   };
 
-  const gate = reducedMotion ? '' : 'motion-gate';
+  /* Entry choreography for everything that is not the headline. The headline
+     is anime's; these blocks are Motion's, on the same easing curve. */
+  const enter = (delay: number, distance = 16) => ({
+    initial: reducedMotion ? false : { opacity: 0, y: distance },
+    animate: { opacity: 1, y: 0 },
+    transition: {
+      duration: reducedMotion ? 0 : 0.62,
+      delay: reducedMotion ? 0 : delay,
+      ease: EASE_OUT,
+    },
+  });
 
   return (
-    // Top padding clears the sticky h-16 header, so the first line of copy is
-    // never tucked underneath it on a phone.
-    <section className="hero-section relative overflow-hidden bg-background pb-16 pt-[4.75rem] sm:pb-24 sm:pt-20">
-      {/* Cinematic Greek plate — purely decorative. The site is dark-only, so
-          the night scene is the one and only plate; it descends from the
-          brand's own `logo/greek dark mode.png` (the untouched original stays
-          in the gitignored /logo/ directory). The plate is graded soft-focus
-          and deliberately oversized past the frame so the blur never bleeds
-          at the edges; `data-bleed` tells tests/sweep.mjs the overshoot is
-          clipped by the section and is not page overflow. */}
-      <div className="hero-backdrop" aria-hidden="true">
-        {/* The plate is desktop-only. <source media> prevents phones and
-            tablets from downloading a decorative image that the layout hides;
-            the fallback is a 1×1 transparent pixel, not a large file. */}
-        <picture>
-          <source
-            media="(min-width: 1024px)"
-            srcSet="/hero/greek-night-sm.webp 1080w, /hero/greek-night.webp 1572w"
-            sizes="100vw"
-          />
-          <img
-            src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
-            alt=""
-            draggable={false}
-            data-bleed
-            decoding="async"
-            loading="lazy"
-            className="hero-backdrop-image hero-backdrop-image--night"
-          />
-        </picture>
-        <div className="hero-backdrop-wash" />
-        <div className="hero-backdrop-scrim" />
-      </div>
+    <section ref={sectionRef} className="hero" aria-labelledby="hero-title">
+      <motion.div
+        className="hero-ambience"
+        aria-hidden="true"
+        style={reducedMotion ? undefined : { y: ambienceY }}
+      >
+        <div className="hero-grid" />
+        <div className="hero-noise" />
+      </motion.div>
 
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Headline block */}
-        <div className="grid gap-10 lg:grid-cols-12 lg:gap-12 lg:items-start">
-          <div ref={copyRef} className="hero-copy relative lg:col-span-7">
-            {/* New headline: what it is, then where it happens. Two lines
-                max, no hidden meaning. The privacy promise moves to the sub.
-                The headline and the sentence carry a soft ivory halo so they
-                lift off the photograph without a panel or an edge. */}
-            <h1
-                data-motion="headline"
-                className={`hero-headline hero-copy-field text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl lg:leading-[1.05] ${gate}`}
+      <div className="hero-shell mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h1 id="hero-title" ref={titleRef} className="hero-title">
+          <span data-word className="hero-word">
+            Ask,
+          </span>{' '}
+          <span data-word className="hero-word">
+            edit,
+          </span>{' '}
+          <span data-word className="hero-word">
+            merge,
+          </span>{' '}
+          <span data-word className="hero-word hero-word--em">
+            <em>
+              redact.
+              <svg
+                className="hero-swash"
+                viewBox="0 0 220 26"
+                preserveAspectRatio="none"
+                aria-hidden="true"
               >
-                Every PDF tool,
-                <br />
-                in one browser tab.
-              </h1>
-              {/* Privacy-first messaging stays: it is the reason to trust the
-                  buttons above it. */}
-              <p
-                data-motion="subhead"
-                className={`hero-copy-field mt-6 max-w-2xl text-base leading-relaxed text-foreground sm:text-lg ${gate}`}
-              >
-                Question, edit, merge and redact documents right in this tab. Every job runs in
-                local Web Workers; answers cite the exact page.
-              </p>
+                <motion.path
+                  d="M4 19.5C48 8.5 128 3.5 216 11.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                  initial={reducedMotion ? false : { pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 0.7 }}
+                  transition={{
+                    duration: reducedMotion ? 0 : 0.95,
+                    delay: reducedMotion ? 0 : 0.62,
+                    ease: EASE_OUT,
+                  }}
+                />
+              </svg>
+            </em>
+          </span>
+        </h1>
 
-              {/* Instant action bar — the two AI entry points, nothing else.
-                  The merge CTA retired into the tool grid below. */}
-              <div data-motion="actions" className={`hero-actions mt-8 flex flex-wrap items-center gap-3 ${gate}`}>
-                <Button size="lg" className="h-11 rounded-md px-5 text-sm font-semibold shadow-none" asChild>
-                  <Link to="/tools/chat-with-pdf">
-                    <Bot className="mr-2 h-4 w-4" />
-                    Talk to a PDF
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" className="h-11 rounded-md px-5 text-sm font-medium shadow-none" asChild>
-                  <Link to="/tools/edit-pdf-with-ai">
-                    <Wand2 className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    Edit with AI
-                  </Link>
-                </Button>
-                {/* Third door: the MCP server, for people whose agent does the
-                    work instead of their tab. Opens the in-page console. */}
-                <McpShowcaseButton />
-              </div>
+        <motion.p className="hero-lede" {...enter(0.45, 16)}>
+          Ask your PDF questions, then edit, merge or redact it. Everything runs in this tab.
+          Answers cite the exact page, and your file never leaves the device.
+        </motion.p>
 
-              {/* Jump-straight-in tool grid (replaces the plain "Start directly"
-                  chips). Chips are opacity-only in anime so the CSS hover lift
-                  owns their transform after the intro. */}
-              <div data-motion="tools" className={`mt-10 ${gate}`}>
-                <p className="hero-rail-label text-[13px] font-medium text-muted-foreground">
-                  Jump straight to a tool
-                </p>
-                <div className="hero-rail mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                  {HERO_TOOLS.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.slug}
-                        to={`/tools/${item.slug}`}
-                        data-tool-chip
-                        className="hero-chip group flex h-full flex-col rounded-lg border border-border/70 bg-background/72 p-2.5 text-left backdrop-blur-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background hover:shadow-[0_10px_24px_-16px_oklch(0_0_0/30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-card/62 dark:hover:border-primary/45"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ring-transparent transition-shadow duration-200 ${ACCENT_TILE[item.accent]} ${ACCENT_TILE_RING[item.accent]}`}
-                          >
-                            <Icon className="h-3.5 w-3.5" />
-                          </span>
-                          <p className="min-w-0 truncate text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
-                            {item.label}
-                          </p>
-                        </div>
-                        {/* The promise sits below the tool at a readable size;
-                            two lines keep every chip the same height, and the
-                            "soon" badge rides this row without wrapping the label. */}
-                        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/80">
-                          {item.desc}
-                          {item.soon && (
-                            <span className="ml-1.5 inline-block -translate-y-px rounded-full bg-muted px-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              soon
-                            </span>
-                          )}
-                        </p>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
+        <motion.div className="hero-cta-row" {...enter(0.54, 14)}>
+          <motion.div
+            className="hero-magnet"
+            style={{ x: magnetX, y: magnetY }}
+            onPointerMove={handleMagnetPointer}
+            onPointerLeave={resetMagnet}
+          >
+            <Button type="button" onClick={openPicker} className="hero-cta-primary">
+              Start with a PDF
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </motion.div>
+          <Button variant="outline" asChild className="hero-cta-ghost">
+            <Link to="/tools/chat-with-pdf">
+              <Bot className="h-4 w-4 text-emerald-400" />
+              Talk to a PDF
+            </Link>
+          </Button>
+          <McpShowcaseButton className="h-9 border-transparent bg-transparent px-2 text-[13px] font-medium text-muted-foreground shadow-none hover:bg-white/5 hover:text-foreground" />
+        </motion.div>
+
+        <motion.div
+          data-ui
+          className="hero-desk"
+          {...enter(0.62, 26)}
+          style={{
+            rotateX: reducedMotion ? 0 : tiltX,
+            rotateY: reducedMotion ? 0 : tiltY,
+            scale: reducedMotion ? 1 : panelScale,
+            transformPerspective: 1600,
+          }}
+          onPointerMove={handleDeskPointer}
+          onPointerLeave={resetDeskTilt}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <div ref={spotRef} className="hero-desk-spot" aria-hidden="true" />
+
+          <div className="hero-desk-bar" aria-hidden="true">
+            <span className="hero-desk-dots">
+              <i />
+              <i />
+              <i />
+            </span>
           </div>
 
-          {/* Right column: the working console — drop a file, stage it, pick an
-              action. It is a real upload widget, hence data-ui. Translucent +
-              blurred rather than a solid card: over a photographic backdrop an
-              opaque panel reads as a hole cut in the picture rather than part of
-              the same composition. */}
-          <div ref={consoleRef} data-motion="console" className="lg:col-span-5" data-ui>
-            <div
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              className={`hero-console relative overflow-hidden rounded-xl border border-transparent bg-background/82 p-6 backdrop-blur-xl transition-colors dark:bg-card/62 ${gate} ${
-                dragActive
-                  ? 'border-primary ring-2 ring-primary/20 bg-background/90 dark:bg-card/76'
-                  : 'hover:border-foreground/20'
-              }`}
-              data-drag={dragActive ? 'true' : undefined}
-            >
+          <div className="hero-desk-body">
+            <div ref={dropRef} className="hero-drop-wrap">
               <input
                 ref={fileInputRef}
+                id="hero-file-input"
                 type="file"
                 accept=".pdf,application/pdf"
                 className="hidden"
                 onChange={handleFileInput}
-                id="hero-file-input"
+                aria-label="Choose a PDF from this device"
               />
+              <p className="sr-only" role="status">
+                {stagedFile ? `${stagedFile.name} is ready. Choose an action.` : ''}
+              </p>
 
               {!stagedFile ? (
-                <div>
-                  <div>
-                    <p className="text-[15px] font-semibold text-foreground">Start with a document</p>
-                    <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Lock className="h-3.5 w-3.5" /> Runs in memory, nothing stored or sent.
-                    </p>
+                <div
+                  className="hero-drop"
+                  role="button"
+                  tabIndex={0}
+                  data-drag={dragActive ? 'true' : undefined}
+                  onClick={openPicker}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openPicker();
+                    }
+                  }}
+                >
+                  <span className="hero-drop-pulse" aria-hidden="true" />
+                  <div className="hero-pages" aria-hidden="true">
+                    <span className="hero-page hero-page--3" />
+                    <span className="hero-page hero-page--2" />
+                    <span className="hero-page hero-page--1">
+                      <span className="hero-page-line" style={{ width: '82%' }} />
+                      <span className="hero-page-line" style={{ width: '64%' }} />
+                      <span className="hero-page-line" style={{ width: '74%' }} />
+                      <span className="hero-page-seal" />
+                    </span>
                   </div>
-
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="hero-dropzone mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 px-4 py-8 text-center transition-colors hover:border-primary/60 hover:bg-muted/50"
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        fileInputRef.current?.click();
-                      }
-                    }}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Upload className="h-5 w-5" />
-                    </div>
-                    <p className="mt-3 text-[15px] font-medium text-foreground">
-                      Drop a PDF here to begin
-                    </p>
-                    <p className="mt-1 text-[13px] text-muted-foreground">
-                      or click to choose a local file from your disk
-                    </p>
-                  </div>
-
-                  <div className="mt-5">
-                    <div className="grid grid-cols-2 gap-2">
-                      {QUICK_AI_ACTIONS.map((item) => {
-                        return (
-                          <Link
-                            key={item.slug}
-                            to={`/tools/${item.slug}`}
-                            className="hero-ai-tile group flex h-full flex-col justify-center rounded-lg bg-background/55 p-3 text-left transition-colors hover:bg-background/85 dark:bg-background/52 dark:hover:bg-background/72"
-                          >
-                            <p className="text-sm font-semibold text-foreground group-hover:text-primary">
-                              {item.name}
-                            </p>
-                            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                              {item.desc}
-                            </p>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <p className="hero-drop-title">
+                    {dragActive ? 'Release to open it here' : 'Drop a PDF to begin'}
+                  </p>
+                  <p className="hero-drop-sub">
+                    {dragActive
+                      ? 'It stays on this device. Nothing is uploaded.'
+                      : 'or click to choose one from your disk'}
+                  </p>
                 </div>
               ) : (
-                <div>
-                  <div className="flex items-center justify-between pb-3">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <FileText className="h-5 w-5 shrink-0 text-primary" />
-                      <div className="truncate">
-                        <p className="truncate text-[15px] font-semibold text-foreground">{stagedFile.name}</p>
-                        <p className="text-[13px] text-muted-foreground">{formatBytes(stagedFile.size)} · Local</p>
-                      </div>
+                <motion.div
+                  key="staged"
+                  initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.3, ease: EASE_OUT }}
+                >
+                  <div className="hero-file">
+                    <span className="hero-file-icon">
+                      <FileText className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="hero-file-name">{stagedFile.name}</p>
+                      <p className="hero-file-meta">{formatBytes(stagedFile.size)}</p>
                     </div>
                     <button
+                      ref={changeRef}
                       type="button"
-                      onClick={() => setStagedFile(null)}
-                      className="text-[13px] font-medium text-muted-foreground hover:text-foreground"
+                      className="hero-file-change"
+                      onClick={openPicker}
                     >
                       Change
                     </button>
                   </div>
 
-                  <div className="pt-3">
-                    <p className="text-[13px] font-medium text-muted-foreground">Choose an action for this document:</p>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="h-10 justify-start px-3 text-[13px]"
-                        onClick={() => navigate('/tools/chat-with-pdf')}
-                      >
-                        <Bot className="mr-2 h-4 w-4" />
-                        Chat & Ask
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-10 justify-start px-3 text-[13px]"
-                        onClick={() => navigate('/tools/edit-pdf-with-ai')}
-                      >
-                        <Wand2 className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        Edit with AI
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-10 justify-start px-3 text-[13px]"
-                        onClick={() => navigate('/tools/summarize-pdf')}
-                      >
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Summarize
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-10 justify-start px-3 text-[13px]"
-                        onClick={() => navigate('/tools/redact-pdf')}
-                      >
-                        <ShieldCheck className="mr-2 h-4 w-4 text-rose-500" />
-                        Redact PII
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-10 justify-start px-3 text-[13px]"
-                        onClick={() => navigate('/tools/edit-pdf')}
-                      >
-                        <FileText className="mr-2 h-4 w-4" />
-                        Visual Editor
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-10 justify-start px-3 text-[13px]"
-                        onClick={() => navigate('/tools/merge-pdf')}
-                      >
-                        <Zap className="mr-2 h-4 w-4" />
-                        Merge / Organize
-                      </Button>
-                    </div>
+                  <div className="hero-file-actions">
+                    {STAGED_ACTIONS.map((action) => {
+                      const Icon = action.icon;
+                      return (
+                        <Button
+                          key={action.slug}
+                          variant={action.variant}
+                          size="sm"
+                          onClick={() => navigate(`/tools/${action.slug}`)}
+                        >
+                          <Icon
+                            className={`h-3.5 w-3.5 ${action.iconClass ?? ''}`}
+                            aria-hidden="true"
+                          />
+                          {action.label}
+                        </Button>
+                      );
+                    })}
                   </div>
-                </div>
+                </motion.div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Four plain spec entries — sentence case, no icons on top of cards,
-            no rules; reads as a quiet footnote strip under the photograph.
-            Their reveal stays on the CSS/IO system (use-reveal). */}
-        <div className="hero-proof mt-12 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 sm:gap-x-10">
-          {[
-            { icon: Cpu, label: 'All client-side', desc: 'Runs in your browser. Files never leave the tab.' },
-            { icon: Lock, label: 'Keys stay put', desc: 'Your API key stays in this browser.' },
-            { icon: CheckCircle2, label: 'Deletion you can verify', desc: 'Redactions wipe the pixels and text, then check the result.' },
-            { icon: Zap, label: 'No toll gates', desc: 'No page limits, watermarks or sign-ups.' },
-          ].map((item, i) => {
+            <div className="hero-tools-wrap">
+              <div className="hero-tool-grid">
+                {HERO_TOOLS.map((tool) => {
+                  const Icon = tool.icon;
+                  return (
+                    <Link key={tool.slug} to={`/tools/${tool.slug}`} className="hero-tool">
+                      <span className="hero-tool-icon">
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="hero-tool-name">{tool.label}</span>
+                        <span className="hero-tool-desc">{tool.desc}</span>
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="hero-rail-foot">
+                <Link to="/#all-tools">
+                  All tools
+                  <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div className="hero-proof" {...enter(0.72, 14)}>
+          {PROOF.map((item) => {
             const Icon = item.icon;
             return (
-              <div
-                key={item.label}
-                data-reveal
-                data-reveal-delay={i * 80}
-                className="hero-proof-item space-y-2"
-              >
-                <p className="flex items-center gap-2.5 text-[15px] font-semibold text-foreground">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span>{item.label}</span>
-                </p>
-                <p className="pl-[calc(1.75rem+0.625rem)] text-sm leading-relaxed text-foreground/80 dark:text-muted-foreground">{item.desc}</p>
+              <div key={item.label} className="hero-proof-item">
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                <div>
+                  <span className="hero-proof-label">{item.label}</span>
+                  <span className="hero-proof-desc">{item.desc}</span>
+                </div>
               </div>
             );
           })}
-        </div>
+        </motion.div>
       </div>
     </section>
   );
