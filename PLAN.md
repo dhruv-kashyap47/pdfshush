@@ -8340,3 +8340,19 @@ returned the JSON 404 fence for `/api`, `/api/health` and `/API/health`.
 `smoke` reported **ALL CHECKS PASSED** against production; `offline` proved CSP,
 the service worker and zero egress; `editor-rail` passed across all 19 tools and
 5 workspaces.
+
+### 42.13 Main sync and redeploy (2026-11-23)
+
+`origin/main` had three hero and social-proof commits that were not on the uplift
+branch. They were merged in as `7f6b239` (no conflicts; `motion` added to the web
+app). `pnpm install --frozen-lockfile`, typecheck, the full unit suite,
+`test:guardrails`, `test:corpus`, `test:fuzz`, `build`, `test:bundle` and
+`test:provenance` stayed green. The new build's main chunk is 148.2 kB with no
+PDF engine; `motion` ships in a separate `vendor-motion` chunk.
+
+`main` was fast-forwarded locally and on the remote to the merge commit, and
+Worker version `aff540a7-6a77-4501-bc9d-df693503c6b8` was deployed. Production
+verification: the new hero rendered (`Ask, edit, merge, redact.`), `smoke`
+passed every check (89 mega-menu links, all tools, editor, redaction, no console
+errors), `offline` passed CSP/service-worker/zero-egress, and `editor-rail`
+passed all 19 tools across 5 workspaces.
