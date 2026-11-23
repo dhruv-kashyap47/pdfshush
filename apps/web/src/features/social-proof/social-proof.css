@@ -82,9 +82,10 @@
 }
 
 /* Pausing is part of the contract: a reader can stop the ambient motion by
-   hovering the row or by tabbing into it. */
+   hovering the row, by tabbing into it, or by pressing it on a touch screen. */
 .sp-marquee:hover .sp-marquee__track,
-.sp-marquee:focus-within .sp-marquee__track {
+.sp-marquee:focus-within .sp-marquee__track,
+.sp-marquee:active .sp-marquee__track {
   animation-play-state: paused;
 }
 
@@ -125,9 +126,10 @@
 
 /* ── Cards ──────────────────────────────────────────────────────────────── */
 
-/* Phones and folded-open screens do not have the width for a moving row: a
-   marquee clips the quote a reader is trying to read. Below 768px the same two
-   rows become native snap-scrollers, so the card under the thumb is whole. */
+/* Phones and folds: a continuous drift would drag a card that nearly fills the
+   screen halfway off the edge. The row stays a snap carousel and JS advances it
+   one whole card every few seconds, yielding to touch, swipe and focus. The
+   desktop marquee lives above; reduced motion flattens both rows below. */
 @media (max-width: 767px) {
   .sp-marquee__viewport {
     overflow-x: auto;
@@ -306,7 +308,7 @@
     gap: 1rem;
   }
 
-  .sp-card {
+  .sp-marquee .sp-card {
     width: 100%;
   }
 
