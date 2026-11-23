@@ -59,9 +59,7 @@ export type EditorTool =
 
 export type ToolGroup = 'edit' | 'insert' | 'markup' | 'shape' | 'mode';
 
-export type SelectionKind = 'object' | 'text' | 'region' | 'page' | 'none';
-
-/** A read-only proposal overlay reported by a capability (currently AI). */
+/** A read-only proposal overlay reported by the assistant (currently AI). */
 export interface EditorProposalMarker {
   id: string;
   pageIndex: number;
@@ -72,15 +70,6 @@ export interface EditorProposalMarker {
   tone: 'mark' | 'text' | 'erase';
 }
 
-export interface ToolCapability {
-  /** What a successful gesture produces. */
-  produces: SelectionKind;
-  /** Which contextual controls the shell may show. */
-  controls: ReadonlyArray<'type' | 'mark' | 'shape' | 'pages' | 'ai' | 'redact'>;
-  /** Whether changes made by this tool enter the object undo history. */
-  history: boolean;
-}
-
 export interface EditorToolDef {
   id: EditorTool;
   label: string;
@@ -88,19 +77,10 @@ export interface EditorToolDef {
   shortcut?: string;
   group: ToolGroup;
   icon: LucideIcon;
-  capability: ToolCapability;
   /** Only show the tool in these workspaces; absent = every workspace. */
   modes?: ReadonlyArray<EditorMode>;
 }
 
-const CONTROLS = {
-  type: ['type'],
-  mark: ['mark'],
-  shape: ['shape'],
-  pages: ['pages'],
-  ai: ['ai'],
-  redact: ['redact'],
-} as const;
 export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
   {
     id: 'select',
@@ -108,7 +88,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'v',
     group: 'edit',
     icon: MousePointer2,
-    capability: { produces: 'object', controls: [], history: true },
   },
   {
     id: 'text',
@@ -116,7 +95,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 't',
     group: 'edit',
     icon: Type,
-    capability: { produces: 'text', controls: CONTROLS.type, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -125,7 +103,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'a',
     group: 'edit',
     icon: Sparkles,
-    capability: { produces: 'none', controls: CONTROLS.ai, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -134,7 +111,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'i',
     group: 'insert',
     icon: ImagePlus,
-    capability: { produces: 'object', controls: [], history: true },
     modes: ['edit', 'sign'],
   },
   {
@@ -142,7 +118,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Insert signature',
     group: 'insert',
     icon: PenLine,
-    capability: { produces: 'object', controls: [], history: true },
     modes: ['edit', 'sign'],
   },
   {
@@ -151,7 +126,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'h',
     group: 'markup',
     icon: Highlighter,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -159,7 +133,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Strike through',
     group: 'markup',
     icon: Strikethrough,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -167,7 +140,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Underline',
     group: 'markup',
     icon: Underline,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -175,7 +147,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Whiteout, a cosmetic cover',
     group: 'markup',
     icon: Eraser,
-    capability: { produces: 'region', controls: CONTROLS.mark, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -183,7 +154,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Rectangle',
     group: 'shape',
     icon: Square,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -191,7 +161,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Ellipse',
     group: 'shape',
     icon: Circle,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -199,7 +168,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Line',
     group: 'shape',
     icon: Minus,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -207,7 +175,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     label: 'Arrow',
     group: 'shape',
     icon: ArrowRight,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -216,7 +183,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'p',
     group: 'shape',
     icon: PenTool,
-    capability: { produces: 'region', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -225,7 +191,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'k',
     group: 'markup',
     icon: Check,
-    capability: { produces: 'object', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -234,7 +199,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'x',
     group: 'markup',
     icon: X,
-    capability: { produces: 'object', controls: CONTROLS.shape, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -243,7 +207,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'd',
     group: 'insert',
     icon: CalendarDays,
-    capability: { produces: 'object', controls: CONTROLS.type, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -252,7 +215,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'm',
     group: 'insert',
     icon: Stamp,
-    capability: { produces: 'object', controls: CONTROLS.type, history: true },
     modes: ['edit', 'sign', 'ai'],
   },
   {
@@ -261,11 +223,6 @@ export const EDITOR_TOOL_DEFS: EditorToolDef[] = [
     shortcut: 'r',
     group: 'markup',
     icon: Eraser,
-    capability: {
-      produces: 'region',
-      controls: CONTROLS.redact,
-      history: true,
-    },
     modes: ['redact'],
   },
 ];

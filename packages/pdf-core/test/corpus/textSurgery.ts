@@ -21,6 +21,10 @@ export type TextSurgeryFixtureKind =
   | 'partial-word'
   | 'tj-kern'
   | 'rotated'
+  | 'rotated-180'
+  | 'rotated-270'
+  | 'nested-array'
+  | 'inline-image'
   | 'xobject-text'
   | 'unclosed-clip';
 
@@ -52,6 +56,30 @@ export const TEXT_SURGERY_MANIFEST: ReadonlyArray<
     description: 'Glyphs drawn with a 90-degree text matrix.',
     guards: 'C-10: glyph quads and replacement matrices must respect rotation.',
     expectText: ['ROTATED'],
+  },
+  {
+    kind: 'rotated-180',
+    description: 'Glyphs drawn upside down with a 180-degree text matrix.',
+    guards: 'C-10: a 180-degree removal must compensate on the same baseline.',
+    expectText: ['ROTATED'],
+  },
+  {
+    kind: 'rotated-270',
+    description: 'Glyphs drawn with a 270-degree text matrix.',
+    guards: 'C-10: a 270-degree removal must not rotate the kept run.',
+    expectText: ['ROTATED'],
+  },
+  {
+    kind: 'nested-array',
+    description: 'A TJ array whose strings and numbers include a nested array.',
+    guards: 'C-01: nested arrays must parse without losing the surrounding operands.',
+    expectText: ['NESTED'],
+  },
+  {
+    kind: 'inline-image',
+    description: 'An inline image before a text run on the same page.',
+    guards: 'C-14: inline image data must not stop the text after it from being rewritten.',
+    expectText: ['AFTER IMAGE'],
   },
   {
     kind: 'xobject-text',
@@ -123,6 +151,35 @@ export async function buildTextSurgeryFixture(
         'BT /F1 18 Tf 0 1 -1 0 240 40 Tm (ROTATED) Tj ET\n',
       );
       break;
+    case 'rotated-180':
+      rawPage(
+        doc,
+        font.ref,
+        'BT /F1 14 Tf -1 0 0 -1 340 240 Tm (ROTATED 180) Tj ET\n',
+      );
+      break;
+    case 'rotated-270':
+      rawPage(
+        doc,
+        font.ref,
+        'BT /F1 14 Tf 0 -1 1 0 40 60 Tm (ROTATED 270) Tj ET\n',
+      );
+      break;
+    case 'nested-array':
+      rawPage(
+        doc,
+        font.ref,
+        'BT /F1 16 Tf 1 0 0 1 40 220 Tm [(NESTED) -120 [(ARRAY)]] TJ ET\n',
+      );
+      break;
+    case 'inline-image':
+      rawPage(
+        doc,
+        font.ref,
+        'q BI /W 1 /H 1 /CS /G /BPC 8 /F /AHx ID 00> EI Q\n' +
+          'BT /F1 16 Tf 1 0 0 1 40 200 Tm (AFTER IMAGE) Tj ET\n',
+      );
+      break;
     case 'xobject-text': {
       const form = doc.context.flateStream(
         'BT /F1 16 Tf 40 200 Td (IN XOBJECT) Tj ET\n',
@@ -153,6 +210,6 @@ export async function buildTextSurgeryFixture(
 
   return {
     ...meta,
-    bytes: await doc.save({ useObjectStreams: false }),
+    bytes: await doc.save({ useObjectStreams: false, updateMetadata: false }),
   };
 }

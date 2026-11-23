@@ -17,6 +17,7 @@ import type {
 } from '@pdfshush/pdf-core';
 import { Button } from '@/components/ui/button';
 import type { ParagraphEditRecord } from '@/lib/text-editing';
+import { CAPABILITY_SNAPSHOT_NOTE, textLayerLabel } from '@/lib/page-capability-copy';
 
 export interface EditorParagraphDetailsProps {
   paragraph: Paragraph;
@@ -43,14 +44,6 @@ const ROLE_LABELS: Record<Paragraph['role'], string> = {
   footer: 'Footer',
   unknown: 'Unknown',
 };
-
-function textLayerLabel(capability: PageTextCapability | null): string {
-  if (!capability) return 'Not inspected';
-  if (capability.likelyScanned) return 'No text layer (image-only page)';
-  if (capability.textLayer === 'ocr') return 'OCR layer (invisible text)';
-  if (capability.textLayer === 'mixed') return 'Mixed visible/invisible text';
-  return 'Native document text';
-}
 
 function outcomeLabel(outcome: TextEditOutcome | null, record: ParagraphEditRecord | null): string {
   if (!outcome) {
@@ -131,7 +124,7 @@ export function EditorParagraphDetails({
 
   const copyText = `Paragraph ${paragraph.id}\n${facts
     .map(([label, value]) => `${label}: ${value}`)
-    .join('\n')}\nOutcome: ${outcomeLabel(outcome, record)}`;
+    .join('\n')}\nOutcome: ${outcomeLabel(outcome, record)}\n${CAPABILITY_SNAPSHOT_NOTE}`;
 
   const copy = async () => {
     try {
@@ -185,6 +178,10 @@ export function EditorParagraphDetails({
           </div>
         ))}
       </dl>
+
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        {CAPABILITY_SNAPSHOT_NOTE}
+      </p>
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         Post-save: {outcomeLabel(outcome, record)}

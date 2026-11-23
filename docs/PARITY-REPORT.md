@@ -1,6 +1,6 @@
 # Parity report: rea uplift vs `ihatepdf`
 
-Published 2026-11-22 for Gate D (H-08). The reference checkout is gitignored and
+Published 2026-11-22 for Gate D (H-08); updated 2026-11-23 when G-02, G-05, F-01 and E-10 closed. The reference checkout is gitignored and
 absent from this repository, so this report compares against `reaTask.md`'s
 recorded behaviour rather than re-reading the target. Every `Reproduced` or
 `Improved` row names the shipped evidence; `Partial` and `Declined` rows say
@@ -13,7 +13,7 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 
 | Gate | State | Evidence |
 | --- | --- | --- |
-| A - foundation + parity | met for documented scope (G-02, F-01, E-10 partial) | `pnpm test:e2e:editor-parity`, `signature-upload`, `keyboard`; `text-model` |
+| A - foundation + parity | met | `pnpm test:e2e:editor-parity`, `editor-rail`, `signature-upload`, `keyboard`; `text-model`; `pnpm test:guardrails` |
 | B - text UX + recovery | met | `pnpm test:e2e:text-ux`, `text-edit`, `text-model`; `lib/editor-draft.test.ts` |
 | C - stream v2 safe to default | met 2026-11-21 | `pnpm test:corpus` 2/2, `test:streamSurgery`, `test:streamVerification` |
 | D - ship | met by this sprint | H rows below; S-06 route blocker; `pnpm test:editor-perf`, `test:e2e:cross-browser`, `test:e2e:editor-touch`, `test:e2e:editor-cancel`; a11y axe contexts |
@@ -23,11 +23,11 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 | ID | Task | Verdict | Evidence |
 | --- | --- | --- | --- |
 | G-01 | Provenance, notice, copy header | R | `licenses/rea-ihpdf-NOTICE.md`, `scripts/check-provenance.mjs`, `pnpm test:provenance` |
-| G-02 | Corpus v2 | P | partial-word, kerned TJ, rotated, Form XObject, unclosed clip, inline image and Type0 odd-byte fixtures; Type3/CFF/non-Identity text remain refused rather than rewritten |
+| G-02 | Corpus v2 | I | `textSurgery.ts` covers partial-word, kerned TJ, 90/180/270, nested arrays, inline image, Form XObject and unclosed clip; `fontFixtures.ts` adds Type3, Type0 Identity/non-Identity and a hash-pinned vendored CFF/OTF; deterministic fixture builds; `textCorpus` + `g02FontFixtures` |
 | G-03 | Golden export harness | I | `test/golden.ts` adds rotation, text fingerprints, pdf-lib/pdf.js reopen; `pnpm test:corpus` |
 | G-04 | Validated job-level strategy | R | `TextEngineStrategy` validation + `native-only` refusal tests |
-| G-05 | Guardrail scripts | P | provenance, bundle, corpus, fuzz and editor-perf scripts; visual pixel table remains manual |
-| F-01 | Fontkit + document-font embedding | P | `@cantoo/fontkit` 2.0.12, `fontPrograms.ts`, Greek round-trip tests; embedded-face creation still falls back to the declared overlay |
+| G-05 | Guardrail scripts | I | `tests/guardrails.mjs` scans logs, drafts, off-origin URLs, OCR vendoring and registry truth; `pnpm test:guardrails` runs the scan plus planted negative self-tests in CI |
+| F-01 | Fontkit + document-font embedding | I | `@cantoo/fontkit` 2.0.12, `fontPrograms.ts`, TTF + CFF/OTF round-trip tests, `font-substituted` receipt, fontkit-in-worker bundle gate |
 | E-00 | Object role discriminator | R | typed roles, redaction filter, `role === 'redaction'` tests |
 | E-01 | Pen / ink | I | vector ink, round caps, 5,000-point cap, `lib/ink.ts`, E2E draw/undo |
 | E-02 | Check / cross | I | one object, two segments, one undo step; redaction count stays zero |
@@ -38,7 +38,7 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 | E-07 | Snap guides + Alt | N | pure `lib/snap.ts`, 6 px threshold, guides only while snapped, Alt bypass |
 | E-08 | Object clipboard + clamp | R | Ctrl/Cmd+C/X/V, offsets, `lib/object-placement.ts` |
 | E-09 | Insert pages | I | compose + remap objects/paragraphs/pages; E2E appends a page |
-| E-10 | Rail/inspector capability truth | P | rail is now generated from the capability registry and the empty inspector no longer occupies a column; per-tool truth still depends on the capability snapshot, not a fixed promise |
+| E-10 | Rail/inspector capability truth | I | registry-driven rail with exact workspace lists, no dead capability metadata, `editor-rail` E2E walks every entry, capability copy is explicitly "as inspected" with a snapshot note |
 | T-01 | Revert paragraph | I | reverse edit + records in snapshot; `text-ux` edit→revert→export |
 | T-02 | Move paragraph | I | native reflow origin follows the dragged object; extraction x/y asserted |
 | T-03 | Detection details | I | `editor-paragraph-details.tsx`, copy/back/edit/revert |
@@ -113,10 +113,10 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 
 | Risk | Mitigation / status |
 | --- | --- |
-| G-02 Type3/CFF/non-Identity fixtures are not exhaustive | those cases are refused with `stream-incomplete`, not rewritten |
-| G-05 has no pixel-table vision gate | visual checks are region assertions, not screenshots of every page |
-| F-01 embedded/custom face creation still overlays | receipt names `font-substituted`; not claimed as in-place |
-| E-10 capability truth is snapshot-based | the document panel states the current page's real layer; no permanent promise |
+| G-02 Type3/non-Identity shapes are readable but not rewritable | Type3 is read and extracted, then refused for stream rewriting; a non-Identity CMap reports `reliable:false` and is never guessed |
+| G-05 has no pixel-table vision gate | the script gate covers logs, drafts, egress, OCR vendoring and registry truth; page pixels remain region assertions, not a screenshot corpus |
+| F-01 embedded/custom face creation still overlays | receipt names `font-substituted`; the CFF/OTF programme is embedded when reproducible, not claimed as in-place creation |
+| E-10 capability truth is snapshot-based | every per-page status says "as inspected" and the panel carries the snapshot note; no permanent document promise |
 | S-06 browser back/forward | closed 2026-11-23: data-router `useBlocker` stops history traversal with the leave sheet; cancel restores, confirm proceeds |
 | S-06 test hygiene | `smoke` now writes generated `smoke-alpha.pdf`/`smoke-beta.pdf`, not the tracked `alpha.pdf` |
 | O-03 paragraph counts are proximity summaries | copy says so; confidence is session-local |

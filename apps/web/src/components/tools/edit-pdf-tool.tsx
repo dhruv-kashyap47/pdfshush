@@ -133,6 +133,11 @@ import {
   type EditorMode,
   type EditorProposalMarker,
 } from '@/lib/editor-tools';
+import {
+  CAPABILITY_SNAPSHOT_NOTE,
+  describePageEditStatus,
+  describeParagraphEditStatus,
+} from '@/lib/page-capability-copy';
 import { matchEditorShortcut, type ShortcutContext } from '@/lib/editor-shortcuts';
 import { clampToPage, offsetOnPage } from '@/lib/object-placement';
 import { cloneObjectForPaste, detachEditIntent } from '@/lib/object-copy';
@@ -4089,15 +4094,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const selectedBlockCapability = selectedTextBlock
     ? capabilitiesByPage[selectedTextBlock.pageIndex] ?? null
     : null;
-  const selectedBlockEditStatus = selectedBlockCapability
-    ? selectedBlockCapability.likelyScanned
-      ? 'Manual review: image-only page has no text layer'
-      : selectedBlockCapability.textLayer === 'ocr'
-        ? 'Native edit: invisible OCR text layer (render mode preserved)'
-        : selectedBlockCapability.textLayer === 'mixed'
-          ? 'Native edit: mixed visible/invisible text layer'
-          : 'Native edit: document text objects and fonts'
-    : 'Inspecting fonts and page objects…';
+  const selectedBlockEditStatus = describeParagraphEditStatus(selectedBlockCapability);
 
   // Page-bound callbacks, stable per page: an inline arrow would change identity
   // on every parent render and defeat the memoized pages entirely.
@@ -4460,17 +4457,7 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
   const pageCapability = capabilitiesByPage[currentPage] ?? null;
   const ocrRunning = ocrLayerRunner.state.status === 'running';
   const currentOcr = ocrProvenance[currentPage] ?? null;
-  const pageEditStatus = pageCapability
-    ? pageCapability.likelyScanned
-      ? 'Image-only page. Text can be marked, but there is no text layer to rewrite.'
-      : pageCapability.textLayer === 'ocr'
-        ? currentOcr
-          ? `Invisible OCR text layer · ${Math.round(currentOcr.confidence)}% mean confidence. Check the text before relying on it.`
-          : 'Invisible OCR text layer. Confidence was not recorded in this session; check the text before relying on it.'
-        : pageCapability.textLayer === 'mixed'
-          ? 'Mixed visible and invisible text layer. Native edits are available.'
-          : 'Document text objects and fonts. Edits are rewritten in place where possible.'
-    : 'Inspecting fonts and page objects.';
+  const pageEditStatus = describePageEditStatus(pageCapability, currentOcr);
   const currentMetaPage = displayPages[currentDisplayPosition];
   const toolHint = isRedact
     ? TOOL_HELP.redact
@@ -5235,6 +5222,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         <p className="text-[11px] leading-relaxed text-muted-foreground">
                           {selectedBlockEditStatus}
                         </p>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          {CAPABILITY_SNAPSHOT_NOTE}
+                        </p>
                       </div>
                       {selectedBlockPreview && (
                         <p className="line-clamp-5 text-xs leading-relaxed text-muted-foreground">
@@ -5312,6 +5302,9 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                         </button>
                       </div>
                       <p className="editor-panel-copy">{pageEditStatus}</p>
+                      <p className="editor-panel-copy text-[11px] text-muted-foreground">
+                        {CAPABILITY_SNAPSHOT_NOTE}
+                      </p>
 
                       <div className="editor-panel-actions">
                         <Button

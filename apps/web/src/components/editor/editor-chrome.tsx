@@ -713,6 +713,7 @@ export const EditorToolRail = memo(function EditorToolRail({
                         type="button"
                         className="editor-tool-button"
                         data-active={active || undefined}
+                        data-tool={entry.id}
                         data-testid={`editor-tool-${entry.id}`}
                         aria-label={
                           entry.shortcut ? `${entry.label} (${entry.shortcut.toUpperCase()})` : entry.label
@@ -1307,10 +1308,6 @@ function ToolContext({
 
   if (tool === 'date') {
     return <Hint>{TOOL_HELP.date}</Hint>;
-  }
-
-  if (mode === 'sign') {
-    return <Hint>Click where the signature should go, then draw or type it.</Hint>;
   }
 
   if (tool === 'select') {

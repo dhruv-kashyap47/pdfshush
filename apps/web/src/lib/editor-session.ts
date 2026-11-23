@@ -12,20 +12,17 @@
  * receiving exactly the document it received before.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { type EditorDoc, useEditorDoc } from '@/lib/editor-state';
 import {
   defaultToolForMode,
-  toolDef,
   type EditorMode,
   type EditorTool,
-  type EditorToolDef,
 } from '@/lib/editor-tools';
 
 export interface EditorSession {
   readonly mode: EditorMode;
   readonly tool: EditorTool;
-  readonly toolCapability: EditorToolDef;
   setTool(tool: EditorTool): void;
 
   readonly zoom: number;
@@ -104,12 +101,9 @@ export function useEditorSession(mode: EditorMode, pageCount = 0): EditorSession
     setRailOpen((previous) => open ?? !previous);
   }, []);
 
-  const toolCapability = useMemo(() => toolDef(tool), [tool]);
-
   return {
     mode,
     tool,
-    toolCapability,
     setTool,
     zoom,
     setZoom,

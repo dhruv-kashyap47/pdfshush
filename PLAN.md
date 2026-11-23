@@ -8125,8 +8125,9 @@ is a drag on empty space, and the shortcut sheet is generated from the live
 registry.
 
 `docs/PARITY-REPORT.md` maps all 63 cards with verdicts and evidence. It is
-linked from `README.md`. Partial rows (G-02, G-05, F-01, E-10, S-06) and the
-remaining risks are stated rather than rounded up.
+linked from `README.md`. At the Sprint 7 close, partial rows (G-02, G-05, F-01,
+E-10, S-06) and the remaining risks were stated rather than rounded up; all
+five are now closed.
 
 ### 42.6 The editor UI pass
 
@@ -8239,4 +8240,62 @@ Verification after the routing change: `pnpm typecheck`; web unit 318;
 checks; `a11y` all routes + interactive contexts; `editor-touch` 11/11;
 `editor-cancel-save` including both Back paths; `editor-unmount`; `smoke`
 **ALL CHECKS PASSED** against `http://localhost:4173`; `reach` and `offline`
-green. Remaining partials are G-02, G-05, F-01 and E-10.
+green. At that point the only partials were G-02, G-05, F-01 and E-10; they closed in §42.11.
+
+### 42.11 The last four cards closed (2026-11-23)
+
+The four partials named since Sprint 1 are now closed from test evidence, not a
+status edit.
+
+**G-02 (corpus v2).** `test/corpus/textSurgery.ts` gained 180° and 270°
+rotation, a nested `TJ` array and an inline image next to text, and
+`textCorpus.test.ts` reads every page run instead of the first one.
+`test/corpus/fontFixtures.ts` adds the shapes the text corpus was missing:
+Type3 with `/FontMatrix` and `/ToUnicode`, Type0 Identity with `/W` + `/DW`, a
+Type0 non-Identity CMap, and a real CFF/OpenType document font. The CFF fixture
+is a vendored SIL OFL `SourceCodePro-Regular.otf` under
+`test/fixtures/fonts/`; its SHA-256 is pinned in the fixture module and every
+generated fixture is built twice to prove byte stability. The source PDF embeds it as `FontFile3 /OpenType`
+because pdf-lib's ordinary `embedFont(otf)` path writes a TrueType
+`FontFile2`. `g02FontFixtures.test.ts` proves Type3 widths come from the
+matrix, Type3 is reported unsupported for rewriting, Identity-H is trusted,
+non-Identity is `reliable:false`, and the CFF/OTF programme is extracted,
+re-embedded for an overlay and present in the saved bytes.
+
+**G-05 (guardrails).** `tests/guardrails.mjs` scans every app/API/core source
+file for (1) console calls that could carry a file name or document text,
+(2) draft records without the 60 MB cap or with a network primitive, (3)
+network calls with hard-coded absolute URLs, (4) OCR assets that are not
+vendored same-origin, and (5) rail tools missing a definition, help copy, icon,
+valid mode or unique shortcut. `pnpm test:guardrails` also runs `--self-test`,
+which plants one violation per scanner; a clean tree cannot hide a blind guard.
+CI runs the gate before the unit suite. The reference's CDN OCR fetch is the
+anti-pattern the egress/OCR checks exist to reject.
+
+**F-01 (fontkit/CFF).** The CFF/OTF path is now a fixture, not a hope: the
+document programme is detected as `cff`/`opentype`, `DocumentFontResolver`
+re-embeds it, and the overlay saves with the glyphs still extractable.
+`tests/bundle-boundary.mjs` lists `fontkit` as an engine and requires it in a
+worker chunk while the entry and every lazy app chunk stay engine-free. When a
+declared face cannot be reproduced, the receipt still says `font-substituted`
+rather than silently pretending the glyphs are the document's.
+
+**E-10 (rail truth).** The dead `ToolCapability` interface, every registry
+`capability` object and the session's unused `toolCapability` are gone. The
+registry tests now assert unique ids, a definition for every tool, help copy,
+a valid group, a unique shortcut, no orphan tool and exact rail lists for each
+workspace. `tests/e2e/editor-rail.mjs` reads the registry from source and walks
+all 19 tools across edit/sign/ai/redact/organize, proving each entry arms and
+shows its own contextual copy. While adding that test it caught a real bug:
+sign mode showed the signature prompt for every tool, so image, markup and
+shape tools now speak for themselves. Per-page capability copy moved to
+`lib/page-capability-copy.ts`; every non-null status says "as inspected" and
+the document panel and paragraph drawer carry an explicit snapshot note.
+
+Verification: `pnpm typecheck` (8 projects); `pnpm test` (pdf-core 707 + 1
+expected fail, web 324, api 243, mcp 19, ai-agent 152, ai-provider 375);
+`pnpm test:corpus` 2/2; `pnpm test:fuzz` 4/4; `pnpm test:guardrails` 5/5 plus
+self-test 5/5; `pnpm build` (main 150.4 kB); `pnpm test:bundle` (0 engines in
+the entry and app chunks, fontkit in the worker); `pnpm test:provenance`;
+`editor-rail` all checks across 19 tools and 5 workspaces against the production
+preview. No task card remains partial.

@@ -66,7 +66,7 @@
 9. **No destructive migration.** Drafts/receipts keep loading across schema versions.
 10. **Copy with provenance.** Three categories, not one (§2.4).
 11. **Engine switches are explicit.** A job-level strategy option must reject unknown values, not silently demote.
-12. **No new font dependency without a decision.** `@cantoo/fontkit` is absent; document-font re-embedding is a separate project.
+12. **No new font dependency without a decision.** `@cantoo/fontkit` is installed by decision D5 (F-01); any further font dependency needs the same explicit decision.
 13. **Redaction marks are typed.** No new rect-like object may enter the redaction set by shape alone.
 
 ---
@@ -84,7 +84,7 @@
 - Object export: text/image/whiteout/highlight/strikeout/underline/rect/ellipse/line/arrow; strict validation; WinAnsi-only text (`ops/edit.ts:124–129, 233–381, 546–612`).
 - OCR: full pipeline + worker pool + same-origin data + verification, but it **rebuilds** the document (`ocr/ocr.ts:57–120`, `jobs/ocr.job.ts`).
 - Redaction: raster-first rebuild + independent verifier (`redact/`).
-- Fontkit is now installed (`@cantoo/fontkit` 2.0.12, F-01). The engine extracts embedded programmes from page resources and re-embeds them in the overlay path; the editor still needs to pass the paragraph's `fontKey` (T-06).
+- Fontkit is installed (`@cantoo/fontkit` 2.0.12, F-01). The engine extracts embedded programmes from page resources and re-embeds them in the overlay path; the editor attaches the matched paragraph `fontKey` on commit (T-06/F-01).
 
 **Editor (`apps/web`)**
 - One shared workspace for edit/sign/redact/organize, lazy chunk (`components/tools/edit-pdf-tool.tsx`).
@@ -187,8 +187,8 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 
 | Phase | Theme | Tasks | Done | Partial | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0 | Safety rails, corpus, provenance, fonts | G-01..G-05, F-01 | 2 | 4 | `[~]` |
-| 1 | Editor capability parity | E-00..E-10 | 9 | 1 | `[~]` |
+| 0 | Safety rails, corpus, provenance, fonts | G-01..G-05, F-01 | 6 | 0 | `[x]` |
+| 1 | Editor capability parity | E-00..E-10 | 11 | 0 | `[x]` |
 | 2 | Text editing UX | T-01..T-07 | 7 | 0 | `[x]` |
 | 3 | Search, recovery, data-loss guards | S-01..S-06 | 6 | 0 | `[x]` |
 | 4 | Content-stream surgery | C-01..C-14 | 14 | 0 | `[x]` |
@@ -196,7 +196,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | 6 | Export trust and metadata | X-01..X-06 | 6 | 0 | `[x]` |
 | 7 | Hardening and parity sweep | H-01..H-08 | 8 | 0 | `[x]` |
 
-**Queue:** all seven sprints complete; Gate D met for the documented scope. Remaining partials are G-02/G-05/F-01/E-10, named in `docs/PARITY-REPORT.md`.
+**Queue:** all seven sprints and the four remaining partial cards (G-02/G-05/F-01/E-10) are complete. Gate D is met for the documented scope; no task card is partial.
 **Hard block:** Phase 4 default-on requires G-02, G-03, C-12, C-13 and D1. **Gate C is met** (2026-11-21): C-01..C-04, C-06, C-07, C-12..C-14 green on the corpus.
 
 ### 4.2 Full board
@@ -204,11 +204,11 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | ID | Task | Pri | Size | Now | Status |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Provenance + NOTICE + copy header | P0 | S | done | `[x]` |
-| G-02 | Corpus v2 (partial-word, Type3, CFF, XObject, clip) | P0 | M | ~50% | `[~]` |
+| G-02 | Corpus v2 (partial-word, Type3, CFF, XObject, clip) | P0 | M | done 2026-11-23 | `[x]` |
 | G-03 | Golden export harness | P0 | M | done | `[x]` |
 | G-04 | Validated job-level strategy | P0 | S | done | `[x]` |
-| G-05 | Guardrail scripts | P0 | S | ~60% | `[~]` |
-| F-01 | Fontkit adoption + document-font embedding | P0 | L | ~85% | `[~]` |
+| G-05 | Guardrail scripts | P0 | S | done 2026-11-23 | `[x]` |
+| F-01 | Fontkit adoption + document-font embedding | P0 | L | done 2026-11-23 | `[x]` |
 | E-00 | Object role discriminator + batch create | P0 | S | done | `[x]` |
 | E-01 | Pen / ink tool | P1 | M | done | `[x]` |
 | E-02 | Check / cross marks | P1 | S | done | `[x]` |
@@ -219,7 +219,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 | E-07 | Snap guides + Alt bypass | P1 | M | done 2026-11-21 | `[x]` |
 | E-08 | Object clipboard + clamp | P1 | S | done | `[x]` |
 | E-09 | Insert pages from PDF | P2 | M | done 2026-11-21 | `[x]` |
-| E-10 | Rail/inspector integration + capability truth | P0 | S | ~70% | `[~]` |
+| E-10 | Rail/inspector integration + capability truth | P0 | S | done 2026-11-23 | `[x]` |
 | T-01 | Revert paragraph via reverse edit | P1 | M | done | `[x]` |
 | T-02 | Move paragraph with plan offsets | P1 | M | done | `[x]` |
 | T-03 | Detection details drawer | P1 | M | done | `[x]` |
@@ -282,7 +282,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** positive run + planted negative control (verified 2026-11-17).
 
 ### G-02 — Corpus v2
-- **Pri:** P0 · **Size:** M · **Now:** ~50% — `test/corpus/textSurgery.ts` builds partial-word, kerned-TJ, rotated, Form-XObject and unclosed-clip fixtures with a named failure each; `textCorpus.test.ts` proves they load and extract. Type3/CFF/inline-image/non-Identity CMap still missing.
+- **Pri:** P0 · **Size:** M · **Now:** done 2026-11-23 — `test/corpus/textSurgery.ts` now covers partial-word, kerned-TJ, 90/180/270 rotation, nested TJ arrays, inline images, Form XObject and unclosed clip, each with a named failure. `test/corpus/fontFixtures.ts` adds Type3 (`/FontMatrix` + `/ToUnicode`), Type0 Identity (`/W` + `/DW`) and Type0 non-Identity fixtures, plus a real CFF/OpenType document font. The vendored Source Code Pro OTF is SIL OFL (`licenses/source-code-pro-OFL.md`) and SHA-256-pinned in the fixture module, so bytes are portable and hash-stable; every fixture is also built twice and compared byte-for-byte. `textCorpus.test.ts` and `g02FontFixtures.test.ts` prove text extraction, width reliability, Type3 refusal and non-Identity `reliable:false`.
 - **Why:** C-03/C-04 will shift glyphs silently without fixtures that catch it.
 - **Scope (add only what is missing):**
   - partial-word removal with kerning before/after the removed run;
@@ -311,14 +311,14 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** unknown strategy rejected; old path still selectable.
 
 ### G-05 — Guardrail scripts
-- **Pri:** P0 · **Size:** S · **Now:** ~60% — `bundle-boundary.mjs`, `offline.mjs`, CSP tests exist.
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-23 — `tests/guardrails.mjs` scans the app/API/core source for document text or file names in console calls, draft records that are unbounded or use a network primitive, hard-coded off-origin network URLs, OCR assets that are not vendored same-origin, and incomplete rail-registry records. `pnpm test:guardrails` runs the scan **and** `--self-test`, which plants a violation for every scanner. CI runs it before the unit suite. The reference's CDN OCR fetch is the named anti-pattern the off-origin/OCR checks reject.
 - **Scope:** extend to drafts/new tools; assert no document text/filename in logs; negative tests. Note the reference's CDN OCR fetch as the anti-pattern this gate catches.
 - **Anchor:** `tests/bundle-boundary.mjs`, `tests/e2e/offline.mjs`, `lib/csp.ts`.
 - **Done when:** a deliberately planted violation fails each check.
 - **Tests:** negative CI run.
 
 ### F-01 — Fontkit adoption + document-font embedding
-- **Pri:** P0 · **Size:** L · **Now:** ~85% — `@cantoo/fontkit` 2.0.12 installed; `ops/fontPrograms.ts` extracts embedded programmes and re-embeds subset→full; `EditTextObject.fontKey` skips the WinAnsi refusal; the editor now attaches the matched PDFium BaseFont on paragraph commit; tests cover Greek through `applyEdits` and `text-edit`. Remaining: receipt names the strategy (X-02).
+- **Pri:** P0 · **Size:** L · **Now:** done 2026-11-23 — `@cantoo/fontkit` 2.0.12; `ops/fontPrograms.ts` extracts embedded programmes and re-embeds subset then full; `EditTextObject.fontKey` skips the WinAnsi refusal; the editor attaches the matched PDFium BaseFont on paragraph commit. The CFF/OTF path is now tested against a real `OTTO` programme embedded as `FontFile3 /OpenType`, detected as `cff`/`opentype`, re-embedded for an overlay, and extracted back from the saved bytes. `tests/bundle-boundary.mjs` treats fontkit as an engine and requires it in a worker chunk, never the entry or a lazy app chunk. Receipts name `font-substituted` when the declared face cannot be reproduced.
 - **Decision:** D5. The owner chose to add `@cantoo/fontkit` now, so "Original" font and fewer substitutions are in scope.
 - **Scope:**
   - Add `@cantoo/fontkit` to `packages/pdf-core`; register it where pdf-lib documents are created/loaded for editing (`ops/edit.ts`, `textedit`).
@@ -410,7 +410,7 @@ Add `licenses/rea-ihpdf-NOTICE.md` with the owner's authorisation. Copied files 
 - **Tests:** unit remap; E2E insert + edit + export.
 
 ### E-10 — Rail/inspector integration + capability truth
-- **Pri:** P0 · **Size:** S · **Now:** ~70% — dead `ToolCapability.export`, `saveStatus` and session `dirty` removed; tool registry is the single source for rail order/labels; new kinds still land with E-01..E-04.
+- **Pri:** P0 · **Size:** S · **Now:** done 2026-11-23 — dead `ToolCapability`, the registry's `capability` field and the session's unscoped `toolCapability` are removed; the registry is now the single source for rail ids, groups, order, labels, icons, shortcuts and help. `editor-tools.test.ts` asserts every tool is defined once, offered in at least one workspace, has help copy, has a unique shortcut, and that each workspace's rail list is exact. `tests/e2e/editor-rail.mjs` reads the registry from source and walks every rail entry in edit/sign/ai/redact/organize, proving each arms itself and shows its own copy. Per-page capability copy moved to `lib/page-capability-copy.ts` and now says "as inspected" everywhere, with a visible snapshot note; the sign workspace no longer shows the signature prompt for unrelated tools.
 - **Sequence:** before E-01..E-04.
 - **Scope:** registry entries, context controls, inspector titles/icons (exhaustive records), status labels, `KEY_TOOLS`; either wire `ToolCapability.export` into `onSave` or delete it; fix `editor-tools.test.ts` expectations.
 - **Anchor:** `editor-tools.ts:97–220`; `editor-inspector.tsx:45–69`; `editor-chrome.tsx ToolContext`; `edit-pdf-tool.tsx:190, 2123–2134`.
@@ -977,7 +977,7 @@ for browser Back, plus the three existing paths and the cancelled export.
 
 **Verification:** `pnpm typecheck` (8 projects); `pnpm test` — pdf-core **697 + 1 expected fail**, web **318**, api 243, mcp 19, ai-agent 152, ai-provider 375; `pnpm build` (63 routes); `pnpm test:editor-perf` 5/5; **`text-ux` 57/57**, `sprint6-trust` 21/21, `editor-quick-parity` 23/23, `text-edit` 7/7, `sign`, `signature-upload`, `keyboard` (31 checks), `a11y` (all contexts clean), `editor-touch` 11/11, `cross-browser` all installed engines, `editor-cancel-save` (browser Back cancel + confirm), `editor-unmount`, `reach`, `offline`, and `smoke` **ALL CHECKS PASSED** against the production preview.
 
-**Remaining, recorded not hidden:** Playwright WebKit has no OffscreenCanvas (raster previews unsupported there); physical iOS/Android was not run; G-02/G-05/F-01/E-10 keep their partial status.
+**Remaining, recorded not hidden:** Playwright WebKit has no OffscreenCanvas (raster previews unsupported there); physical iOS/Android was not run. At the Sprint 7 close G-02/G-05/F-01/E-10 were still partial; all four closed on 2026-11-23 (see the changelog).
 
 ---
 
@@ -1087,3 +1087,4 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-22 | **Sprint 7 UI/gesture bug pass.** Saving now freezes every mutating keyboard and chrome path (undo/redo/find/duplicate/cut/paste/delete/tool, Change/Start over/Back, mode tabs); page/object/move/resize gestures record their owning pointer so a second finger cannot steal them, and wide palm contacts are rejected on objects too; Document details clears the competing inspector and opens the phone sheet; Duplicate/Delete no longer enable for a detected text block while Properties does; top-bar page input and PageUp/PageDown use display order after a rail reorder; Escape cancels typed zoom/page/font/stamp/dimension values instead of committing through blur; direct organizer entry reopens the page rail; exact dimensions clamp at the 8 pt editor minimum; portal sheets inherit the editor ink tokens; dead dot/title/tool-group/keyboard-list CSS and `toolStatusLabel` removed. Re-ran typecheck, full unit, build, a11y, keyboard, text-ux, editor-parity, touch and smoke editor/tool sections. |
 | 2026-11-22 | **Test hygiene.** `smoke.mjs` now writes generated `smoke-alpha.pdf`/`smoke-beta.pdf` instead of overwriting the tracked `tests/e2e/fixtures/alpha.pdf`; a smoke run no longer dirties the worktree or changes the fixture other suites read. |
 | 2026-11-23 | **S-06 closed.** The app moved from `BrowserRouter` to a data router so the editor can use `useBlocker`; browser Back/Forward now stops on unsaved edits and shows the existing leave sheet, while in-app links keep the capture-phase interceptor and `beforeunload` still covers full loads. `editor-cancel-save` proves cancel keeps the document and confirm leaves. With the test-hygiene fix, `smoke` is fully green against the production preview. Remaining partials: G-02/G-05/F-01/E-10 only. |
+| 2026-11-23 | **Final four cards closed.** G-02 adds Type3, Type0 Identity/non-Identity, inline-image, 180/270, nested-array and CFF/OTF fixtures with named failures, deterministic builds and a SHA-256-pinned vendored SIL OFL Source Code Pro OTF. G-05 adds `tests/guardrails.mjs` (log/draft/off-origin/OCR/registry scans plus `--self-test` plants) and `pnpm test:guardrails` in CI. F-01 proves a real `FontFile3 /OpenType` programme is detected, re-embedded and recovered, and the bundle gate requires fontkit only in worker chunks. E-10 deletes the dead `ToolCapability`/`toolCapability`, makes the registry tests exhaustive, adds `tests/e2e/editor-rail.mjs` across all five workspaces, moves page capability copy into `lib/page-capability-copy.ts` with an explicit snapshot note, and fixes sign mode showing the signature prompt for unrelated tools. Evidence: typecheck 8 projects; `pnpm test` pdf-core 707 + 1 expected fail, web 324, api 243, mcp 19, agent 152, provider 375; corpus 2/2; fuzz 4/4; guardrails 5/5 + self-test 5/5; build main 150.4 kB; bundle/provenance green; `editor-rail` all checks across 19 tools and 5 workspaces. |

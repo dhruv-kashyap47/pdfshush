@@ -21,7 +21,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'apps', 'web', 'dist');
 
 /** Module paths that mean "an engine is in this chunk". */
-const ENGINE = /pdf-lib|pdfjs|pdfium|tesseract/i;
+const ENGINE = /pdf-lib|pdfjs|pdfium|tesseract|fontkit/i;
 
 let failures = 0;
 
@@ -150,6 +150,25 @@ async function main() {
     'the engines still ship (in the worker chunks)',
     workerHasEngine.some(Boolean) || assets.some((name) => name.startsWith('pdfium-')),
     workers.join(', ') || 'no worker chunks found',
+  );
+
+  // F-01: fontkit is an engine dependency. It may ship in a worker chunk, but
+  // never in the entry or a lazy app chunk (the checks above already fail those
+  // if it does; this makes the positive half explicit).
+  const workerHasFontkit = await Promise.all(
+    workers.map(async (name) => {
+      try {
+        const map = JSON.parse(await readFile(path.join(DIST, 'assets', `${name}.map`), 'utf8'));
+        return (map.sources ?? []).some((source) => /fontkit/i.test(source));
+      } catch {
+        return false;
+      }
+    }),
+  );
+  check(
+    'fontkit ships in a worker chunk, not the app shell',
+    workerHasFontkit.some(Boolean),
+    workerHasFontkit.some(Boolean) ? 'worker fontkit found' : 'no worker sourcemap names fontkit',
   );
 
   finish();

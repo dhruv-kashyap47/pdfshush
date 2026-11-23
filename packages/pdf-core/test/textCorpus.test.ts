@@ -25,11 +25,19 @@ describe('text-surgery corpus (G-02)', () => {
     }
   });
 
+  it('builds every fixture deterministically (no timestamps or machine fonts)', async () => {
+    for (const entry of TEXT_SURGERY_MANIFEST) {
+      const first = await buildTextSurgeryFixture(entry.kind as TextSurgeryFixtureKind);
+      const second = await buildTextSurgeryFixture(entry.kind as TextSurgeryFixtureKind);
+      expect(second.bytes, `${entry.kind} must be byte-stable`).toEqual(first.bytes);
+    }
+  });
+
   for (const entry of TEXT_SURGERY_MANIFEST) {
     it(`builds and extracts ${entry.kind}`, async () => {
       const fixture = await buildTextSurgeryFixture(entry.kind as TextSurgeryFixtureKind);
       const runs = await extractTextRuns(fixture.bytes, [0]);
-      const text = runs[0]!.map((run) => run.text).join('\n');
+      const text = runs.flat().map((run) => run.text).join('\n');
       for (const expected of fixture.expectText) {
         expect(text, `${entry.kind}: expected "${expected}" in "${text}"`).toContain(expected);
       }

@@ -40,6 +40,11 @@ jobs:
 
       - run: pnpm test:provenance
 
+      # G-05: no document text in logs, bounded local drafts, no off-origin
+      # fetches, complete rail registry. The second run plants a violation in
+      # each scanner so a green tree is not mistaken for a blind guard.
+      - run: pnpm test:guardrails
+
       - run: pnpm test
 
       # H-04: the seeded fuzz is part of `pnpm test`, but a named step makes a
@@ -107,6 +112,10 @@ jobs:
           E2E_BASE_URL: http://localhost:4173
       - name: Text UX, find/replace and draft recovery
         run: pnpm test:e2e:text-ux
+        env:
+          E2E_BASE_URL: http://localhost:4173
+      - name: Rail-entry registry smoke
+        run: pnpm test:e2e:editor-rail
         env:
           E2E_BASE_URL: http://localhost:4173
       - run: pnpm test:e2e:verify
