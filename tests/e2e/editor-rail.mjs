@@ -140,7 +140,7 @@ async function main() {
   const { tools, expected, help } = await readRegistry();
   check('the registry parsed', tools.length > 5, `${tools.length} tools`);
 
-  const browser = await chromium.launch({ channel: 'msedge' });
+  const browser = await chromium.launch(process.env.CI ? {} : { channel: 'msedge' });
   const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
   const consoleErrors = [];
   page.on('console', (message) => {

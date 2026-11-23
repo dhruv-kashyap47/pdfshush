@@ -38,7 +38,7 @@ Legend: **R** reproduced, **I** improved, **N** invented (not in the target),
 | E-07 | Snap guides + Alt | N | pure `lib/snap.ts`, 6 px threshold, guides only while snapped, Alt bypass |
 | E-08 | Object clipboard + clamp | R | Ctrl/Cmd+C/X/V, offsets, `lib/object-placement.ts` |
 | E-09 | Insert pages | I | compose + remap objects/paragraphs/pages; E2E appends a page |
-| E-10 | Rail/inspector capability truth | I | registry-driven rail with exact workspace lists, no dead capability metadata, `editor-rail` E2E walks every entry, capability copy is explicitly "as inspected" with a snapshot note |
+| E-10 | Rail/inspector capability truth | I | registry-driven rail with exact workspace lists, no dead capability metadata, `editor-rail` E2E walks every entry, capability copy is explicitly "as inspected" with a snapshot note and a distinct "no text layer" branch |
 | T-01 | Revert paragraph | I | reverse edit + records in snapshot; `text-ux` edit→revert→export |
 | T-02 | Move paragraph | I | native reflow origin follows the dragged object; extraction x/y asserted |
 | T-03 | Detection details | I | `editor-paragraph-details.tsx`, copy/back/edit/revert |

@@ -8299,3 +8299,35 @@ self-test 5/5; `pnpm build` (main 150.4 kB); `pnpm test:bundle` (0 engines in
 the entry and app chunks, fontkit in the worker); `pnpm test:provenance`;
 `editor-rail` all checks across 19 tools and 5 workspaces against the production
 preview. No task card remains partial.
+
+### 42.12 Bug-fix pass (2026-11-23)
+
+The post-close review found three issues.
+
+**Vector-only and blank pages lied about their text layer.** Capability
+inspection returns `textLayer: 'none'` for a page with no text objects, and
+`likelyScanned` is only true when that page also has an image. The new copy
+checked `likelyScanned`, `ocr`, `mixed` and then fell through to "Document text
+objects and fonts", so a blank or vector-only page claimed a text layer it did
+not have. `lib/page-capability-copy.ts` now handles `none` explicitly in the
+Document panel, the paragraph status and the detection-details label, and the
+regression test proves the copy says "no text layer" and never "document text".
+
+**Fixture determinism was not actually timestamp-free.** The G-02 determinism
+check caught that `updateMetadata: false` belongs on `PDFDocument.create()`, not
+on `save()`; setting it on save left `CreationDate`/`ModDate` in the files and
+made the byte comparison pass only when two builds landed in the same second.
+The fixture builders now create with metadata disabled and save with object
+streams off, and the full corpus passes repeatedly across second boundaries.
+
+**The rail E2E required Edge on CI.** `tests/e2e/editor-rail.mjs` launched
+`chromium` with `channel: 'msedge'`, which is a local convenience but not a
+guarantee on a Linux runner. It now uses bundled Chromium when `CI` is set,
+matching `text-ux`. The stale registry header that still claimed tools declare
+capability metadata was corrected too.
+
+Verification after the pass: typecheck (8 projects), full unit suite (pdf-core
+707 + 1 expected fail, web 325), `test:guardrails`, `build`, `test:bundle`,
+`test:provenance`, and against the production preview `smoke`,
+`text-ux` 57/57, `editor-quick-parity` 23/23, `editor-rail` all checks,
+`keyboard` 31 checks, `a11y` all routes/contexts and `offline`.

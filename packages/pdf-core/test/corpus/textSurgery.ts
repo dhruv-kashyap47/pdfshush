@@ -17,6 +17,11 @@ import {
   type PDFRef,
 } from '@cantoo/pdf-lib';
 
+/** Fixtures must not carry wall-clock metadata; pdf-lib applies it at create. */
+const CREATE_OPTIONS = { updateMetadata: false } as const;
+/** Fixtures are generated in-process, so object streams add no value. */
+const SAVE_OPTIONS = { useObjectStreams: false } as const;
+
 export type TextSurgeryFixtureKind =
   | 'partial-word'
   | 'tj-kern'
@@ -99,7 +104,7 @@ async function baseDocument(): Promise<{
   doc: PDFDocument;
   font: Awaited<ReturnType<PDFDocument['embedFont']>>;
 }> {
-  const doc = await PDFDocument.create();
+  const doc = await PDFDocument.create(CREATE_OPTIONS);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   return { doc, font };
 }
@@ -210,6 +215,6 @@ export async function buildTextSurgeryFixture(
 
   return {
     ...meta,
-    bytes: await doc.save({ useObjectStreams: false, updateMetadata: false }),
+    bytes: await doc.save(SAVE_OPTIONS),
   };
 }

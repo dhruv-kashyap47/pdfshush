@@ -1,14 +1,14 @@
 /**
  * Editor capability registry.
  *
- * Every tool that can edit a PDF declares what it needs from the shared
- * workspace here. The shell reads these records instead of hard-coding a
- * toolbar per tool, so text, AI, redaction, annotation and page organisation
- * all run inside one viewport, one selection model and one document session.
+ * Every tool that can edit a PDF declares its identity, label, group, icon,
+ * shortcut and workspace availability here. The shell reads these records
+ * instead of hard-coding a toolbar per tool, so text, AI, redaction, annotation
+ * and page organisation all run inside one viewport, one selection model and one
+ * document session.
  *
- * The engine is untouched: a capability only describes *UI intent* and which
- * export path the workspace should use. The workers remain the authority on
- * validation, redaction and verification.
+ * A tool record only describes UI intent and workspace availability; the
+ * workers remain the authority on validation, redaction and verification.
  */
 
 import type { LucideIcon } from 'lucide-react';

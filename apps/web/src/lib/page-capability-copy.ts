@@ -26,6 +26,7 @@ function inspected(sentence: string): string {
 export function textLayerLabel(capability: PageTextCapability | null): string {
   if (!capability) return 'Not inspected yet';
   if (capability.likelyScanned) return 'No text layer (image-only page), as inspected';
+  if (capability.textLayer === 'none') return 'No text layer, as inspected';
   if (capability.textLayer === 'ocr') return 'OCR layer (invisible text), as inspected';
   if (capability.textLayer === 'mixed') return 'Mixed visible/invisible text, as inspected';
   return 'Native document text, as inspected';
@@ -39,6 +40,9 @@ export function describePageEditStatus(
   if (!capability) return 'Inspecting fonts and page objects.';
   if (capability.likelyScanned) {
     return inspected('Image-only page. Text can be marked, but there is no text layer to rewrite');
+  }
+  if (capability.textLayer === 'none') {
+    return inspected('No text layer on this page. Text can be marked, but there is nothing to rewrite');
   }
   if (capability.textLayer === 'ocr') {
     return ocr
@@ -58,6 +62,9 @@ export function describeParagraphEditStatus(capability: PageTextCapability | nul
   if (!capability) return 'Inspecting fonts and page objects.';
   if (capability.likelyScanned) {
     return 'Manual review: image-only page has no text layer, as inspected';
+  }
+  if (capability.textLayer === 'none') {
+    return 'Manual review: no text layer on this page, as inspected';
   }
   if (capability.textLayer === 'ocr') {
     return 'Native edit: invisible OCR text layer (render mode preserved), as inspected';

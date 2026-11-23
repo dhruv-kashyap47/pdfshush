@@ -16,6 +16,11 @@ import {
   type PDFRef,
 } from '@cantoo/pdf-lib';
 
+/** Fixtures must not carry wall-clock metadata; pdf-lib applies it at create. */
+const CREATE_OPTIONS = { updateMetadata: false } as const;
+/** Fixtures are generated in-process, so object streams add no value. */
+const SAVE_OPTIONS = { useObjectStreams: false } as const;
+
 function readFileSync(url: URL): Uint8Array {
   const proc = (globalThis as unknown as {
     process: { getBuiltinModule(name: string): unknown };
@@ -122,7 +127,7 @@ function addPage(
 }
 
 async function type3Bytes(): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
+  const doc = await PDFDocument.create(CREATE_OPTIONS);
   const context = doc.context;
   const charProc = () =>
     context.register(
@@ -167,11 +172,11 @@ async function type3Bytes(): Promise<Uint8Array> {
   });
   const fontRef = context.register(font);
   addPage(doc, fontRef, 'BT /F1 24 Tf 1 0 0 1 40 200 Tm (\\000\\001\\002) Tj ET\n');
-  return doc.save({ useObjectStreams: false, updateMetadata: false }) as unknown as Uint8Array;
+  return doc.save(SAVE_OPTIONS) as unknown as Uint8Array;
 }
 
 async function type0Bytes(nonIdentity: boolean): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
+  const doc = await PDFDocument.create(CREATE_OPTIONS);
   const context = doc.context;
   const ttf = ttfBytes();
   const program = context.register(
@@ -222,11 +227,11 @@ async function type0Bytes(nonIdentity: boolean): Promise<Uint8Array> {
   });
   const fontRef = context.register(font);
   addPage(doc, fontRef, 'BT /F1 20 Tf 1 0 0 1 40 200 Tm <00410042> Tj ET\n');
-  return doc.save({ useObjectStreams: false, updateMetadata: false }) as unknown as Uint8Array;
+  return doc.save(SAVE_OPTIONS) as unknown as Uint8Array;
 }
 
 async function cffBytes(): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
+  const doc = await PDFDocument.create(CREATE_OPTIONS);
   const context = doc.context;
   const otf = readFileSync(OTF_URL);
   const program = context.register(
@@ -268,7 +273,7 @@ async function cffBytes(): Promise<Uint8Array> {
   });
   const fontRef = context.register(font);
   addPage(doc, fontRef, 'q 0.2 0.2 0.2 RG 40 180 m 300 180 l S Q\n');
-  return doc.save({ useObjectStreams: false, updateMetadata: false }) as unknown as Uint8Array;
+  return doc.save(SAVE_OPTIONS) as unknown as Uint8Array;
 }
 
 export async function buildFontFixture(kind: FontFixtureKind): Promise<FontFixture> {

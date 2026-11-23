@@ -31,10 +31,12 @@ describe('page capability copy (E-10)', () => {
   test('every non-null page status is marked as an inspection snapshot', () => {
     const statuses = [
       describePageEditStatus(capability({ likelyScanned: true }), null),
+      describePageEditStatus(capability({ textLayer: 'none' }), null),
       describePageEditStatus(capability({ textLayer: 'ocr' }), null),
       describePageEditStatus(capability({ textLayer: 'mixed' }), null),
       describePageEditStatus(capability({ textLayer: 'native' }), null),
       describeParagraphEditStatus(capability({ likelyScanned: true })),
+      describeParagraphEditStatus(capability({ textLayer: 'none' })),
       describeParagraphEditStatus(capability({ textLayer: 'ocr' })),
       describeParagraphEditStatus(capability({ textLayer: 'mixed' })),
       describeParagraphEditStatus(capability({ textLayer: 'native' })),
@@ -42,6 +44,15 @@ describe('page capability copy (E-10)', () => {
     for (const status of statuses) {
       expect(status).toMatch(/inspected/i);
     }
+  });
+
+  test('a vector-only or blank page is not described as having text', () => {
+    const blank = capability({ textLayer: 'none', likelyScanned: false });
+    expect(describePageEditStatus(blank, null)).toMatch(/no text layer/i);
+    expect(describePageEditStatus(blank, null)).not.toMatch(/document text/i);
+    expect(describeParagraphEditStatus(blank)).toMatch(/no text layer/i);
+    expect(describeParagraphEditStatus(blank)).not.toMatch(/document text/i);
+    expect(textLayerLabel(blank)).toMatch(/no text layer/i);
   });
 
   test('the inspecting state is honest instead of claiming a capability', () => {
