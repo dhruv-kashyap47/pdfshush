@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  type CSSProperties,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Star } from 'lucide-react';
 import {
   enabledTestimonials,
@@ -112,178 +106,18 @@ function TestimonialCard({ testimonial, width }: { testimonial: Testimonial; wid
   );
 }
 
-/* On phones the rows are snap-scrollers, so the desktop marquee's CSS drift is
-   switched off. This advances each row one whole card at a time, pauses the
-   moment a reader touches, swipes, hovers or focuses a row, and waits until the
-   section is actually on screen. Reduced motion wins: no timer is started. */
-const AUTO_ADVANCE_MS = 6000;
-const AUTO_RESUME_MS = 5000;
-
-function useMobileAutoAdvance(sectionRef: RefObject<HTMLElement | null>) {
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return;
-
-    const narrow = window.matchMedia('(max-width: 767px)');
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const rowCleanups: Array<() => void> = [];
-    let interval: number | undefined;
-    let kickoff: number | undefined;
-    let resumeTimer: number | undefined;
-    let paused = false;
-    let inView = false;
-
-    const viewports = () =>
-      Array.from(
-        sectionRef.current?.querySelectorAll<HTMLElement>('.sp-marquee__viewport') ?? [],
-      );
-
-    const cardsOf = (viewport: HTMLElement) =>
-      Array.from(
-        viewport.querySelectorAll<HTMLElement>(
-          '.sp-marquee__group:not(.sp-marquee__group--dup) .sp-card',
-        ),
-      );
-
-    const stop = () => {
-      if (kickoff !== undefined) {
-        window.clearTimeout(kickoff);
-        kickoff = undefined;
-      }
-      if (interval !== undefined) {
-        window.clearInterval(interval);
-        interval = undefined;
-      }
-    };
-
-    const advance = () => {
-      if (!narrow.matches || reduce.matches || paused || !inView) return;
-
-      for (const viewport of viewports()) {
-        const cards = cardsOf(viewport);
-        const group = cards[0]?.parentElement;
-        if (!group || cards.length < 2) continue;
-
-        const step = cards[1]!.offsetLeft - cards[0]!.offsetLeft;
-        if (step <= 0) continue;
-
-        const current = Math.round(viewport.scrollLeft / step);
-        const next = (current + 1) % cards.length;
-        const target =
-          cards[next]!.getBoundingClientRect().left - group.getBoundingClientRect().left;
-
-        viewport.scrollTo({ left: target, behavior: 'smooth' });
-      }
-    };
-
-    const start = () => {
-      stop();
-      if (!narrow.matches || reduce.matches || paused || !inView) return;
-      // One early move proves the row is alive, then it settles into the loop.
-      kickoff = window.setTimeout(() => {
-        advance();
-        interval = window.setInterval(advance, AUTO_ADVANCE_MS);
-      }, 2500);
-    };
-
-    const hold = () => {
-      paused = true;
-      stop();
-      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
-    };
-
-    const release = () => {
-      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
-      resumeTimer = window.setTimeout(() => {
-        paused = false;
-        start();
-      }, AUTO_RESUME_MS);
-    };
-
-    const bindRow = (viewport: HTMLElement) => {
-      viewport.addEventListener('pointerdown', hold);
-      viewport.addEventListener('pointerenter', hold);
-      viewport.addEventListener('touchstart', hold, { passive: true });
-      viewport.addEventListener('focusin', hold);
-      viewport.addEventListener('pointerleave', release);
-      viewport.addEventListener('touchend', release, { passive: true });
-      viewport.addEventListener('focusout', release);
-
-      rowCleanups.push(() => {
-        viewport.removeEventListener('pointerdown', hold);
-        viewport.removeEventListener('pointerenter', hold);
-        viewport.removeEventListener('touchstart', hold);
-        viewport.removeEventListener('focusin', hold);
-        viewport.removeEventListener('pointerleave', release);
-        viewport.removeEventListener('touchend', release);
-        viewport.removeEventListener('focusout', release);
-      });
-    };
-
-    for (const viewport of viewports()) bindRow(viewport);
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        inView = entries.some((entry) => entry.isIntersecting);
-        if (inView) start();
-        else stop();
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -8% 0px' },
-    );
-    if (sectionRef.current) observer.observe(sectionRef.current);
-
-    const onModeChange = () => {
-      if (narrow.matches) {
-        start();
-      } else {
-        stop();
-        for (const viewport of viewports()) viewport.scrollTo({ left: 0, behavior: 'auto' });
-      }
-    };
-
-    const onReduceChange = () => {
-      if (reduce.matches) {
-        stop();
-        for (const viewport of viewports()) viewport.scrollTo({ left: 0, behavior: 'auto' });
-      } else {
-        start();
-      }
-    };
-
-    const onVisibility = () => {
-      if (document.hidden) stop();
-      else start();
-    };
-
-    narrow.addEventListener('change', onModeChange);
-    reduce.addEventListener('change', onReduceChange);
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      stop();
-      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
-      observer.disconnect();
-      for (const cleanup of rowCleanups) cleanup();
-      narrow.removeEventListener('change', onModeChange);
-      reduce.removeEventListener('change', onReduceChange);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [sectionRef]);
-}
-
 interface SocialProofSectionProps {
   content?: SocialProofContent;
 }
 
 export function SocialProofSection({ content = socialProof }: SocialProofSectionProps) {
-  const sectionRef = useRef<HTMLElement>(null);
-  useMobileAutoAdvance(sectionRef);
   const testimonials = enabledTestimonials(content);
   const [firstRow, secondRow] = splitTestimonialRows(testimonials);
 
   if (testimonials.length === 0) return null;
 
   return (
-    <section ref={sectionRef} className="sp-section" aria-labelledby="social-proof-title">
+    <section className="sp-section" aria-labelledby="social-proof-title">
       <div className="sp-shell">
         <h2 id="social-proof-title" className="sr-only">
           What people say

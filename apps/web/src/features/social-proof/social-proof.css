@@ -126,47 +126,29 @@
 
 /* ── Cards ──────────────────────────────────────────────────────────────── */
 
-/* Phones and folds: a continuous drift would drag a card that nearly fills the
-   screen halfway off the edge. The row stays a snap carousel and JS advances it
-   one whole card every few seconds, yielding to touch, swipe and focus. The
-   desktop marquee lives above; reduced motion flattens both rows below. */
+/* Phones and folds keep the same continuous drift as desktop. The cards are a
+   little narrower and the edge mask is softer, so the moving stream still
+   reads on a small screen. Reduced motion flattens both rows below. */
 @media (max-width: 767px) {
   .sp-marquee__viewport {
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
     -webkit-mask-image: linear-gradient(
       90deg,
-      #000 0,
-      #000 calc(100% - 2.25rem),
+      transparent 0,
+      #000 1.5rem,
+      #000 calc(100% - 1.5rem),
       transparent 100%
     );
-    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 2.25rem), transparent 100%);
-  }
-
-  .sp-marquee__viewport::-webkit-scrollbar {
-    display: none;
-  }
-
-  .sp-marquee__track {
-    animation: none;
-    transform: none;
-    will-change: auto;
-  }
-
-  .sp-marquee .sp-marquee__group {
-    padding-right: 0;
-  }
-
-  .sp-marquee .sp-marquee__group--dup {
-    display: none;
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0,
+      #000 1.5rem,
+      #000 calc(100% - 1.5rem),
+      transparent 100%
+    );
   }
 
   .sp-marquee .sp-card {
     width: min(19rem, calc(100vw - 4rem));
-    scroll-snap-align: start;
   }
 }
 
