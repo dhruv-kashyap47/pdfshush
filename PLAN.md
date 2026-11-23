@@ -8351,10 +8351,11 @@ app). `pnpm install --frozen-lockfile`, typecheck, the full unit suite,
 PDF engine; `motion` ships in a separate `vendor-motion` chunk.
 
 `main` was fast-forwarded locally and on the remote to the merge commit, and
-Worker version `aff540a7-6a77-4501-bc9d-df693503c6b8` was deployed. A second
-upload of the same synced main build (`5feada1e-7362-4dfc-a818-9e12b8e3bbab`) is
-now the active version; its `edit-pdf-tool` chunk contains both the no-text-layer
-copy and the inspection snapshot text. Production verification: the new hero rendered (`Ask, edit, merge, redact.`), `smoke`
+Worker version `aff540a7-6a77-4501-bc9d-df693503c6b8` was deployed. The live
+build serves service-worker id `941f8513ca57`; later docs-only main uploads
+re-version the same assets without changing that id. Its `edit-pdf-tool` chunk
+contains both the no-text-layer copy and the inspection snapshot text.
+Production verification: the new hero rendered (`Ask, edit, merge, redact.`), `smoke`
 passed every check (89 mega-menu links, all tools, editor, redaction, no console
 errors), `offline` passed CSP/service-worker/zero-egress, and `editor-rail`
 passed all 19 tools across 5 workspaces.
