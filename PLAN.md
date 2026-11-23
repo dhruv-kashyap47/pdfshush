@@ -8331,3 +8331,12 @@ Verification after the pass: typecheck (8 projects), full unit suite (pdf-core
 `test:provenance`, and against the production preview `smoke`,
 `text-ux` 57/57, `editor-quick-parity` 23/23, `editor-rail` all checks,
 `keyboard` 31 checks, `a11y` all routes/contexts and `offline`.
+
+Production deploy: Worker version `2cf0f359-ff67-41fb-8a56-929a8b8dfa70` on
+`https://pdfshush.space`. The deployed origin returned 200 for `/` and
+`/tools/merge-pdf` with the canonical link and prerendered heading, served
+`sitemap.xml`/`robots.txt`, kept the SPA fallback for an unknown page, and
+returned the JSON 404 fence for `/api`, `/api/health` and `/API/health`.
+`smoke` reported **ALL CHECKS PASSED** against production; `offline` proved CSP,
+the service worker and zero egress; `editor-rail` passed across all 19 tools and
+5 workspaces.
