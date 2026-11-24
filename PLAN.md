@@ -34,7 +34,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Security batch** | Real AES-256 Protect PDF (open/owner passwords + permission flags) and a Smart Compress pass that re-encodes safe embedded images while preserving text, links and forms | ✅ **shipped 2026-10-27** — see §8 first entry |
 | **Dark-mode batch** | Dark Mode PDF: three pixel-remap kinds (theme / smart hue-preserving / invert) over a live before/after wipe preview, ported from the MIT-licensed `chizkiyahu/pdf-dark-mode-converter` | ✅ **shipped 2026-10-28** — see §8 first entry |
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
-| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | 🟡 **P7.2/P7.3 absorbed by M5.5/M5.6; P7.1 near-closed** — Q4 corpus covers 0-byte, 1-page, 2 000-page, encrypted, scanned, truncated, non-PDF, non-ASCII and 200 MB; broken-font/Type3/CFF coverage landed 2026-11-23. The only recorded gap is a **linearized** PDF (`CORPUS_GAPS`), and the containerised `test:api`/`test:hardening` gates need Docker (§9, §31.21) |
+| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | 🟢 **P7.1 met with one documented exception** — Q4 corpus covers 0-byte, 1-page, 2 000-page, encrypted, scanned, truncated, non-PDF, non-ASCII and 200 MB; broken-font/Type3/CFF coverage landed 2026-11-23. Container gates **`test:api` 21 checks + §6 skip** and **`test:hardening` GATE PASSED** on 2026-11-24 (Docker 29.8.2, `FILE_TTL_MS=20000`, `JANITOR_INTERVAL_MS=5000`). The only recorded exception is a genuinely **linearized** PDF (`CORPUS_GAPS`: no qpdf/Ghostscript, no honest fixture) |
 | **Text editing Phase 1** | Serializable glyph→word→line→paragraph→block→region model, centralized geometry, hit testing, inline paragraph editing | ✅ **done 2026-10-31** — engine 339 tests, web 39; see §27 |
 | **Text editing Phase 2** | Native object editing ladder, content-stream fallback, font metrics/substitution, layout reflow, OCR-layer/scan capability, export + pixel verification | ✅ **done 2026-10-31** — engine 362 tests, web 39, both text E2Es; see §28 |
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
@@ -43,7 +43,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 356 unit tests, responsive sweep clean, phone/tablet editor checks green |
 | **Deploy recovery** | Stale hashed CSS/JS can no longer strand an open tab: empty stylesheet/SPA-fallback detection, one guarded fresh-shell reload, hard-reset reload, service-worker navigation cache bypass, critical fallback CSS | ? **done 2026-11-05** - see section 34.7; stale-build E2E 8/8 |
-| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 + M6.2 are done** — `https://pdfshush.space` is live on Cloudflare Workers + Static Assets, and the launch surface now has real `/privacy`, `/terms`, `/about`, `/contact` and `/status` routes (deployed 2026-11-24, Worker `0d763fc6-75f5-4f4c-b819-ce46182a3591`; 68 prerendered routes, 60 sitemap URLs; production smoke/reach/a11y/offline/sign green). **M6.3–M6.6 are not started** and require the server tier, which stays **parked** (§33.11) |
+| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 + M6.2 are done** — `https://pdfshush.space` is live on Cloudflare Workers + Static Assets, and the launch surface now has real `/privacy`, `/terms`, `/about`, `/contact` and `/status` routes (deployed 2026-11-24, latest Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`; 68 prerendered routes, 60 sitemap URLs; production smoke/reach/a11y/offline/sign green). **M6.3–M6.6 are not started** and require the server tier, which stays **parked** (§33.11) |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
@@ -199,15 +199,7 @@ export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
 (PDFium is a lazy 4.6 MB asset fetched on first text edit; Tesseract's worker, core and English
 model are lazy assets fetched only when a scanned page needs recognition; `signature_pad` + the
 bundled Caveat faces ride the 33 kB lazy signature-pad dialog chunk).
-**Next: finish M6.1 — publish the frontend on Cloudflare Pages and run the §33.4 gate against
-`https://pdfshush.space`** (§33.11). The deployment shape changed on 2026-11-13: the frontend
-ships on Cloudflare Pages (free, no card) and the **server tier is parked**, so accounts,
-workflow recipes, the REST API and the MCP server's backend are switched off in the build rather
-than offered and left to fail. **M6.3's global budget breaker** is still the one M6 item that
-protects the free tier and can start before the gate runs. P7 is closed except for P7.1's remaining
-edge fixtures (10k-page, broken fonts, linearized) and the containerised gates; P7.2 SEO prerender and
-P7.3 perf/a11y were absorbed by M5.5/M5.6. R2 stays
-deferred until R1 is proven in production, and P4.4 triggers stay gated on the SSRF/scheduling design.
+**Next: S9 evidence close** — run the Docker-backed `test:api`/`test:hardening` gates and settle the one recorded corpus gap (linearized PDF). **M6.1 and M6.2 are shipped**: `https://pdfshush.space` is live on Cloudflare Workers + Static Assets, and the policy surface (`/privacy`, `/terms`, `/about`, `/contact`, `/status`) is prerendered and indexed. The **server tier is parked**, so accounts, workflow recipes, the REST API and the MCP backend are switched off in the build rather than offered and left to fail. M6.3–M6.6 (catalog, entitlements, global breaker, Stripe, pricing, ads) require that tier and a set of owner decisions; they are not open-ended development while it stays parked. P7.2 SEO prerender and P7.3 perf/a11y were absorbed by M5.5/M5.6. R2 stays deferred until R1 has a dedicated production proof and its own security gate; P4.4 triggers stay gated on the SSRF/scheduling design. If the server tier stays parked, **development is complete after S9**.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
 rooted-tree silent-loop pair (§8, 2026-10-18 entry), gated by typecheck, a fresh production build, the
 881-test unit run and targeted browser inspection, not a new measurement of the E2E counts above.
@@ -8416,3 +8408,26 @@ main / 0 engines; provenance and guardrails clean.
 
 **S8 is closed.** Next is S9: run the Docker-backed API/hardening gates and settle
 the one recorded corpus gap (linearized PDF).
+
+### 44.2 S9 evidence close (2026-11-24)
+
+Docker Desktop was started for this pass (engine 29.8.2). The full local stack
+built and ran:
+
+- `pnpm stack:up` → redis + api + worker healthy.
+- `pnpm test:api` → **ALL CHECKS PASSED**, 21 checks; §6 skipped because accounts
+  are disabled without `PSH_SMOKE_MONGODB_URI`.
+- Recreated api/worker with `FILE_TTL_MS=20000` and `JANITOR_INTERVAL_MS=5000`,
+  reset Redis, then `pnpm test:hardening` → **GATE PASSED**: SIGKILLed a worker
+  mid-job (exit 137), the API stayed up, the queue settled, the janitor removed
+  expired files, quota held, and a new job completed after recovery.
+
+The only remaining P7.1 exception is the **linearized PDF** fixture: this
+environment has no qpdf or Ghostscript, and the corpus refuses to ship a fake
+`/Linearized` dictionary that readers would treat as corrupt. It is recorded in
+`tests/support/corpus.mjs` `CORPUS_GAPS` as a deliberate, dated gap, not a
+silently unrun test.
+
+The privacy page also gained an explicit “Who we are” section and was redeployed
+as Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`. Production `reach` remains green
+on all five information routes.

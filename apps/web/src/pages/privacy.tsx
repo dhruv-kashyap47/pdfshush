@@ -10,6 +10,21 @@ export function PrivacyPage() {
       summary="pdfshush is built so the ordinary PDF tools work without an upload. This page explains the narrow cases where something can leave your browser, what is stored locally, and how to remove it."
       updated="24 November 2026"
     >
+      <InfoSection id="who" title="Who we are">
+        <p>
+          pdfshush is an independent, open-source project. It is not a hosted account service on
+          this deployment, and there is no company sign-up behind the tools. The contact for privacy
+          and legal questions is{' '}
+          <a
+            className="font-medium text-foreground underline underline-offset-4"
+            href={`mailto:${CONTACT_EMAIL}`}
+          >
+            {CONTACT_EMAIL}
+          </a>
+          .
+        </p>
+      </InfoSection>
+
       <InfoSection id="short-version" title="The short version">
         <p>
           The client-side tools run inside this tab. Your PDF or image is read by a worker in the

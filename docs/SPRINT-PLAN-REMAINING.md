@@ -9,9 +9,16 @@
 ## 0. Verified state (2026-11-24)
 
 **Sprint 8 is complete.** The five policy routes are live on
-`https://pdfshush.space` (Worker `0d763fc6-75f5-4f4c-b819-ce46182a3591`), with
+`https://pdfshush.space` (Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`), with
 68 prerendered routes / 60 sitemap URLs. Production `reach`, `smoke`, `a11y`,
-`offline` and `sign` all pass. Continue with Sprint 9.
+`offline` and `sign` all pass.
+
+**Sprint 9 is complete with one documented exception.** Docker 29.8.2 ran the
+local stack: `test:api` ALL CHECKS PASSED (21 checks), `test:hardening` GATE
+PASSED (SIGKILL, janitor, quota, recovery). The linearized-PDF fixture remains
+an explicit `CORPUS_GAPS` exception because no honest generator is installed.
+
+Next is Sprint 10: the owner decision gate.
 
 | Item | State |
 | --- | --- |
@@ -22,7 +29,7 @@
 | Cloudflare Wrangler | authenticated as `7468dhruv@gmail.com` (account `c50c0cc04ad6e0bfea4db65b2b615b69`) |
 | reaTask | **63/63 cards `[x]`**; Gate D met for the documented scope |
 | `PLAN.md` P7 | only recorded corpus gap is a linearized fixture; container gates depend on Docker |
-| Docker daemon | **unavailable in this session**, so `test:api` / `test:hardening` still cannot run |
+| Docker daemon | **available**; engine 29.8.2. `test:api` 21 checks + §6 skip; `test:hardening` GATE PASSED on 2026-11-24 |
 
 ## 1. Actual remaining work
 
@@ -84,7 +91,7 @@ footer has no dead legal link; production smoke/reach green.
 
 ---
 
-## Sprint 9 — EVIDENCE CLOSE (P0/P1, 1–2 days)
+## Sprint 9 — EVIDENCE CLOSE (P0/P1, 1–2 days) — ✅ DONE 2026-11-24
 
 **Goal:** close the remaining unclaimed hardening evidence.
 
@@ -98,6 +105,11 @@ footer has no dead legal link; production smoke/reach green.
 
 **Exit gate:** no “unrun” hardening gate is claimed; P7.1 is either closed or has
 one dated, explicit exception.
+
+**Evidence:** `pnpm test:api` → ALL CHECKS PASSED (21; §6 skipped without Mongo
+accounts). `pnpm test:hardening` → GATE PASSED with `FILE_TTL_MS=20000` and
+`JANITOR_INTERVAL_MS=5000` after a real SIGKILL. The linearized fixture remains
+the one dated exception in `tests/support/corpus.mjs`.
 
 ---
 
