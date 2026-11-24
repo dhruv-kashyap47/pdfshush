@@ -18,7 +18,9 @@ local stack: `test:api` ALL CHECKS PASSED (21 checks), `test:hardening` GATE
 PASSED (SIGKILL, janitor, quota, recovery). The linearized-PDF fixture remains
 an explicit `CORPUS_GAPS` exception because no honest generator is installed.
 
-Next is Sprint 10: the owner decision gate.
+**Sprint 10 is decided: ship static.** The server tier stays parked; M6.3–M6.6,
+ads, R2, P4.4 and vector signatures are future decisions, not unfinished launch
+work. **Tracked development is complete.**
 
 | Item | State |
 | --- | --- |
@@ -113,21 +115,22 @@ the one dated exception in `tests/support/corpus.mjs`.
 
 ---
 
-## Sprint 10 — DECISION GATE (owner, ~half a day)
+## Sprint 10 — DECISION GATE (owner, ~half a day) — ✅ DECIDED 2026-11-24
 
-**Goal:** stop open-ended work; choose the next track.
+**Decision: ship static now.** The server tier stays parked. M6.3–M6.6 are
+deliberately deferred; no pricing page and no ad surface ship. R2, P4.4 and
+vector signatures remain separate future gates.
 
-| Decision | Options |
+| Decision | Result |
 | --- | --- |
-| Server tier (M6.1b) | fund/find a persistent free host, or keep it parked |
-| Stripe / AGPL | create the Stripe test account and decide CLA/dual-licence before billing code |
-| Ads (M6.6) | yes with CMP + two CSP profiles, or decline |
-| R2 | go/no-go after the R1 production proof; R2 gets its own security sprint |
-| P4.4 | keep gated or write the SSRF/scheduling design first |
+| Server tier (M6.1b) | stays parked |
+| Stripe / AGPL | not needed while there is no paid tier |
+| Ads (M6.6) | not shipping |
+| R2 | future gate after a dedicated R1 production proof |
+| P4.4 | stays gated on the SSRF/scheduling design |
 
-If the server tier stays parked, **development is complete after Sprint 9** and
-Sprints 11–12 stay closed. Do not advertise a paid feature the deployment cannot
-enforce.
+**Sprints 11–13 are not scheduled under this decision.** They reopen only if the
+owner reverses the server-tier or ads/R2 decisions.
 
 ---
 

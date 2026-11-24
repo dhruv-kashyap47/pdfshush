@@ -8431,3 +8431,23 @@ silently unrun test.
 The privacy page also gained an explicit “Who we are” section and was redeployed
 as Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`. Production `reach` remains green
 on all five information routes.
+
+### 44.3 S10 owner decision — ship static (2026-11-24)
+
+The owner chose **ship static now**. Consequences, recorded so they are not
+quietly reopened:
+
+- The **server tier stays parked** (M6.1b). No API/worker/Redis/Mongo deployment.
+- **M6.3–M6.6 are deliberately deferred**, not “in progress”: plan catalog,
+  entitlements, usage ledger, global budget breaker, Stripe, `/pricing` and ads.
+  They cannot be sold or enforced without the server tier.
+- **No pricing page and no ad surface** ship in this release.
+- **R2** native redaction, **P4.4** triggers and **vector signatures** remain
+  separate future gates; R2 needs its own R1 production proof and security gate.
+- Physical iOS/Android and Playwright WebKit’s missing `OffscreenCanvas` remain
+  recorded verification limits, not launch blockers.
+
+With that decision, **the tracked development is complete**: 63/63 reaTask cards,
+M6.1/M6.2 live, P7.1 met with one dated linearized-fixture exception, and the
+container gates green. The remaining items are optional future product decisions,
+not unfinished launch work.
