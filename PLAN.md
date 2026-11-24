@@ -43,7 +43,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 356 unit tests, responsive sweep clean, phone/tablet editor checks green |
 | **Deploy recovery** | Stale hashed CSS/JS can no longer strand an open tab: empty stylesheet/SPA-fallback detection, one guarded fresh-shell reload, hard-reset reload, service-worker navigation cache bypass, critical fallback CSS | ? **done 2026-11-05** - see section 34.7; stale-build E2E 8/8 |
-| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 frontend is LIVE** — `https://pdfshush.space` on Cloudflare Workers + Static Assets (2026-11-23); production smoke, sign and editor-rail green. **M6.2 is incomplete**: `/privacy`, `/terms`, `/about`, `/contact`, `/status` are not real routes and the footer still marks them “soon”. M6.3–M6.6 are not started and require the server tier, which stays **parked** (§33.11) |
+| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 + M6.2 are done** — `https://pdfshush.space` is live on Cloudflare Workers + Static Assets, and the launch surface now has real `/privacy`, `/terms`, `/about`, `/contact` and `/status` routes (deployed 2026-11-24, Worker `0d763fc6-75f5-4f4c-b819-ce46182a3591`; 68 prerendered routes, 60 sitemap URLs; production smoke/reach/a11y/offline/sign green). **M6.3–M6.6 are not started** and require the server tier, which stays **parked** (§33.11) |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
@@ -8392,3 +8392,27 @@ parked. R2 still needs a dedicated R1 production proof and its own security gate
 the hardening evidence, S10 is the owner decision gate, and S11–S13 are
 monetization/R2 only if those decisions say go. If the server tier stays parked,
 development is complete after S9.
+
+### 44.1 Launch surface shipped (2026-11-24)
+
+The five missing routes are now real pages, not SPA fallbacks:
+
+| Route | Rendered content | Sitemap |
+| --- | --- | --- |
+| `/privacy` | plain-English policy: local processing, AI egress, local storage, hosting metadata, contact | yes |
+| `/terms` | free/open-source terms, no warranty, AGPL, consumer-rights carve-out | yes |
+| `/about` | why the project exists, how the shared engine works, honest limits | yes |
+| `/contact` | `foundersoffice@proton.me`, GitHub issues, private security advisory | yes |
+| `/status` | static status note; server tier explicitly not deployed | yes |
+
+The footer and mobile menu link to them; the prerenderer now emits **68 routes,
+60 in the sitemap**. Deployed as Worker version
+`0d763fc6-75f5-4f4c-b819-ce46182a3591`. Production verification after the
+deploy: `reach` all checks passed (including the five new indexable-page checks),
+`smoke` **ALL CHECKS PASSED**, `a11y` clean on every route and interactive
+context, `offline` green, `sign` 18/18. Unit suite: pdf-core 707 + 1 expected
+fail, web 325, api 243, mcp 19, agent 152, provider 375; `test:bundle` 150.0 kB
+main / 0 engines; provenance and guardrails clean.
+
+**S8 is closed.** Next is S9: run the Docker-backed API/hardening gates and settle
+the one recorded corpus gap (linearized PDF).

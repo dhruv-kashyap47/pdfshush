@@ -8,6 +8,11 @@
 
 ## 0. Verified state (2026-11-24)
 
+**Sprint 8 is complete.** The five policy routes are live on
+`https://pdfshush.space` (Worker `0d763fc6-75f5-4f4c-b819-ce46182a3591`), with
+68 prerendered routes / 60 sitemap URLs. Production `reach`, `smoke`, `a11y`,
+`offline` and `sign` all pass. Continue with Sprint 9.
+
 | Item | State |
 | --- | --- |
 | `origin/main` / `origin/rea-uplift` | `a8b0cf4`, identical |
@@ -62,7 +67,7 @@ AI, API volume and priority queue are server features.
 
 ---
 
-## Sprint 8 — LAUNCH SURFACE (P0, 1–2 days)
+## Sprint 8 — LAUNCH SURFACE (P0, 1–2 days) — ✅ DONE 2026-11-24
 
 **Goal:** the live site has a complete, truthful public surface.
 
