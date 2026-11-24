@@ -31,6 +31,21 @@ const TrustPage = lazy(() =>
 const VerifyPage = lazy(() =>
   import('@/pages/verify').then((module) => ({ default: module.VerifyPage })),
 );
+const AboutPage = lazy(() =>
+  import('@/pages/about').then((module) => ({ default: module.AboutPage })),
+);
+const ContactPage = lazy(() =>
+  import('@/pages/contact').then((module) => ({ default: module.ContactPage })),
+);
+const PrivacyPage = lazy(() =>
+  import('@/pages/privacy').then((module) => ({ default: module.PrivacyPage })),
+);
+const StatusPage = lazy(() =>
+  import('@/pages/status').then((module) => ({ default: module.StatusPage })),
+);
+const TermsPage = lazy(() =>
+  import('@/pages/terms').then((module) => ({ default: module.TermsPage })),
+);
 
 function ToolPageFallback() {
   return (
@@ -157,6 +172,46 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageFallback />}>
             <VerifyPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'about',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <AboutPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'contact',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <ContactPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'privacy',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <PrivacyPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'status',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <StatusPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'terms',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <TermsPage />
           </Suspense>
         ),
       },

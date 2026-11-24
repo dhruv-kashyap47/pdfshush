@@ -54,6 +54,13 @@ const ROUTES = [
   '/tools/deskew',
   '/tools/ocr-pdf',
   '/workflows',
+  '/trust',
+  '/verify',
+  '/privacy',
+  '/terms',
+  '/about',
+  '/contact',
+  '/status',
 ];
 
 let failures = 0;

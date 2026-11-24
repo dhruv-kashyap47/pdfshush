@@ -115,11 +115,11 @@ const STYLE = `
 `.trim();
 
 function header(): string {
-  return `<header class="pre-header"><a class="pre-brand" href="/">pdfshush</a><nav class="pre-nav" aria-label="Primary"><a href="/#all-tools">All tools</a><a href="/workflows">Workflows</a><a href="/trust">Privacy</a><a href="/verify">Verify a redaction</a></nav></header>`;
+  return `<header class="pre-header"><a class="pre-brand" href="/">pdfshush</a><nav class="pre-nav" aria-label="Primary"><a href="/#all-tools">All tools</a><a href="/workflows">Workflows</a><a href="/trust">Privacy</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/verify">Verify a redaction</a></nav></header>`;
 }
 
 function footer(): string {
-  return `<footer class="pre-footer"><a href="/">Home</a><a href="/trust">How privacy is proven</a><a href="/verify">Redaction verifier</a><a href="/workflows">Workflows</a><p>pdfshush runs in your browser. Files are not uploaded to a server.</p></footer>`;
+  return `<footer class="pre-footer"><a href="/">Home</a><a href="/trust">How privacy is proven</a><a href="/privacy">Privacy policy</a><a href="/terms">Terms</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/status">Status</a><a href="/verify">Redaction verifier</a><a href="/workflows">Workflows</a><p>pdfshush runs in your browser. Files are not uploaded to a server.</p></footer>`;
 }
 
 function relatedTools(tool: ToolEntry, tools: ToolEntry[]): ToolEntry[] {
@@ -390,6 +390,71 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
             'Verify a redacted PDF',
             'The verifier the Redact tool trusts, exposed for any file.',
             'It reports what it can and cannot decide: with no marked regions it says the marks were not checked, and it never upgrades a vacuous pass. The receipt has no timestamp, so the same bytes produce the same text.',
+          ),
+          image: '/og/home.png',
+          indexable: true,
+        },
+        {
+          route: '/privacy',
+          title: 'Privacy policy | pdfshush',
+          description:
+            'pdfshush runs PDF tools in your browser. What stays on your device, the narrow cases where data can leave it, and how to remove local history, drafts and signatures.',
+          html: simplePage(
+            'Privacy policy',
+            'Your files stay on your device.',
+            'The ordinary tools run in the browser with no upload. AI features send only what you ask about, only to the provider you configure. Local history, drafts and signatures can be cleared in your browser. This deployment has no server tier.',
+          ),
+          image: '/og/home.png',
+          indexable: true,
+        },
+        {
+          route: '/terms',
+          title: 'Terms of use | pdfshush',
+          description:
+            'The plain-language terms for using pdfshush: free, open source, provided as-is, with your documents staying yours.',
+          html: simplePage(
+            'Terms of use',
+            'Free, open source, and provided as-is.',
+            'You keep ownership of your documents. The software is provided without warranties; mandatory consumer rights are not limited. The AGPL-3.0-or-later licence governs copying, modification and redistribution.',
+          ),
+          image: '/og/home.png',
+          indexable: true,
+        },
+        {
+          route: '/about',
+          title: 'About pdfshush - private PDF tools',
+          description:
+            'Why pdfshush exists: ordinary PDF tasks should not require uploading the document. An independent, open-source workspace with 51 live client-side tools.',
+          html: simplePage(
+            'About pdfshush',
+            'PDF tools without the upload.',
+            'An independent, open-source PDF workspace. The browser does the work; the catalog is honest about the seven tools it declined; the server tier is parked rather than offered and left to fail.',
+          ),
+          image: '/og/home.png',
+          indexable: true,
+        },
+        {
+          route: '/contact',
+          title: 'Contact pdfshush',
+          description:
+            'Email foundersoffice@proton.me, open a GitHub issue for a reproducible bug, or use the private security advisory form.',
+          html: simplePage(
+            'Contact pdfshush',
+            'Email is the reliable route; GitHub is best for a reproducible bug.',
+            'Write to foundersoffice@proton.me. Do not attach a real document to a public issue; a small synthetic PDF is enough. Security reports go through the private advisory form.',
+          ),
+          image: '/og/home.png',
+          indexable: true,
+        },
+        {
+          route: '/status',
+          title: 'Service status | pdfshush',
+          description:
+            'The static app and all 51 client-side tools are operational. Accounts, workflows, the REST API and MCP are not deployed on this origin.',
+          html: simplePage(
+            'Service status',
+            'The static app and its client tools are operational.',
+            'This is a static status note, not a live monitoring dashboard. The server-backed surfaces are intentionally off; /api/* answers a JSON 404. The trust page and verifier let you check the privacy and redaction claims yourself.',
           ),
           image: '/og/home.png',
           indexable: true,

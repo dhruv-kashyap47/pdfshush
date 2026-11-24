@@ -1091,3 +1091,22 @@ Numbers must come from scripts, not PLAN.md prose. Re-run before quoting.
 | 2026-11-23 | **Bug-fix session.** A blank or vector-only page (`textLayer: 'none'`, no image) was described as "Document text objects and fonts" because the copy fell through to the native branch. `page-capability-copy.ts` now says "No text layer on this page" in the Document panel, paragraph status and detection-details label, with a regression test. The fixture determinism check also caught that `updateMetadata: false` belongs on `PDFDocument.create()`, not `save()`; fixtures are now timestamp-free across second boundaries. The rail E2E launches bundled Chromium under CI instead of requiring an Edge channel, and the registry header comment no longer claims the deleted capability metadata still exists. Re-ran typecheck, unit, guardrails, build/bundle/provenance, smoke, text-ux, editor-parity, editor-rail, keyboard, a11y and offline against the production preview. |
 | 2026-11-23 | **Production deploy.** Built the timestamp-stable corpus and the no-text-layer copy, deployed Worker version `2cf0f359-ff67-41fb-8a56-929a8b8dfa70` to `https://pdfshush.space`, and verified the root/tool/canonical/sitemap/robots/API fence plus `smoke` (ALL CHECKS PASSED), `offline` (privacy/CSP/service worker) and `editor-rail` (19 tools, 5 workspaces) against production. |
 | 2026-11-23 | **Main sync + redeploy.** Merged `origin/main` (new hero and social-proof work, adding the `motion` dependency) into the uplift branch, installed, and re-ran typecheck, full unit, guardrails, corpus, fuzz, build/bundle/provenance, a11y and offline. Fast-forwarded local and remote `main`, then deployed Worker version `aff540a7-6a77-4501-bc9d-df693503c6b8`; the production build currently serves service-worker id `941f8513ca57` (later main uploads re-version the same assets). Production `smoke` passed with the new hero, `offline` stayed green, and `editor-rail` passed all 19 tools across 5 workspaces. |
+| 2026-11-24 | **Pre-flight audit: 63/63, production live.** Fast-forwarded local `rea-uplift` from `e644d6d` to `origin/main` (`a8b0cf4`); `test:merge-clean` has no conflicts. Re-ran production `smoke` (**ALL CHECKS PASSED**) and `sign` (**18/18**, including “the manage page saves a signature”) against `https://pdfshush.space`; the production-only sign defect no longer reproduces. Wrangler is authenticated and all 22 Cloudflare skills are installed. Remaining launch gap: M6.2 policy routes (`/privacy`, `/terms`, `/about`, `/contact`, `/status`) are still SPA fallbacks and the footer says “soon”. Remaining hardening gap: linearized corpus fixture and the Docker-only `test:api`/`test:hardening` gates. M6.3–M6.6 and R2 remain decision-gated. Plan: `docs/SPRINT-PLAN-REMAINING.md`. |
+
+---
+
+## 14. Remaining sprint plan (2026-11-24, post-deploy)
+
+The live deploy changed the plan: **there are no engine/editor cards left.** The
+short plan is in `docs/SPRINT-PLAN-REMAINING.md` and `PLAN.md` §44.
+
+| Sprint | Scope | Gate |
+| --- | --- | --- |
+| **S8 — Launch surface** | real privacy/terms/about/contact/status routes, footer links, prerender/sitemap, deploy, production reach/smoke | all five routes live; no dead legal links |
+| **S9 — Evidence close** | Docker `test:api`/`test:hardening`, linearized fixture decision, live reach/offline/a11y/keyboard | no unclaimed hardening gate |
+| **S10 — Decision gate** | server tier (M6.1b), Stripe/AGPL, ads, R2, P4.4 | go/no-go recorded |
+| **S11 — Server tier + breaker** | only if S10 says go: deploy API/worker/Redis/Mongo, re-enable server shape, global budget breaker | server smoke §6 + breaker load test |
+| **S12 — Catalog/Stripe/pricing** | plans.ts, entitlements, usage ledger, Stripe test mode, `/pricing` | billing parity + Stripe round-trip |
+| **S13 — Optional** | ads/CMP, R2, P4.4, physical mobile | only as decided; R2 has its own security gate |
+
+If the server tier stays parked, **development is complete after S9.**

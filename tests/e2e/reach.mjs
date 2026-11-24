@@ -52,6 +52,28 @@ const robots = await text('/robots.txt');
 check('robots.txt points at the sitemap', robots.body.includes(`Sitemap: ${origin}/sitemap.xml`));
 check('robots.txt keeps /account out', robots.body.includes('Disallow: /account'));
 
+/* The public information pages are part of the launch surface. A crawler must
+   get a real document, not the SPA shell, and the sitemap must list each one. */
+for (const route of ['/privacy', '/terms', '/about', '/contact', '/status']) {
+  const page = await text(route);
+  const title = first(page.body, /<title>([^<]+)<\/title>/);
+  const canonical = first(page.body, /<link rel="canonical" href="([^"]+)"/);
+  const description = first(page.body, /<meta name="description" content="([^"]+)"/);
+  const h1 = first(page.body, /<h1[^>]*>([^<]+)<\/h1>/);
+  const robotsMeta = first(page.body, /<meta name="robots" content="([^"]+)"/);
+  const visible = rootText(page.body);
+  const inSitemap = sitemapUrls.includes(`${origin}${route}`);
+  check(
+    `${route} is a real indexable page`,
+    page.status === 200 &&
+      Boolean(title && canonical && description && h1) &&
+      visible.length > 200 &&
+      robotsMeta?.includes('index') === true &&
+      inSitemap,
+    `${title ?? 'no title'}, ${h1 ?? 'no h1'}${inSitemap ? '' : ', missing from sitemap'}`,
+  );
+}
+
 /* Discover routes from the registry through the sitemap and the home page. */
 const toolLinks = [...home.body.matchAll(/href="\/tools\/([a-z0-9-]+)"/g)].map(
   (match) => match[1],

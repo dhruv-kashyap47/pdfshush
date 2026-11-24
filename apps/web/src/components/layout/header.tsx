@@ -413,12 +413,21 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
           </div>
         ))}
 
-        <div className="flex gap-3 border-t border-border/70 pt-4 text-sm">
+        <div className="flex flex-wrap gap-3 border-t border-border/70 pt-4 text-sm">
           <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/trust')}>
             Trust &amp; privacy
           </button>
           <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/verify')}>
             Verify a redaction
+          </button>
+          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/about')}>
+            About
+          </button>
+          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/contact')}>
+            Contact
+          </button>
+          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/status')}>
+            Status
           </button>
         </div>
       </div>

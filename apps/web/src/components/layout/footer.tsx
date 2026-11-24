@@ -36,10 +36,10 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
   {
     title: 'Company',
     links: [
-      { label: 'About', soon: true },
+      { label: 'About', to: '/about' },
       { label: 'Blog', soon: true },
-      { label: 'Contact', soon: true },
-      { label: 'Status', soon: true },
+      { label: 'Contact', to: '/contact' },
+      { label: 'Status', to: '/status' },
     ],
   },
 ];
@@ -111,10 +111,12 @@ export function SiteFooter() {
         <div className="mt-12 flex flex-col gap-3 border-t border-border/60 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} pdfshush</p>
           <p className="flex items-center gap-4">
-            <Link to="/trust" className="transition-colors hover:text-foreground">
+            <Link to="/privacy" className="transition-colors hover:text-foreground">
               Privacy
             </Link>
-            <span>Terms (soon)</span>
+            <Link to="/terms" className="transition-colors hover:text-foreground">
+              Terms
+            </Link>
             <a
               href={SOURCE_URL}
               target="_blank"

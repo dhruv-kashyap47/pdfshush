@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-11-21
+**Last updated:** 2026-11-24
 
 ---
 
@@ -34,7 +34,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Security batch** | Real AES-256 Protect PDF (open/owner passwords + permission flags) and a Smart Compress pass that re-encodes safe embedded images while preserving text, links and forms | ✅ **shipped 2026-10-27** — see §8 first entry |
 | **Dark-mode batch** | Dark Mode PDF: three pixel-remap kinds (theme / smart hue-preserving / invert) over a live before/after wipe preview, ported from the MIT-licensed `chizkiyahu/pdf-dark-mode-converter` | ✅ **shipped 2026-10-28** — see §8 first entry |
 | **P7.0 — reconcile & cheap backlog** | L1/L2 CSRF, L4 bounded `options`, L5 result-type allowlist, L7 input-token reservation, L8 cross-instance AI lock, CI, doc counts | ✅ **done 2026-10-25** — see §8 top entry; L3/L9 verified already closed |
-| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | 🟡 **P7.2/P7.3 absorbed by M5.5/M5.6; P7.1 partial** — the Q4 corpus covers 0-byte, 1-page, 2 000-page, encrypted, scanned, truncated, non-PDF, non-ASCII and 200 MB, but 10k-page, broken-font and linearized fixtures are still missing (§4, §31.21) |
+| **P7 — Hardening** | Adversarial torture suite, SEO prerendering, perf/a11y pass | 🟡 **P7.2/P7.3 absorbed by M5.5/M5.6; P7.1 near-closed** — Q4 corpus covers 0-byte, 1-page, 2 000-page, encrypted, scanned, truncated, non-PDF, non-ASCII and 200 MB; broken-font/Type3/CFF coverage landed 2026-11-23. The only recorded gap is a **linearized** PDF (`CORPUS_GAPS`), and the containerised `test:api`/`test:hardening` gates need Docker (§9, §31.21) |
 | **Text editing Phase 1** | Serializable glyph→word→line→paragraph→block→region model, centralized geometry, hit testing, inline paragraph editing | ✅ **done 2026-10-31** — engine 339 tests, web 39; see §27 |
 | **Text editing Phase 2** | Native object editing ladder, content-stream fallback, font metrics/substitution, layout reflow, OCR-layer/scan capability, export + pixel verification | ✅ **done 2026-10-31** — engine 362 tests, web 39, both text E2Es; see §28 |
 | **Text editing Phase 2.5** | Adversarial reliability audit: corpus of awkward documents, verification hardening (no-op/deletion absence, consumed-font tolerance), failure-recovery/concurrency/memory gates | ✅ **done 2026-11-01** — 27 new engine tests, 4 defects fixed; see §28.10 |
@@ -43,7 +43,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 356 unit tests, responsive sweep clean, phone/tablet editor checks green |
 | **Deploy recovery** | Stale hashed CSS/JS can no longer strand an open tab: empty stylesheet/SPA-fallback detection, one guarded fresh-shell reload, hard-reset reload, service-worker navigation cache bypass, critical fallback CSS | ? **done 2026-11-05** - see section 34.7; stale-build E2E 8/8 |
-| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 frontend shipped to Cloudflare Pages 2026-11-13 (§33.11); the public gate has not run yet** — domain bought (`pdfshush.space`), build + Pages config committed, deploy pending. The server tier (API/worker/Redis/Mongo) is **parked** (§33.11), not deployed |
+| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 frontend is LIVE** — `https://pdfshush.space` on Cloudflare Workers + Static Assets (2026-11-23); production smoke, sign and editor-rail green. **M6.2 is incomplete**: `/privacy`, `/terms`, `/about`, `/contact`, `/status` are not real routes and the footer still marks them “soon”. M6.3–M6.6 are not started and require the server tier, which stays **parked** (§33.11) |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
@@ -8359,3 +8359,36 @@ Production verification: the new hero rendered (`Ask, edit, merge, redact.`), `s
 passed every check (89 mega-menu links, all tools, editor, redaction, no console
 errors), `offline` passed CSP/service-worker/zero-egress, and `editor-rail`
 passed all 19 tools across 5 workspaces.
+
+---
+
+## 44. Pre-flight audit — production is live, launch surface is not (2026-11-24)
+
+The 2026-11-23 deploy entries are correct: `https://pdfshush.space` is live on
+Cloudflare Workers + Static Assets (Worker `aff540a7-6a77-4501-bc9d-df693503c6b8`,
+service-worker build `941f8513ca57`). This session re-ran the public evidence
+rather than trusting the prose:
+
+- `E2E_BASE_URL=https://pdfshush.space pnpm test:e2e` → **ALL CHECKS PASSED**
+  (89 mega-menu links, all client tools, editor, redaction, no console errors).
+- `E2E_BASE_URL=https://pdfshush.space node tests/e2e/sign.mjs` → **18/18 green**,
+  including “the manage page saves a signature”. The previously reported
+  production-only defect is **fixed**; it is no longer a launch blocker.
+- `pnpm test:merge-clean` → no conflicts; local `rea-uplift` was 10 commits behind
+  and fast-forwarded to `origin/main` (`a8b0cf4`).
+- Cloudflare Wrangler is authenticated (account
+  `c50c0cc04ad6e0bfea4db65b2b615b69`), and the Cloudflare skills were installed.
+
+**What is actually left.** `reaTask.md` is 63/63 complete. The launch gap is
+M6.2: `/privacy`, `/terms`, `/about`, `/contact` and `/status` are not real
+routes — the SPA fallback answers them with the home shell and a 200 — and the
+footer still marks them “soon”. The remaining hardening gap is the linearized
+corpus fixture plus the containerised `test:api`/`test:hardening` gates (Docker
+was unavailable in this session). M6.3–M6.6 (catalog, entitlements, breaker,
+Stripe, pricing, ads) are not started and cannot ship while the server tier is
+parked. R2 still needs a dedicated R1 production proof and its own security gate.
+
+**Sprint plan:** `docs/SPRINT-PLAN-REMAINING.md`. S8 is the launch surface, S9 is
+the hardening evidence, S10 is the owner decision gate, and S11–S13 are
+monetization/R2 only if those decisions say go. If the server tier stays parked,
+development is complete after S9.
