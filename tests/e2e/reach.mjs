@@ -137,7 +137,7 @@ for (const slug of declined) {
   const route = `/tools/${slug}`;
   const page = await text(route);
   if (page.status !== 200) {
-    check(`${route} exists as an honest not-built page`, false, `HTTP ${page.status}`);
+    check(`${route} exists as an honest coming-soon page`, false, `HTTP ${page.status}`);
     continue;
   }
   const robotsMeta = first(page.body, /<meta name="robots" content="([^"]+)"/);

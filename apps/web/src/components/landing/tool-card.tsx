@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ComingSoonBadge, LiveBadge } from '@/components/tool-status';
 import type { ToolDef } from '@/tools/registry';
 
 interface ToolCardProps {
@@ -27,14 +28,8 @@ export function ToolCard({ tool, compact = false }: ToolCardProps) {
         <p className="text-[15px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
           {tool.name}
         </p>
-        {tool.status === 'declined' && (
-          <span className="mt-0.5 shrink-0 text-[11px] font-medium text-muted-foreground">not built</span>
-        )}
-        {tool.status === 'live' && (
-          <span className="mt-0.5 shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
-            live
-          </span>
-        )}
+        {tool.status === 'declined' && <ComingSoonBadge className="mt-0.5" />}
+        {tool.status === 'live' && <LiveBadge className="mt-0.5" />}
       </div>
       {!compact && (
         <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/80">

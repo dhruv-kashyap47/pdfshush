@@ -134,7 +134,7 @@ function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
   const related = relatedTools(tool, tools);
   const remote = REMOTE.has(tool.slug);
   const status = !tool.live
-    ? `<p class="pre-note"><strong>Not built.</strong> This page is not a promise with a date. It explains why the tool is missing and points at the closest thing that works today. The live catalog is on the <a href="/#all-tools">home page</a>.</p>`
+    ? `<p class="pre-note"><strong>Coming soon.</strong> This page is not a promise with a date. It explains what the tool will do, why it is not here yet, and points at the closest thing that works today. The live catalog is on the <a href="/#all-tools">home page</a>.</p>`
     : remote
       ? `<p class="pre-note">${escapeHtml(REMOTE_COPY[tool.slug]?.status ?? 'Server-run by design. The file is uploaded for the job and deleted on the API schedule.')}</p>`
       : `<p class="pre-note"><strong>Private by construction.</strong> The PDF is parsed inside this browser tab. Nothing is uploaded, and there is no account or quota for this tool.</p>`;
@@ -150,7 +150,7 @@ function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
 ${status}
 ${how}
 <h2>Limits, stated up front</h2>
-<p>${!tool.live ? 'This tool is not built, so it has no limits to state; the live alternatives below state theirs.' : remote ? 'Server-run surfaces have their own quota and retention window, stated on the page. A refusal names the reason and the next step.' : 'Up to 100 MB and 500 pages per file in this browser tab. A refusal names the reason and the next step, and the editor’s measured limits are listed inside the tool rather than hidden in documentation.'}</p>
+<p>${!tool.live ? 'This tool is coming soon, so it has no limits to state yet; the live alternatives below state theirs.' : remote ? 'Server-run surfaces have their own quota and retention window, stated on the page. A refusal names the reason and the next step.' : 'Up to 100 MB and 500 pages per file in this browser tab. A refusal names the reason and the next step, and the editor’s measured limits are listed inside the tool rather than hidden in documentation.'}</p>
 ${related.length > 0 ? `<h2>Related tools</h2><ul class="pre-list">${related.map((entry) => `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}<span>${escapeHtml(entry.description)}</span></a></li>`).join('')}</ul>` : ''}
 </main>${footer()}</div>`;
 }
@@ -228,7 +228,7 @@ function jsonLd(origin: string, route: string, tool?: ToolEntry): string {
           '@context': 'https://schema.org',
           '@type': 'WebPage',
           name: tool.name,
-          description: `${tool.name} is not built. This page explains why and points at the closest live alternative.`,
+          description: `${tool.name} is coming soon. This page explains why and points at the closest live alternative.`,
           url,
           isPartOf: { '@type': 'WebSite', name: 'pdfshush', url: origin },
         }
@@ -474,10 +474,10 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         },
         ...tools.map((tool) => ({
           route: `/tools/${tool.slug}`,
-          title: `${tool.name} - ${tool.live ? 'free and private' : 'not built'} | pdfshush`,
+          title: `${tool.name} - ${tool.live ? 'free and private' : 'coming soon'} | pdfshush`,
           description: tool.live
             ? `${tool.description} Runs in your browser; the file is not uploaded.`
-            : `${tool.name} is not built. This page explains why and points at the closest live alternative.`,
+            : `${tool.name} is coming soon. This page explains why and points at the closest live alternative.`,
           html: toolPage(tool, tools),
           image: `/og/${tool.slug}.png`,
           indexable: tool.live,

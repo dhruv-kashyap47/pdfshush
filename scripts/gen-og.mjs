@@ -98,7 +98,7 @@ function drawCard({ name, lead, category, live }) {
 
   ctx.fillStyle = live ? '#5eead4' : '#fbbf24';
   ctx.font = '600 24px "Segoe UI", Helvetica, Arial, sans-serif';
-  ctx.fillText(live ? 'Runs in your browser. Nothing is uploaded.' : 'Not built — the honest reason is on the page.', 78, 588);
+  ctx.fillText(live ? 'Runs in your browser. Nothing is uploaded.' : 'Coming soon — the honest reason is on the page.', 78, 588);
 
   return canvas.toBuffer('image/png');
 }

@@ -1,9 +1,9 @@
 /**
  * The parity-debt decisions (PLAN.md §31.5, M5.7).
  *
- * These seven URLs stay reachable, but the pages say **not built** and explain
- * the real blocker. They are not "in development": there is no date, no email
- * capture and no roadmap CTA. Each names the closest live path instead. When a
+ * These seven URLs stay reachable, but the pages say **coming soon** and explain
+ * the real blocker. They are not an indefinite "in development": there is no
+ * date and no email capture. Each names the closest live path instead. When a
  * tool ships, its entry moves to `LIVE` in the registry and this record loses a
  * row; the test next to this file fails if a non-live tool has no reason.
  */

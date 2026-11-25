@@ -18,8 +18,8 @@ export function AboutPage() {
           the canvas renders the page, and the result is written back on your device.
         </p>
         <p>
-          The catalog is deliberately honest. Fifty-one tools are live; seven entries are declined
-          with a public reason and a link to the closest live alternative. A tool page exists even
+          The catalog is deliberately honest. Fifty-one tools are live; seven are coming soon,
+          each with a public reason and a link to the closest live alternative. A tool page exists even
           when the tool does not, so a search result never lands on a fake button.
         </p>
       </InfoSection>

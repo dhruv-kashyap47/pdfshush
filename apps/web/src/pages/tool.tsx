@@ -223,7 +223,7 @@ function DeclinedNotice({ tool }: { tool: ToolDef }) {
           </span>
           <div className="flex-1">
             <h2 className="font-semibold">
-              {copy ? 'Not built — and here is exactly why' : 'Not built'}
+              {copy ? 'Coming soon — here is exactly why' : 'Coming soon'}
             </h2>
             {copy ? (
               <div className="mt-1 space-y-2 text-sm text-muted-foreground">
@@ -252,9 +252,9 @@ function DeclinedNotice({ tool }: { tool: ToolDef }) {
               </div>
             ) : (
               <p className="mt-1 text-sm text-muted-foreground">
-                <strong>{tool.name}</strong> is not built. This page keeps the URL honest instead of
-                showing an indefinite “coming soon”. The live tools below cover the closest working
-                paths.
+                <strong>{tool.name}</strong> is coming soon. Rather than post a date we cannot keep,
+                this page says exactly where it stands. The live tools below cover the closest
+                working paths.
               </p>
             )}
             <div className="mt-4 flex flex-wrap gap-2">

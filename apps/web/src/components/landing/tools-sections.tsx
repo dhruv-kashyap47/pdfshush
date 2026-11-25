@@ -97,7 +97,7 @@ export function AllToolsSection() {
             </h2>
             <p className="mt-2 max-w-2xl text-base text-foreground sm:text-lg">
               {ALL_TOOLS.length} tools, one steady catalog. Live tools run immediately;
-              roadmap tools keep stable links and specifications.
+              coming-soon tools keep stable links and a clear status.
             </p>
           </div>
 
