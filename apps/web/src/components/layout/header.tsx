@@ -3,14 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   ChevronDown,
-  Clock,
   LogOut,
   Search,
   User,
   X,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
-import { ComingSoonBadge } from '@/components/tool-status';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -30,15 +28,12 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { useAuth, useAuthRedirectNotice } from '@/hooks/use-auth';
-import { useRecent } from '@/hooks/use-recent';
 import {
   ALL_TOOLS,
   TOOL_CATEGORIES,
   getTool,
   type ToolDef,
 } from '@/tools/registry';
-import { timeAgo } from '@/lib/format';
-import type { RecentEntry } from '@/tools/recent';
 
 const QUICK_LINKS = ['merge-pdf', 'organize-pdf', 'compress-pdf', 'pdf-to-jpg'];
 
@@ -105,22 +100,6 @@ function filterTools(query: string): ToolDef[] {
       .toLowerCase();
     return parts.every((part) => haystack.includes(part));
   });
-}
-
-/**
- * History is stored per finished file, so the same tool can appear several
- * times. The strip is for jumping back to a tool: one chip per tool is enough.
- */
-function recentTools(recent: RecentEntry[], limit: number): RecentEntry[] {
-  const seen = new Set<string>();
-  const entries: RecentEntry[] = [];
-  for (const entry of recent) {
-    if (seen.has(entry.toolSlug)) continue;
-    seen.add(entry.toolSlug);
-    entries.push(entry);
-    if (entries.length === limit) break;
-  }
-  return entries;
 }
 
 /**
@@ -193,7 +172,6 @@ export function SiteHeader() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<number | null>(null);
   const location = useLocation();
-  const recent = useRecent();
   // Surfaces a failed sign-in once and strips the query, so a refresh does not
   // re-toast a message the user already read.
   useAuthRedirectNotice();
@@ -339,7 +317,7 @@ export function SiteHeader() {
             aria-label="All tools"
           >
             <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-              <MegaMenu recent={recent} onNavigate={closeMega} />
+              <MegaMenu onNavigate={closeMega} />
             </div>
           </div>
         )}
@@ -348,16 +326,14 @@ export function SiteHeader() {
   );
 }
 
-/** One catalog row: icon tile, name, one-line description and availability. */
+/** One catalog row: the tool's icon tile and its name. Nothing else. */
 function ToolRow({
   tool,
   onNavigate,
-  showCategory = false,
   touch = false,
 }: {
   tool: ToolDef;
   onNavigate: () => void;
-  showCategory?: boolean;
   touch?: boolean;
 }) {
   const Icon = tool.icon;
@@ -365,58 +341,41 @@ function ToolRow({
     <Link
       to={`/tools/${tool.slug}`}
       onClick={onNavigate}
-      title={tool.description}
-      className={`group flex w-full items-start gap-2.5 rounded-lg px-2 transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 ${
-        touch ? 'py-2.5' : 'py-1.5'
+      className={`group flex w-full items-center gap-2.5 rounded-lg px-2 transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 ${
+        touch ? 'py-2.5' : 'py-1'
       }`}
     >
       <span
         aria-hidden
         data-accent={tool.accent}
-        className={`tool-accent-tile mt-px flex shrink-0 items-center justify-center rounded-md ${
+        className={`tool-accent-tile flex shrink-0 items-center justify-center rounded-md ${
           touch ? 'h-8 w-8' : 'h-7 w-7'
         }`}
       >
         <Icon className="h-3.5 w-3.5" />
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <span
-            className={`truncate font-medium leading-5 text-foreground/85 transition-colors group-hover:text-foreground ${
-              touch ? 'text-sm' : 'text-[13px]'
-            }`}
-          >
-            {tool.name}
-          </span>
-          {tool.status === 'declined' && <ComingSoonBadge />}
-        </span>
-        <span className="mt-0.5 block truncate text-[11px] leading-4 text-muted-foreground/60">
-          {showCategory ? `${CATEGORY_LABELS[tool.category] ?? tool.category} · ` : null}
-          {tool.description}
-        </span>
+      <span
+        className={`min-w-0 flex-1 truncate font-medium leading-5 text-foreground/85 transition-colors group-hover:text-foreground ${
+          touch ? 'text-sm' : 'text-[13px]'
+        }`}
+      >
+        {tool.name}
       </span>
     </Link>
   );
 }
 
-function CategoryHeading({ label, count }: { label: string; count: number }) {
+function CategoryHeading({ label }: { label: string }) {
   return (
-    <div className="mb-1.5 flex items-baseline justify-between gap-2 border-b border-white/[0.05] pb-1.5">
+    <div className="mb-1 border-b border-white/[0.05] pb-1">
       <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/75">
         {label}
       </h3>
-      <span className="text-[10px] tabular-nums text-muted-foreground/40">{count}</span>
     </div>
   );
 }
 
-function MegaMenu({
-  recent,
-  onNavigate,
-}: {
-  recent: ReturnType<typeof useRecent>;
-  onNavigate: () => void;
-}) {
+function MegaMenu({ onNavigate }: { onNavigate: () => void }) {
   const [query, setQuery] = useState('');
   const results = useMemo(() => filterTools(query), [query]);
   const searching = query.trim().length > 0;
@@ -456,14 +415,14 @@ function MegaMenu({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
         {searching ? (
           <div>
-            <p role="status" className="mb-3 text-xs text-muted-foreground">
+            <p role="status" className="sr-only">
               {results.length} {results.length === 1 ? 'tool' : 'tools'} matching{' '}
               <span className="font-medium text-foreground">“{query.trim()}”</span>
             </p>
             {results.length > 0 ? (
               <div className="grid gap-x-6 sm:grid-cols-2 xl:grid-cols-3">
                 {results.map((tool) => (
-                  <ToolRow key={tool.slug} tool={tool} onNavigate={onNavigate} showCategory />
+                  <ToolRow key={tool.slug} tool={tool} onNavigate={onNavigate} />
                 ))}
               </div>
             ) : (
@@ -486,49 +445,17 @@ function MegaMenu({
           </div>
         ) : (
           <>
-            {recent.length > 0 ? (
-              <div className="mb-5">
-                <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
-                  Recently used
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {recentTools(recent, 5).map((entry) => {
-                    const def = getTool(entry.toolSlug);
-                    const EntryIcon = def?.icon ?? Clock;
-                    return (
-                      <Link
-                        key={entry.id}
-                        to={`/tools/${entry.toolSlug}`}
-                        onClick={onNavigate}
-                        data-accent={def?.accent}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.03] py-1 pl-2 pr-2.5 text-[11.5px] text-foreground/75 transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-foreground"
-                      >
-                        <EntryIcon
-                          aria-hidden
-                          className="tool-accent-text h-3 w-3 shrink-0"
-                        />
-                        <span className="max-w-[12rem] truncate">{entry.toolName}</span>
-                        <span className="shrink-0 text-[10px] text-muted-foreground/50">
-                          {timeAgo(entry.createdAt)}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-
             {/* Deliberate columns: each group stays together and the four
                 columns finish within a few rows of each other. */}
             <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
               {MEGA_COLUMNS.map((ids) => (
-                <div key={ids.join('-')} className="space-y-5">
+                <div key={ids.join('-')} className="space-y-4">
                   {ids.map((id) => {
                     const category = CATEGORY_BY_ID[id];
                     if (!category) return null;
                     return (
                       <section key={category.id}>
-                        <CategoryHeading label={category.label} count={category.tools.length} />
+                        <CategoryHeading label={category.label} />
                         <ul>
                           {category.tools.map((def) => (
                             <li key={def.slug}>
@@ -568,7 +495,6 @@ function MegaMenu({
 }
 
 function MobileToolList({ onClose }: { onClose: () => void }) {
-  const recent = useRecent();
   const navigate = useNavigate();
   const { account, loading, accountsEnabled, signIn, signOut } = useAuth();
   const [query, setQuery] = useState('');
@@ -640,7 +566,7 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
         <div className="space-y-6 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
           {searching ? (
             <div>
-              <p role="status" className="mb-2 text-xs text-muted-foreground">
+              <p role="status" className="sr-only">
                 {results.length} {results.length === 1 ? 'tool' : 'tools'} matching{' '}
                 <span className="font-medium text-foreground">“{query.trim()}”</span>
               </p>
@@ -648,7 +574,7 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
                 <ul className="space-y-0.5">
                   {results.map((tool) => (
                     <li key={tool.slug}>
-                      <ToolRow tool={tool} onNavigate={onClose} showCategory touch />
+                      <ToolRow tool={tool} onNavigate={onClose} touch />
                     </li>
                   ))}
                 </ul>
@@ -672,39 +598,6 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <>
-              {recent.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
-                    Recently used
-                  </p>
-                  <ul className="space-y-0.5">
-                    {recentTools(recent, 4).map((entry) => {
-                      const def = getTool(entry.toolSlug);
-                      const EntryIcon = def?.icon ?? Clock;
-                      return (
-                        <li key={entry.id}>
-                          <Link
-                            to={`/tools/${entry.toolSlug}`}
-                            onClick={onClose}
-                            data-accent={def?.accent}
-                            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 text-left text-sm transition-colors hover:bg-white/[0.05]"
-                          >
-                            <EntryIcon
-                              aria-hidden
-                              className="tool-accent-text h-4 w-4 shrink-0"
-                            />
-                            <span className="truncate">{entry.toolName}</span>
-                            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60">
-                              {timeAgo(entry.createdAt)}
-                            </span>
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-
               {TOOL_CATEGORIES.map((category) => (
                 <section
                   key={category.id}
@@ -712,7 +605,7 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
                   tabIndex={-1}
                   className="scroll-mt-3 outline-none"
                 >
-                  <CategoryHeading label={category.label} count={category.tools.length} />
+                  <CategoryHeading label={category.label} />
                   <ul className="space-y-0.5">
                     {category.tools.map((def) => (
                       <li key={def.slug}>
