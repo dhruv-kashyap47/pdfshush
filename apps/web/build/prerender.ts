@@ -19,6 +19,7 @@
 import { readFile, readdir, writeFile, mkdir, access } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plugin } from 'vite';
+import { faqsFor } from '../src/tools/tool-faqs.ts';
 
 export interface PrerenderOptions {
   rootDir: string;
@@ -107,6 +108,14 @@ const STYLE = `
 .pre-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:.75rem;padding:0;list-style:none;margin:1rem 0}
 .pre-list a{display:block;border:1px solid #292524;border-radius:.6rem;padding:.75rem .9rem;text-decoration:none;color:#f5f5f4;background:#1c1917}
 .pre-list span{display:block;color:#a8a29e;font-size:.85rem}
+.pre-faq{margin-top:2.5rem;border-top:1px solid #292524;padding-top:1.25rem;max-width:52rem}
+.pre-faq h2{font-size:1.15rem;margin:0}
+.pre-faq-lead{color:#a8a29e;font-size:.85rem;margin:.35rem 0 1rem}
+.pre-faq details{border-top:1px solid #292524;padding:.65rem 0}
+.pre-faq details:last-child{border-bottom:1px solid #292524}
+.pre-faq summary{cursor:pointer;color:#f5f5f4}
+.pre-faq summary h3{display:inline;font-size:.95rem;margin:0;font-weight:600}
+.pre-faq details p{color:#a8a29e;font-size:.92rem;margin:.4rem 0 0;max-width:46rem}
 .pre-footer{border-top:1px solid #292524;padding-top:1.25rem;font-size:.85rem;color:#a8a29e}
 .pre-footer a{color:#5eead4;text-decoration:none;margin-right:1rem}
 .pre-boot{min-height:100vh;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.375rem;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:inherit}
@@ -128,6 +137,42 @@ function relatedTools(tool: ToolEntry, tools: ToolEntry[]): ToolEntry[] {
     .slice(0, 3)
     .concat(tools.filter((entry) => entry.live && entry.slug !== tool.slug && entry.category !== tool.category))
     .slice(0, 4);
+}
+
+/**
+ * The FAQ reaches a crawler without JavaScript. The React section replaces it
+ * on mount, but the bytes on the wire already contain the questions, the
+ * answers and the FAQPage schema.
+ */
+function faqBlock(tool: ToolEntry): string {
+  const items = faqsFor(tool.slug);
+  if (!tool.live || items.length === 0) return '';
+  return `<section class="pre-faq" id="faq" aria-labelledby="faq-${tool.slug}">
+<h2 id="faq-${tool.slug}">Frequently asked questions</h2>
+<p class="pre-faq-lead">About ${escapeHtml(tool.name)}.</p>
+${items
+  .map(
+    (item) =>
+      `<details><summary><h3>${escapeHtml(item.question)}</h3></summary><p>${escapeHtml(item.answer)}</p></details>`,
+  )
+  .join('\n')}
+</section>`;
+}
+
+function faqJsonLd(origin: string, tool: ToolEntry): string {
+  const items = faqsFor(tool.slug);
+  if (!tool.live || items.length === 0) return '';
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    '@id': `${origin}/tools/${tool.slug}#faq`,
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+    })),
+  };
+  return `<script type="application/ld+json" data-tool-faq-schema="true">${JSON.stringify(schema)}</script>`;
 }
 
 function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
@@ -152,6 +197,7 @@ ${how}
 <h2>Limits, stated up front</h2>
 <p>${!tool.live ? 'This tool is coming soon, so it has no limits to state yet; the live alternatives below state theirs.' : remote ? 'Server-run surfaces have their own quota and retention window, stated on the page. A refusal names the reason and the next step.' : 'Up to 100 MB and 500 pages per file in this browser tab. A refusal names the reason and the next step, and the editor’s measured limits are listed inside the tool rather than hidden in documentation.'}</p>
 ${related.length > 0 ? `<h2>Related tools</h2><ul class="pre-list">${related.map((entry) => `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}<span>${escapeHtml(entry.description)}</span></a></li>`).join('')}</ul>` : ''}
+${faqBlock(tool)}
 </main>${footer()}</div>`;
 }
 
@@ -500,7 +546,9 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           origin,
           image: entry.image,
           indexable: entry.indexable && !NOT_INDEXABLE.has(entry.route),
-          jsonLd: jsonLd(origin, entry.route, entry.tool),
+          jsonLd: [jsonLd(origin, entry.route, entry.tool), entry.tool ? faqJsonLd(origin, entry.tool) : '']
+            .filter(Boolean)
+            .join('\n    '),
         }).replace(
           '<div id="root"></div>',
           `<div id="root">${staticBody}</div>`,

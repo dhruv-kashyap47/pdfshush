@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Zap } from 'lucide-react';
 import { TOOL_CATEGORIES, type ToolDef } from '@/tools/registry';
 import { ToolSlugContext } from '@/tools/tool-context';
+import { ToolFaq } from '@/components/tools/tool-faq';
 import { mark } from '@/lib/marks';
 import { limitNoteFor } from '@/lib/tool-limits';
 import { cn } from '@/lib/utils';
@@ -137,6 +138,8 @@ export function ToolFrame({
           </div>
         </div>
       )}
+
+      <ToolFaq slug={tool.slug} toolName={tool.name} studio={studio} />
     </div>
   );
 }
