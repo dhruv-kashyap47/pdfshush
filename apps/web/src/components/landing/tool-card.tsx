@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ComingSoonBadge, LiveBadge } from '@/components/tool-status';
+import { AvailabilityMark } from '@/components/tool-status';
 import type { ToolDef } from '@/tools/registry';
 
 interface ToolCardProps {
@@ -8,34 +8,48 @@ interface ToolCardProps {
 }
 
 /**
- * A typographic catalog card: the name and the one-line description carry
- * the card; no pictorial element tops it. Availability is a plain word on the
- * right. Hover is a tone step, not a lift-off glow or an outline.
+ * Catalog entry, built like an integration directory row rather than a landing
+ * page tile: a small tinted glyph for recognition, the tool name, a quiet
+ * description in the reading colour, and a compact status box at the foot.
  *
- * The hairline is drawn with an inset ring rather than a border: a border
- * would add two pixels to the box, and the card's geometry (padding, the
- * gap between rows, the type sizes, the radius, the availability mark) is
- * the one thing that must never move.
+ * The tinted glyph is the tool's permanent accent; the border picks the same
+ * accent up on hover. Nothing glows, nothing lifts more than a hair, and the
+ * card is a flat surface separated by tone and a single hairline. That is the
+ * whole ornament budget.
  */
 export function ToolCard({ tool, compact = false }: ToolCardProps) {
+  const Icon = tool.icon;
   return (
     <Link
       to={`/tools/${tool.slug}`}
-      className="tool-card group flex flex-col justify-between gap-3 rounded-xl bg-secondary p-4 transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-accent"
+      data-accent={tool.accent}
+      className="tool-card group flex h-full flex-col gap-3 rounded-xl p-4"
       title={tool.description}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[15px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary">
-          {tool.name}
-        </p>
-        {tool.status === 'declined' && <ComingSoonBadge className="mt-0.5" />}
-        {tool.status === 'live' && <LiveBadge className="mt-0.5" />}
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden
+          className="tool-card-icon flex size-7 shrink-0 items-center justify-center rounded-[7px]"
+        >
+          <Icon className="size-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="tool-card-title text-sm font-semibold leading-5 tracking-[-0.01em] text-foreground">
+            {tool.name}
+          </p>
+          {compact ? <AvailabilityMark status={tool.status} className="mt-1.5" /> : null}
+          {!compact ? (
+            <p className="mt-1.5 line-clamp-3 text-[13px] leading-[1.5] text-muted-foreground">
+              {tool.description}
+            </p>
+          ) : null}
+        </div>
       </div>
-      {!compact && (
-        <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/80">
-          {tool.description}
-        </p>
-      )}
+      {!compact ? (
+        <div className="mt-auto pl-10">
+          <AvailabilityMark status={tool.status} />
+        </div>
+      ) : null}
     </Link>
   );
 }

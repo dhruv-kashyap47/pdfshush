@@ -111,10 +111,11 @@ export function ResultPanel({
             <Link
               key={def.slug}
               to={`/tools/${def.slug}`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium transition-colors hover:border-primary hover:text-primary"
+              data-accent={def.accent}
+              className="tool-chip inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium transition-colors"
               data-testid={`next-chip-${def.slug}`}
             >
-              <def.icon className="h-3.5 w-3.5" />
+              <def.icon className="tool-chip-icon h-3.5 w-3.5" />
               {def.name}
             </Link>
           ))}

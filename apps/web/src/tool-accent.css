@@ -1,0 +1,157 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOOL COLOUR IDENTITY
+
+   One accent per catalog entry, declared once here and referenced everywhere:
+   the mega menu, the catalog cards, the tool page heading, the tool icon, the
+   dropzone, primary buttons, progress and the success panel. Components set
+   `data-accent="<name>"` and, when they contain ordinary shadcn controls, the
+   `tool-scope` class. Nothing else needs to know the palette.
+
+   The site is dark-only, so every hue is a bright *-400 step of the same closed
+   palette used elsewhere. Its near-black ink keeps solid buttons legible. No
+   gradients, no glows: identity comes from one flat hue used consistently.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-accent] {
+  --tool-accent: var(--primary);
+}
+
+[data-accent='red'] {
+  --tool-accent: oklch(0.704 0.191 22.216);
+}
+[data-accent='orange'] {
+  --tool-accent: oklch(0.75 0.183 55.934);
+}
+[data-accent='amber'] {
+  --tool-accent: oklch(0.828 0.189 84.429);
+}
+[data-accent='lime'] {
+  --tool-accent: oklch(0.841 0.238 128.85);
+}
+[data-accent='green'] {
+  --tool-accent: oklch(0.792 0.209 151.711);
+}
+[data-accent='teal'] {
+  --tool-accent: oklch(0.777 0.152 181.912);
+}
+[data-accent='cyan'] {
+  --tool-accent: oklch(0.789 0.154 211.53);
+}
+[data-accent='sky'] {
+  --tool-accent: oklch(0.746 0.16 232.661);
+}
+[data-accent='blue'] {
+  --tool-accent: oklch(0.707 0.165 254.624);
+}
+[data-accent='indigo'] {
+  --tool-accent: oklch(0.673 0.182 276.935);
+}
+[data-accent='violet'] {
+  --tool-accent: oklch(0.702 0.183 293.541);
+}
+[data-accent='fuchsia'] {
+  --tool-accent: oklch(0.74 0.238 322.16);
+}
+[data-accent='pink'] {
+  --tool-accent: oklch(0.718 0.202 349.761);
+}
+[data-accent='rose'] {
+  --tool-accent: oklch(0.712 0.194 13.428);
+}
+
+/*
+ * Scoped to a tool surface. shadcn primitives already read `--primary` and
+ * `--ring`, so every default button, progress bar, focus ring, dropzone and
+ * result panel picks up the tool hue without per-component overrides.
+ */
+.tool-scope {
+  --primary: var(--tool-accent);
+  --primary-foreground: oklch(0.09 0 0);
+  --ring: var(--tool-accent);
+}
+
+/* Tinted icon tile: mega-menu rows, tool headers, list rows. */
+.tool-accent-tile {
+  color: var(--tool-accent);
+  background-color: color-mix(in oklab, var(--tool-accent) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tool-accent) 24%, transparent);
+}
+
+.tool-accent-text {
+  color: var(--tool-accent);
+}
+
+/*
+ * The tool page heading keeps the site's white ink as its base and mixes in a
+ * controlled amount of the tool hue: identifiable at a glance, still a
+ * heading rather than a coloured banner.
+ */
+.tool-frame-title {
+  color: color-mix(in oklab, var(--tool-accent) 62%, var(--foreground));
+}
+
+/*
+ * Catalog cards.
+ *
+ * A flat surface, one hairline, one tinted glyph. The glyph carries the tool's
+ * colour at rest; the hairline takes it on hover and the surface steps up one
+ * tone. No gradient, no resting shadow, no coloured title — the accent stays
+ * an identifier, not decoration.
+ */
+.tool-card {
+  border: 1px solid oklch(1 0 0 / 7%);
+  background-color: oklch(0.165 0 0);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.tool-card:hover {
+  background-color: oklch(0.185 0 0);
+  border-color: color-mix(in oklab, var(--tool-accent) 30%, oklch(1 0 0 / 9%));
+  transform: translateY(-1px);
+}
+
+.tool-card:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--tool-accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.tool-card-icon {
+  color: var(--tool-accent);
+  background-color: color-mix(in oklab, var(--tool-accent) 12%, oklch(1 0 0 / 4%));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tool-accent) 22%, transparent);
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.tool-card:hover .tool-card-icon {
+  background-color: color-mix(in oklab, var(--tool-accent) 18%, oklch(1 0 0 / 5%));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tool-accent) 34%, transparent);
+}
+
+/* Cross-sell chips on the success panel carry their own tool's colour. */
+.tool-chip {
+  border-color: color-mix(in oklab, var(--tool-accent) 24%, var(--border));
+}
+
+.tool-chip:hover {
+  border-color: var(--tool-accent);
+  color: var(--tool-accent);
+}
+
+.tool-chip-icon {
+  color: var(--tool-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-card {
+    transition: none;
+  }
+  .tool-card:hover {
+    transform: none;
+  }
+}

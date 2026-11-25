@@ -8,6 +8,7 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
+import type { Accent } from '@/tools/accents';
 import {
   ArrowRightLeft,
   Bookmark,
@@ -67,11 +68,11 @@ export interface ToolDef {
   category: string;
   status: ToolStatus;
   icon: LucideIcon;
-  /** Accent color key used by tool cards (theme palette). */
+  /** Permanent identity colour; see tools/accents.ts and tool-accent.css. */
   accent: Accent;
 }
 
-export type Accent = 'green' | 'blue' | 'amber' | 'rose' | 'violet' | 'cyan' | 'orange';
+export type { Accent } from '@/tools/accents';
 
 export interface ToolCategory {
   id: string;
@@ -240,19 +241,19 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     id: 'merge',
     label: 'Merge',
     tools: [
-      tool('alternate-mix', 'Alternate & Mix', 'Interleave pages from two PDFs into one document.', 'merge', ArrowRightLeft, 'violet'),
-      tool('merge-pdf', 'Merge PDF files', 'Combine multiple PDFs into a single document, in any order.', 'merge', Merge, 'green'),
-      tool('organize-pdf', 'Organize pages', 'Reorder, duplicate and delete pages with drag and drop.', 'merge', LayoutGrid, 'green'),
+      tool('alternate-mix', 'Alternate & Mix', 'Interleave pages from two PDFs into one document.', 'merge', ArrowRightLeft, 'fuchsia'),
+      tool('merge-pdf', 'Merge PDF files', 'Combine multiple PDFs into a single document, in any order.', 'merge', Merge, 'red'),
+      tool('organize-pdf', 'Organize pages', 'Reorder, duplicate and delete pages with drag and drop.', 'merge', LayoutGrid, 'orange'),
     ],
   },
   {
     id: 'split',
     label: 'Split',
     tools: [
-      tool('extract-pages', 'Extract Pages', 'Pull specific pages out into a brand-new PDF.', 'split', FileOutput, 'blue'),
+      tool('extract-pages', 'Extract Pages', 'Pull specific pages out into a brand-new PDF.', 'split', FileOutput, 'sky'),
       tool('split-by-pages', 'Split by pages', 'Break a PDF into fixed-size chunks (every 1, 5, 10 pages).', 'split', Scissors, 'blue'),
-      tool('split-by-bookmarks', 'Split by bookmarks', 'Use the document outline to cut it into chapters.', 'split', Bookmark, 'blue'),
-      tool('split-in-half', 'Split in half', 'Cut every page down the middle into two documents.', 'split', Columns2, 'cyan'),
+      tool('split-by-bookmarks', 'Split by bookmarks', 'Use the document outline to cut it into chapters.', 'split', Bookmark, 'indigo'),
+      tool('split-in-half', 'Split in half', 'Cut every page down the middle into two documents.', 'split', Columns2, 'teal'),
       tool('split-by-size', 'Split by size', 'Split into parts under a target file size.', 'split', Gauge, 'cyan'),
       tool('split-by-text', 'Split by text', 'Break the document where matching text appears.', 'split', Type, 'violet'),
     ],
@@ -263,7 +264,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     tools: [
       tool('edit-pdf', 'Edit PDF', 'Add text, images, shapes and annotations directly on the page.', 'edit-sign', PenTool, 'green'),
       tool('fill-sign', 'Fill & Sign', 'Fill forms and sign documents with a drawn or typed signature.', 'edit-sign', Signature, 'amber'),
-      tool('create-forms', 'Create Forms', 'Turn any PDF into a fillable form with text fields and checkboxes.', 'edit-sign', Highlighter, 'amber'),
+      tool('create-forms', 'Create Forms', 'Turn any PDF into a fillable form with text fields and checkboxes.', 'edit-sign', Highlighter, 'lime'),
       tool('delete-pages', 'Delete Pages', 'Remove pages you do not need: drag to select and remove.', 'edit-sign', Trash2, 'rose'),
     ],
   },
@@ -280,8 +281,8 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     tools: [
       tool('redact-pdf', 'Redact PDF', 'Permanently destroy content so pages are rebuilt without it.', 'security', Eraser, 'rose'),
   tool('protect-pdf', 'Protect PDF', 'Encrypt with a password so only the holder can open it.', 'security', Lock, 'blue'),
-      tool('unlock-pdf', 'Unlock PDF', 'Remove a password from a PDF you own.', 'security', Unlock, 'blue'),
-      tool('watermark', 'Watermark', 'Stamp text or an image over every page, tiled or centered.', 'security', Droplets, 'cyan'),
+      tool('unlock-pdf', 'Unlock PDF', 'Remove a password from a PDF you own.', 'security', Unlock, 'cyan'),
+      tool('watermark', 'Watermark', 'Stamp text or an image over every page, tiled or centered.', 'security', Droplets, 'teal'),
       tool('flatten-pdf', 'Flatten PDF', 'Fuse form fields and annotations into static page content.', 'security', Eraser, 'violet'),
     ],
   },
@@ -301,7 +302,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     label: 'Convert to PDF',
     tools: [
       tool('jpg-to-pdf', 'JPG to PDF', 'Bundle photos and scans into a single PDF.', 'convert-to', FileImage, 'amber'),
-      tool('word-to-pdf', 'Word to PDF', 'Convert .docx files to PDF.', 'convert-to', FileText, 'blue'),
+      tool('word-to-pdf', 'Word to PDF', 'Convert .docx files to PDF.', 'convert-to', FileText, 'indigo'),
       tool('html-to-pdf', 'HTML to PDF', 'Render any web page into a print-perfect PDF.', 'convert-to', FileCode, 'orange'),
     ],
   },
@@ -311,29 +312,29 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     tools: [
       tool('summarize-pdf', 'Summarize PDF', 'Get a grounded summary with page citations, using your own AI key.', 'ai', Sparkles, 'violet'),
       tool('chat-with-pdf', 'Chat with PDF', 'Ask questions and get answers cited from the pages. Your key stays in your browser.', 'ai', MessageSquare, 'cyan'),
-      tool('edit-pdf-with-ai', 'Edit PDF with AI', 'Describe changes in natural language, then review and apply.', 'ai', Wand2, 'green'),
+      tool('edit-pdf-with-ai', 'Edit PDF with AI', 'Describe changes in natural language, then review and apply.', 'ai', Wand2, 'fuchsia'),
     ],
   },
   {
     id: 'other',
     label: 'Other',
     tools: [
-      tool('bates-numbering', 'Bates Numbering', 'Sequential legal page numbering across a whole set.', 'other', Hash, 'violet'),
-      tool('create-bookmarks', 'Create Bookmarks', 'Generate an outline from page content automatically.', 'other', Bookmark, 'blue'),
+      tool('bates-numbering', 'Bates Numbering', 'Sequential legal page numbering across a whole set.', 'other', Hash, 'indigo'),
+      tool('create-bookmarks', 'Create Bookmarks', 'Generate an outline from page content automatically.', 'other', Bookmark, 'teal'),
       tool('crop-pdf', 'Crop PDF', 'Trim margins or crop to a custom region on every page.', 'other', Crop, 'green'),
       tool('dark-mode-pdf', 'Dark Mode PDF', 'Rewrite light pages for night reading with themes, not a raw negative.', 'other', Moon, 'violet'),
-      tool('edit-metadata', 'Edit Metadata', 'Change title, author, subject and keywords.', 'other', Wrench, 'cyan'),
+      tool('edit-metadata', 'Edit Metadata', 'Change title, author, subject and keywords.', 'other', Wrench, 'sky'),
       tool('extract-images', 'Extract Images', 'Pull every embedded image out of a PDF.', 'other', Files, 'amber'),
-      tool('flip-pdf', 'Flip PDF', 'Mirror pages horizontally or vertically.', 'other', FlipHorizontal, 'violet'),
+      tool('flip-pdf', 'Flip PDF', 'Mirror pages horizontally or vertically.', 'other', FlipHorizontal, 'pink'),
       tool('grayscale-pdf', 'Grayscale PDF', 'Convert color pages to clean black and white.', 'other', Contrast, 'rose'),
       tool('header-footer', 'Header & Footer', 'Add repeating headers and footers with page numbers.', 'other', Printer, 'blue'),
       tool('n-up', 'N-up', 'Arrange 2, 4 or 8 pages onto one sheet for printing.', 'other', Rows2, 'cyan'),
       tool('page-numbers', 'Page Numbers', 'Insert page numbers anywhere on the page.', 'other', Hash, 'green'),
-      tool('rename-pdf', 'Rename PDF', 'Batch-rename files from metadata or a pattern.', 'other', Type, 'amber'),
-      tool('repair-pdf', 'Repair PDF', 'Rebuild a damaged PDF into a readable file.', 'other', RefreshCw, 'rose'),
+      tool('rename-pdf', 'Rename PDF', 'Batch-rename files from metadata or a pattern.', 'other', Type, 'lime'),
+      tool('repair-pdf', 'Repair PDF', 'Rebuild a damaged PDF into a readable file.', 'other', RefreshCw, 'red'),
       tool('resize-pdf', 'Resize PDF', 'Scale pages to A4, Letter or a custom size.', 'other', Ruler, 'blue'),
       tool('rotate-pdf', 'Rotate PDF', 'Rotate pages 90° and keep the rotation saved.', 'other', RotateCw, 'green'),
-      tool('remove-annotations', 'Remove Annotations', 'Strip comments, highlights and ink in one pass.', 'other', Eraser, 'violet'),
+      tool('remove-annotations', 'Remove Annotations', 'Strip comments, highlights and ink in one pass.', 'other', Eraser, 'rose'),
     ],
   },
   {
@@ -341,7 +342,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     label: 'Scans',
     tools: [
       tool('deskew', 'Deskew', 'Straighten crooked scans so text lines up with the page.', 'scans', RotateCcw, 'orange'),
-      tool('ocr-pdf', 'OCR', 'Add a searchable, selectable text layer to scanned pages, in the browser.', 'scans', ScanText, 'green'),
+      tool('ocr-pdf', 'OCR', 'Add a searchable, selectable text layer to scanned pages, in the browser.', 'scans', ScanText, 'teal'),
     ],
   },
   {
@@ -352,7 +353,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       tool('batch-run', 'Batch run', 'Apply one operation to a whole folder of PDFs.', 'automate', Sparkles, 'amber'),
       tool('api', 'REST API', 'Call every tool from your own code with a public API key.', 'automate', Link2, 'blue'),
       tool('mcp', 'MCP server', 'Drive pdfshush from any AI agent over the Model Context Protocol.', 'automate', Wand2, 'cyan'),
-      tool('sign-workflow', 'Sign & route', 'Collect signatures in order, then file the finished document.', 'automate', Mail, 'rose'),
+      tool('sign-workflow', 'Sign & route', 'Collect signatures in order, then file the finished document.', 'automate', Mail, 'pink'),
       tool('convert-batch', 'Batch convert', 'Convert many files at once with shared settings.', 'automate', Combine, 'green'),
     ],
   },
@@ -362,7 +363,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     tools: [
       tool('image-editor', 'Image Editor', 'Crop, rotate and filter images before they become a PDF.', 'editors', Image, 'amber'),
       tool('signature', 'Signature', 'Create a signature and download it as PNG, JPG or PDF.', 'editors', Signature, 'green'),
-      tool('stamp', 'Stamp', 'Apply APPROVED / DRAFT stamps across pages.', 'editors', Stamp, 'rose'),
+      tool('stamp', 'Stamp', 'Apply APPROVED / DRAFT stamps across pages.', 'editors', Stamp, 'red'),
       tool('combine-pdf', 'Combine files', 'Merge PDFs with images and Office files in between.', 'editors', Combine, 'blue'),
     ],
   },

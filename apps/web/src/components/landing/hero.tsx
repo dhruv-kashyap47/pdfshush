@@ -34,6 +34,7 @@ import { formatBytes } from '@/lib/format';
 import { staggerUI } from '@/lib/motion';
 import { useMotionScope } from '@/hooks/use-motion';
 import { McpShowcaseButton } from '@/components/landing/mcp-dialog';
+import { getTool } from '@/tools/registry';
 import './hero.css';
 
 /* Every link below is a live route. The rail is the catalogue's shortlist, not
@@ -482,7 +483,12 @@ export function HeroSection() {
                 {HERO_TOOLS.map((tool) => {
                   const Icon = tool.icon;
                   return (
-                    <Link key={tool.slug} to={`/tools/${tool.slug}`} className="hero-tool">
+                    <Link
+                      key={tool.slug}
+                      to={`/tools/${tool.slug}`}
+                      data-accent={getTool(tool.slug)?.accent}
+                      className="hero-tool"
+                    >
                       <span className="hero-tool-icon">
                         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>

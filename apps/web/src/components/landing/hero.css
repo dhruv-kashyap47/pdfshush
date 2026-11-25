@@ -704,14 +704,14 @@
 }
 
 .hero-tool:hover {
-  border-color: oklch(1 0 0 / 10%);
-  background: oklch(1 0 0 / 3.5%);
+  border-color: color-mix(in oklab, var(--tool-accent) 28%, transparent);
+  background: color-mix(in oklab, var(--tool-accent) 5%, transparent);
   transform: translateY(-1px);
 }
 
 .hero-tool:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px oklch(0.7 0.17 152 / 45%);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--tool-accent) 45%, transparent);
 }
 
 .hero-tool-icon {
@@ -721,8 +721,8 @@
   height: 1.55rem;
   flex: none;
   border-radius: 0.4rem;
-  background: oklch(1 0 0 / 5%);
-  color: oklch(0.9 0 0 / 78%);
+  background: color-mix(in oklab, var(--tool-accent) 11%, transparent);
+  color: color-mix(in oklab, var(--tool-accent) 78%, white);
   transition:
     background-color 160ms ease,
     color 160ms ease,
@@ -730,9 +730,9 @@
 }
 
 .hero-tool:hover .hero-tool-icon {
-  background: oklch(0.7 0.17 152 / 12%);
-  color: oklch(0.86 0.1 152);
-  box-shadow: 0 0 18px -8px oklch(0.7 0.17 152 / 60%);
+  background: color-mix(in oklab, var(--tool-accent) 20%, transparent);
+  color: var(--tool-accent);
+  box-shadow: 0 0 18px -8px color-mix(in oklab, var(--tool-accent) 60%, transparent);
 }
 
 .hero-tool-icon svg {

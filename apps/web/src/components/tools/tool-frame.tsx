@@ -70,8 +70,10 @@ export function ToolFrame({
 
   return (
     <div
+      data-accent={tool.accent}
+      data-tool={tool.slug}
       className={cn(
-        'mx-auto px-3 sm:px-6 lg:px-10',
+        'tool-scope mx-auto px-3 sm:px-6 lg:px-10',
         studio
           ? 'max-w-[86rem] pb-8 pt-3 sm:pb-10 sm:pt-5'
           : wide
@@ -92,16 +94,18 @@ export function ToolFrame({
         <ChevronRight className={studio ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
         <span>{categoryLabel}</span>
         <ChevronRight className={studio ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-        <span className={studio ? 'text-foreground/80' : 'text-foreground'}>{tool.name}</span>
+        <span className={studio ? 'text-foreground/80' : 'tool-accent-text'}>{tool.name}</span>
       </nav>
 
       {!studio ? (
         <div className="mb-6 flex items-start gap-3">
-          <span className="tool-frame-icon mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <span className="tool-accent-tile mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
             <Icon className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{tool.name}</h1>
+            <h1 className="tool-frame-title text-2xl font-bold tracking-tight sm:text-3xl">
+              {tool.name}
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">{tool.description}</p>
           </div>
         </div>

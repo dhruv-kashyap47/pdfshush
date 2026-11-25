@@ -7,6 +7,7 @@ import { installBuildRecovery } from './lib/build-recovery';
 import { mark, observeFirstInteraction } from './lib/marks';
 import { registerServiceWorker } from './lib/service-worker';
 import './index.css';
+import './tool-accent.css';
 
 installBuildRecovery();
 

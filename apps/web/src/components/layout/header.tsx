@@ -5,7 +5,6 @@ import {
   ChevronDown,
   Clock,
   LogOut,
-  Menu,
   Search,
   User,
   X,
@@ -25,6 +24,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -35,17 +35,26 @@ import {
   ALL_TOOLS,
   TOOL_CATEGORIES,
   getTool,
-  type Accent,
   type ToolDef,
 } from '@/tools/registry';
 import { timeAgo } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import type { RecentEntry } from '@/tools/recent';
 
 const QUICK_LINKS = ['merge-pdf', 'organize-pdf', 'compress-pdf', 'pdf-to-jpg'];
 
-const LIVE_COUNT = ALL_TOOLS.filter((tool) => tool.status === 'live').length;
-const SOON_COUNT = ALL_TOOLS.length - LIVE_COUNT;
+/** Compact labels for the mobile category rail; the full names are in the sections. */
+const MOBILE_CATEGORY_LABELS: Record<string, string> = {
+  'convert-from': 'From PDF',
+  'convert-to': 'To PDF',
+};
+
+const MOBILE_FOOTER_LINKS = [
+  { label: 'Trust & privacy', path: '/trust' },
+  { label: 'Verify a redaction', path: '/verify' },
+  { label: 'About', path: '/about' },
+  { label: 'Contact', path: '/contact' },
+  { label: 'Status', path: '/status' },
+];
 
 /**
  * Category names are needed inside a flat search result, where the column
@@ -57,18 +66,10 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
 
 /**
  * Each tool keeps its own icon tile tone, so a returning visitor can navigate
- * by shape and colour instead of re-reading 58 rows. Tones stay low-saturation
- * against the black panel: recognition, not decoration.
+ * by shape and colour instead of re-reading 58 rows. The palette lives in
+ * `tool-accent.css`; this file only supplies the `data-accent` key, so the menu
+ * and the tool page can never drift apart.
  */
-const ACCENT_TILE: Record<Accent, string> = {
-  green: 'bg-emerald-500/10 text-emerald-300 ring-emerald-400/20',
-  blue: 'bg-blue-500/10 text-blue-300 ring-blue-400/20',
-  amber: 'bg-amber-500/10 text-amber-300 ring-amber-400/20',
-  rose: 'bg-rose-500/10 text-rose-300 ring-rose-400/20',
-  violet: 'bg-violet-500/10 text-violet-300 ring-violet-400/20',
-  cyan: 'bg-cyan-500/10 text-cyan-300 ring-cyan-400/20',
-  orange: 'bg-orange-500/10 text-orange-300 ring-orange-400/20',
-};
 
 /**
  * The four mega-menu columns are composed on purpose, not auto-balanced:
@@ -267,6 +268,7 @@ export function SiteHeader() {
                 key={slug}
                 to={`/tools/${def.slug}`}
                 data-nav-link
+                data-accent={def.accent}
                 aria-current={active ? 'page' : undefined}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   active
@@ -274,7 +276,7 @@ export function SiteHeader() {
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="tool-accent-text h-4 w-4" />
                 {def.name}
               </Link>
             );
@@ -285,19 +287,44 @@ export function SiteHeader() {
           <AccountControl />
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open tools menu">
-                <Menu className="h-5 w-5" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 lg:hidden"
+                aria-label="Open all tools"
+              >
+                All Tools
+                <ChevronDown className="h-4 w-4" aria-hidden />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-full max-w-sm sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>
-                  <Logo />
+            <SheetContent
+              side="right"
+              className="w-full max-w-full gap-0 border-l-0 p-0 sm:max-w-md"
+              onOpenAutoFocus={(event) => {
+                // A phone menu should open on the catalog, not on the software
+                // keyboard. Focus the title instead, so the dialog is announced.
+                if (window.matchMedia('(pointer: coarse)').matches) {
+                  event.preventDefault();
+                  document.getElementById('mobile-tools-title')?.focus();
+                }
+              }}
+            >
+              <SheetHeader className="border-b border-border/60 px-4 py-3 pr-14">
+                <SheetTitle
+                  id="mobile-tools-title"
+                  tabIndex={-1}
+                  className="flex items-baseline gap-2 text-[15px] font-semibold outline-none"
+                >
+                  All Tools
+                  <span className="text-[11px] font-normal tabular-nums text-muted-foreground">
+                    {ALL_TOOLS.length}
+                  </span>
                 </SheetTitle>
+                <SheetDescription className="sr-only">
+                  Search, browse and open any PDF tool.
+                </SheetDescription>
               </SheetHeader>
-              <MobileToolList
-                onClose={() => setMobileOpen(false)}
-              />
+              <MobileToolList onClose={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
         </div>
@@ -326,10 +353,12 @@ function ToolRow({
   tool,
   onNavigate,
   showCategory = false,
+  touch = false,
 }: {
   tool: ToolDef;
   onNavigate: () => void;
   showCategory?: boolean;
+  touch?: boolean;
 }) {
   const Icon = tool.icon;
   return (
@@ -337,20 +366,26 @@ function ToolRow({
       to={`/tools/${tool.slug}`}
       onClick={onNavigate}
       title={tool.description}
-      className="group flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+      className={`group flex w-full items-start gap-2.5 rounded-lg px-2 transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 ${
+        touch ? 'py-2.5' : 'py-1.5'
+      }`}
     >
       <span
         aria-hidden
-        className={cn(
-          'mt-px flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset',
-          ACCENT_TILE[tool.accent],
-        )}
+        data-accent={tool.accent}
+        className={`tool-accent-tile mt-px flex shrink-0 items-center justify-center rounded-md ${
+          touch ? 'h-8 w-8' : 'h-7 w-7'
+        }`}
       >
         <Icon className="h-3.5 w-3.5" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-[13px] font-medium leading-5 text-foreground/85 transition-colors group-hover:text-foreground">
+          <span
+            className={`truncate font-medium leading-5 text-foreground/85 transition-colors group-hover:text-foreground ${
+              touch ? 'text-sm' : 'text-[13px]'
+            }`}
+          >
             {tool.name}
           </span>
           {tool.status === 'declined' && <ComingSoonBadge />}
@@ -389,7 +424,7 @@ function MegaMenu({
   return (
     <div className="flex max-h-[calc(100svh-6rem)] flex-col">
       {/* Search sits above the scroll area, so it never scrolls away mid-scan. */}
-      <div className="flex shrink-0 flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="shrink-0 pb-4">
         <div className="relative w-full sm:max-w-sm">
           <Search
             aria-hidden
@@ -414,19 +449,6 @@ function MegaMenu({
             >
               <X className="h-3.5 w-3.5" />
             </button>
-          ) : null}
-        </div>
-
-        <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            {LIVE_COUNT} available now
-          </span>
-          {SOON_COUNT > 0 ? (
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              {SOON_COUNT} coming soon
-            </span>
           ) : null}
         </div>
       </div>
@@ -478,11 +500,12 @@ function MegaMenu({
                         key={entry.id}
                         to={`/tools/${entry.toolSlug}`}
                         onClick={onNavigate}
+                        data-accent={def?.accent}
                         className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.03] py-1 pl-2 pr-2.5 text-[11.5px] text-foreground/75 transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] hover:text-foreground"
                       >
                         <EntryIcon
                           aria-hidden
-                          className="h-3 w-3 shrink-0 text-muted-foreground"
+                          className="tool-accent-text h-3 w-3 shrink-0"
                         />
                         <span className="max-w-[12rem] truncate">{entry.toolName}</span>
                         <span className="shrink-0 text-[10px] text-muted-foreground/50">
@@ -556,67 +579,19 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
     navigate(path);
   };
 
-  // One list, not two. A "live now" chip cloud above the full catalog repeated
-  // every tool already reachable one screen lower, which read as clutter rather
-  // than as a shortcut — so availability is marked in place instead.
-  return (
-    <ScrollArea className="-mr-4 h-[calc(100svh-8rem)] pr-4">
-      <div className="space-y-6 px-4 pb-8">
-        <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Checking your account…</p>
-          ) : account ? (
-            <div className="space-y-1">
-              <p className="truncate text-sm font-medium">
-                {account.name ?? account.email ?? 'Your account'}
-              </p>
-              {account.email && account.name ? (
-                <p className="truncate text-xs text-muted-foreground">{account.email}</p>
-              ) : null}
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <Button type="button" variant="outline" size="sm" onClick={() => go('/account')}>
-                  Account
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => go('/workflows')}>
-                  Workflows
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    onClose();
-                    void signOut();
-                  }}
-                >
-                  Sign out
-                </Button>
-              </div>
-            </div>
-          ) : !accountsEnabled ? (
-            <p className="text-xs text-muted-foreground">
-              Accounts are not enabled on this deployment. Every client-side tool still works.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Accounts are optional: every client-side tool works signed out.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  onClose();
-                  signIn();
-                }}
-              >
-                Sign in with Google
-              </Button>
-            </div>
-          )}
-        </div>
+  /** The rail moves the sheet's own scroller, not the page behind the dialog. */
+  const jumpToCategory = (id: string) => {
+    const section = document.getElementById(`mobile-category-${id}`);
+    if (!section) return;
+    section.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
-        <div className="sticky top-0 z-10 -mx-1 border-b border-white/[0.06] bg-background/95 px-1 py-2 backdrop-blur">
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Fixed above the list: search and category jumps never scroll away. */}
+      <div className="shrink-0 border-b border-border/60 pb-3">
+        <div className="px-4 pt-3">
           <div className="relative">
             <Search
               aria-hidden
@@ -630,14 +605,14 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
               aria-label="Search the tool catalog"
               autoComplete="off"
               spellCheck={false}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-9 pr-9 text-sm text-foreground outline-none transition-[border-color,background-color,box-shadow] placeholder:text-muted-foreground/70 focus:border-primary/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-primary/20"
+              className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-9 pr-10 text-base text-foreground outline-none transition-[border-color,background-color,box-shadow] placeholder:text-muted-foreground/70 focus:border-primary/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-primary/20 sm:text-sm"
             />
             {query ? (
               <button
                 type="button"
                 onClick={() => setQuery('')}
                 aria-label="Clear tool search"
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -645,105 +620,193 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        {searching ? (
-          <div>
-            <p className="mb-2 text-xs text-muted-foreground">
-              {results.length} {results.length === 1 ? 'tool' : 'tools'} matching{' '}
-              <span className="font-medium text-foreground">“{query.trim()}”</span>
-            </p>
-            {results.length > 0 ? (
-              <ul className="space-y-0.5">
-                {results.map((tool) => (
-                  <li key={tool.slug}>
-                    <ToolRow tool={tool} onNavigate={onClose} showCategory />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-8 text-center">
-                <p className="text-sm font-medium text-foreground">
-                  No tools match “{query.trim()}”
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Try “merge”, “split”, “sign”, “ocr” or “redact”.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setQuery('')}
-                  className="mt-4 rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-white/[0.06]"
-                >
-                  Clear search
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            {recent.length > 0 && (
-              <div>
-                <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
-                  Recently used
-                </p>
-                <ul className="space-y-0.5">
-                  {recentTools(recent, 4).map((entry) => {
-                    const def = getTool(entry.toolSlug);
-                    const EntryIcon = def?.icon ?? Clock;
-                    return (
-                      <li key={entry.id}>
-                        <Link
-                          to={`/tools/${entry.toolSlug}`}
-                          onClick={onClose}
-                          className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-white/[0.05]"
-                        >
-                          <EntryIcon
-                            aria-hidden
-                            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                          />
-                          <span className="truncate">{entry.toolName}</span>
-                          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60">
-                            {timeAgo(entry.createdAt)}
-                          </span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
+        {!searching && (
+          <div className="mt-3 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TOOL_CATEGORIES.map((category) => (
-              <div key={category.id}>
-                <CategoryHeading label={category.label} count={category.tools.length} />
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => jumpToCategory(category.id)}
+                className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-foreground/75 transition-colors active:bg-white/10"
+              >
+                {MOBILE_CATEGORY_LABELS[category.id] ?? category.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block">
+        <div className="space-y-6 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+          {searching ? (
+            <div>
+              <p role="status" className="mb-2 text-xs text-muted-foreground">
+                {results.length} {results.length === 1 ? 'tool' : 'tools'} matching{' '}
+                <span className="font-medium text-foreground">“{query.trim()}”</span>
+              </p>
+              {results.length > 0 ? (
                 <ul className="space-y-0.5">
-                  {category.tools.map((def) => (
-                    <li key={def.slug}>
-                      <ToolRow tool={def} onNavigate={onClose} />
+                  {results.map((tool) => (
+                    <li key={tool.slug}>
+                      <ToolRow tool={tool} onNavigate={onClose} showCategory touch />
                     </li>
                   ))}
                 </ul>
-              </div>
-            ))}
-          </>
-        )}
+              ) : (
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-8 text-center">
+                  <p className="text-sm font-medium text-foreground">
+                    No tools match “{query.trim()}”
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Try “merge”, “split”, “sign”, “ocr” or “redact”.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    className="mt-4 min-h-10 rounded-md border border-white/10 px-3 text-xs font-medium text-foreground transition-colors hover:bg-white/[0.06]"
+                  >
+                    Clear search
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {recent.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
+                    Recently used
+                  </p>
+                  <ul className="space-y-0.5">
+                    {recentTools(recent, 4).map((entry) => {
+                      const def = getTool(entry.toolSlug);
+                      const EntryIcon = def?.icon ?? Clock;
+                      return (
+                        <li key={entry.id}>
+                          <Link
+                            to={`/tools/${entry.toolSlug}`}
+                            onClick={onClose}
+                            data-accent={def?.accent}
+                            className="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 text-left text-sm transition-colors hover:bg-white/[0.05]"
+                          >
+                            <EntryIcon
+                              aria-hidden
+                              className="tool-accent-text h-4 w-4 shrink-0"
+                            />
+                            <span className="truncate">{entry.toolName}</span>
+                            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/60">
+                              {timeAgo(entry.createdAt)}
+                            </span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
 
-        <div className="flex flex-wrap gap-3 border-t border-border/70 pt-4 text-sm">
-          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/trust')}>
-            Trust &amp; privacy
-          </button>
-          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/verify')}>
-            Verify a redaction
-          </button>
-          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/about')}>
-            About
-          </button>
-          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/contact')}>
-            Contact
-          </button>
-          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => go('/status')}>
-            Status
-          </button>
+              {TOOL_CATEGORIES.map((category) => (
+                <section
+                  key={category.id}
+                  id={`mobile-category-${category.id}`}
+                  tabIndex={-1}
+                  className="scroll-mt-3 outline-none"
+                >
+                  <CategoryHeading label={category.label} count={category.tools.length} />
+                  <ul className="space-y-0.5">
+                    {category.tools.map((def) => (
+                      <li key={def.slug}>
+                        <ToolRow tool={def} onNavigate={onClose} touch />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+
+              {/* Account is secondary to the catalog, so it sits after the tools. */}
+              <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Checking your account…</p>
+                ) : account ? (
+                  <div className="space-y-1">
+                    <p className="truncate text-sm font-medium">
+                      {account.name ?? account.email ?? 'Your account'}
+                    </p>
+                    {account.email && account.name ? (
+                      <p className="truncate text-xs text-muted-foreground">{account.email}</p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9"
+                        onClick={() => go('/account')}
+                      >
+                        Account
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9"
+                        onClick={() => go('/workflows')}
+                      >
+                        Workflows
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9"
+                        onClick={() => {
+                          onClose();
+                          void signOut();
+                        }}
+                      >
+                        Sign out
+                      </Button>
+                    </div>
+                  </div>
+                ) : !accountsEnabled ? (
+                  <p className="text-xs text-muted-foreground">
+                    Accounts are not enabled on this deployment. Every client-side tool still works.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Accounts are optional: every client-side tool works signed out.
+                    </p>
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={() => {
+                        onClose();
+                        signIn();
+                      }}
+                    >
+                      Sign in with Google
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 border-t border-border/70 pt-4">
+                {MOBILE_FOOTER_LINKS.map((link) => (
+                  <button
+                    key={link.path}
+                    type="button"
+                    onClick={() => go(link.path)}
+                    className="flex min-h-10 items-center rounded-md px-2 text-left text-sm text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground"
+                  >
+                    {link.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
-      </div>
-    </ScrollArea>
+      </ScrollArea>
+    </div>
   );
 }
