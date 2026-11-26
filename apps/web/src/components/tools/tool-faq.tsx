@@ -46,16 +46,23 @@ function ToolFaqSection({
   );
 
   useEffect(() => {
-    // The prerendered tool page already carries this script for crawlers. Reuse
-    // and update it rather than adding a second FAQPage block, then remove it on
-    // unmount so a later route cannot inherit a stale schema.
-    const existing = document.querySelector<HTMLScriptElement>('script[data-tool-faq-schema]');
+    // The prerendered tool page already carries this script for crawlers. Find
+    // it by type and content rather than by a marker attribute: adding an
+    // attribute to the static script would make the plain `<script type=
+    // "application/ld+json">` crawler selector in the reach suite miss it.
+    // Once found, mark it so a later navigation reuses the same node instead of
+    // stacking a second FAQPage block.
+    const existing = [
+      ...document.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]'),
+    ].find(
+      (candidate) =>
+        candidate.dataset.toolFaqSchema === 'true' ||
+        candidate.textContent?.includes('"@type":"FAQPage"'),
+    );
     const script = existing ?? document.createElement('script');
-    if (!existing) {
-      script.type = 'application/ld+json';
-      script.dataset.toolFaqSchema = 'true';
-      document.head.appendChild(script);
-    }
+    script.type = 'application/ld+json';
+    script.dataset.toolFaqSchema = 'true';
+    if (!existing) document.head.appendChild(script);
     script.textContent = JSON.stringify(schema);
     return () => script.remove();
   }, [schema]);

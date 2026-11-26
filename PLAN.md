@@ -755,6 +755,54 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-11-26 - On-page SEO: keyword guides, 82 prerendered pages, and a full metadata/schema pass.**
+
+  **Two URL families, no duplicate content.** Tool utilities stay at `/tools/<slug>`; fourteen
+  keyword guides now live at the short paths the brief asked for (`/compress-pdf`,
+  `/pdf-under-200kb`, `/pdf-under-100kb`, `/merge-pdf`, `/split-pdf`,
+  `/pdf-editor-online-free`, `/unlock-pdf`, `/pdf-to-jpg`, `/jpg-to-pdf`,
+  `/pdf-tools-no-signup`, `/pdf-dark-mode`, `/pdf-converter`, `/pdf-tools-for-exam-forms`,
+  `/pdfshush`). Each guide has its own H1, 500+ words, steps, FAQ and `Article` +
+  `BreadcrumbList` + `FAQPage` schema, and links into the working tool. The tool page remains the
+  `SoftwareApplication` page. Both are self-canonical and both are in the sitemap.
+
+  **One copy source, two renderers.** `src/seo/` now owns the home copy
+  (`home-content.ts`), per-tool copy (`tool-seo.ts`), guide data (`landing-pages.ts`), schema
+  builders (`schema.ts`), head management (`head.ts`) and the canonical origin (`site.ts`).
+  `build/prerender.ts` imports the same modules, so the HTML a crawler receives and the page a
+  visitor sees cannot drift. All 51 live tools get bespoke 300+ word copy, three steps, a limit
+  statement, related-tool links and their existing FAQ. The seven declined tools keep an honest
+  `noindex` status page with unique metadata and stay out of the sitemap.
+
+  **Metadata contract.** Every prerendered page now carries a unique 50–60 character title and a
+  150–160 character description, canonical, `en-IN` lang, `en-IN` / `en` / `x-default` hreflang,
+  robots, keywords, Open Graph (`type`, `site_name PDFShush`, `og:image` 1200×630 absolute,
+  `og:image:alt`, dimensions, `en_IN`) and Twitter `summary_large_image` with image alt. Home
+  carries `Organization`, `WebSite` with a working `SearchAction` (`/?q=…` filters the catalog)
+  and `FAQPage`; tools carry `SoftwareApplication` (`price 0`, `UtilitiesApplication`,
+  `isAccessibleForFree`) + `BreadcrumbList` + `FAQPage`. SPA navigation updates the head through
+  `usePageHead` rather than leaving the previous route's title in the tab.
+
+  **Technical.** The canonical origin is `https://pdfshush.com` (overridable with
+  `VITE_SITE_ORIGIN`). The prerender emits 82 routes / 74 sitemap URLs with `<lastmod>` and
+  hreflang links; `robots.txt` keeps `/account` and `/api/` out. The home document now ships real
+  static content hidden only after the inline `js` class is set, so a crawler gets the 600+ word
+  body without a flash of catalog for a browser. HSTS was added to `_headers`; the account avatar
+  is lazy-loaded with alt text.
+
+  **Bug fixed before commit.** The SPA head hook and the tool FAQ both wrote JSON-LD, so a hydrated
+  page could carry the prerendered blocks *and* a second client copy (including two `FAQPage`
+  blocks). The hook now removes every route-owned JSON-LD node, and `ToolFaq` finds and reuses the
+  prerendered FAQ instead of appending another. `test:e2e:seo` asserts exactly one `FAQPage` on a
+  tool page and the exact total schema count on a guide.
+
+  **Verified.** `pnpm typecheck` (8 projects) green; web 331 unit tests; build green; bundle
+  boundary clean (main 177.1 kB, 0 engines); new `seo:audit` passes 82 pages with unique
+  title/description lengths, schema shapes, H1 count, word counts and sitemap integrity; reach
+  E2E all green (51 tools, 74 sitemap URLs); new `test:e2e:seo` browser check confirms the SPA
+  title/canonical/JSON-LD replacement on `/`, `/compress-pdf`, `/pdf-under-200kb`,
+  `/tools/compress-pdf` and `/about` with no console errors.
+
 - **2026-11-18 - The supplied "ps" artwork becomes the icon set, and the service worker learns to notice an icon-only deploy.**
 
   **One master, five outputs.** The brand artwork arrives as a 2752x1536 painting, not a vector, so

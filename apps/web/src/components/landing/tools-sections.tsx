@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowRight, Search, X } from 'lucide-react';
 import { ToolCard } from '@/components/landing/tool-card';
 import { TOOL_CATEGORIES, ALL_TOOLS, popularTools } from '@/tools/registry';
@@ -51,7 +52,10 @@ const CATEGORY_TABS = [
 ] as const;
 
 export function AllToolsSection() {
-  const [search, setSearch] = useState('');
+  // Supports the WebSite SearchAction (`/?q=compress`): a visitor who uses the
+  // search box lands on the catalog with the query already applied.
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [activeTab, setActiveTab] = useState<string>('all');
 
   const filteredTools = useMemo(() => {

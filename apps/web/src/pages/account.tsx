@@ -261,7 +261,14 @@ export function AccountPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-3">
             {account.picture && (
-              <img src={account.picture} alt="" className="h-9 w-9 rounded-full" referrerPolicy="no-referrer" />
+              <img
+                src={account.picture}
+                alt={`${account.name ?? 'Account'} profile picture`}
+                className="h-9 w-9 rounded-full"
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                decoding="async"
+              />
             )}
             {account.name ?? account.email ?? 'Your account'}
           </CardTitle>

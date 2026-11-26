@@ -3,8 +3,10 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, ShieldCheck, Zap } from 'lucide-react';
 import { TOOL_CATEGORIES, type ToolDef } from '@/tools/registry';
+import { TOOL_SEO } from '@/seo/tool-seo';
 import { ToolSlugContext } from '@/tools/tool-context';
 import { ToolFaq } from '@/components/tools/tool-faq';
+import { ToolSeoContent } from '@/components/tools/tool-seo-content';
 import { mark } from '@/lib/marks';
 import { limitNoteFor } from '@/lib/tool-limits';
 import { cn } from '@/lib/utils';
@@ -105,7 +107,7 @@ export function ToolFrame({
           </span>
           <div>
             <h1 className="tool-frame-title text-2xl font-bold tracking-tight sm:text-3xl">
-              {tool.name}
+              {TOOL_SEO[tool.slug]?.h1 ?? tool.name}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground sm:text-base">{tool.description}</p>
           </div>
@@ -113,6 +115,8 @@ export function ToolFrame({
       ) : null}
 
       <ToolSlugContext.Provider value={tool.slug}>{children}</ToolSlugContext.Provider>
+
+      <ToolSeoContent tool={tool} />
 
       {notes ?? (
         <div className={cn('grid gap-3 sm:grid-cols-2', studio ? 'mt-5' : 'mt-8')}>

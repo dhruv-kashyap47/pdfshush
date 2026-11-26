@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import {
   createBrowserRouter,
   Outlet,
@@ -17,6 +17,10 @@ import { HomePage } from '@/pages/home';
 import { NotFoundPage } from '@/pages/not-found';
 import { WorkflowsPage } from '@/pages/workflows';
 import { mark } from '@/lib/marks';
+import { usePageHead } from '@/seo/head';
+import { webPageSchema } from '@/seo/schema';
+import { SITE_ORIGIN } from '@/seo/site';
+import { STATIC_PAGE_META, type StaticPageHead } from '@/seo/static-pages';
 
 /**
  * The tool page is the only route that pulls every tool body (and the editor and
@@ -45,6 +49,9 @@ const StatusPage = lazy(() =>
 );
 const TermsPage = lazy(() =>
   import('@/pages/terms').then((module) => ({ default: module.TermsPage })),
+);
+const LandingPage = lazy(() =>
+  import('@/pages/landing').then((module) => ({ default: module.LandingPage })),
 );
 
 function ToolPageFallback() {
@@ -85,6 +92,42 @@ function PageReadyMark() {
 }
 
 /**
+ * Keeps the tab title, canonical and cards correct on the static info routes
+ * after a client-side navigation. Home, tool and guide pages manage their own
+ * head because their copy depends on the registry and the page data.
+ */
+function StaticRouteHead({ meta, route }: { meta: StaticPageHead; route: string }) {
+  const jsonLd = useMemo(
+    () =>
+      [
+        webPageSchema(
+          { name: meta.title, description: meta.description, route, image: meta.image },
+          SITE_ORIGIN,
+        ),
+      ],
+    [meta, route],
+  );
+  usePageHead({
+    title: meta.title,
+    description: meta.description,
+    route,
+    image: meta.image,
+    imageAlt: meta.imageAlt,
+    keywords: meta.keywords,
+    indexable: meta.indexable !== false,
+    jsonLd,
+  });
+  return null;
+}
+
+function StaticRouteMeta() {
+  const { pathname } = useLocation();
+  const meta = STATIC_PAGE_META[pathname];
+  if (!meta) return null;
+  return <StaticRouteHead meta={meta} route={pathname} />;
+}
+
+/**
  * SPA navigations do not reset the window scroll position. Finish a long tool,
  * click a "what's next" chip, and the next tool opened halfway down. Hash links
  * are left to the page that owns the target, so `/#all-tools` still works.
@@ -117,6 +160,7 @@ function RootLayout() {
   return (
     <>
       <PageReadyMark />
+      <StaticRouteMeta />
       <RouteScroll />
       <div className="flex min-h-svh flex-col bg-background text-foreground">
         <a
@@ -216,6 +260,21 @@ const router = createBrowserRouter([
         ),
       },
       { path: 'account', element: <AccountPage /> },
+      /*
+       * Keyword guide pages (/compress-pdf, /pdf-under-200kb, /merge-pdf …).
+       * A single lazy dynamic route keeps the guide data out of the entry
+       * chunk; `LandingPage` returns the 404 page for a path it does not know.
+       * React Router ranks the static routes above this one, so /about and
+       * /tools/:slug still resolve to their own elements.
+       */
+      {
+        path: ':slug',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <LandingPage />
+          </Suspense>
+        ),
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

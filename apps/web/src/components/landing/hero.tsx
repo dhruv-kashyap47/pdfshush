@@ -291,17 +291,32 @@ export function HeroSection() {
       <div className="hero-shell mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <h1 id="hero-title" ref={titleRef} className="hero-title">
           <span data-word className="hero-word">
-            Ask,
+            Free
           </span>{' '}
           <span data-word className="hero-word">
-            edit,
+            Online
           </span>{' '}
           <span data-word className="hero-word">
-            merge,
+            PDF
+          </span>{' '}
+          <span data-word className="hero-word">
+            Tools
+          </span>{' '}
+          <span data-word className="hero-word">
+            that
+          </span>{' '}
+          <span data-word className="hero-word">
+            stay
+          </span>{' '}
+          <span data-word className="hero-word">
+            on
+          </span>{' '}
+          <span data-word className="hero-word">
+            your
           </span>{' '}
           <span data-word className="hero-word hero-word--em">
             <em>
-              redact.
+              device.
               <svg
                 className="hero-swash"
                 viewBox="0 0 220 26"
@@ -329,8 +344,9 @@ export function HeroSection() {
         </h1>
 
         <motion.p className="hero-lede" {...enter(0.45, 16)}>
-          Ask your PDF questions, then edit, merge or redact it. Everything runs in this tab.
-          Answers cite the exact page, and your file never leaves the device.
+          Compress, merge, split, edit or convert a PDF in this tab. A free PDF compressor, a
+          full PDF editor online free and the everyday converters, with your file never leaving
+          the device.
         </motion.p>
 
         <motion.div className="hero-cta-row" {...enter(0.54, 14)}>

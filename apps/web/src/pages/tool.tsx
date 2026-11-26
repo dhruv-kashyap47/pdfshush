@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { lazy } from 'react';
+import { lazy, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Clock, Flame, Sparkles } from 'lucide-react';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
@@ -51,7 +51,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { NotFoundPage } from '@/pages/not-found';
 import { WorkflowsPage } from '@/pages/workflows';
 import { AiTrustNotes } from '@/components/ai/ai-trust-notes';
-import { getTool, liveTools, type ToolDef } from '@/tools/registry';
+import { getTool, TOOL_CATEGORIES, liveTools, type ToolDef } from '@/tools/registry';
+import { TOOL_SEO, toolSeoFor } from '@/seo/tool-seo';
+import { usePageHead } from '@/seo/head';
+import {
+  breadcrumbSchema,
+  softwareApplicationSchema,
+  webPageSchema,
+} from '@/seo/schema';
+import { SITE_ORIGIN } from '@/seo/site';
 import { DECLINED_COPY } from '@/tools/declined';
 // The studio visual system is tool-page-only: it ships in this lazy chunk, so
 // the landing page never pays for it.
@@ -184,9 +192,52 @@ export function ToolPage() {
 
   if (!tool) return <NotFoundPage />;
 
+  return <ToolPageView tool={tool} />;
+}
+
+function ToolPageView({ tool }: { tool: ToolDef }) {
   const Body = LIVE_BODIES[tool.slug];
   const ai = AI_BODIES[tool.slug];
   const isAi = tool.category === 'ai';
+  const seo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
+  const categoryLabel =
+    TOOL_CATEGORIES.find((category) => category.id === tool.category)?.label ?? 'PDF tools';
+  const route = `/tools/${tool.slug}`;
+  const image = `/og/${tool.slug}.png`;
+
+  const jsonLd = useMemo(
+    () => [
+      softwareApplicationSchema(
+        { slug: tool.slug, name: tool.name, description: seo.description },
+        SITE_ORIGIN,
+        route,
+      ),
+      breadcrumbSchema(
+        [
+          { name: 'Home', route: '/' },
+          { name: 'All PDF tools', route: '/#all-tools' },
+          { name: tool.name, route },
+        ],
+        SITE_ORIGIN,
+      ),
+      webPageSchema(
+        { name: seo.title, description: seo.description, route, image },
+        SITE_ORIGIN,
+      ),
+    ],
+    [tool.slug, tool.name, seo.description, seo.title, route, image],
+  );
+
+  usePageHead({
+    title: seo.title,
+    description: seo.description,
+    route,
+    image,
+    imageAlt: `${tool.name} – ${categoryLabel} on PDFShush`,
+    keywords: seo.keywords,
+    indexable: tool.status === 'live',
+    jsonLd,
+  });
 
   return (
     <ToolFrame

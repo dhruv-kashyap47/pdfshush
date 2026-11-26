@@ -3,23 +3,52 @@
  *
  * Every tool URL already exists as a React route, but the HTML a crawler gets
  * before JavaScript is an empty `<div id="root">`. This plugin writes a real
- * `dist/<route>.html` for every route: title, description, canonical,
- * Open Graph card, `SoftwareApplication` JSON-LD and visible content (headline,
- * explanation, limits, navigation). React replaces the content on mount, so
- * there is no hydration contract and no duplicate shell.
+ * `dist/<route>.html` for every route: title, description, canonical, Open
+ * Graph card, Twitter card, hreflang, JSON-LD and visible content (headline,
+ * explanation, steps, limits, related links, FAQ).
  *
- * The one-URL-per-tool promise is kept: each route is a directory with its own
- * `index.html`, not a query string or a fragment.
+ * React replaces the content on mount, so there is no hydration contract and no
+ * duplicate shell. The one-URL-per-tool promise is kept: each route is a
+ * directory with its own `index.html`, not a query string or a fragment.
  *
  * `VITE_SITE_ORIGIN` is the origin used in canonical URLs, Open Graph and the
- * sitemap. It defaults to the project origin so a local build is still
- * self-describing; a self-hoster sets it to their own domain.
+ * sitemap. It defaults to the public production origin; a self-hoster sets it
+ * to their own domain.
  */
 
-import { readFile, readdir, writeFile, mkdir, access } from 'node:fs/promises';
+import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plugin } from 'vite';
 import { faqsFor } from '../src/tools/tool-faqs.ts';
+import {
+  HOME_DESCRIPTION,
+  HOME_FAQS,
+  HOME_INTRO,
+  HOME_KEYWORDS,
+  HOME_TITLE,
+  HOME_TOOL_INTRO,
+  HOW_IT_WORKS,
+  TOOL_BENEFITS,
+  USE_CASES,
+  WHY_CHOOSE,
+} from '../src/seo/home-content.ts';
+import { TOOL_SEO, toolSeoFor } from '../src/seo/tool-seo.ts';
+import { LANDING_PAGES, type LandingPage } from '../src/seo/landing-pages.ts';
+import {
+  OG_IMAGE_HEIGHT,
+  OG_IMAGE_WIDTH,
+  SITE_LOCALE,
+  SITE_NAME,
+  SITE_ORIGIN,
+} from '../src/seo/site.ts';
+import {
+  breadcrumbSchema,
+  faqPageSchema,
+  organizationSchema,
+  softwareApplicationSchema,
+  webPageSchema,
+  websiteSchema,
+} from '../src/seo/schema.ts';
 
 export interface PrerenderOptions {
   rootDir: string;
@@ -35,7 +64,7 @@ interface ToolEntry {
   live: boolean;
 }
 
-const DEFAULT_ORIGIN = 'https://pdfshush.app';
+const DEFAULT_ORIGIN = SITE_ORIGIN;
 /** Live tools get indexable pages; a not-built page is not a search result. */
 const NOT_INDEXABLE = new Set(['/account']);
 /** These live surfaces upload by design; the static copy must not claim otherwise. */
@@ -43,8 +72,8 @@ const REMOTE = new Set(['workflows', 'api', 'mcp']);
 const REMOTE_COPY: Record<string, { status: string; how: string }> = {
   workflows: {
     status:
-      'Server-run by design. Each step uploads the file to the pdfshush API, which deletes it within an hour of the job finishing. This is not a client-side promise.',
-    how: 'Build a recipe, send the file to the pdfshush API, and download the result. The quota and the one-hour retention window are stated on the page.',
+      'Server-run by design. Each step uploads the file to the PDFShush API, which deletes it within an hour of the job finishing. This is not a client-side promise.',
+    how: 'Build a recipe, send the file to the PDFShush API, and download the result. The quota and the one-hour retention window are stated on the page.',
   },
   api: {
     status:
@@ -53,8 +82,51 @@ const REMOTE_COPY: Record<string, { status: string; how: string }> = {
   },
   mcp: {
     status:
-      'Runs on your machine, calls the API. The MCP server is a local process; each tool call uploads the file to the pdfshush API for that call, and the API deletes it within an hour.',
+      'Runs on your machine, calls the API. The MCP server is a local process; each tool call uploads the file to the PDFShush API for that call, and the API deletes it within an hour.',
     how: 'Launch the local MCP server, point your agent at it, and call a tool. The document is uploaded for that call and deleted on the API schedule.',
+  },
+};
+
+/**
+ * Honest metadata for the seven tools this origin declined. They stay
+ * `noindex`; the titles are still unique and descriptive so a visitor who
+ * follows an old link sees a real page rather than a generic notice.
+ */
+const DECLINED_SEO: Record<string, { title: string; description: string }> = {
+  'pdf-to-word': {
+    title: 'PDF to Word Converter – Status and Alternatives | PDFShush',
+    description:
+      'PDF to Word is not live on this origin. This page explains the status and points to PDF to Text and other working alternatives. No fake download button.',
+  },
+  'pdf-to-excel': {
+    title: 'PDF to Excel Converter – Status and Alternatives | PDFShush',
+    description:
+      'PDF to Excel is not live on this origin. This page explains the status and points to PDF to Text, table extraction and working alternatives. No fake download.',
+  },
+  'pdf-to-ppt': {
+    title: 'PDF to PowerPoint – Status and Alternatives | PDFShush',
+    description:
+      'PDF to PowerPoint is not live on this origin. This page explains the status and points to PDF to JPG and other working alternatives for slides. No fake download',
+  },
+  'word-to-pdf': {
+    title: 'Word to PDF Converter – Status and Alternatives | PDFShush',
+    description:
+      'Word to PDF is not live on this origin. This page explains the status and points to PDF to Text, JPG to PDF and the working alternatives. No fake download.',
+  },
+  'html-to-pdf': {
+    title: 'HTML to PDF Converter – Status and Alternatives | PDFShush',
+    description:
+      'HTML to PDF is not live on this origin. This page explains the status and points to PDF to Text and the working browser alternatives. No fake download.',
+  },
+  'sign-workflow': {
+    title: 'Sign and Route PDF – Status and Alternatives | PDFShush',
+    description:
+      'Sign and route is not live on this origin. This page explains the status and points to Fill & Sign and the working alternatives for collecting signatures.',
+  },
+  'convert-batch': {
+    title: 'Batch Convert PDF – Status and Alternatives | PDFShush',
+    description:
+      'Batch convert is not live on this origin. This page explains the status and points to Batch run, Compress PDF and the working alternatives for many files.',
   },
 };
 
@@ -104,7 +176,10 @@ const STYLE = `
 .pre-main h1{font-size:clamp(2rem,6vw,3.5rem);line-height:1.05;margin:0 0 1rem;letter-spacing:-.02em}
 .pre-lead{font-size:1.15rem;max-width:46rem;color:#d6d3d1;margin:0 0 1rem}
 .pre-note{border-left:3px solid #5eead4;padding:.6rem .9rem;background:#1c1917;max-width:46rem;font-size:.95rem}
-.pre-main h2{font-size:1.15rem;margin:2rem 0 .5rem}
+.pre-main h2{font-size:1.25rem;margin:2rem 0 .5rem}
+.pre-main h3{font-size:1rem;margin:1.25rem 0 .4rem}
+.pre-main p{max-width:48rem;color:#d6d3d1}
+.pre-main ol,.pre-main ul{max-width:48rem;color:#d6d3d1}
 .pre-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:.75rem;padding:0;list-style:none;margin:1rem 0}
 .pre-list a{display:block;border:1px solid #292524;border-radius:.6rem;padding:.75rem .9rem;text-decoration:none;color:#f5f5f4;background:#1c1917}
 .pre-list span{display:block;color:#a8a29e;font-size:.85rem}
@@ -118,25 +193,33 @@ const STYLE = `
 .pre-faq details p{color:#a8a29e;font-size:.92rem;margin:.4rem 0 0;max-width:46rem}
 .pre-footer{border-top:1px solid #292524;padding-top:1.25rem;font-size:.85rem;color:#a8a29e}
 .pre-footer a{color:#5eead4;text-decoration:none;margin-right:1rem}
-.pre-boot{min-height:100vh;min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.375rem;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:inherit}
+.pre-boot{display:none;min-height:100vh;min-height:100svh;flex-direction:column;align-items:center;justify-content:center;gap:.375rem;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:inherit}
+html.js .pre-boot{display:flex}
+html.js .pre-static{display:none}
 .pre-boot-brand{font-size:1.25rem;font-weight:700;letter-spacing:-.02em}
 .pre-boot-note{font-size:.875rem;opacity:.65}
 `.trim();
 
 function header(): string {
-  return `<header class="pre-header"><a class="pre-brand" href="/">pdfshush</a><nav class="pre-nav" aria-label="Primary"><a href="/#all-tools">All tools</a><a href="/workflows">Workflows</a><a href="/trust">Privacy</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/verify">Verify a redaction</a></nav></header>`;
+  return `<header class="pre-header"><a class="pre-brand" href="/">PDFShush</a><nav class="pre-nav" aria-label="Primary"><a href="/#all-tools">All tools</a><a href="/compress-pdf">Compress PDF</a><a href="/merge-pdf">Merge PDF</a><a href="/split-pdf">Split PDF</a><a href="/pdf-editor-online-free">Edit PDF</a><a href="/pdf-under-200kb">200 KB guide</a><a href="/trust">Privacy</a><a href="/about">About</a><a href="/contact">Contact</a></nav></header>`;
 }
 
 function footer(): string {
-  return `<footer class="pre-footer"><a href="/">Home</a><a href="/trust">How privacy is proven</a><a href="/privacy">Privacy policy</a><a href="/terms">Terms</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/status">Status</a><a href="/verify">Redaction verifier</a><a href="/workflows">Workflows</a><p>pdfshush runs in your browser. Files are not uploaded to a server.</p></footer>`;
+  return `<footer class="pre-footer"><a href="/">Home</a><a href="/compress-pdf">Compress PDF</a><a href="/merge-pdf">Merge PDF</a><a href="/split-pdf">Split PDF</a><a href="/pdf-to-jpg">PDF to JPG</a><a href="/jpg-to-pdf">JPG to PDF</a><a href="/unlock-pdf">Unlock PDF</a><a href="/pdf-dark-mode">Dark mode</a><a href="/pdf-tools-no-signup">No signup</a><a href="/trust">How privacy is proven</a><a href="/privacy">Privacy policy</a><a href="/terms">Terms</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/status">Status</a><p>PDFShush runs in your browser. Files are not uploaded for client-side tools.</p></footer>`;
 }
 
 function relatedTools(tool: ToolEntry, tools: ToolEntry[]): ToolEntry[] {
-  return tools
-    .filter((entry) => entry.live && entry.slug !== tool.slug && entry.category === tool.category)
-    .slice(0, 3)
-    .concat(tools.filter((entry) => entry.live && entry.slug !== tool.slug && entry.category !== tool.category))
+  const seoRelated = TOOL_SEO[tool.slug]?.related ?? [];
+  return [...new Set([...seoRelated, ...tools.filter((entry) => entry.live && entry.category === tool.category).map((entry) => entry.slug)])]
+    .map((slug) => tools.find((entry) => entry.slug === slug))
+    .filter((entry): entry is ToolEntry => Boolean(entry) && entry?.live === true && entry.slug !== tool.slug)
     .slice(0, 4);
+}
+
+function guidesFor(slug: string): LandingPage[] {
+  return LANDING_PAGES.filter(
+    (page) => page.toolSlug === slug || page.related.some((link) => link.href === `/tools/${slug}`),
+  ).slice(0, 3);
 }
 
 /**
@@ -144,12 +227,15 @@ function relatedTools(tool: ToolEntry, tools: ToolEntry[]): ToolEntry[] {
  * on mount, but the bytes on the wire already contain the questions, the
  * answers and the FAQPage schema.
  */
-function faqBlock(tool: ToolEntry): string {
-  const items = faqsFor(tool.slug);
-  if (!tool.live || items.length === 0) return '';
-  return `<section class="pre-faq" id="faq" aria-labelledby="faq-${tool.slug}">
-<h2 id="faq-${tool.slug}">Frequently asked questions</h2>
-<p class="pre-faq-lead">About ${escapeHtml(tool.name)}.</p>
+function faqBlock(
+  items: ReadonlyArray<{ question: string; answer: string }>,
+  name: string,
+  id: string,
+): string {
+  if (items.length === 0) return '';
+  return `<section class="pre-faq" id="faq" aria-labelledby="faq-${id}">
+<h2 id="faq-${id}">Frequently asked questions</h2>
+<p class="pre-faq-lead">About ${escapeHtml(name)}.</p>
 ${items
   .map(
     (item) =>
@@ -159,25 +245,11 @@ ${items
 </section>`;
 }
 
-function faqJsonLd(origin: string, tool: ToolEntry): string {
-  const items = faqsFor(tool.slug);
-  if (!tool.live || items.length === 0) return '';
-  const schema = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    '@id': `${origin}/tools/${tool.slug}#faq`,
-    mainEntity: items.map((item) => ({
-      '@type': 'Question',
-      name: item.question,
-      acceptedAnswer: { '@type': 'Answer', text: item.answer },
-    })),
-  };
-  return `<script type="application/ld+json" data-tool-faq-schema="true">${JSON.stringify(schema)}</script>`;
-}
-
 function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
   const related = relatedTools(tool, tools);
+  const guides = guidesFor(tool.slug);
   const remote = REMOTE.has(tool.slug);
+  const seo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
   const status = !tool.live
     ? `<p class="pre-note"><strong>Coming soon.</strong> This page is not a promise with a date. It explains what the tool will do, why it is not here yet, and points at the closest thing that works today. The live catalog is on the <a href="/#all-tools">home page</a>.</p>`
     : remote
@@ -186,107 +258,91 @@ function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
   const how = !tool.live
     ? ''
     : remote
-      ? `<h2>How it works</h2><p>${escapeHtml(REMOTE_COPY[tool.slug]?.how ?? 'Send the file to the pdfshush API and download the result; the API deletes it on its stated schedule.')}</p>`
-      : `<h2>How it works</h2><ol><li>Choose a PDF from this device.</li><li>The engine reads and writes it inside a worker in this tab.</li><li>Download the result; the bytes never leave the browser.</li></ol>`;
+      ? `<h2>How it works</h2><p>${escapeHtml(REMOTE_COPY[tool.slug]?.how ?? 'Send the file to the PDFShush API and download the result; the API deletes it on its stated schedule.')}</p>`
+      : `<h2>How to use ${escapeHtml(seo.h1)}</h2><ol>${seo.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol>`;
+  const guidesBlock =
+    guides.length > 0
+      ? `<h2>Guides</h2><ul class="pre-list">${guides.map((guide) => `<li><a href="${guide.path}">${escapeHtml(guide.h1)}<span>${escapeHtml(guide.description)}</span></a></li>`).join('')}</ul>`
+      : '';
   return `<div class="pre-shell">${header()}<main class="pre-main">
 <p class="pre-kicker">${escapeHtml(tool.categoryLabel)}</p>
-<h1>${escapeHtml(tool.name)}</h1>
-<p class="pre-lead">${escapeHtml(tool.description)}</p>
+<h1>${escapeHtml(seo.h1)}</h1>
+<p class="pre-lead">${escapeHtml(seo.summary)}</p>
 ${status}
+<p>${escapeHtml(seo.audience)}</p>
 ${how}
-<h2>Limits, stated up front</h2>
-<p>${!tool.live ? 'This tool is coming soon, so it has no limits to state yet; the live alternatives below state theirs.' : remote ? 'Server-run surfaces have their own quota and retention window, stated on the page. A refusal names the reason and the next step.' : 'Up to 100 MB and 500 pages per file in this browser tab. A refusal names the reason and the next step, and the editor’s measured limits are listed inside the tool rather than hidden in documentation.'}</p>
-${related.length > 0 ? `<h2>Related tools</h2><ul class="pre-list">${related.map((entry) => `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}<span>${escapeHtml(entry.description)}</span></a></li>`).join('')}</ul>` : ''}
-${faqBlock(tool)}
+<h2>Good to know</h2>
+<p>${
+    remote
+      ? 'This surface is server-run by design, with a stated quota and retention window. The file is uploaded for the job, not processed in the browser, and the API deletes it on the schedule described on the page.'
+      : 'The file is processed inside this browser tab, so there is no upload and no account. Up to 100 MB per file, 250 MB per run and 500 pages, with a lower page cap for tools that rebuild pages as images (redaction, grayscale, dark mode and strong compression).'
+  }</p>
+${related.length > 0 ? `<h2>Related PDF tools</h2><ul class="pre-list">${related.map((entry) => `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}<span>${escapeHtml(TOOL_BENEFITS[entry.slug] ?? entry.description)}</span></a></li>`).join('')}</ul>` : ''}
+${guidesBlock}
+${faqBlock(faqsFor(tool.slug), tool.name, tool.slug)}
 </main>${footer()}</div>`;
 }
 
 function homePage(tools: ToolEntry[]): string {
-  const categories = new Map<string, ToolEntry[]>();
-  for (const tool of tools.filter((entry) => entry.live)) {
-    const list = categories.get(tool.categoryLabel) ?? [];
-    list.push(tool);
-    categories.set(tool.categoryLabel, list);
-  }
-  const sections = [...categories.entries()]
-    .map(
-      ([label, entries]) =>
-        `<h2>${escapeHtml(label)}</h2><ul class="pre-list">${entries
-          .map(
-            (entry) =>
-              `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}<span>${escapeHtml(entry.description)}</span></a></li>`,
-          )
-          .join('')}</ul>`,
-    )
+  const categoryOrder = [...new Set(tools.map((tool) => tool.categoryLabel))];
+  const toolSections = categoryOrder
+    .map((label) => {
+      const entries = tools.filter((entry) => entry.live && entry.categoryLabel === label);
+      if (entries.length === 0) return '';
+      return `<h3>${escapeHtml(label)}</h3><ul>${entries
+        .map(
+          (entry) =>
+            `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}</a> — ${escapeHtml(TOOL_BENEFITS[entry.slug] ?? entry.description)}</li>`,
+        )
+        .join('')}</ul>`;
+    })
     .join('');
-  return `<div class="pre-shell">${header()}<main class="pre-main">
+
+  return `<div class="pre-shell pre-static">${header()}<main class="pre-main">
 <p class="pre-kicker">Free · private · in your browser</p>
-<h1>PDF tools that keep the file on your device.</h1>
-<p class="pre-lead">Merge, organize, convert, redact and edit PDF files without uploading them. Every client-side tool runs in a worker in this tab; server-run surfaces (workflows, API, MCP) say so and state their quota, and the Content-Security-Policy has no origin a client tool could upload to.</p>
-<p class="pre-note"><strong>Verifiable, not a slogan.</strong> The policy is part of the build, the service worker keeps the shell available offline, and <a href="/verify">the verifier</a> prints a SHA-256 receipt for any redacted PDF.</p>
-${sections}
+<h1>Free Online PDF Tools That Stay on Your Device</h1>
+<p class="pre-lead">${escapeHtml(HOME_DESCRIPTION)}</p>
+<p>${escapeHtml(HOME_INTRO[0]!)}</p>
+<p>${escapeHtml(HOME_INTRO[1]!)}</p>
+<p>${escapeHtml(HOME_TOOL_INTRO)}</p>
+<h2>Every free PDF tool and what it does</h2>
+${toolSections}
+<h2>Why choose PDFShush for free PDF work?</h2>
+${WHY_CHOOSE.map((item) => `<h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p>`).join('\n')}
+<h2>Common PDF jobs people finish here</h2>
+${USE_CASES.map((item) => `<h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p>`).join('\n')}
+<h2>How it works in three steps</h2>
+<ol>${HOW_IT_WORKS.map((step) => `<li><strong>${escapeHtml(step.title)}</strong> ${escapeHtml(step.body)}</li>`).join('')}</ol>
+${faqBlock(HOME_FAQS, 'PDFShush', 'home')}
 </main>${footer()}</div>`;
 }
 
-/**
- * The first paint of `/`, for a browser that runs JavaScript.
- *
- * The prerendered catalog below is real content for crawlers and for visitors
- * without JavaScript, but it used to be the first thing every browser painted:
- * a complete, separately styled tools directory stayed on screen until the
- * module graph had downloaded and React had replaced it. Opening the app
- * therefore *looked* like it had navigated to the wrong page first.
- *
- * The catalog now lives inside `<noscript>` (same bytes, same links, so no-JS
- * reach is unchanged) and a JS visitor gets this small branded shell until
- * React mounts. It deliberately has no timer, redirect or fake progress: the
- * app replaces it as soon as the real route is ready.
- */
+function landingPage(page: LandingPage): string {
+  return `<div class="pre-shell">${header()}<main class="pre-main">
+<p class="pre-kicker">Free · no signup · in your browser</p>
+<h1>${escapeHtml(page.h1)}</h1>
+${page.intro.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('\n')}
+<p><a href="/tools/${page.toolSlug}">${escapeHtml(page.toolCta)}</a></p>
+${page.sections
+  .map(
+    (section) =>
+      `<h2>${escapeHtml(section.heading)}</h2>${(section.paragraphs ?? []).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}${section.bullets ? `<ul>${section.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join('')}</ul>` : ''}`,
+  )
+  .join('\n')}
+<h2>How it works in three steps</h2>
+<ol>${page.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol>
+${faqBlock(page.faqs, page.h1, page.path.replace(/\//g, ''))}
+<h2>Keep going</h2>
+<ul>${page.related.map((link) => `<li><a href="${link.href}">${escapeHtml(link.label)}</a></li>`).join('')}</ul>
+</main>${footer()}</div>`;
+}
+
 function startupShell(): string {
-  return '<div class="pre-boot" role="status" aria-live="polite"><span class="pre-boot-brand">pdfshush</span><span class="pre-boot-note">Loading…</span></div>';
+  return '<div class="pre-boot" role="status" aria-live="polite"><span class="pre-boot-brand">PDFShush</span><span class="pre-boot-note">Loading…</span></div>';
 }
 
-function simplePage(
-  title: string,
-  lead: string,
-  body: string,
-): string {
-  return `<div class="pre-shell">${header()}<main class="pre-main"><p class="pre-kicker">pdfshush</p><h1>${escapeHtml(title)}</h1><p class="pre-lead">${escapeHtml(lead)}</p><p class="pre-note">${body}</p></main>${footer()}</div>`;
-}
-
-function jsonLd(origin: string, route: string, tool?: ToolEntry): string {
-  const url = `${origin}${route}`;
-  const application = tool
-    ? tool.live
-      ? {
-          '@context': 'https://schema.org',
-          '@type': 'SoftwareApplication',
-          name: tool.name,
-          description: tool.description,
-          url,
-          applicationCategory: 'UtilitiesApplication',
-          operatingSystem: 'Web',
-          offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-          isAccessibleForFree: true,
-          featureList: 'Runs entirely in the browser; no upload; no account.',
-        }
-      : {
-          '@context': 'https://schema.org',
-          '@type': 'WebPage',
-          name: tool.name,
-          description: `${tool.name} is coming soon. This page explains why and points at the closest live alternative.`,
-          url,
-          isPartOf: { '@type': 'WebSite', name: 'pdfshush', url: origin },
-        }
-    : {
-        '@context': 'https://schema.org',
-        '@type': 'WebSite',
-        name: 'pdfshush',
-        url: origin,
-        description:
-          'Private PDF tools that run in your browser: merge, organize, convert, redact and edit without uploading.',
-      };
-  return `<script type="application/ld+json">${JSON.stringify(application)}</script>`;
+function simplePage(title: string, lead: string, body: string): string {
+  return `<div class="pre-shell">${header()}<main class="pre-main"><p class="pre-kicker">PDFShush</p><h1>${escapeHtml(title)}</h1><p class="pre-lead">${escapeHtml(lead)}</p><p class="pre-note">${body}</p></main>${footer()}</div>`;
 }
 
 function withHead(
@@ -297,66 +353,81 @@ function withHead(
     route: string;
     origin: string;
     image: string;
+    imageAlt: string;
+    keywords: string[];
     indexable: boolean;
+    type: 'website' | 'article';
     jsonLd: string;
   },
 ): string {
-  const { title, description, route, origin, image, indexable, jsonLd } = options;
-  const url = `${origin}${route}`;
+  const {
+    title,
+    description,
+    route,
+    origin,
+    image,
+    imageAlt,
+    keywords,
+    indexable,
+    type,
+    jsonLd,
+  } = options;
+  const url = `${origin}${route === '/' ? '/' : route}`;
+  const imageUrl = `${origin}${image}`;
+
+  // Start from the base document and remove every SEO tag it carries, so a
+  // route never ships two canonicals or a stale Open Graph image.
   let next = html
+    .replace(/<link rel="canonical"[^>]*>\s*/g, '')
+    .replace(/<link rel="alternate" hreflang="[^"]*"[^>]*>\s*/g, '')
+    .replace(/<meta\s+property="og:[^"]*"[^>]*>\s*/g, '')
+    .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/g, '')
+    .replace(/<meta\s+name="keywords"[^>]*>\s*/g, '')
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(title)}</title>`)
     .replace(
       /<meta\s+name="description"[^>]*>/,
       `<meta name="description" content="${escapeHtml(description)}" />`,
     )
     .replace(
-      /<meta\s+property="og:title"[^>]*>/,
-      `<meta property="og:title" content="${escapeHtml(title)}" />`,
-    )
-    .replace(
-      /<meta\s+property="og:description"[^>]*>/,
-      `<meta property="og:description" content="${escapeHtml(description)}" />`,
-    )
-    .replace(
       /<meta\s+name="robots"[^>]*>/,
-      `<meta name="robots" content="${indexable ? 'index, follow' : 'noindex, follow'}" />`,
+      `<meta name="robots" content="${indexable ? 'index, follow, max-image-preview:large' : 'noindex, follow'}" />`,
     );
+
   const tags = [
+    `<meta name="keywords" content="${escapeHtml(keywords.join(', '))}" />`,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
+    `<link rel="alternate" hreflang="en-IN" href="${escapeHtml(url)}" />`,
+    `<link rel="alternate" hreflang="en" href="${escapeHtml(url)}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />`,
+    `<meta property="og:type" content="${type}" />`,
+    `<meta property="og:site_name" content="${SITE_NAME}" />`,
+    `<meta property="og:title" content="${escapeHtml(title)}" />`,
+    `<meta property="og:description" content="${escapeHtml(description)}" />`,
     `<meta property="og:url" content="${escapeHtml(url)}" />`,
-    `<meta property="og:image" content="${escapeHtml(`${origin}${image}`)}" />`,
-    `<meta property="og:image:width" content="1200" />`,
-    `<meta property="og:image:height" content="630" />`,
+    `<meta property="og:image" content="${escapeHtml(imageUrl)}" />`,
+    `<meta property="og:image:alt" content="${escapeHtml(imageAlt)}" />`,
+    `<meta property="og:image:width" content="${OG_IMAGE_WIDTH}" />`,
+    `<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}" />`,
+    `<meta property="og:locale" content="${SITE_LOCALE}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${escapeHtml(title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(description)}" />`,
-    `<meta name="twitter:image" content="${escapeHtml(`${origin}${image}`)}" />`,
+    `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />`,
+    `<meta name="twitter:image:alt" content="${escapeHtml(imageAlt)}" />`,
     jsonLd,
+    `<script>document.documentElement.classList.add('js')</script>`,
     `<style>${STYLE}</style>`,
   ].join('\n    ');
   next = next.replace('</head>', `    ${tags}\n  </head>`);
   return next;
 }
 
-/**
- * The 404 document.
- *
- * A static host serves a top-level `404.html` with a real 404 status for any
- * path it cannot match. Without one, Cloudflare Pages falls back to serving
- * the app shell with a **200** -- a soft 404, which tells a crawler the URL
- * exists and is content. That is the kind of quiet dishonesty this product
- * does not ship.
- *
- * Every route the app knows is prerendered (63 of them), so this file is only
- * ever reached by a URL that does not exist. The copy matches the client's own
- * NotFound page so a no-JS visitor sees the same thing.
- */
 function notFoundDocument(template: string): string {
   return template
-    .replace(/<title>[\s\S]*?<\/title>/, '<title>Page not found | pdfshush</title>')
+    .replace(/<title>[\s\S]*?<\/title>/, '<title>Page not found | PDFShush</title>')
     .replace(
       /<meta\s+name="description"[^>]*>/,
-      '<meta name="description" content="This page does not exist. The full pdfshush catalog is one click away." />',
+      '<meta name="description" content="This page does not exist. The full PDFShush catalog is one click away." />',
     )
     .replace(/<meta\s+name="robots"[^>]*>/, '<meta name="robots" content="noindex, follow" />')
     .replace(
@@ -382,6 +453,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         'utf8',
       );
       const tools = parseRegistry(registry);
+      const buildDate = new Date().toISOString().slice(0, 10);
 
       const routes: {
         route: string;
@@ -389,34 +461,43 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         description: string;
         html: string;
         image: string;
+        imageAlt: string;
+        keywords: string[];
         indexable: boolean;
+        type: 'website' | 'article';
         tool?: ToolEntry;
+        landing?: LandingPage;
       }[] = [
         {
           route: '/',
-          title: 'pdfshush: Free, private PDF tools that run in your browser',
-          description:
-            'Merge, split, edit, sign and redact PDFs in your browser. Your files never leave your device: nothing is uploaded, stored or seen. Free, no sign-up.',
+          title: HOME_TITLE,
+          description: HOME_DESCRIPTION,
           html: homePage(tools),
           image: '/og/home.png',
+          imageAlt: 'PDFShush free online PDF tools – compress, merge, split and edit PDFs',
+          keywords: HOME_KEYWORDS,
           indexable: true,
+          type: 'website',
         },
         {
           route: '/workflows',
-          title: 'Workflows - chain PDF tools and re-run them | pdfshush',
+          title: 'PDF Workflows – Automate and Re-Run PDF Tasks | PDFShush',
           description:
-            'Chain pdfshush tools into a recipe and run it again on new files. Server-run workflows state their quota; client tools stay on your device.',
+            'Chain PDF tools into a saved workflow recipe and re-run it on new files. Workflows are server-run, with a stated quota and a one-hour deletion window.',
           html: simplePage(
-            'Workflows',
+            'PDF Workflows – Chain Tools and Re-Run',
             'Chain tools into a recipe and run it again on new files.',
             'Workflows are server-run and state their quota. A client-side tool in a recipe still runs in the browser; the API and MCP pages document the server path.',
           ),
-          image: '/og/home.png',
+          image: '/og/workflows.png',
+          imageAlt: 'PDFShush workflows – chain PDF tools and re-run them',
+          keywords: ['pdf workflow', 'automate pdf tasks', 'pdf pipeline'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/trust',
-          title: 'How pdfshush proves privacy | pdfshush',
+          title: 'How PDFShush Proves Privacy – Live Proof | PDFShush',
           description:
             'The Content-Security-Policy is part of the build, the service worker is versioned, and the trust page runs a live proof with zero body-bearing requests.',
           html: simplePage(
@@ -425,142 +506,265 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
             'The trust page reads the live policy, reports the service worker state, and lists what the proof cannot see. It does not ask you to take the copy on faith.',
           ),
           image: '/og/home.png',
+          imageAlt: 'How PDFShush proves that PDF files are not uploaded',
+          keywords: ['private pdf tools in browser', 'pdf privacy', 'no upload pdf tools'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/verify',
-          title: 'Verify a redacted PDF | pdfshush',
+          title: 'Verify a Redacted PDF – SHA-256 Receipt | PDFShush',
           description:
-            'Run the same independent verifier the Redact tool requires before export on any PDF, and get a SHA-256 receipt with the exact bytes.',
+            'Run the same independent verifier the Redact tool uses on any PDF and get a SHA-256 receipt of the exact bytes it checked, plus what it could not check.',
           html: simplePage(
             'Verify a redacted PDF',
             'The verifier the Redact tool trusts, exposed for any file.',
             'It reports what it can and cannot decide: with no marked regions it says the marks were not checked, and it never upgrades a vacuous pass. The receipt has no timestamp, so the same bytes produce the same text.',
           ),
           image: '/og/home.png',
+          imageAlt: 'PDFShush redaction verifier with a SHA-256 receipt',
+          keywords: ['verify redacted pdf', 'pdf redaction verifier', 'sha256 pdf'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/privacy',
-          title: 'Privacy policy | pdfshush',
+          title: 'Privacy Policy – Files Stay on Your Device | PDFShush',
           description:
-            'pdfshush runs PDF tools in your browser. What stays on your device, the narrow cases where data can leave it, and how to remove local history, drafts and signatures.',
+            'How PDFShush handles your data: what stays in the browser, the narrow cases where data can leave it, and how to remove local history, drafts and signatures.',
           html: simplePage(
             'Privacy policy',
             'Your files stay on your device.',
             'The ordinary tools run in the browser with no upload. AI features send only what you ask about, only to the provider you configure. Local history, drafts and signatures can be cleared in your browser. This deployment has no server tier.',
           ),
           image: '/og/home.png',
+          imageAlt: 'PDFShush privacy policy – PDF tools that run in your browser',
+          keywords: ['pdfshush privacy', 'private pdf tools', 'pdf tools no upload'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/terms',
-          title: 'Terms of use | pdfshush',
+          title: 'Terms of Use – Free, Open Source PDF Tools | PDFShush',
           description:
-            'The plain-language terms for using pdfshush: free, open source, provided as-is, with your documents staying yours.',
+            'The plain-language terms for using PDFShush: free, open source, provided as-is, with your documents always staying yours and no account is ever required.',
           html: simplePage(
             'Terms of use',
             'Free, open source, and provided as-is.',
             'You keep ownership of your documents. The software is provided without warranties; mandatory consumer rights are not limited. The AGPL-3.0-or-later licence governs copying, modification and redistribution.',
           ),
           image: '/og/home.png',
+          imageAlt: 'PDFShush terms of use',
+          keywords: ['pdfshush terms', 'free pdf tools terms'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/about',
-          title: 'About pdfshush - private PDF tools',
+          title: 'About PDFShush – Free, Private, Open-Source PDF Tools',
           description:
-            'Why pdfshush exists: ordinary PDF tasks should not require uploading the document. An independent, open-source workspace with 51 live client-side tools.',
+            'Why PDFShush exists: ordinary PDF tasks should not require uploading the document. An independent, open-source workspace with 51 live client-side tools.',
           html: simplePage(
-            'About pdfshush',
+            'About PDFShush',
             'PDF tools without the upload.',
             'An independent, open-source PDF workspace. The browser does the work; the catalog is honest about the seven tools it declined; the server tier is parked rather than offered and left to fail.',
           ),
           image: '/og/home.png',
+          imageAlt: 'About PDFShush – an open-source PDF workspace',
+          keywords: ['about pdfshush', 'open source pdf tools', 'private pdf workspace'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/contact',
-          title: 'Contact pdfshush',
+          title: 'Contact PDFShush – Support and Security | PDFShush',
           description:
-            'Email foundersoffice@proton.me, open a GitHub issue for a reproducible bug, or use the private security advisory form.',
+            'Email foundersoffice@proton.me, open a GitHub issue for a reproducible bug, or use the private security advisory form for a security vulnerability report.',
           html: simplePage(
-            'Contact pdfshush',
+            'Contact PDFShush',
             'Email is the reliable route; GitHub is best for a reproducible bug.',
             'Write to foundersoffice@proton.me. Do not attach a real document to a public issue; a small synthetic PDF is enough. Security reports go through the private advisory form.',
           ),
           image: '/og/home.png',
+          imageAlt: 'Contact PDFShush',
+          keywords: ['contact pdfshush', 'pdfshush support'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/status',
-          title: 'Service status | pdfshush',
+          title: 'Service Status – All Client PDF Tools Online | PDFShush',
           description:
-            'The static app and all 51 client-side tools are operational. Accounts, workflows, the REST API and MCP are not deployed on this origin.',
+            'The static app and all 51 client-side PDF tools are operational. Accounts, workflows, the REST API and MCP are not deployed on this origin. No login needed.',
           html: simplePage(
             'Service status',
             'The static app and its client tools are operational.',
             'This is a static status note, not a live monitoring dashboard. The server-backed surfaces are intentionally off; /api/* answers a JSON 404. The trust page and verifier let you check the privacy and redaction claims yourself.',
           ),
           image: '/og/home.png',
+          imageAlt: 'PDFShush service status',
+          keywords: ['pdfshush status', 'pdf tools status'],
           indexable: true,
+          type: 'website',
         },
         {
           route: '/account',
-          title: 'Account - optional sync | pdfshush',
+          title: 'Account – Optional Sync for Free PDF Tools | PDFShush',
           description:
-            'Accounts are optional. Client-side tools work without one; an account only syncs preferences and workflow recipes.',
+            'Accounts are optional. Every client-side PDF tool works without one; an account only syncs preferences and workflow recipes. No document is ever uploaded.',
           html: simplePage(
             'Account (optional)',
             'Client-side tools work without an account.',
             'An account syncs preferences and workflow recipes. It never becomes a condition for editing a local file.',
           ),
           image: '/og/home.png',
+          imageAlt: 'Optional PDFShush account',
+          keywords: ['pdfshush account'],
           indexable: false,
+          type: 'website',
         },
-        ...tools.map((tool) => ({
-          route: `/tools/${tool.slug}`,
-          title: `${tool.name} - ${tool.live ? 'free and private' : 'coming soon'} | pdfshush`,
-          description: tool.live
-            ? `${tool.description} Runs in your browser; the file is not uploaded.`
-            : `${tool.name} is coming soon. This page explains why and points at the closest live alternative.`,
-          html: toolPage(tool, tools),
-          image: `/og/${tool.slug}.png`,
-          indexable: tool.live,
-          tool,
+        ...tools.map((tool) => {
+          const seo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
+          const meta = tool.live ? seo : { ...seo, ...(DECLINED_SEO[tool.slug] ?? {}) };
+          return {
+            route: `/tools/${tool.slug}`,
+            title: meta.title,
+            description: meta.description,
+            html: toolPage(tool, tools),
+            image: `/og/${tool.slug}.png`,
+            imageAlt: `${tool.name} – ${tool.categoryLabel} on PDFShush`,
+            keywords: seo.keywords,
+            indexable: tool.live,
+            type: 'website' as const,
+            tool,
+          };
+        }),
+        ...LANDING_PAGES.map((page) => ({
+          route: page.path,
+          title: page.title,
+          description: page.description,
+          html: landingPage(page),
+          image: page.image,
+          imageAlt: `${page.h1} – PDFShush guide`,
+          keywords: page.keywords,
+          indexable: true,
+          type: 'article' as const,
+          landing: page,
         })),
       ];
 
       for (const entry of routes) {
-        // Root only: a tool route's static copy already describes the page the
-        // visitor asked for, so it is not the wrong page flashing by. The home
-        // document is the one that must not paint the whole catalog first.
         const staticBody =
           entry.route === '/'
-            ? `${startupShell()}<noscript>${entry.html}</noscript>`
+            ? `${entry.html}${startupShell()}`
             : entry.html;
+
+        const schemas: Record<string, unknown>[] = [];
+        if (entry.route === '/') {
+          schemas.push(organizationSchema(origin));
+          schemas.push(websiteSchema(origin));
+          schemas.push(
+            webPageSchema(
+              {
+                name: entry.title,
+                description: entry.description,
+                route: '/',
+                image: '/og/home.png',
+              },
+              origin,
+            ),
+          );
+          schemas.push(faqPageSchema(HOME_FAQS, origin, '/'));
+        } else if (entry.tool) {
+          const tool = entry.tool;
+          schemas.push(
+            softwareApplicationSchema(
+              { slug: tool.slug, name: tool.name, description: entry.description },
+              origin,
+              entry.route,
+            ),
+          );
+          schemas.push(
+            breadcrumbSchema(
+              [
+                { name: 'Home', route: '/' },
+                { name: 'All PDF tools', route: '/#all-tools' },
+                { name: tool.name, route: entry.route },
+              ],
+              origin,
+            ),
+          );
+          const faqs = faqsFor(tool.slug);
+          if (tool.live && faqs.length > 0) {
+            schemas.push(faqPageSchema(faqs, origin, entry.route));
+          }
+        } else if (entry.landing) {
+          const page = entry.landing;
+          schemas.push(
+            webPageSchema(
+              {
+                name: entry.title,
+                description: entry.description,
+                route: entry.route,
+                image: entry.image,
+                type: 'Article',
+              },
+              origin,
+            ),
+          );
+          schemas.push(
+            breadcrumbSchema(
+              [
+                { name: 'Home', route: '/' },
+                { name: 'PDF tools', route: '/#all-tools' },
+                { name: page.h1, route: entry.route },
+              ],
+              origin,
+            ),
+          );
+          schemas.push(faqPageSchema(page.faqs, origin, entry.route));
+        } else {
+          schemas.push(websiteSchema(origin));
+          schemas.push(
+            webPageSchema(
+              {
+                name: entry.title,
+                description: entry.description,
+                route: entry.route,
+                image: entry.image,
+              },
+              origin,
+            ),
+          );
+        }
+
+        const jsonLd = schemas
+          .map(
+            (schema) =>
+              `<script type="application/ld+json">${JSON.stringify(schema)}</script>`,
+          )
+          .join('\n    ');
+
         const html = withHead(template, {
           title: entry.title,
           description: entry.description,
           route: entry.route,
           origin,
           image: entry.image,
+          imageAlt: entry.imageAlt,
+          keywords: entry.keywords,
           indexable: entry.indexable && !NOT_INDEXABLE.has(entry.route),
-          jsonLd: [jsonLd(origin, entry.route, entry.tool), entry.tool ? faqJsonLd(origin, entry.tool) : '']
-            .filter(Boolean)
-            .join('\n    '),
-        }).replace(
-          '<div id="root"></div>',
-          `<div id="root">${staticBody}</div>`,
-        );
+          type: entry.type,
+          jsonLd,
+        }).replace('<div id="root"></div>', `<div id="root">${staticBody}</div>`);
+
         // A flat `<route>.html`, not `<route>/index.html`.
         //
         // Cloudflare Pages (like Netlify and most static hosts) resolves a
         // directory's `index.html` only at the *trailing-slash* URL: a request
-        // for `/tools/merge-pdf` is 308-redirected to `/tools/merge-pdf/`. Every
-        // canonical URL and every sitemap entry would then point at a
-        // redirect, which is exactly the kind of quiet SEO damage this product
-        // does not ship. A flat file is served at the extension-less path with a
+        // for `/tools/merge-pdf` is 308-redirected to `/tools/merge-pdf/`.
+        // Every canonical URL and every sitemap entry would then point at a
+        // redirect. A flat file is served at the extension-less path with a
         // 200, so the URL we publish is the URL the visitor gets.
         const file =
           entry.route === '/'
@@ -575,17 +779,33 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
       );
       const sitemap = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-        ...sitemapRoutes.map(
-          (entry) => `  <url><loc>${origin}${entry.route}</loc></url>`,
-        ),
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+        ...sitemapRoutes.map((entry) => {
+          const loc = `${origin}${entry.route === '/' ? '/' : entry.route}`;
+          return [
+            '  <url>',
+            `    <loc>${loc}</loc>`,
+            `    <lastmod>${buildDate}</lastmod>`,
+            '    <xhtml:link rel="alternate" hreflang="en-IN" href="' + loc + '" />',
+            '    <xhtml:link rel="alternate" hreflang="en" href="' + loc + '" />',
+            '    <xhtml:link rel="alternate" hreflang="x-default" href="' + loc + '" />',
+            '  </url>',
+          ].join('\n');
+        }),
         '</urlset>',
         '',
       ].join('\n');
       await writeFile(path.join(dist, 'sitemap.xml'), sitemap);
       await writeFile(
         path.join(dist, 'robots.txt'),
-        ['User-agent: *', 'Allow: /', 'Disallow: /account', 'Disallow: /api/', `Sitemap: ${origin}/sitemap.xml`, ''].join('\n'),
+        [
+          'User-agent: *',
+          'Allow: /',
+          'Disallow: /account',
+          'Disallow: /api/',
+          `Sitemap: ${origin}/sitemap.xml`,
+          '',
+        ].join('\n'),
       );
       // A top-level 404.html, so a static host answers an unknown URL with a
       // real 404 status instead of the app shell and a 200.
@@ -615,10 +835,8 @@ export function prerenderedRoutesPlugin(rootDir: string): Plugin {
           const url = new URL(request.url ?? '/', 'http://preview.local');
           if (url.pathname === '/' || url.pathname.includes('.')) return next();
           const clean = url.pathname.replace(/\/$/, '');
-          // The prerendered file is flat (`/tools/merge-pdf.html`), which is how
-          // a static host resolves the extension-less path.
           const candidate = path.join(rootDir, 'dist', `${clean}.html`);
-          await access(candidate);
+          await import('node:fs/promises').then((fs) => fs.access(candidate));
           request.url = `${clean}.html${url.search}`;
         } catch {
           /* not a prerendered route; let the SPA fallback handle it */
