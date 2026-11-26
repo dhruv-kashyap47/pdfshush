@@ -1,282 +1,257 @@
-# Deploying the frontend on Cloudflare Workers
+# Deploy PDFShush on Cloudflare (Workers + D1)
 
-> **Status change (2026-11-26).** This Worker now deploys the API as well:
-> accounts on D1, in `apps/edge`. `/api/*` no longer answers 404 — it is a Hono
-> app, and `infra/cloudflare/api-404.js` is no longer referenced by
-> `wrangler.jsonc`. Server-side PDF execution, `/api/v1`, workflows and MCP are
-> capability-gated off on this shape and answer `503` with a stable code.
-> See [`apps/edge/README.md`](../apps/edge/README.md) for the new deploy steps.
-> Everything below about the *hosting* layer still applies; the scope paragraphs
-> do not.
+The active product is **one Cloudflare Worker** that serves:
 
-The current production target: **Workers + Static Assets**, frontend only. The
-configuration lives in the repository root (`wrangler.jsonc`), so the deploy is
-the same command on a laptop and in CI.
+- the SPA and every prerendered page from **Static Assets**;
+- `/api/*` from `apps/edge` — Google sign-in, D1 account data, the managed AI
+  proxy, sponsor cards and Dodo billing.
 
-This supersedes the Cloudflare Pages steps in [`DEPLOY.md`](./DEPLOY.md) for the
-hosting layer. The scope is unchanged: the React app, its prerendered routes,
-the service worker and every static asset. The Express API, the BullMQ worker,
-Redis and MongoDB are **not** deployed and are untouched.
+Every PDF operation runs in the visitor's browser. There is no Redis, no Mongo,
+no BullMQ, no server-side PDF worker, and no `_worker.js` on a page host. The old
+Express tier is archived in [`archive/`](../archive/README.md) (tag
+`server-tier-v1`).
 
-```
-apps/web/dist  ->  wrangler.jsonc  ->  Cloudflare Workers (static assets)
-                                        └── /api, /api/*  ->  404 (tiny Worker script)
-```
-
-One small Worker script (`infra/cloudflare/api-404.js`) exists only to return a
-real 404 for `/api/*`; `assets.run_worker_first` scopes it to those paths, so
-everything else keeps asset-first routing. Nothing in `apps/api`, `apps/worker`
-or `docker-compose.yml` is read or uploaded, and `pnpm stack:up` still brings up
-the local server stack.
+Production: **https://pdfshush.com** — the only attached custom domain.
+`pdfshush.space` no longer resolves.
 
 ---
 
-## 1. One-time setup
+## 1. Prerequisites
+
+| Thing | Why |
+|---|---|
+| Node 20.19+ and pnpm 12 | The repo's pinned toolchain |
+| Cloudflare account with `pdfshush.com` as an active zone | Custom domain + D1 |
+| `npx wrangler login` | OAuth token with `workers`, `d1`, `zone` scopes |
+| Google Cloud OAuth client | Optional; without it sign-in stays hidden |
+| OpenRouter API key | Optional; without it managed AI stays off. BYOK still works |
+
+---
+
+## 2. First deploy (already done once)
 
 ```bash
 pnpm install
-npx wrangler login        # opens the browser; writes a local OAuth token
-npx wrangler whoami       # confirms the account and the token
-```
 
-For CI, skip `login` and set `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit) and
-`CLOUDFLARE_ACCOUNT_ID` in the environment instead.
+# 1. D1 (once). Paste the id into wrangler.jsonc.
+npx wrangler d1 create pdfshush
+npx wrangler d1 migrations apply pdfshush --remote
 
-Wrangler is run through `npx`; it is deliberately not a package dependency, so
-the repository does not gain a second toolchain.
+# 2. Secrets (see §4). Skip until you have the values.
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put AI_MANAGED_API_KEY
 
----
-
-## 2. Build
-
-```bash
-pnpm --filter @pdfshush/web build
-```
-
-The build reads `apps/web/.env.production`, which is committed and contains:
-
-| Variable | Value | Effect |
-| --- | --- | --- |
-| `VITE_SITE_ORIGIN` | `https://pdfshush.space` | Canonical links, Open Graph, `sitemap.xml`, `robots.txt` |
-| `VITE_SERVER_API` | `off` | Frontend shape: no sign-in, no workflow runner, no `/api` calls |
-
-Both are public and baked into the HTML. A shell or CI variable of the same
-name wins over the file, which is how a self-hoster points at another origin.
-
-The build should end with the prerender summary and produce, at minimum:
-
-```text
-apps/web/dist/index.html
-apps/web/dist/tools/merge-pdf.html      # flat file, not tools/merge-pdf/index.html
-apps/web/dist/sw.js
-apps/web/dist/tessdata/eng.traineddata.gz
-apps/web/dist/sitemap.xml
-apps/web/dist/robots.txt
-apps/web/dist/404.html                  # generated, but not served by the SPA fallback
-apps/web/dist/_headers
-```
-
----
-
-## 3. Preview locally, before publishing
-
-```bash
-npx wrangler dev          # http://localhost:8787, same asset router as production
-```
-
-Then, in another shell:
-
-```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/                     # 200
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/tools/merge-pdf      # 200
-curl -s http://localhost:8787/tools/merge-pdf | grep -o '<h1[^>]*>[^<]*</h1>'       # real prerendered HTML
-curl -sI http://localhost:8787/assets/$(ls apps/web/dist/assets | head -1) | grep -i cache-control
-curl -sI http://localhost:8787/sw.js | grep -i cache-control
-curl -sI http://localhost:8787/ | grep -i cache-control        # ... must-revalidate, no-transform
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/no-such-page         # 200 (SPA shell)
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/api/health           # 404 (JSON)
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/API/health           # 404 (case-insensitive)
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8787/api                  # 404 (JSON)
-```
-
-`npx wrangler dev` serves the local build; it does not rebuild. Re-run the build
-after any source change.
-
----
-
-## 4. Deploy
-
-```bash
+# 3. Build the SPA and deploy the Worker.
+pnpm build
 npx wrangler deploy
 ```
 
-The command uploads the current `apps/web/dist` and prints the public URL
-(`https://pdfshush.<account-subdomain>.workers.dev`) plus the version ID. It
-does **not** build: deploying without running step 2 publishes whatever is
-already in `dist`, so treat the build as part of the deploy.
+`pnpm deploy` does the last two steps together.
+
+The committed `apps/web/.env.production` builds the Worker-connected shape
+(`VITE_SERVER_API=on`) at `https://pdfshush.com`. A shell/CI variable with the
+same name wins over that file.
+
+**Current D1 id:** `64dee00a-9259-465f-8462-f053c6fa4d95` (APAC), set in
+`wrangler.jsonc`.
 
 ---
 
-## 5. Verify the deployment
+## 3. Configuration
+
+| Where | Key | Value / meaning |
+|---|---|---|
+| `apps/web/.env.production` | `VITE_SITE_ORIGIN` | `https://pdfshush.com` — canonical URLs, sitemap, OG |
+| `apps/web/.env.production` | `VITE_SERVER_API` | `on` for the Worker shape; `off` for a static-only build |
+| `wrangler.jsonc` | `routes` | `pdfshush.com` custom domain |
+| `wrangler.jsonc` | `workers_dev` | `false` — no second origin |
+| `wrangler.jsonc` | `WEB_ORIGIN` | `https://pdfshush.com` |
+| `wrangler.jsonc` | `GOOGLE_REDIRECT_URI` | `https://pdfshush.com/api/auth/callback` |
+| `wrangler.jsonc` | `AI_MANAGED_PROVIDER` | `openrouter` |
+| `wrangler.jsonc` | `AI_MANAGED_MODEL` | `openrouter/free` (OpenRouter's free-model router) |
+| `wrangler.jsonc` | `AI_ANON_GLOBAL_PER_DAY` | `30` while the account is under $10 of credit |
+| `wrangler.jsonc` | `AI_PRO_GLOBAL_PER_DAY` | `10` while the account is under $10 of credit |
+| `wrangler.jsonc` | `DODO_ENVIRONMENT` | `test` — a typo cannot charge a real card |
+
+The two AI global caps must always sum to **less than** the OpenRouter free-model
+quota: 50/day below $10 of credit, 1,000/day at $10+. At $10+, raise them to
+`700` and `200` together.
+
+---
+
+## 4. Secrets
+
+Never put these in a file that git can see. `wrangler secret put` prompts and
+stores them on the Worker:
 
 ```bash
-BASE=https://pdfshush.space
-
-curl -sI "$BASE" | head -1                                       # 200
-curl -s "$BASE/tools/merge-pdf" | grep -o '<h1[^>]*>[^<]*</h1>'  # <h1>Merge PDF files</h1>
-curl -s "$BASE/tools/merge-pdf" | grep -o '<link rel="canonical"[^>]*>'
-curl -s "$BASE/sitemap.xml" | head -3
-curl -s "$BASE/robots.txt"
-curl -s -o /dev/null -w '%{http_code}\n' "$BASE/no-such-page"    # 200 (see below)
-curl -s -o /dev/null -w '%{http_code}\n' "$BASE/api/health"      # 404
-curl -s -o /dev/null -w '%{http_code}\n' "$BASE/API/health"      # 404
-curl -s -o /dev/null -w '%{http_code}\n' "$BASE/api"             # 404
-curl -s "$BASE/api/health"                                        # {"error":"not_found"}
-curl -sI "$BASE/assets/$(ls apps/web/dist/assets | head -1)" | grep -i cache-control
-curl -sI "$BASE/sw.js" | grep -i cache-control
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put AI_MANAGED_API_KEY      # sk-or-v1-...
+# Optional, only when Dodo billing is switched on:
+npx wrangler secret put DODO_API_KEY
+npx wrangler secret put DODO_WEBHOOK_SECRET
 ```
 
-Then, against the same origin:
+Secrets are read at request time, so adding one does **not** need a rebuild or a
+redeploy. The next request sees it.
+
+Check what is set (names only, never values):
 
 ```bash
-E2E_BASE_URL="$BASE" pnpm test:e2e
-E2E_BASE_URL="$BASE" pnpm test:e2e:reach
-E2E_BASE_URL="$BASE" pnpm test:e2e:offline
+npx wrangler secret list
 ```
 
-`tests/support/preflight.mjs` reads `E2E_BASE_URL` and skips the local compose
-assertions, which is what makes the suites meaningful against a static host.
+---
 
-In a browser, also check the things curl cannot: open a tool and process a
-file, install the PWA, reload it offline, and confirm there is **no** "Sign in"
-control and no failed `/api/*` request in the console.
+## 5. Google sign-in
+
+1. Google Cloud Console → **APIs & Services → Credentials → Create OAuth client
+   ID → Web application**.
+2. **Authorized redirect URI** (exact, byte for byte):
+   `https://pdfshush.com/api/auth/callback`
+3. **Authorized JavaScript origins** are unused by the Authorization Code flow.
+4. Put the client id and secret in the two Worker secrets above.
+5. Verify:
+   ```bash
+   curl -s https://pdfshush.com/api/tools
+   ```
+   `accounts.enabled` must be `true`.
+6. Open `https://pdfshush.com/api/auth/google/start` in a browser. It must answer
+   with a redirect to `accounts.google.com`, not `503 auth_disabled`.
+
+Without the secrets, the SPA hides the sign-in control instead of offering a
+button that lands on a 503.
 
 ---
 
-## 6. What changed from the Pages behaviour
+## 6. Managed AI (OpenRouter)
 
-| Topic | Pages runbook | Workers Static Assets |
-| --- | --- | --- |
-| Deploy | Git integration or `wrangler pages deploy` | `npx wrangler deploy` |
-| Configuration | dashboard build settings | `wrangler.jsonc` in the repository |
-| Build variables | dashboard environment variables | `apps/web/.env.production` (or shell env) |
-| Unknown frontend URL | `404.html` with **404** | `/index.html` with **200** (SPA fallback) |
-| Unknown `/api/*` URL | `404.html` with **404** | JSON **404** from the Worker fence |
-| `_headers` | supported | supported |
-| `_redirects` | supported | supported (not applied to Worker-generated responses) |
+1. Create an account at **openrouter.ai** and an API key at
+   `https://openrouter.ai/settings/keys`.
+2. Put the key in `AI_MANAGED_API_KEY` (§4). `AI_MANAGED_MODEL` is already
+   `openrouter/free`.
+3. Verify:
+   ```bash
+   curl -s https://pdfshush.com/api/tools
+   ```
+   `ai.enabled` must be `true`. `GET /api/health` also reports `managedAi`.
+4. Open any AI tool (`summarize-pdf`, `chat-with-pdf`, `edit-pdf-with-ai`) and
+   send one message. The fourth anonymous message in a day should be refused.
 
-### Unknown URLs: SPA fallback plus an API fence
+**The honest limit.** Below $10 of OpenRouter credit, the free-model quota is
+**50 requests/day for the whole account**. The deployment caps are set to 30
+anonymous + 10 signed-in, which is why the trial is deliberately small. At $10+
+the quota is 1,000/day; raise the two caps to 700/200.
 
-`not_found_handling: "single-page-application"` makes deep links work without a
-server: an unmatched frontend path returns the app shell with status 200, and
-React's router renders the in-app "page not found" view. That is still a soft
-404 for crawlers, and it is the documented behaviour for `/no-such-page`,
-`/account`, and any client-only route.
-
-`/api` and `/api/*` are deliberately excluded. `run_worker_first` sends exactly
-those paths to `infra/cloudflare/api-404.js`, which answers:
-
-```http
-HTTP/1.1 404 Not Found
-Content-Type: application/json; charset=utf-8
-Cache-Control: no-store
-
-{"error":"not_found"}
-```
-
-Cloudflare matches `run_worker_first` patterns case-sensitively while Express
-does not, so `wrangler.jsonc` lists all eight spellings of `api` (`/api`, `/Api`,
-`/API`, …) and the Worker compares the lowercased path. `/API/health` is
-therefore a 404 too, not a 200 shell for a misspelled endpoint.
-
-This is not a server: there is no routing table, no auth, and no PDF work in the
-Worker. It exists so a static deployment does not lie to API clients with a 200
-and an HTML body. A path outside the fence still gets the shell:
-
-| Request | Result |
-| --- | --- |
-| `/tools/merge-pdf` | 200, prerendered HTML |
-| `/account`, `/workflows`, `/trust` | 200, prerendered HTML |
-| `/no-such-page` | 200, `index.html` (in-app not-found) |
-| `/api`, `/api/health`, `/API/health`, `/api/anything` | 404, JSON |
-
-`dist/404.html` is still generated, but Static Assets only serves it when
-`not_found_handling` is `"404-page"`. Switching to that would break the SPA deep
-links above, so it stays unused.
-
-### Flat prerendered files
-
-The prerender plugin writes `dist/<route>.html`, not `<route>/index.html`.
-`html_handling: "auto-trailing-slash"` serves those files at the extensionless
-canonical URL and redirects `/foo.html` to `/foo`. Do not switch to
-`"force-trailing-slash"`; it would make every prerendered route unreachable at
-its canonical URL.
+**BYOK still works with no key.** The AI settings panel stores the visitor's own
+provider key in IndexedDB and sends requests straight to that provider. All four
+AI features — summarize, chat, edit-with-AI and smart redaction — accept both
+BYOK and managed mode.
 
 ---
 
-## 7. Custom domain
-
-1. **Workers & Pages** → `pdfshush` → **Settings** → **Domains & Routes** →
-   **Add** → **Custom domain** → `pdfshush.space`.
-2. If the zone is on Cloudflare, the DNS record and certificate are created
-   automatically. Wait for **Active**.
-3. A `www` hostname should be a Redirect Rule to the apex, not a second Worker
-   custom domain, so canonical URLs and SEO signals stay on one host.
-
-Remove or detach any Pages project still attached to the same hostname first;
-two deployments competing for one DNS name is an outage waiting to happen.
-
----
-
-## 8. Continuous deployment (optional, not configured)
-
-The existing `.github/workflows/ci.yml` already builds on every push and pull
-request. To publish from CI as well, add a workflow step after the build:
-
-```yaml
-- uses: cloudflare/wrangler-action@v3
-  with:
-    apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-    accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-    command: deploy
-```
-
-This repository does not contain that step or those secrets today; deploys are
-manual until it is added.
-
----
-
-## 9. Rollback
+## 7. Local development
 
 ```bash
+pnpm dev          # http://localhost:5173 — every tool, no Worker needed
+pnpm dev:edge     # http://localhost:8787 — Worker only
+pnpm dev:full     # build once, then web + Worker together
+```
+
+`pnpm dev` proxies `/api` to `:8787`. Most tool work needs no Worker at all; start
+`pnpm dev:edge` only when testing sign-in, sync or AI.
+
+Local secrets go in `apps/edge/.dev.vars` (gitignored):
+
+```bash
+cp apps/edge/.dev.vars.example apps/edge/.dev.vars
+# then fill in GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / AI_MANAGED_API_KEY
+pnpm db:local
+```
+
+Local D1 migrations: `pnpm db:local`. Remote: `pnpm db:remote`.
+
+---
+
+## 8. Verify a deploy
+
+```bash
+# 1. Worker shape
+curl -s https://pdfshush.com/api/health
+curl -s https://pdfshush.com/api/capabilities
+curl -s https://pdfshush.com/api/tools
+
+# 2. Static + SEO
+curl -s https://pdfshush.com/ | grep -o '<link rel="canonical"[^>]*>'
+curl -s https://pdfshush.com/sitemap.xml | grep -c '<loc>'
+
+# 3. Archived surfaces stay out
+curl -sI https://pdfshush.com/tools/workflows | grep -i robots
+curl -s  https://pdfshush.com/tools/workflows | grep -o 'Not available on this deployment'
+
+# 4. Browser suites
+E2E_BASE_URL=https://pdfshush.com pnpm test:e2e
+E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:reach
+E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:offline
+```
+
+The last verified production run (2026-11-26, Worker `372f97f0` before the
+static-only surface deploy) passed: smoke **all checks**, reach **all checks**,
+48 live tools, 71 sitemap URLs, 84 prerendered routes, archived pages
+`noindex`, `/api/*` healthy, no console errors.
+
+---
+
+## 9. Operations
+
+```bash
+npx wrangler tail                      # live errors
 npx wrangler deployments list
-npx wrangler rollback <version-id>
+npx wrangler rollback                  # previous Worker version
+npx wrangler d1 execute pdfshush --remote --command "SELECT COUNT(*) FROM accounts"
 ```
 
-Static assets are versioned with the Worker deployment, and every hashed asset
-URL is immutable, so a rollback also restores the exact chunk set the previous
-HTML references.
+The Worker runs a cron at `17 * * * *` to expire sessions, sponsor rows and
+abandoned drafts.
 
 ---
 
-## 10. Troubleshooting
+## 10. What is deliberately not deployed
+
+| Surface | Why |
+|---|---|
+| Workflows / recipe runner | Needs the archived server queue |
+| REST API `/api/v1` | Needs server-side PDF execution and a durable job store |
+| MCP server | Local stdio bridge over the archived REST API |
+| Server-side PDF jobs | No canvas in workerd; the browser is the processor |
+| Dodo billing | Code is built; routes answer `503 billing_disabled` until configured |
+
+Their permanent pages say "not available on this deployment" and are `noindex`.
+They are not in the catalog, menus or sitemap.
+
+---
+
+## 11. Troubleshooting
 
 | Symptom | Cause | Fix |
-| --- | --- | --- |
-| `wrangler deploy` uploads an old site | `dist` was not rebuilt | Run the build first; the deploy does not build. |
-| Canonical URLs show `pdfshush.app` or `localhost` | `VITE_SITE_ORIGIN` was overridden or the build ran in dev mode | Rebuild with `pnpm --filter @pdfshush/web build` and check `dist/trust.html`. |
-| The live site still offers sign-in | `VITE_SERVER_API` is not exactly `off` | Check the effective environment and rebuild. |
-| `/tools/merge-pdf` 404s or redirects oddly | `html_handling` changed | Keep `"auto-trailing-slash"`. |
-| `/api/health` or `/API/health` returns the HTML shell | `run_worker_first` is missing or no longer covers every case spelling of the prefix | Restore the full `run_worker_first` list from `wrangler.jsonc`; the Worker lowercases before comparing. |
-| Security headers missing | `_headers` did not reach `dist` | Confirm `apps/web/dist/_headers` exists before deploying. Custom headers apply to static asset responses; the API 404 sets its own headers in `infra/cloudflare/api-404.js`. |
-| Assets are not cached for a year | The request did not match `/assets/*` | Check the URL; only hashed build assets are meant to be immutable. |
-| Console shows `static.cloudflareinsights.com/beacon.min.js` blocked by CSP | Cloudflare injected its Web Analytics beacon into the HTML | The `/*` rule in `_headers` sets `no-transform` so the rewrite cannot happen; confirm the live `/` response carries it (`curl -sI https://pdfshush.space/ \| grep -i cache-control`). If it does and the beacon is still injected, Web Analytics is on for the zone: turn it off in **Analytics → Web Analytics**. Do not widen `script-src` ([`edge-headers.test.ts`](../apps/web/src/lib/edge-headers.test.ts) pins that). |
-| HTML arrives uncompressed | Expected: `no-transform` disables Cloudflare's HTML compression | Hashed assets are detached from that rule, so JS/CSS still compress. The documents are ~16 kB. |
+|---|---|---|
+| `503 auth_disabled` | One of the three Google values is missing | Set all three secrets; redirect URI must match exactly |
+| `503 ai_disabled` | No `AI_MANAGED_API_KEY` or empty model | Set the key; keep `AI_MANAGED_MODEL=openrouter/free` |
+| `429 ai_capacity` | Deployment-wide daily cap reached | Expected on a sub-$10 account; raise caps after buying credit |
+| `429 ai_budget` | This person used their allowance | Expected; they wait or upgrade |
+| AI panel never appears | `VITE_SERVER_API=off`, or `/api/tools` says `ai.enabled:false` | Rebuild with `on`; check the secret |
+| Sign-in loops | Redirect URI mismatch, or cookie secure on http | Match Google exactly; `SESSION_COOKIE_SECURE=true` only on https |
+| Deploy says custom domain already exists | Domain was attached in the dashboard | It is already attached; remove the duplicate `routes` entry |
+| Stale HTML after deploy | Browser or Cloudflare cache | HTML is `must-revalidate`; hard reload, or check `_headers` |
 
 ---
 
-## 11. What is deliberately not covered
+## 12. Security headers
 
-Uploading the Express API, the BullMQ worker, Redis or MongoDB (they remain a
-local `docker compose` stack), managed AI (needs the server), and accounts
-(also server-side). See [`DEPLOY.md`](./DEPLOY.md) §10 for that parked tier.
+`apps/web/public/_headers` is applied by Workers Static Assets. It sets
+`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, HSTS and the
+cache policy. The Content-Security-Policy is a **meta tag** generated by
+`apps/web/src/lib/csp.ts` and stays `default-src 'self'`; no third-party
+monetization script is allowed.

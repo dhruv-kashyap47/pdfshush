@@ -8587,12 +8587,39 @@ scripts no longer start Redis or the API: `pnpm dev` is the web app,
 points at the Worker on `:8787`, and `tests/support/preflight.mjs` treats the
 Worker as optional because every tool works without it.
 
-**Still to come:** deploy the Worker on `pdfshush.com`, hide the archived
-surfaces (Workflows, REST API, MCP) from the header/catalog while keeping honest
-permanent pages, enable the OpenRouter trial, and publish the guides.
+**Deployed (Phase 1).** D1 `pdfshush` was created in APAC
+(`64dee00a-9259-465f-8462-f053c6fa4d95`), migrations `0001`-`0003` applied, and
+the Worker deployed to the `pdfshush.com` custom domain with `workers_dev:false`.
+`pdfshush.space` no longer resolves; `.com` is the only origin. Latest Worker in
+this session: `372f97f0-d37e-4298-9410-93ab85642728`. `/api/health` reports
+`database:ok`; `/api/capabilities` reports the free shape with
+`serverJobs/workflows/publicApi/mcp:false`.
 
-**Evidence for Phase 0:** `pnpm typecheck` green across the five active projects;
-`pnpm test` **1 582 passed + 1 expected fail** (pdf-core 707, web 348,
-ai-provider 375, ai-agent 152); `pnpm build` green with 84 prerendered routes /
-75 sitemap URLs at `https://pdfshush.com`; `test:bundle` main **182.6 kB /
-0 engines**; `test:guardrails`, `test:provenance` and `seo:audit` clean.
+**Archived surfaces hidden (Phase 2).** `workflows`, `api` and `mcp` are now
+`status:'archived'`: absent from the header, mega menu, mobile sheet, home
+catalog, hero, sitemap and "live" count, with honest permanent pages, `noindex`,
+and a new `ARCHIVED_COPY` record. The live catalog is **48 tools** (7 declined,
+3 archived, 58 total). The archived frontend files (workflow builder, API/MCP
+consoles, MCP hero dialog, their clients and tests) moved to `archive/`.
+
+**AI (configured, waiting on one secret).** `AI_MANAGED_MODEL` is
+`openrouter/free` — OpenRouter's free-model router, 200k context, tools and
+structured outputs. Deployment-wide caps are env-driven:
+`AI_ANON_GLOBAL_PER_DAY=30`, `AI_PRO_GLOBAL_PER_DAY=10` until the account has
+$10+ of credit, then 700/200. The feature stays hidden until
+`AI_MANAGED_API_KEY` and the Google secrets are set. BYOK works without them.
+
+**Still to do (operator):** set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and
+`AI_MANAGED_API_KEY` with `wrangler secret put`; register
+`https://pdfshush.com/api/auth/callback` in Google Cloud Console; publish the 20
+guides. Dodo stays off by decision.
+
+**Evidence:** `pnpm typecheck` green across five active projects; `pnpm test`
+**1 575 passed + 1 expected fail** (pdf-core 707, web 341, ai-provider 375,
+ai-agent 152); `pnpm build` green with 84 prerendered routes / **71 sitemap
+URLs**; `test:bundle` main **150.0 kB / 0 engines**; `test:guardrails`,
+`test:provenance` and `seo:audit` clean. Production
+`E2E_BASE_URL=https://pdfshush.com pnpm test:e2e` → **ALL CHECKS PASSED**
+(including archived surfaces absent from the menu, legacy `/workflows` redirect,
+redaction and console health); `test:e2e:reach` → **all checks passed** (48
+indexable tools, 71 sitemap URLs, archived pages noindex and absent from home).

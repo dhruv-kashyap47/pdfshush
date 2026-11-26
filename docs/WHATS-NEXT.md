@@ -7,10 +7,12 @@
 
 ## Where we are, in one paragraph
 
-The website is live and every PDF tool runs in the visitor's browser. The product
-is now **Cloudflare-only**: one Worker on the free tier handles sign-in, cloud
-sync and the AI trial, and it costs $0 at your traffic. The Express/BullMQ/
-Redis/Mongo server tier has been archived in `archive/` for a later paid tier.
+The website is live at **https://pdfshush.com** and every PDF tool runs in the
+visitor's browser. The product is now **Cloudflare-only**: one Worker on the free
+tier handles sign-in, cloud sync and the AI trial, and it costs $0 at your
+traffic. The Express/BullMQ/Redis/Mongo server tier has been archived in
+`archive/` for a later paid tier. The Worker and D1 are deployed; the only thing
+switched off is the pair of secrets (Google and OpenRouter).
 The 20 guides are written but not published. AdSense is gone by decision;
 sponsorship and the one-time rails are built and switch on when Dodo is
 configured. Nothing is broken; most things are just waiting on a decision or an
@@ -191,26 +193,28 @@ that.
 
 **Why:** accounts, sync and AI do not exist in production until this happens.
 
-- [ ] `npx wrangler d1 create pdfshush` → paste the id into `wrangler.jsonc`
-- [ ] `npx wrangler d1 migrations apply pdfshush --remote`
+- [x] `npx wrangler d1 create pdfshush` → id in `wrangler.jsonc`
+- [x] `npx wrangler d1 migrations apply pdfshush --remote`
 - [ ] Add Google secrets + the AI key
-- [ ] Set `GOOGLE_REDIRECT_URI` to `https://pdfshush.com/api/auth/callback`
-      (and register the same URL in Google Cloud Console)
-- [ ] `npx wrangler deploy` and test on the `workers.dev` URL first
-- [ ] Sign in, save a workflow, delete the account — all three must work
+- [x] `GOOGLE_REDIRECT_URI` set to `https://pdfshush.com/api/auth/callback`
+      (still register the same URL in Google Cloud Console)
+- [x] `npx wrangler deploy` to the `pdfshush.com` custom domain
+      (`workers.dev` is deliberately disabled)
+- [ ] Sign in, sync history, delete the account — all three must work
 
-**Done when:** sign-in works on `workers.dev` and the data survives a reload.
+**Done when:** sign-in works on `pdfshush.com` and the data survives a reload.
 
 ### Sprint 3 — Switch the website on
 
-**Why:** the site is still built as "no server", so nothing new is visible.
+**Why:** the build is Worker-connected and the archived surfaces are hidden;
+what remains is proving the account and AI paths with real secrets.
 
 - [x] Per-feature capability switch (`apps/web/src/lib/capabilities.ts`)
-- [ ] Hide Workflows / API / MCP in the header and catalog; keep honest
+- [x] Hide Workflows / API / MCP in the header, hero and catalog; keep honest
       permanent pages instead of dead links
-- [ ] Build with `VITE_SERVER_API=on`
-- [ ] Confirm the AI panel appears and the nav has Guides
-- [ ] Point `pdfshush.com` at the Worker and finish the origin migration
+- [x] Build with `VITE_SERVER_API=on`
+- [ ] Confirm the AI panel appears after `AI_MANAGED_API_KEY` is set
+- [x] Point `pdfshush.com` at the Worker and retire `pdfshush.space`
 
 **Done when:** a visitor can sign in and use the AI trial on the real domain.
 
