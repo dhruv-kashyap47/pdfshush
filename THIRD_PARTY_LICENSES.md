@@ -89,7 +89,9 @@ move into this file first.
 
 ## Production dependency summary
 
-From `pnpm -r licenses list --prod` (2026-11-26):
+From `pnpm -r licenses list --prod` (2026-11-26): 103 production packages. The
+appendix reproduces the notices of the 99 that ship a licence file; the other
+four are listed below.
 
 | Licence | Packages | Compatibility |
 | --- | --- | --- |
@@ -100,9 +102,10 @@ From `pnpm -r licenses list --prod` (2026-11-26):
 | 0BSD | 1 | Permissive; no attribution required (notice included anyway). |
 | BSD-2-Clause | 1 | Permissive; notice required. |
 
-No GPL, AGPL, SSPL, Commons Clause or unknown licence appears in the
-**production** tree. Two dev-only families are MPL-2.0 (`axe-core` and
-`lightningcss`); MPL-2.0 is file-level copyleft and these are not shipped.
+No GPL, AGPL or SSPL package appears in the **production** dependency tree.
+The vendored SpotlightCard is the separate Commons Clause case above. Two
+dev-only families are MPL-2.0 (`axe-core` and `lightningcss`); MPL-2.0 is
+file-level copyleft and these are not shipped.
 
 Four production packages declare a licence but do not ship a licence file in
 the installed package: `brotli@1.3.3`, `dfa@1.2.0`,
