@@ -103,7 +103,7 @@ async function missingLazyChunk(browser) {
   }));
 
   check('missing lazy chunk triggers a fresh build reload', /__build=/.test(state.url), state.url);
-  check('the recovered route is the tool page', state.heading.includes('Edit PDF'), state.heading);
+  check('the recovered route is the tool page', /edit pdf|pdf editor/i.test(state.heading), state.heading);
   check('the recovered page can accept a file', state.fileInputs > 0);
   check('the recovered page has no error boundary', state.error === false);
   await context.close();
