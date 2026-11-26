@@ -49,6 +49,15 @@ The short keyword URLs are the guide pages.
 | `/pdf-tools-for-exam-forms` | exam/government upload checklist |
 | `/pdfshush` | brand query |
 
+## Home page body
+
+The home SEO body is a compact reading layer, not a second catalog. It has one
+introduction, one bordered index of 12 categories with every live tool as an
+inline link, one band for "why" and use cases, and one horizontal three-step
+row. Keep it around 1,600 px on a 1440 px viewport; a full card per tool was
+3,600 px and made the page feel endless. The copy uses common action verbs and
+no em-dashes.
+
 ## Files
 
 | File | Role |

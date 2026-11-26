@@ -21,6 +21,7 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 import { faqsFor } from '../src/tools/tool-faqs.ts';
 import {
+  CATEGORY_BLURBS,
   HOME_DESCRIPTION,
   HOME_FAQS,
   HOME_INTRO,
@@ -284,17 +285,16 @@ ${faqBlock(faqsFor(tool.slug), tool.name, tool.slug)}
 }
 
 function homePage(tools: ToolEntry[]): string {
-  const categoryOrder = [...new Set(tools.map((tool) => tool.categoryLabel))];
+  const categoryOrder = [...new Set(tools.map((tool) => tool.category))];
   const toolSections = categoryOrder
-    .map((label) => {
-      const entries = tools.filter((entry) => entry.live && entry.categoryLabel === label);
+    .map((category) => {
+      const entries = tools.filter((entry) => entry.live && entry.category === category);
       if (entries.length === 0) return '';
-      return `<h3>${escapeHtml(label)}</h3><ul>${entries
-        .map(
-          (entry) =>
-            `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}</a> — ${escapeHtml(TOOL_BENEFITS[entry.slug] ?? entry.description)}</li>`,
-        )
-        .join('')}</ul>`;
+      const label = entries[0]!.categoryLabel;
+      const links = entries
+        .map((entry) => `<a href="/tools/${entry.slug}">${escapeHtml(entry.name)}</a>`)
+        .join(', ');
+      return `<h3>${escapeHtml(label)}</h3><p>${escapeHtml(CATEGORY_BLURBS[category] ?? 'Open a tool and start.')}</p><p>${links}</p>`;
     })
     .join('');
 
@@ -305,13 +305,13 @@ function homePage(tools: ToolEntry[]): string {
 <p>${escapeHtml(HOME_INTRO[0]!)}</p>
 <p>${escapeHtml(HOME_INTRO[1]!)}</p>
 <p>${escapeHtml(HOME_TOOL_INTRO)}</p>
-<h2>Every free PDF tool and what it does</h2>
+<h2>All free PDF tools</h2>
 ${toolSections}
-<h2>Why choose PDFShush for free PDF work?</h2>
+<h2>Why people use PDFShush</h2>
 ${WHY_CHOOSE.map((item) => `<h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p>`).join('\n')}
-<h2>Common PDF jobs people finish here</h2>
+<h2>What people use it for</h2>
 ${USE_CASES.map((item) => `<h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p>`).join('\n')}
-<h2>How it works in three steps</h2>
+<h2>How it works</h2>
 <ol>${HOW_IT_WORKS.map((step) => `<li><strong>${escapeHtml(step.title)}</strong> ${escapeHtml(step.body)}</li>`).join('')}</ol>
 ${faqBlock(HOME_FAQS, 'PDFShush', 'home')}
 </main>${footer()}</div>`;
@@ -474,7 +474,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           description: HOME_DESCRIPTION,
           html: homePage(tools),
           image: '/og/home.png',
-          imageAlt: 'PDFShush free online PDF tools – compress, merge, split and edit PDFs',
+          imageAlt: 'PDFShush free online PDF tools: compress, merge, split and edit PDFs',
           keywords: HOME_KEYWORDS,
           indexable: true,
           type: 'website',

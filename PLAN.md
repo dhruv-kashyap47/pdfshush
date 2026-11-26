@@ -755,6 +755,30 @@ never actually wired, and a stream with no error listener.*
 
 ## 8. Changelog
 
+- **2026-11-26 - Home SEO section compacted into a design-native tool index, with plain-language copy.**
+
+  **The section was a second catalog.** The first pass rendered all 51 tools as a three-column
+  definition list with a benefit after every name, then repeated the page with six "why" blocks,
+  four use cases and three large step cards. It measured **3,616 px tall on a 1440 px viewport** and
+  made the landing page feel like it never ended.
+
+  **One index, one reading layer.** The tool list is now a single bordered index: 12 categories,
+  one short line for each category, and every live tool as an inline link. The list uses CSS
+  columns so a long category ("Other") no longer leaves empty rows under short ones. "Why people
+  use PDFShush" and "What people use it for" share one two-column band, and the three steps are one
+  horizontal row with no cards. Desktop height is now **1,607 px (about 55% shorter)**; the static
+  no-JS document uses the same compact structure.
+
+  **Copy, not keywords pasted together.** The section copy now uses common action verbs: make,
+  combine, cut, turn, add, remove, save, open, lock, sign. Em-dashes are gone from the section and
+  from the shared home copy. The home title separator is a colon (`Free Online PDF Tools: Compress,
+  Merge, Edit | PDFShush`) so the title itself carries no dash.
+
+  **SEO kept.** The page still has the keyword-led H1 and H2, the two introductory paragraphs, all
+  51 tool links, category context, six FAQs, the Organization/WebSite/SearchAction/FAQPage schema
+  and the 74-URL sitemap. `seo:audit` still passes 82 pages, and `test:e2e:seo` still passes with one
+  `FAQPage` and no duplicate JSON-LD.
+
 - **2026-11-26 - On-page SEO: keyword guides, 82 prerendered pages, and a full metadata/schema pass.**
 
   **Two URL families, no duplicate content.** Tool utilities stay at `/tools/<slug>`; fourteen
