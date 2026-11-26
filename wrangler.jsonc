@@ -113,6 +113,11 @@
     "AI_MANAGED_PROVIDER": "openrouter",
     "AI_MANAGED_MODEL": "openrouter/free",
     "AI_MANAGED_MAX_OUTPUT_TOKENS": "4096",
+    // Sub-$10 OpenRouter account: 50 free-model requests/day for the whole
+    // account. These two sum to 40, leaving headroom for retries. At $10+ the
+    // quota becomes 1,000/day; raise them to 700 and 200 together.
+    "AI_ANON_GLOBAL_PER_DAY": "30",
+    "AI_PRO_GLOBAL_PER_DAY": "10",
 
     // Billing. Dodo Payments is the merchant of record, so it owns tax and
     // receipts; this Worker only creates checkouts and verifies webhooks.

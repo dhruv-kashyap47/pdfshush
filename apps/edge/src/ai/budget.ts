@@ -28,10 +28,36 @@ export const AI_LIMITS = {
   /** 500 messages a month, with a daily ceiling so one afternoon cannot burn it. */
   proPerMonth: 500,
   proPerDay: 60,
-  /** Of OpenRouter's 1,000/day, the trial may never take the whole thing. */
+  /**
+   * Defaults assume a $10+ OpenRouter account (1,000 free-model requests/day).
+   * Below $10 the account has 50/day, so set `AI_ANON_GLOBAL_PER_DAY` and
+   * `AI_PRO_GLOBAL_PER_DAY` to 30 and 10 in `wrangler.jsonc` until the credit
+   * is bought. The two deployment caps must always sum to less than the quota.
+   */
   anonymousGlobalPerDay: 700,
   proGlobalPerDay: 200,
 } as const;
+
+export interface AiGlobalCaps {
+  anonymous: number;
+  pro: number;
+}
+
+function positiveInteger(raw: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/** The deployment-wide daily ceilings, readable without editing this module. */
+export function aiGlobalCaps(env: {
+  AI_ANON_GLOBAL_PER_DAY?: string;
+  AI_PRO_GLOBAL_PER_DAY?: string;
+}): AiGlobalCaps {
+  return {
+    anonymous: positiveInteger(env.AI_ANON_GLOBAL_PER_DAY, AI_LIMITS.anonymousGlobalPerDay),
+    pro: positiveInteger(env.AI_PRO_GLOBAL_PER_DAY, AI_LIMITS.proGlobalPerDay),
+  };
+}
 
 function utcDay(now: number): string {
   return new Date(now).toISOString().slice(0, 10);
@@ -100,6 +126,8 @@ export interface SpendOptions {
   accountId?: string;
   /** False on a deployment with no billing, so the refusal does not advertise one. */
   offerCredits?: boolean;
+  /** Deployment-wide caps from `aiGlobalCaps(env)`; defaults to `AI_LIMITS`. */
+  globalCaps?: AiGlobalCaps;
   now?: number;
 }
 
@@ -118,7 +146,11 @@ export async function spendAiMessage(db: D1Database, options: SpendOptions): Pro
   const dawn = nextUtcMidnight(now);
 
   const globalKey = `ai:g:${paid ? 'pro' : 'anon'}:${day}`;
-  const globalCap = paid ? AI_LIMITS.proGlobalPerDay : AI_LIMITS.anonymousGlobalPerDay;
+  const caps = options.globalCaps ?? {
+    anonymous: AI_LIMITS.anonymousGlobalPerDay,
+    pro: AI_LIMITS.proGlobalPerDay,
+  };
+  const globalCap = paid ? caps.pro : caps.anonymous;
 
   // Checked before the subject is charged, so a full deployment does not also
   // cost the visitor one of their three messages.

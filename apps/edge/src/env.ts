@@ -66,6 +66,12 @@ export interface Env {
   AI_MANAGED_MODEL?: string;
   AI_MANAGED_PROVIDER?: string;
   AI_MANAGED_MAX_OUTPUT_TOKENS?: string;
+  /**
+   * Deployment-wide daily ceilings. They must stay below OpenRouter's free-model
+   * quota for the whole account: 50/day below $10 of credit, 1,000/day at $10+.
+   */
+  AI_ANON_GLOBAL_PER_DAY?: string;
+  AI_PRO_GLOBAL_PER_DAY?: string;
 
   /**
    * Billing. Dodo Payments is the merchant of record, so it owns tax and

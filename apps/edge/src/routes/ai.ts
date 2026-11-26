@@ -20,7 +20,7 @@ import { getCookie } from 'hono/cookie';
 import type { AppEnv } from '../app-env.js';
 import { redactSecrets, streamForProvider } from '@pdfshush/ai-provider';
 import { managedAiConfig } from '../ai/config.js';
-import { spendAiMessage, type Plan } from '../ai/budget.js';
+import { aiGlobalCaps, spendAiMessage, type Plan } from '../ai/budget.js';
 import { dodoConfig } from '../billing/dodo.js';
 import { D1AuthStore, type Account } from '../db/auth-store.js';
 import { sha256Hex } from '../lib/crypto.js';
@@ -164,6 +164,7 @@ aiRoutes.post('/api/ai/chat', async (c) => {
     plan,
     ...(accountId ? { accountId } : {}),
     offerCredits: dodoConfig(c.env) !== undefined,
+    globalCaps: aiGlobalCaps(c.env),
   });
   if (!spend.ok) {
     c.header('retry-after', String(spend.retryAfterSeconds ?? 60));
