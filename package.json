@@ -64,6 +64,7 @@
     "redis:up": "docker compose up -d redis"
   },
   "devDependencies": {
+    "@dodopayments/opencode-plugin": "^0.8.0",
     "axe-core": "^4.14.0",
     "mongodb": "^7.7.0",
     "playwright": "^1.63.0"

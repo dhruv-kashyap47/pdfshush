@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Dodo Payments ships @dodopayments/opencode-plugin as a V1 plugin, and
+  // OpenCode V2 rejects its export shape ("Plugin must export a default
+  // definition with an id"). The package is still useful: its skill directory
+  // and MCP endpoint are loaded here in the V2 shapes.
+  "skills": ["node_modules/@dodopayments/opencode-plugin/skills"],
+  "mcp": {
+    "servers": {
+      "dodopayments": {
+        "type": "remote",
+        "url": "https://mcp.dodopayments.com/mcp"
+      }
+    }
+  }
+}
