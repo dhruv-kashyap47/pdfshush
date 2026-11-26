@@ -18,8 +18,10 @@ weak floor, and the floor was not worth the cost.
 
 ## 2. What replaced it
 
-All of it is first-party. There is no ad network, no third-party script, no
-iframe, no pixel, and **no CSP change**.
+All of it is first-party. There is no ad network, no advertising script, no
+iframe, no ad pixel, and **no CSP change for a sponsor**. The one third-party
+script on the site is the owner's own page-view tag (GTM-W5QPVR3Z); a sponsor
+cannot extend it, target it or add a script of its own.
 
 | Rail | Price | Type | Surface |
 |---|---|---|---|

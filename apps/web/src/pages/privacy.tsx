@@ -8,7 +8,7 @@ export function PrivacyPage() {
       eyebrow="Privacy"
       title="Your files stay on your device."
       summary="pdfshush is built so the ordinary PDF tools work without an upload. This page explains the narrow cases where something can leave your browser, what is stored locally, and how to remove it."
-      updated="24 November 2026"
+      updated="26 November 2026"
     >
       <InfoSection id="who" title="Who we are">
         <p>
@@ -29,8 +29,9 @@ export function PrivacyPage() {
         <p>
           The client-side tools run inside this tab. Your PDF or image is read by a worker in the
           browser, edited there, and written back from the same tab. There is no upload endpoint to
-          call. No account is required, and there are no analytics or advertising cookies on this
-          deployment.
+          call. No account is required. Every page loads Google Tag Manager and Google Analytics to
+          count visits and page views; that tag never receives a document, a filename or anything you
+          open in a tool. There are no advertising cookies on this deployment.
         </p>
         <p>
           You can verify the local-processing claim yourself on the{' '}
@@ -65,9 +66,10 @@ export function PrivacyPage() {
           provider’s own privacy terms apply to that request.
         </p>
         <p>
-          This deployment has no managed-AI endpoint. The server tier — accounts, synced history,
-          workflows, the REST API and the MCP server — is switched off here, so there is no pdfshush
-          server receiving a document from this site.
+          Accounts and the managed AI panel are live on this deployment, but neither receives a
+          document unless you ask it to: signing in stores account details, and the AI panel sends
+          the text you select in the editor. Workflows, the REST API and the MCP server belong to the
+          archived server tier and do not run here, so there is no other upload endpoint.
         </p>
       </InfoSection>
 
@@ -76,7 +78,35 @@ export function PrivacyPage() {
           The site is served as static files by Cloudflare. Like any web host, Cloudflare processes
           ordinary request metadata needed to deliver the page, such as your IP address, user agent
           and the URL requested. That metadata does not include the contents of a PDF you open
-          locally. We do not add third-party analytics, tracking pixels or advertising scripts.
+          locally. Beyond the measurement tag described below, this site adds no third-party
+          analytics, no tracking pixels and no advertising scripts.
+        </p>
+      </InfoSection>
+
+      <InfoSection id="analytics" title="Analytics">
+        <p>
+          One Google Tag Manager container (<code>GTM-W5QPVR3Z</code>) sends Google Analytics
+          page-view and site-usage events. That is ordinary web measurement: the page you visited,
+          an approximate location derived from your IP address, your browser and device, and a cookie
+          or device identifier that lets Google tell a returning visit from a new one.
+        </p>
+        <p>
+          <strong>The tag is opt-in in the EEA and the UK.</strong> If your browser is set to a
+          European city, nothing is loaded until you choose “Allow measurement” in the panel that
+          appears on your first page. Elsewhere the tag loads by default, and you can turn it off at
+          any time with the <strong>Privacy settings</strong> link in the footer. Turning it off
+          reloads the page so the tag is not loaded again.
+        </p>
+        <p>
+          The tag is on every route, including the tool pages, but it never sees the file you open.
+          Its payload is built from page metadata; no document, filename, page image or extracted
+          text is added to it, and no tool sends a job or a result through it. You can also block it
+          with an extension or your browser’s tracking protection: every tool keeps working, because
+          none of them depend on the tag.
+        </p>
+        <p>
+          Google processes this data under its own terms as an independent controller. There is no
+          pdfshush analytics server and no separate advertising profile built from it.
         </p>
       </InfoSection>
 
@@ -84,6 +114,10 @@ export function PrivacyPage() {
         <ul className="list-disc space-y-2 pl-5">
           <li>Use a private window if you do not want local history or drafts kept.</li>
           <li>Clear site data in your browser to remove local history, drafts and signatures.</li>
+          <li>
+            Turn page-view measurement off, or back on, with the <strong>Privacy settings</strong>{' '}
+            link in the footer.
+          </li>
           <li>Do not configure an AI provider if you do not want a prompt sent to it.</li>
           <li>
             Email{' '}
@@ -106,25 +140,16 @@ export function PrivacyPage() {
         </p>
       </InfoSection>
 
-      <InfoSection id="ads" title="Advertising and cookies">
+      <InfoSection id="ads" title="Advertising">
         <p>
-          The PDF tools themselves never show ads and never load a third-party script. Advertising,
-          when it is enabled on this deployment, appears only on the home page, tool pages and guide
-          articles, and never on an account, status, result or error screen.
+          There is no advertising on this deployment. The PDF tools never show ads, and no ad
+          network, retargeting pixel or ad consent platform is loaded on any page. Sponsor cards are
+          first-party markup: a name, one line of copy and a logo served from pdfshush.com. A sponsor
+          cannot add a script, and no sponsor data reaches the measurement tag.
         </p>
         <p>
-          Ads are served by Google. Enabling them means Google may set cookies or read device
-          identifiers to select and measure advertising. Visitors in the EEA and the UK are asked for
-          consent first through Google&apos;s consent platform; if you decline, no personalised
-          advertising is requested. You can change that choice at any time with the{' '}
-          <strong>Privacy settings</strong> link in the footer.
-        </p>
-        <p>
-          Signed-in users on the Pro plan never load the advertising script at all.
-        </p>
-        <p>
-          If advertising is not enabled on the deployment you are using, no advertising script is
-          loaded and this section describes nothing that happens.
+          The only third-party script on any page is the measurement tag described above. It is not
+          used to select advertising, and no ad cookie exists to read.
         </p>
       </InfoSection>
 

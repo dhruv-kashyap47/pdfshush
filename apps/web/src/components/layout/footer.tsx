@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { Logo } from '@/components/logo';
+import { PrivacySettingsButton } from '@/components/consent-banner';
 import { POPULAR_SLUGS, getTool } from '@/tools/registry';
 import { useCapabilities } from '@/lib/capabilities';
 import { serverDeployed } from '@/lib/deployment';
@@ -137,6 +138,7 @@ export function SiteFooter() {
             <Link to="/privacy" className="transition-colors hover:text-foreground">
               Privacy
             </Link>
+            <PrivacySettingsButton className="transition-colors hover:text-foreground" />
             <Link to="/terms" className="transition-colors hover:text-foreground">
               Terms
             </Link>

@@ -6,8 +6,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   AI_PROVIDER_ORIGINS,
+  ANALYTICS_CONNECT_ORIGINS,
+  ANALYTICS_IMAGE_ORIGINS,
   PROFILE_IMAGE_ORIGINS,
   buildCsp,
+  isAnalyticsOrigin,
   isConnectOriginListed,
   parseConnectSrc,
 } from './csp';
@@ -29,15 +32,27 @@ describe('content security policy', () => {
     expect(policy).toContain("worker-src 'self' blob:");
   });
 
-  it('allows no third-party script origin', () => {
+  it('allows the analytics tag and no other third-party script origin', () => {
     // The beacon Cloudflare injects at the edge is stopped by `no-transform` in
     // public/_headers, not by an exception here. A `script-src` that names any
-    // host is how that exception would get added back in.
+    // other host is how that exception would get added back in.
     const scriptSrc = policy
       .split(';')
       .map((part) => part.trim())
       .find((part) => part.startsWith('script-src '));
-    expect(scriptSrc).toBe("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'");
+    expect(scriptSrc).toBe(
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.googletagmanager.com",
+    );
+  });
+
+  it('lists the measurement origins the page-load tag uses', () => {
+    const connect = parseConnectSrc(policy);
+    for (const origin of ANALYTICS_CONNECT_ORIGINS) {
+      expect(connect.filter((entry) => entry === origin), origin).toHaveLength(1);
+    }
+    // The tag is page-view measurement, not an open egress path.
+    expect(connect).not.toContain('https:');
+    expect(connect).not.toContain('*');
   });
 
   it('never widens connect-src to all HTTPS', () => {
@@ -60,7 +75,7 @@ describe('content security policy', () => {
       .map((part) => part.trim())
       .find((part) => part.startsWith('img-src '));
     expect(imgSrc).toBe(
-      `img-src 'self' data: blob: ${PROFILE_IMAGE_ORIGINS.join(' ')}`,
+      `img-src 'self' data: blob: ${PROFILE_IMAGE_ORIGINS.join(' ')} ${ANALYTICS_IMAGE_ORIGINS.join(' ')}`,
     );
     const sources = (imgSrc ?? '').slice('img-src '.length).split(/\s+/);
     // The avatar origin is Google's CDN, not a general HTTPS or wildcard
@@ -92,5 +107,14 @@ describe('content security policy', () => {
     expect(isConnectOriginListed('https://my-proxy.example/v1', policy)).toBe(false);
     // An unparseable value is not a claim that it is blocked.
     expect(isConnectOriginListed('', policy)).toBe(true);
+  });
+
+  it('recognises the page-load measurement hosts and nothing else', () => {
+    expect(isAnalyticsOrigin('https://www.googletagmanager.com/gtm.js?id=GTM-W5QPVR3Z')).toBe(true);
+    expect(isAnalyticsOrigin('https://region1.google-analytics.com/g/collect')).toBe(true);
+    expect(isAnalyticsOrigin('https://www.analytics.google.com/analytics/web/')).toBe(true);
+    expect(isAnalyticsOrigin('https://api.openai.com/v1/chat')).toBe(false);
+    expect(isAnalyticsOrigin('https://my-proxy.example/v1')).toBe(false);
+    expect(isAnalyticsOrigin('not a url')).toBe(false);
   });
 });

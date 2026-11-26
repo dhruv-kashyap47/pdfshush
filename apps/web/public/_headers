@@ -24,22 +24,22 @@
 #
 # `no-transform` on the catch-all is not a cache setting. Cloudflare rewrites
 # HTML it is allowed to modify, and one of the things it injects is its own Web
-# Analytics beacon (static.cloudflareinsights.com/beacon.min.js). This product's
-# promise is that there is no analytics and no third-party script, so the CSP in
-# apps/web/src/lib/csp.ts blocks that beacon -- which leaves a CSP violation in
-# every visitor's console, and makes the policy the only thing standing between
-# the claim and the edge. `no-transform` stops the rewrite at the source:
-# Cloudflare may not modify a payload it is told not to transform. It sits on
-# the catch-all rather than on each prerendered route because an unmatched path
-# is served `index.html` as the SPA fallback, and that document must be covered
-# too.
+# Analytics beacon (static.cloudflareinsights.com/beacon.min.js). This product
+# ships exactly one measurement tag, the owner's own GTM container
+# (GTM-W5QPVR3Z, allowed in apps/web/src/lib/csp.ts); Cloudflare's separate
+# beacon is not part of that and the CSP blocks it, which would leave a CSP
+# violation in every visitor's console if the edge injected it. `no-transform`
+# stops the rewrite at the source: Cloudflare may not modify a payload it is
+# told not to transform. It sits on the catch-all rather than on each
+# prerendered route because an unmatched path is served `index.html` as the SPA
+# fallback, and that document must be covered too.
 #
 # The cost is Cloudflare's edge compression of HTML, which it skips for a
 # `no-transform` payload. The documents are ~16 kB; every hashed asset is
 # detached below and still compresses normally.
 #
 #   pnpm --filter @pdfshush/web build
-#   curl -sI https://pdfshush.space/ | grep -i cache-control
+#   curl -sI https://pdfshush.com/ | grep -i cache-control
 #   -> public, max-age=0, must-revalidate, no-transform
 #
 # https://developers.cloudflare.com/web-analytics/faq/

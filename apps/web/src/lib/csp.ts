@@ -8,9 +8,10 @@
  *  1. A client-side tool cannot upload a document, because there is no origin
  *     for it to upload to. Every origin not listed here is blocked by the
  *     browser before a request leaves.
- *  2. The only network destinations the product needs are pdfshush itself and
- *     the AI provider a user explicitly configures. If a feature ever needs a
- *     new origin, it has to be added here, in a commit a reviewer can see.
+ *  2. The only network destinations the product needs are pdfshush itself, the
+ *     AI provider a user explicitly configures, and the two measurement
+ *     origins the page-load tag uses. If a feature ever needs a new origin, it
+ *     has to be added here, in a commit a reviewer can see.
  *
  * It is deliberately not a full XSS defence: the theme bootstrap is inline, so
  * `script-src` allows `'unsafe-inline'`. The policy's job is egress, and that is
@@ -18,9 +19,10 @@
  *
  * `connect-src` is the important directive. `form-action 'self'` closes the
  * other obvious way to POST a file off-origin, and `img-src` / `media-src`
- * stay on this origin so a beacon cannot be hidden in a pixel. The single
- * remote image exception is Google's avatar CDN (see PROFILE_IMAGE_ORIGINS):
- * it loads only for a signed-in visitor whose OIDC profile carries a photo.
+ * stay on this origin so a beacon cannot be hidden in a pixel. The remote image
+ * exceptions are Google's avatar CDN (see PROFILE_IMAGE_ORIGINS), which loads
+ * only for a signed-in visitor whose OIDC profile carries a photo, and the GA4
+ * measurement pixels (see ANALYTICS_IMAGE_ORIGINS).
  */
 
 /**
@@ -80,11 +82,35 @@ export const LOCAL_MODEL_ORIGINS = [
  */
 export const PROFILE_IMAGE_ORIGINS = ['https://*.googleusercontent.com'] as const;
 
+/**
+ * Google Tag Manager and the GA4 measurement endpoints its container loads.
+ *
+ * These exist for page-view measurement only. A PDF never reaches them: the
+ * tag fires on navigation, before any tool runs, and no tool sends a document
+ * or its name through `dataLayer`. The hosts are listed as exact origins (or
+ * Google-owned subdomains) so the policy still names every destination a
+ * browser may reach.
+ */
+export const ANALYTICS_SCRIPT_ORIGINS = ['https://www.googletagmanager.com'] as const;
+
+export const ANALYTICS_CONNECT_ORIGINS = [
+  'https://www.googletagmanager.com',
+  'https://*.googletagmanager.com',
+  'https://*.google-analytics.com',
+  'https://*.analytics.google.com',
+] as const;
+
+export const ANALYTICS_IMAGE_ORIGINS = [
+  'https://www.googletagmanager.com',
+  'https://*.google-analytics.com',
+] as const;
+
 export const CSP_CONNECT_SRC = [
   "'self'",
   'blob:',
   ...AI_PROVIDER_ORIGINS,
   ...LOCAL_MODEL_ORIGINS,
+  ...ANALYTICS_CONNECT_ORIGINS,
 ] as const;
 
 /**
@@ -113,9 +139,20 @@ export function buildCsp(extraOrigins: readonly string[] = []): string {
     'default-src': ["'self'"],
     // The inline theme bootstrap and Vite's module preload need inline script;
     // pdfium/pdf.js compile WebAssembly, which needs the wasm allowance.
-    'script-src': ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"],
+    'script-src': [
+      "'self'",
+      "'unsafe-inline'",
+      "'wasm-unsafe-eval'",
+      ...ANALYTICS_SCRIPT_ORIGINS,
+    ],
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'blob:', ...PROFILE_IMAGE_ORIGINS],
+    'img-src': [
+      "'self'",
+      'data:',
+      'blob:',
+      ...PROFILE_IMAGE_ORIGINS,
+      ...ANALYTICS_IMAGE_ORIGINS,
+    ],
     'font-src': ["'self'", 'data:'],
     'media-src': ["'self'", 'data:', 'blob:'],
     'worker-src': ["'self'", 'blob:'],
@@ -131,6 +168,29 @@ export function buildCsp(extraOrigins: readonly string[] = []): string {
   return Object.entries(directives)
     .map(([name, values]) => `${name} ${values.join(' ')}`)
     .join('; ');
+}
+
+/**
+ * True for hosts the page-load measurement tag is allowed to reach. The locality
+ * proof uses the same list to keep the tag's own beacons out of a job's traffic
+ * count, so "zero cross-origin requests" describes the job rather than
+ * silently absorbing a GA ping that happened to land in the sample window.
+ */
+export function isAnalyticsOrigin(url: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(url, 'https://pdfshush.com').hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return (
+    hostname === 'googletagmanager.com' ||
+    hostname.endsWith('.googletagmanager.com') ||
+    hostname === 'google-analytics.com' ||
+    hostname.endsWith('.google-analytics.com') ||
+    hostname === 'analytics.google.com' ||
+    hostname.endsWith('.analytics.google.com')
+  );
 }
 
 /**

@@ -76,7 +76,7 @@ export const STATIC_PAGE_META: Record<string, StaticPageHead> = {
   '/sponsor': {
     title: 'Sponsor PDFShush – Two Slots, No Ad Network | PDFShush',
     description:
-      'Put your product in front of people who care about document privacy. Two first-party sponsor slots, no scripts and no tracking. Founding rates from $19/month.',
+      'Put your product in front of people who care about document privacy. Two first-party sponsor slots with no ad network or sponsor tracking. Founding rates from $19/month.',
     image: '/og/home.png',
     imageAlt: 'Sponsor PDFShush – first-party sponsor slots',
     keywords: ['sponsor pdfshush', 'pdf tool sponsorship', 'privacy friendly sponsorship'],

@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
 
 const TITLE = 'Sponsor pdfshush — Two Slots, No Ad Network | PDFShush';
 const DESCRIPTION =
-  'Put your product in front of people who care about document privacy. Two first-party sponsor slots, no scripts and no tracking. Founding rates from $19/month.';
+  'Put your product in front of people who care about document privacy. Two first-party sponsor slots with no ad network or sponsor tracking. Founding rates from $19/month.';
 
 const FALLBACK_SLOTS: SponsorSlotDef[] = [
   {
@@ -260,9 +260,9 @@ export function SponsorPage() {
         Put your product in front of people who care where their files go.
       </h1>
       <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-        pdfshush is free because its readers fund it. There is no ad network, no
-        third-party script and no tracking — a sponsor buys a named card that this site renders
-        itself.
+        pdfshush is free because its readers fund it. There is no ad network and no
+        ad tracking — a sponsor buys a named card that this site renders itself, and a sponsor
+        never adds a script of its own.
       </p>
 
       {status === 'success' ? (
@@ -286,8 +286,8 @@ export function SponsorPage() {
         {[
           {
             icon: ShieldCheck,
-            title: 'No script, ever',
-            body: 'The card is HTML. Your logo is served from pdfshush.com, so the strict Content-Security-Policy never changes.',
+            title: 'No sponsor script',
+            body: 'The card is HTML; the logo is served from pdfshush.com. A sponsor cannot add a script, extend the site’s analytics tag or target a visitor.',
           },
           {
             icon: Check,

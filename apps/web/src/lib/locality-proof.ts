@@ -18,6 +18,7 @@
  *    gamed by labelling a POST something else.
  */
 
+import { isAnalyticsOrigin } from '@/lib/csp';
 import { buildSamplePdf } from '@/lib/sample-pdf';
 
 export type NetworkApi = 'fetch' | 'xhr' | 'beacon' | 'websocket' | 'eventsource';
@@ -227,6 +228,7 @@ export async function proveLocality(options: ProveLocalityOptions = {}): Promise
     const resources = performance
       .getEntriesByType('resource')
       .filter((entry) => !seenResources.has(`${entry.name}@${entry.startTime}`))
+      .filter((entry) => !isAnalyticsOrigin(entry.name))
       .map((entry) => ({
         crossOrigin: (() => {
           try {
@@ -237,8 +239,11 @@ export async function proveLocality(options: ProveLocalityOptions = {}): Promise
         })(),
       }));
 
+    // Measurement requests are the page-load tag, not the job. They are
+    // excluded from both channels so a GA ping that lands mid-proof cannot be
+    // reported as document egress; the panel says so in plain words.
     return summarizeNetwork(
-      events,
+      events.filter((event) => !isAnalyticsOrigin(event.url)),
       result.documents[0]?.pageCount ?? 0,
       performance.now() - started,
       resources,

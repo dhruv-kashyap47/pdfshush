@@ -7,6 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
+import { ConsentBanner } from '@/components/consent-banner';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { RelatedGuides } from '@/components/guides/related-guides';
 import { SiteFooter } from '@/components/layout/footer';
@@ -195,6 +196,9 @@ function RootLayout() {
             guides index own theirs; Pro never renders one. */}
         <SponsorSlot only={['home']} />
         <SiteFooter />
+        {/* Measurement choice: asks EEA/UK visitors on first load and loads the
+            one tag only after a yes. Hidden for everyone who already answered. */}
+        <ConsentBanner />
         <Toaster position="bottom-right" richColors closeButton />
       </div>
     </>

@@ -51,7 +51,7 @@ const DATA_PATHS = [
   },
   {
     title: 'Analytics and telemetry',
-    body: 'None. No third-party scripts, no tracking cookies, no content-bearing logs. The only thing the app logs is a stable error code when a job fails.',
+    body: 'One Google Tag Manager container measures page views for the site owner. In the EEA and the UK it loads only after you accept, and the footer privacy settings turn it off anywhere. It never receives a document, a filename or a job result, and a tool job makes no analytics request. The only thing the app logs is a stable error code when a job fails.',
     tone: 'local' as const,
   },
 ];
@@ -128,7 +128,8 @@ function Verdict({ proof }: { proof: LocalityProof }) {
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {proof.pageCount} page{proof.pageCount === 1 ? '' : 's'} inspected in {proof.durationMs}{' '}
-            ms, with the network instruments in place.
+            ms, with the network instruments in place. Requests made by the site’s page-view tag are
+            not counted as job traffic.
           </p>
         </div>
       </div>
@@ -260,8 +261,9 @@ export function TrustPage() {
                 </div>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   <code className="text-[11px]">form-action 'self'</code> closes the other way to
-                  POST a file off-origin. There is no analytics origin in the list because there is
-                  no analytics.
+                  POST a file off-origin. The <code className="text-[11px]">googletagmanager.com</code>{' '}
+                  and <code className="text-[11px]">google-analytics.com</code> entries belong to the
+                  page-view tag only; a tool never sends a document, a filename or a result to them.
                 </p>
                 <details className="rounded-md border border-border/70 bg-muted/20 p-3">
                   <summary className="cursor-pointer text-xs font-medium">
