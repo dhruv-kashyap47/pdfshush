@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Download, LogOut, ShieldAlert, Trash2 } from 'lucide-react';
+import { Coins, Download, LogOut, ShieldAlert, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,10 +40,12 @@ interface JobRow {
 }
 
 export function AccountPage() {
-  const { account, loading, accountsEnabled, signIn, signOut } = useAuth();
+  const { account, loading, accountsEnabled, signIn, signOut, refresh } = useAuth();
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [syncHistory, setSyncHistory] = useState(false);
+  const [billingEnabled, setBillingEnabled] = useState(false);
+  const [buying, setBuying] = useState<'credits' | 'pass' | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadSequence = useRef(0);
@@ -63,10 +65,11 @@ export function AccountPage() {
       return;
     }
     try {
-      const [prefs, remoteHistory, remoteJobs] = await Promise.all([
+      const [prefs, remoteHistory, remoteJobs, overview] = await Promise.all([
         api<{ preferences: { syncHistory?: boolean } }>('/api/account/preferences'),
         api<{ history: HistoryRow[] }>('/api/account/history'),
         api<{ jobs: JobRow[] }>('/api/account/jobs'),
+        api<{ billing?: { enabled?: boolean } }>('/api/account'),
       ]);
       if (!current()) return;
       const syncing = Boolean(prefs?.preferences?.syncHistory);
@@ -74,6 +77,7 @@ export function AccountPage() {
       setHistorySyncEnabled(syncing);
       setHistory(remoteHistory?.history ?? []);
       setJobs(remoteJobs?.jobs ?? []);
+      setBillingEnabled(Boolean(overview?.billing?.enabled));
     } catch {
       if (!current()) return;
       setLoadError('Could not load your account data.');
@@ -83,6 +87,31 @@ export function AccountPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Returning from Dodo. The webhook can land a beat after the redirect, so the
+  // session is refreshed a few times instead of assuming one immediate write.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+    if (status !== 'credits' && status !== 'pass') return;
+
+    toast.success(
+      status === 'credits'
+        ? 'Payment received. Your credit balance updates in a few seconds.'
+        : 'Payment received. Pro updates in a few seconds.',
+    );
+    const timers = [0, 2_000, 6_000].map((delay) =>
+      window.setTimeout(() => void refresh(), delay),
+    );
+
+    params.delete('status');
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}${params.toString() ? `?${params}` : ''}`,
+    );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [refresh]);
 
   const toggleSync = async (next: boolean) => {
     if (!account) return;
@@ -180,6 +209,23 @@ export function AccountPage() {
       toast.error('Could not delete the account.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const buy = async (kind: 'credits' | 'pass') => {
+    setBuying(kind);
+    try {
+      const result = await api<{ url: string }>(
+        kind === 'credits' ? '/api/billing/credits' : '/api/billing/pass',
+        { method: 'POST' },
+      );
+      if (!result?.url) throw new Error('The checkout did not return a link.');
+      window.location.assign(result.url);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Could not start checkout. Try again.',
+      );
+      setBuying(null);
     }
   };
 
@@ -281,6 +327,49 @@ export function AccountPage() {
           <Button variant="ghost" onClick={() => void signOut()}>
             <LogOut className="mr-1.5 h-4 w-4" /> Sign out
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Plan and AI credits</CardTitle>
+          <CardDescription>
+            {account.plan === 'pro'
+              ? account.planExpiresAt
+                ? `Pro — access until ${new Date(account.planExpiresAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}.`
+                : 'Pro — no end date.'
+              : 'Free — 3 managed AI messages a day, and every tool.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="flex items-center gap-2 text-sm">
+            <Coins className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <span>
+              <strong className="tabular-nums">{account.credits ?? 0}</strong> one-time AI messages
+            </span>
+          </p>
+
+          {billingEnabled ? (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" disabled={buying !== null} onClick={() => void buy('credits')}>
+                {buying === 'credits' ? 'Opening checkout…' : 'Buy 1,000 messages — $5'}
+              </Button>
+              {account.plan === 'pro' ? null : (
+                <Button variant="outline" disabled={buying !== null} onClick={() => void buy('pass')}>
+                  {buying === 'pass' ? 'Opening checkout…' : 'Get 30 days of Pro — $3'}
+                </Button>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Purchases are not enabled on this deployment.
+            </p>
+          )}
+
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Dodo Payments handles the card and the receipt. Credits are spent only after the
+            monthly Pro allowance is gone, and they never expire while the account exists.
+          </p>
         </CardContent>
       </Card>
 

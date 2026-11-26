@@ -66,4 +66,20 @@ export interface Env {
   AI_MANAGED_MODEL?: string;
   AI_MANAGED_PROVIDER?: string;
   AI_MANAGED_MAX_OUTPUT_TOKENS?: string;
+
+  /**
+   * Billing. Dodo Payments is the merchant of record, so it owns tax and
+   * receipts; this Worker only creates checkout sessions and verifies webhooks.
+   * Every value is optional: an unconfigured deployment sells nothing and says
+   * so, rather than rendering a button that lands on an error.
+   */
+  DODO_API_KEY?: string;
+  /** 'test' or 'live'. Defaults to 'test' so a missing value cannot take money. */
+  DODO_ENVIRONMENT?: string;
+  DODO_WEBHOOK_SECRET?: string;
+  DODO_PRODUCT_SPONSOR_FEATURED?: string;
+  DODO_PRODUCT_SPONSOR_STANDARD?: string;
+  DODO_PRODUCT_CREDITS?: string;
+  DODO_PRODUCT_PASS_30D?: string;
+  DODO_PRODUCT_DONATE?: string;
 }

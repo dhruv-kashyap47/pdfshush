@@ -13,13 +13,14 @@
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { deleteCookie, getCookie } from 'hono/cookie';
+import { deleteCookie } from 'hono/cookie';
 import type { AppEnv } from '../app-env.js';
 import { D1AccountStore, MAX_WORKFLOWS, type NewHistoryEntry } from '../db/account-store.js';
-import { D1AuthStore, type Account } from '../db/auth-store.js';
 import { LIMITS } from '@pdfshush/pdf-core/limits';
 import { validateWorkflow, type Workflow } from '@pdfshush/pdf-core/workflow';
 import { SESSION_COOKIE, fail, requireCsrf } from '../lib/http.js';
+import { requireAccount } from '../lib/session.js';
+import { dodoConfig } from '../billing/dodo.js';
 
 export const accountRoutes = new Hono<AppEnv>();
 
@@ -30,13 +31,6 @@ export const accountRoutes = new Hono<AppEnv>();
  */
 const MAX_HISTORY_PAGE_COUNT = 100_000;
 const MAX_HISTORY_BYTES = LIMITS.server.maxUploadBytes;
-
-async function requireAccount(c: Context<AppEnv>): Promise<Account | Response> {
-  const token = getCookie(c, SESSION_COOKIE) ?? '';
-  const account = token ? await new D1AuthStore(c.env.DB).resolveSession(token) : undefined;
-  if (!account) return fail(c, 401, 'unauthenticated', 'Sign in required.');
-  return account;
-}
 
 /** A JSON object body, or `{}` for anything else. Never throws. */
 async function bodyOf(c: Context<AppEnv>): Promise<Record<string, unknown>> {
@@ -79,11 +73,15 @@ accountRoutes.get('/api/account', async (c) => {
       emailVerified: account.emailVerified,
       name: account.name,
       picture: account.picture,
-      // The SPA uses this to hide ads and to show the right AI allowance.
+      // The SPA uses this to choose the AI allowance and the account surface.
       plan: account.plan,
+      planExpiresAt: account.planExpiresAt,
+      credits: account.credits,
     },
     preferences,
     counts: { history: history.length, workflows: workflows.length, jobs: 0 },
+    // Whether the one-time rails can be offered without a broken button.
+    billing: { enabled: dodoConfig(c.env) !== undefined },
   });
 });
 

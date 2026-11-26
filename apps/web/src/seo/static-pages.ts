@@ -73,6 +73,14 @@ export const STATIC_PAGE_META: Record<string, StaticPageHead> = {
     imageAlt: 'Contact PDFShush',
     keywords: ['contact pdfshush', 'pdfshush support'],
   },
+  '/sponsor': {
+    title: 'Sponsor PDFShush – Two Slots, No Ad Network | PDFShush',
+    description:
+      'Put your product in front of people who care about document privacy. Two first-party sponsor slots, no scripts and no tracking. Founding rates from $19/month.',
+    image: '/og/home.png',
+    imageAlt: 'Sponsor PDFShush – first-party sponsor slots',
+    keywords: ['sponsor pdfshush', 'pdf tool sponsorship', 'privacy friendly sponsorship'],
+  },
   '/status': {
     title: 'Service Status – All Client PDF Tools Online | PDFShush',
     description:

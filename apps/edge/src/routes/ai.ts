@@ -21,6 +21,7 @@ import type { AppEnv } from '../app-env.js';
 import { redactSecrets, streamForProvider } from '@pdfshush/ai-provider';
 import { managedAiConfig } from '../ai/config.js';
 import { spendAiMessage, type Plan } from '../ai/budget.js';
+import { dodoConfig } from '../billing/dodo.js';
 import { D1AuthStore, type Account } from '../db/auth-store.js';
 import { sha256Hex } from '../lib/crypto.js';
 import { SESSION_COOKIE, fail, requireCsrf } from '../lib/http.js';
@@ -114,13 +115,13 @@ function parseBody(value: unknown): { ok: true; body: ChatBody } | { ok: false; 
  */
 async function subjectFor(
   c: Context<AppEnv>,
-): Promise<{ subject: string; plan: Plan }> {
+): Promise<{ subject: string; plan: Plan; accountId?: string }> {
   const token = getCookie(c, SESSION_COOKIE) ?? '';
   const account: Account | undefined = token
     ? await new D1AuthStore(c.env.DB).resolveSession(token).catch(() => undefined)
     : undefined;
 
-  if (account) return { subject: `acct:${account.id}`, plan: account.plan };
+  if (account) return { subject: `acct:${account.id}`, plan: account.plan, accountId: account.id };
 
   const address =
     c.req.header('cf-connecting-ip') ??
@@ -157,8 +158,13 @@ aiRoutes.post('/api/ai/chat', async (c) => {
   const parsed = parseBody(await c.req.json().catch(() => undefined));
   if (!parsed.ok) return fail(c, 400, 'validation', parsed.message);
 
-  const { subject, plan } = await subjectFor(c);
-  const spend = await spendAiMessage(c.env.DB, { subject, plan });
+  const { subject, plan, accountId } = await subjectFor(c);
+  const spend = await spendAiMessage(c.env.DB, {
+    subject,
+    plan,
+    ...(accountId ? { accountId } : {}),
+    offerCredits: dodoConfig(c.env) !== undefined,
+  });
   if (!spend.ok) {
     c.header('retry-after', String(spend.retryAfterSeconds ?? 60));
     return fail(c, 429, spend.code ?? 'ai_budget', spend.message ?? 'The AI allowance is used up.');
@@ -180,6 +186,7 @@ aiRoutes.post('/api/ai/chat', async (c) => {
           model: config.model,
           remainingTokens: null,
           remainingMessages: spend.remaining ?? null,
+          usedCredit: spend.usedCredit === true,
         });
 
         await streamForProvider(

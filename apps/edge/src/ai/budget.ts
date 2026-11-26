@@ -18,6 +18,7 @@
  */
 
 import type { D1Database } from '../env.js';
+import { spendCredit } from '../billing/entitlements.js';
 
 export type Plan = 'free' | 'pro';
 
@@ -85,14 +86,20 @@ export interface AiSpend {
   code?: 'ai_budget' | 'ai_capacity';
   message?: string;
   retryAfterSeconds?: number;
-  /** Messages left in the subject's window after this one. */
+  /** Messages left in the subject's window after this one (or credits left). */
   remaining?: number;
+  /** True when this message came out of a one-time credit pack. */
+  usedCredit?: boolean;
 }
 
 export interface SpendOptions {
   /** `visit:<hash>` for anonymous, `acct:<id>` when signed in. Never a raw IP. */
   subject: string;
   plan: Plan;
+  /** Present for signed-in callers; credits can only be spent by an account. */
+  accountId?: string;
+  /** False on a deployment with no billing, so the refusal does not advertise one. */
+  offerCredits?: boolean;
   now?: number;
 }
 
@@ -145,10 +152,22 @@ export async function spendAiMessage(db: D1Database, options: SpendOptions): Pro
     const monthKey = `ai:m:${options.subject}:${month}`;
     const monthly = await bump(db, monthKey, nextUtcMonth(now), now);
     if (monthly > AI_LIMITS.proPerMonth) {
+      // The monthly allowance is gone. A credit pack, if one was bought, is the
+      // next place to look: it is a real entitlement with no renewal, so it is
+      // drained before the request is refused. `spendCredit` is one conditional
+      // UPDATE, so two concurrent messages cannot take the last credit twice.
+      const left = options.accountId ? await spendCredit(db, options.accountId) : undefined;
+      if (left !== undefined) {
+        await bump(db, globalKey, dawn, now);
+        return { ok: true, remaining: left, usedCredit: true };
+      }
+
       return {
         ok: false,
         code: 'ai_budget',
-        message: `You have used all ${AI_LIMITS.proPerMonth} AI messages this month.`,
+        message: options.offerCredits
+          ? `You have used all ${AI_LIMITS.proPerMonth} AI messages this month. A credit pack adds 1,000 more, or your allowance resumes next month.`
+          : `You have used all ${AI_LIMITS.proPerMonth} AI messages this month. Your allowance resumes next month.`,
         retryAfterSeconds: Math.max(1, Math.round((nextUtcMonth(now) - now) / 1000)),
       };
     }

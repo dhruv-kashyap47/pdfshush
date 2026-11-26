@@ -13,7 +13,7 @@
 
 import { Fragment } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AdSlot } from '@/components/ads/ad-slot';
+import { SponsorSlot } from '@/components/sponsors/sponsor-slot';
 import { GUIDES, getGuide, type Guide } from '@/content/guides';
 import { guidePath } from '@/content/guide-format';
 import { NotFoundPage } from '@/pages/not-found';
@@ -162,8 +162,7 @@ function GuideArticle({ guide }: { guide: Guide }) {
         {chunks.map((chunk, index) => (
           <Fragment key={index}>
             <div dangerouslySetInnerHTML={{ __html: chunk }} />
-            {index === 2 ? <AdSlot surface="top" /> : null}
-            {index === 5 ? <AdSlot surface="end" /> : null}
+            {index === 5 ? <SponsorSlot only={['article']} className="px-0 py-0" /> : null}
           </Fragment>
         ))}
       </div>

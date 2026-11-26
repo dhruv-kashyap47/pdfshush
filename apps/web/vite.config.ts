@@ -72,7 +72,7 @@ function guidesPlugin(rootDir: string): Plugin {
   };
 }
 
-function cspPlugin(extraOrigins: readonly string[], ads = false): Plugin {
+function cspPlugin(extraOrigins: readonly string[]): Plugin {
   return {
     name: 'pdfshush-csp',
     apply: 'build',
@@ -86,7 +86,7 @@ function cspPlugin(extraOrigins: readonly string[], ads = false): Plugin {
             tag: 'meta',
             attrs: {
               'http-equiv': 'Content-Security-Policy',
-              content: buildCsp(extraOrigins, { ads }),
+              content: buildCsp(extraOrigins),
             },
             injectTo: 'head-prepend',
           },
@@ -247,7 +247,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       guidesPlugin(rootDir),
-      cspPlugin(extraCspOrigins, env.VITE_ADS_ENABLED === 'true'),
+      cspPlugin(extraCspOrigins),
       serviceWorkerPlugin(),
       ocrTrainedDataPlugin(),
       previewAsset404Plugin(),

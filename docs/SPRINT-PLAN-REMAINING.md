@@ -5,6 +5,10 @@
 > production smoke + sign suites are green. The remaining work is the public
 > launch surface, hardening evidence, and monetization decisions — not the
 > editor or engine.
+>
+> **2026-11-26:** the monetization decision landed. AdSense is dropped, Dodo
+> Payments replaces Stripe, and the rails run on the existing free Worker tier.
+> See Sprint 14 below and [`SPONSORSHIP.md`](./SPONSORSHIP.md).
 
 ## 0. Verified state (2026-11-24)
 
@@ -121,6 +125,12 @@ the one dated exception in `tests/support/corpus.mjs`.
 deliberately deferred; no pricing page and no ad surface ship. R2, P4.4 and
 vector signatures remain separate future gates.
 
+> **Superseded on 2026-11-26.** AdSense is dropped, Stripe is replaced by Dodo
+> Payments, and the monetization rails that remain — two sponsor slots, a 30-day
+> pass, AI credit packs and donations — run on the existing free Worker tier and
+> its D1 database. They do not need the parked server tier. The current record is
+> [`SPONSORSHIP.md`](./SPONSORSHIP.md); this section is kept as the S10 history.
+
 | Decision | Result |
 | --- | --- |
 | Server tier (M6.1b) | stays parked |
@@ -177,12 +187,75 @@ document bytes on any ad origin.
 
 ---
 
+## Sprint 14 — MONETIZATION RESET: SPONSORSHIP + DODO (done 2026-11-26)
+
+**Decision.** Drop AdSense. Replace it with first-party sponsorship and three
+one-time rails, all through Dodo Payments on the existing free Worker tier. No
+ad network, no CMP, no CSP widening, no server tier. Full record:
+[`SPONSORSHIP.md`](./SPONSORSHIP.md).
+
+**Shipped.**
+
+1. **AdSense removed.** Slot, loader, CMP, consent mode, `ads.txt`, the Google
+   CSP branch and both ad tests are deleted. The build policy is back to
+   `default-src 'self'` and the CSP test asserts it.
+2. **Sponsor inventory.** Two slots: Featured $39/mo (home, under the tool grid)
+   and Standard $19/mo (guides index + end of each guide), founding rates locked
+   for twelve months. D1 migration `0003_sponsors.sql`; `sponsors` +
+   `billing_events`; one live sponsor per slot enforced by a partial unique index.
+3. **Self-serve checkout.** `/sponsor` explains the model, shows availability,
+   accepts a logo + 60-character line, and creates a Dodo session. Drafts are
+   private until a verified webhook activates them.
+4. **Webhook.** Standard Webhooks HMAC over the raw body, five-minute window,
+   message-id claim before the side effect, release on failure. Handles
+   `subscription.active`, `subscription.renewed`, `subscription.cancelled` and
+   `payment.succeeded`.
+5. **One-time rails.** 30-day pass ($3), AI credit pack ($5 / 1,000 messages)
+   and donation (pay-what-you-want). Credits are spent only after the monthly Pro
+   allowance and are drained by a single conditional `UPDATE`.
+6. **Surfaces.** Sponsor cards render on content routes only and never for Pro;
+   `/sponsor` carries the pricing, form, donation and FAQ; `/account` shows plan,
+   expiry, credit balance and the two buy buttons.
+7. **Tooling.** `@dodopayments/opencode-plugin` installed at the workspace root;
+   `opencode.jsonc` loads its skill and MCP.
+
+**Verification.**
+
+| Gate | Result |
+| --- | --- |
+| `pnpm -r typecheck` | green (all packages) |
+| Web unit tests | 348 passed, including 8 sponsor-gating tests |
+| `pnpm build` + `seo:audit` | 84 prerendered routes / 75 sitemap; PASS |
+| `test:bundle` / `test:guardrails` | PASS |
+| Local Worker + D1 | signed webhook activates a sponsor; replay is a no-op; bad signature 400; credits granted once; pass sets a 30-day term |
+
+**Open operator steps (not code).**
+
+1. Create the five Dodo products; set `DODO_API_KEY` and `DODO_WEBHOOK_SECRET`;
+   put the product ids in `wrangler.jsonc`; point the webhook at
+   `/api/billing/webhook`.
+2. Deploy with `VITE_SERVER_API=on` — the committed `.env.production` is the
+   frontend-only shape, which has no API and therefore no sponsor card.
+3. Publish the 20 guides. Sponsorship is sellable around 10k sessions/month; the
+   rails are built to be ready, not to earn before the traffic exists.
+4. Optional: `/pricing`, generated from the same numbers, replacing the footer's
+   "Pricing (soon)".
+
+**Exit gate:** a stranger can buy a slot without an email, the card appears only
+on the pages it names, and an unconfigured deployment still answers
+`503 billing_disabled` instead of showing a broken button.
+
+---
+
 ## Cut list (do not block ship)
 
 | Item | Why it waits |
 | --- | --- |
-| Pricing, Stripe, entitlements | need an enforceable server tier |
-| Ads / CMP | no traffic/privacy-policy prerequisite yet |
+| Team/seat plans | need org features and a buyer who takes calls |
+| Lifetime Pro | a forever promise on a metered AI cost; price after the cost is measured |
+| White-label / OEM | ruled out by the hosted-only AGPL decision |
+| Ad networks | dropped 2026-11-26; first-party sponsorship instead |
+| `/pricing` | the account page sells; a public page is optional polish |
 | R2 | separate security gate; R1 proof first |
 | P4.4 triggers | SSRF/scheduling design gate |
 | Server tier | ₹0/no-card constraint |

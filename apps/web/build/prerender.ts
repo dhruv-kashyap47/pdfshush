@@ -38,6 +38,7 @@ import { loadGuides } from './guides.ts';
 import { guidePath, type Guide } from '../src/content/guide-format.ts';
 import { articleSchema } from '../src/seo/article.ts';
 import { LANDING_PAGES, type LandingPage } from '../src/seo/landing-pages.ts';
+import { SPONSOR_FAQ, SPONSOR_STATIC_BODY } from '../src/content/sponsor.ts';
 import {
   OG_IMAGE_HEIGHT,
   OG_IMAGE_WIDTH,
@@ -423,7 +424,10 @@ function startupShell(): string {
 }
 
 function simplePage(title: string, lead: string, body: string): string {
-  return `<div class="pre-shell">${header()}<main class="pre-main"><p class="pre-kicker">PDFShush</p><h1>${escapeHtml(title)}</h1><p class="pre-lead">${escapeHtml(lead)}</p><p class="pre-note">${body}</p></main>${footer()}</div>`;
+  // A `div`, not a `p`: `body` is trusted HTML and some pages put a list or an
+  // FAQ block inside it. A paragraph wrapper would be closed by the parser at
+  // the first block element and the copy would fall out of its container.
+  return `<div class="pre-shell">${header()}<main class="pre-main"><p class="pre-kicker">PDFShush</p><h1>${escapeHtml(title)}</h1><p class="pre-lead">${escapeHtml(lead)}</p><div class="pre-note">${body}</div></main>${footer()}</div>`;
 }
 
 function withHead(
@@ -675,6 +679,26 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           type: 'website',
         },
         {
+          route: '/sponsor',
+          title: 'Sponsor PDFShush – Two Slots, No Ad Network | PDFShush',
+          description:
+            'Put your product in front of people who care about document privacy. Two first-party sponsor slots, no scripts and no tracking. Founding rates from $19/month.',
+          html: simplePage(
+            'Sponsor PDFShush',
+            'Two first-party slots. No ad network, no script, no tracking.',
+            `${SPONSOR_STATIC_BODY}${faqBlock(
+              SPONSOR_FAQ.map((entry) => ({ question: entry.q, answer: entry.a })),
+              'sponsorship at PDFShush',
+              'sponsor',
+            )}`,
+          ),
+          image: '/og/home.png',
+          imageAlt: 'Sponsor PDFShush – first-party sponsor slots',
+          keywords: ['sponsor pdfshush', 'pdf tool sponsorship', 'privacy friendly sponsorship'],
+          indexable: true,
+          type: 'website',
+        },
+        {
           route: '/status',
           title: 'Service Status – All Client PDF Tools Online | PDFShush',
           description:
@@ -867,6 +891,28 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
                 image: entry.image,
               },
               origin,
+            ),
+          );
+        }
+
+        // `/sponsor` is the one static page that also carries FAQ and breadcrumb
+        // markup: its questions are real search intent, and the SPA renders the
+        // same array.
+        if (entry.route === '/sponsor') {
+          schemas.push(
+            breadcrumbSchema(
+              [
+                { name: 'Home', route: '/' },
+                { name: 'Sponsor', route: '/sponsor' },
+              ],
+              origin,
+            ),
+          );
+          schemas.push(
+            faqPageSchema(
+              SPONSOR_FAQ.map((entry) => ({ question: entry.q, answer: entry.a })),
+              origin,
+              '/sponsor',
             ),
           );
         }

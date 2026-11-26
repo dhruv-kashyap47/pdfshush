@@ -23,8 +23,15 @@ export interface Account {
   name: string | null;
   picture: string | null;
   createdAt: Date;
-  /** 'free' | 'pro'. Drives the AI allowance and whether the SPA shows ads. */
+  /**
+   * The *effective* plan: 'pro' only while a paid term is running. A row can
+   * still say `plan = 'pro'` after a 30-day pass lapses; this field does not.
+   */
   plan: 'free' | 'pro';
+  /** Epoch ms, or null for "no end date" (a manually granted account). */
+  planExpiresAt: number | null;
+  /** One-time AI messages, spent after the monthly allowance is gone. */
+  credits: number;
 }
 
 export interface IssuedSession {
@@ -50,6 +57,8 @@ interface AccountRow {
   created_at: number;
   last_login_at: number;
   plan: string;
+  plan_expires_at: number | null;
+  credit_messages: number;
 }
 
 interface TransactionRow {
@@ -60,7 +69,11 @@ interface TransactionRow {
   expires_at: number;
 }
 
-function toAccount(row: AccountRow): Account {
+function toAccount(row: AccountRow, now = Date.now()): Account {
+  // Anything that is not exactly 'pro' is treated as free: a typo in a future
+  // webhook must fail closed, not hand out the paid allowance. A term that has
+  // ended is also free, even before the cron sweep flips the stored column.
+  const paid = row.plan === 'pro' && (row.plan_expires_at === null || row.plan_expires_at > now);
   return {
     id: row.id,
     email: row.email,
@@ -68,9 +81,9 @@ function toAccount(row: AccountRow): Account {
     name: row.name,
     picture: row.picture,
     createdAt: new Date(row.created_at),
-    // Anything that is not exactly 'pro' is treated as free: a typo in a future
-    // webhook must fail closed, not hand out the paid allowance.
-    plan: row.plan === 'pro' ? 'pro' : 'free',
+    plan: paid ? 'pro' : 'free',
+    planExpiresAt: row.plan_expires_at ?? null,
+    credits: Math.max(0, row.credit_messages ?? 0),
   };
 }
 

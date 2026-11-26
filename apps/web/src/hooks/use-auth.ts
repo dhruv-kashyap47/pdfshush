@@ -36,6 +36,10 @@ export interface Account {
    * treat `undefined` as free — never as Pro.
    */
   plan?: 'free' | 'pro';
+  /** Epoch ms, or null for a Pro term with no end date. */
+  planExpiresAt?: number | null;
+  /** One-time managed-AI messages, spent after the monthly allowance. */
+  credits?: number;
 }
 
 export interface AuthState {

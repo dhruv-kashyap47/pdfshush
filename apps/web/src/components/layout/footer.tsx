@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { POPULAR_SLUGS, getTool } from '@/tools/registry';
-import { adConfig } from '@/lib/ads';
-import { reopenConsent } from '@/lib/ad-loader';
 import { useCapabilities } from '@/lib/capabilities';
 import { serverDeployed } from '@/lib/deployment';
 
@@ -43,6 +41,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
     links: [
       { label: 'About', to: '/about' },
       { label: 'Contact', to: '/contact' },
+      { label: 'Sponsor us', to: '/sponsor' },
       { label: 'Status', to: '/status' },
     ],
   },
@@ -132,26 +131,15 @@ export function SiteFooter() {
         <div className="mt-12 flex flex-col gap-3 border-t border-border/60 pt-6 text-[13px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} pdfshush</p>
           <p className="flex items-center gap-4">
+            <Link to="/sponsor#donate" className="transition-colors hover:text-foreground">
+              Donate
+            </Link>
             <Link to="/privacy" className="transition-colors hover:text-foreground">
               Privacy
             </Link>
             <Link to="/terms" className="transition-colors hover:text-foreground">
               Terms
             </Link>
-            {/*
-              Re-opens Google's consent dialog. Only meaningful when a CMP is
-              configured, so the control is absent from a build without ads
-              rather than present and inert.
-            */}
-            {adConfig(import.meta.env).cmpId ? (
-              <button
-                type="button"
-                onClick={reopenConsent}
-                className="transition-colors hover:text-foreground"
-              >
-                Privacy settings
-              </button>
-            ) : null}
             <a
               href={SOURCE_URL}
               target="_blank"

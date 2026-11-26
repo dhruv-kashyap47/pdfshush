@@ -2,9 +2,9 @@
 /**
  * Guide availability report.
  *
- * Exits non-zero when fewer than 20 guides are published, which is the AdSense
- * threshold the plan commits to. Run it before applying, and in CI if you want
- * the gate enforced.
+ * Exits non-zero when fewer than 20 guides are published, which is the traffic
+ * gate: sponsorship is only worth anything once these pages exist. Run it before
+ * launching, and in CI if you want the gate enforced.
  *
  *   node scripts/guides-status.mjs           # report
  *   node scripts/guides-status.mjs --check   # report, exit 1 if under 20

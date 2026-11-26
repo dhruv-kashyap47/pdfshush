@@ -8523,3 +8523,42 @@ With that decision, **the tracked development is complete**: 63/63 reaTask cards
 M6.1/M6.2 live, P7.1 met with one dated linearized-fixture exception, and the
 container gates green. The remaining items are optional future product decisions,
 not unfinished launch work.
+
+### 44.4 S10 revised - AdSense dropped, Dodo sponsorship and one-time rails (2026-11-26)
+
+The owner reversed the ad decision and replaced Stripe with **Dodo Payments**.
+The rails run on the existing free Worker tier and its D1 database, so the
+server-tier decision in 44.3 stands unchanged:
+
+- **AdSense is removed**, not deferred. The slot, loader, Google CMP, consent
+  mode, `ads.txt`, the widened CSP branch and both ad tests are deleted. The
+  build policy is `default-src 'self'` again and the CSP test asserts it. The 20
+  guides stay: they are the traffic engine, not an approval requirement.
+- **Two first-party sponsor slots** replace the ad floor: Featured $39/month on
+  the home page, Standard $19/month on the guides index and at the end of each
+  guide, founding rates locked for twelve months. A card is HTML this app
+  renders, with its logo served from this origin; no third-party origin is added
+  to the CSP. Pro accounts render no card. The allowlist is home, `/guides` and
+  `/guides/:slug`; never a tool workspace, result, checkout or account page.
+- **Three one-time rails** sit beside the subscription: a $3 30-day pass, a
+  $5/1,000-message AI credit pack (spent after the monthly Pro allowance) and a
+  pay-what-you-want donation.
+- **One webhook** turns money into entitlements: Standard Webhooks HMAC over the
+  raw body, five-minute window, message-id claim in `billing_events` before the
+  side effect and release on failure. A replay grants nothing twice.
+- **AGPL stays hosted-only.** No CLA, no white-label or OEM licence. That option
+  was considered and closed.
+- **Tooling:** `@dodopayments/opencode-plugin` is a root devDependency and
+  `opencode.jsonc` loads its skill and MCP for billing work.
+
+Gate results: `pnpm -r typecheck` green; 348 web unit tests (8 new for sponsor
+gating); 84 prerendered routes / 75 sitemap URLs with the SEO audit PASS; bundle
+boundary and guardrails PASS. A local Worker + D1 run verified a signed webhook
+activates a sponsor, a replay is a no-op, a bad signature is a 400, credits are
+granted once, and a pass sets a 30-day term.
+
+Open operator steps: create the five Dodo products and set the two secrets, put
+the product ids in `wrangler.jsonc`, point the webhook at
+`/api/billing/webhook`, deploy with `VITE_SERVER_API=on`, and publish the 20
+guides. Sponsorship is ready before the traffic exists; it is not revenue before
+the traffic exists.

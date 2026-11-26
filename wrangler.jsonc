@@ -17,6 +17,9 @@
  *
  *   npx wrangler secret put GOOGLE_CLIENT_ID
  *   npx wrangler secret put GOOGLE_CLIENT_SECRET
+ *   npx wrangler secret put AI_MANAGED_API_KEY      # optional, managed AI
+ *   npx wrangler secret put DODO_API_KEY            # optional, billing
+ *   npx wrangler secret put DODO_WEBHOOK_SECRET     # optional, billing
  *
  * The scope note this file used to carry ("deploys the frontend only, the
  * Express API stays local") is no longer true. The Express shape still exists in
@@ -101,7 +104,20 @@
     // 1,000/day. The Worker budgets 700 anonymous + 200 Pro out of that.
     "AI_MANAGED_PROVIDER": "openrouter",
     "AI_MANAGED_MODEL": "",
-    "AI_MANAGED_MAX_OUTPUT_TOKENS": "4096"
+    "AI_MANAGED_MAX_OUTPUT_TOKENS": "4096",
+
+    // Billing. Dodo Payments is the merchant of record, so it owns tax and
+    // receipts; this Worker only creates checkouts and verifies webhooks.
+    //
+    // Product ids are not secrets. An empty id switches that rail off, and with
+    // no DODO_API_KEY (a secret) every billing route answers 503. DODO_ENVIRONMENT
+    // defaults to "test", so a missing value cannot charge a real card.
+    "DODO_ENVIRONMENT": "test",
+    "DODO_PRODUCT_SPONSOR_FEATURED": "",
+    "DODO_PRODUCT_SPONSOR_STANDARD": "",
+    "DODO_PRODUCT_CREDITS": "",
+    "DODO_PRODUCT_PASS_30D": "",
+    "DODO_PRODUCT_DONATE": ""
   },
 
   // Session and transaction cleanup. Off the hour so it does not collide with

@@ -8,6 +8,7 @@
 import { Link } from 'react-router-dom';
 import { guideCategories, GUIDES } from '@/content/guides';
 import { guidePath } from '@/content/guide-format';
+import { SponsorSlot } from '@/components/sponsors/sponsor-slot';
 import { breadcrumbSchema, webPageSchema } from '@/seo/schema';
 import { SITE_ORIGIN } from '@/seo/site';
 import { usePageHead } from '@/seo/head';
@@ -87,6 +88,8 @@ export function GuidesPage() {
           </section>
         ))}
       </div>
+
+      <SponsorSlot only={['guides']} className="mt-12 px-0 py-0 sm:px-0 lg:px-0" />
     </div>
   );
 }

@@ -6,11 +6,11 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
-import { AdSlot } from '@/components/ads/ad-slot';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { RelatedGuides } from '@/components/guides/related-guides';
 import { SiteFooter } from '@/components/layout/footer';
 import { SiteHeader } from '@/components/layout/header';
+import { SponsorSlot } from '@/components/sponsors/sponsor-slot';
 import { UpdateBanner } from '@/components/layout/update-banner';
 import { AuthProvider } from '@/hooks/use-auth';
 import { useReveal } from '@/hooks/use-reveal';
@@ -60,6 +60,9 @@ const GuidesPage = lazy(() =>
 );
 const GuidePage = lazy(() =>
   import('@/pages/guide').then((module) => ({ default: module.GuidePage })),
+);
+const SponsorPage = lazy(() =>
+  import('@/pages/sponsor').then((module) => ({ default: module.SponsorPage })),
 );
 
 function ToolPageFallback() {
@@ -187,9 +190,9 @@ function RootLayout() {
           {/* Self-gating: renders only on /tools/:slug and only when guides exist. */}
           <RelatedGuides />
         </main>
-        {/* Home and tool pages carry one unit after their content. Articles own
-            their two units in the flow, so they are excluded here. */}
-        <AdSlot only={['home', 'tool']} surface="end" />
+        {/* One sponsor card, at the foot of the home page only. Articles and the
+            guides index own theirs; Pro never renders one. */}
+        <SponsorSlot only={['home']} />
         <SiteFooter />
         <Toaster position="bottom-right" richColors closeButton />
       </div>
@@ -290,6 +293,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageFallback />}>
             <GuidePage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'sponsor',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <SponsorPage />
           </Suspense>
         ),
       },

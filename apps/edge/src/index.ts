@@ -16,11 +16,16 @@ import { Hono } from 'hono';
 import type { AppEnv } from './app-env.js';
 import type { Env, ExecutionContextLike } from './env.js';
 import { D1AuthStore } from './db/auth-store.js';
+import { D1BillingStore } from './db/billing-store.js';
+import { D1SponsorStore } from './db/sponsor-store.js';
+import { downgradeLapsed } from './billing/entitlements.js';
 import { fail } from './lib/http.js';
 import { accountRoutes } from './routes/account.js';
 import { aiRoutes } from './routes/ai.js';
 import { authRoutes } from './routes/auth.js';
+import { billingRoutes } from './routes/billing.js';
 import { metaRoutes } from './routes/meta.js';
+import { sponsorRoutes } from './routes/sponsors.js';
 
 const app = new Hono<AppEnv>();
 
@@ -30,6 +35,8 @@ app.route('/', aiRoutes);
 app.route('/', metaRoutes);
 app.route('/', authRoutes);
 app.route('/', accountRoutes);
+app.route('/', sponsorRoutes);
+app.route('/', billingRoutes);
 
 app.notFound((c) => fail(c, 404, 'not_found', 'No such endpoint.'));
 app.onError((error, c) => {
@@ -60,11 +67,15 @@ export default {
     ctx.waitUntil(
       (async () => {
         const now = Date.now();
-        const [auth] = await Promise.all([
+        const [auth, sponsors, drafts, events, accounts] = await Promise.all([
           new D1AuthStore(env.DB).purgeExpired(now),
+          new D1SponsorStore(env.DB).expireDue(),
+          new D1SponsorStore(env.DB).purgeDrafts(),
+          new D1BillingStore(env.DB).purgeEvents(),
+          downgradeLapsed(env.DB, now),
           env.DB.prepare(`DELETE FROM quota_counters WHERE expires_at <= ?`).bind(now).run(),
         ]);
-        console.log('purged expired rows', auth);
+        console.log('purged expired rows', { auth, sponsors, drafts, events, accounts });
       })().catch((error: unknown) => console.error('purge failed', error)),
     );
   },

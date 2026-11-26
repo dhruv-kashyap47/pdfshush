@@ -77,69 +77,18 @@ export const CSP_CONNECT_SRC = [
 ] as const;
 
 /**
- * The domains Google ads, its consent platform and its ad iframes need.
- *
- * Grouped by directive because CSP matches per-directive: listing
- * `pagead2.googlesyndication.com` in `script-src` does nothing for the iframe it
- * creates. Every entry here is added only when `ads` is on, so the default build
- * keeps the strict policy the trust page describes.
- */
-export const ADS_CSP_ORIGINS = {
-  scriptSrc: [
-    'https://pagead2.googlesyndication.com',
-    'https://partner.googleadservices.com',
-    'https://tpc.googlesyndication.com',
-    'https://www.googletagservices.com',
-    'https://adservice.google.com',
-    'https://securepubads.g.doubleclick.net',
-    'https://fundingchoicesmessages.google.com',
-  ],
-  imgSrc: [
-    'https://pagead2.googlesyndication.com',
-    'https://googleads.g.doubleclick.net',
-    'https://www.google.com',
-    'https://www.gstatic.com',
-  ],
-  frameSrc: [
-    'https://googleads.g.doubleclick.net',
-    'https://tpc.googlesyndication.com',
-    'https://www.google.com',
-    'https://pagead2.googlesyndication.com',
-    'https://fundingchoicesmessages.google.com',
-  ],
-  connectSrc: [
-    'https://pagead2.googlesyndication.com',
-    'https://googleads.g.doubleclick.net',
-    'https://adservice.google.com',
-    'https://www.google.com',
-    'https://fundingchoicesmessages.google.com',
-  ],
-} as const;
-
-/** Every host ads can introduce, for the report and for tests. */
-export function adsCspHosts(): string[] {
-  return [
-    ...new Set([
-      ...ADS_CSP_ORIGINS.scriptSrc,
-      ...ADS_CSP_ORIGINS.imgSrc,
-      ...ADS_CSP_ORIGINS.frameSrc,
-      ...ADS_CSP_ORIGINS.connectSrc,
-    ]),
-  ];
-}
-
-/**
  * Builds the policy. `extraOrigins` is the self-hoster escape hatch: a custom
  * OpenAI-compatible endpoint whose origin is not in the shipped list is blocked
  * by the browser, and the honest fix is to add it at build time
  * (`VITE_CSP_CONNECT_EXTRA=https://ai.internal.example`) rather than widen the
  * policy for everyone. Values are normalised to origins so a pasted URL with a
  * path cannot smuggle a broader match into `connect-src`.
+ *
+ * Sponsors add no origins. A sponsor card is first-party markup with a logo
+ * served from this same origin, so the strict policy is unchanged — which is
+ * exactly why the sponsorship model was chosen over an ad network.
  */
-export function buildCsp(
-  extraOrigins: readonly string[] = [],
-  options: { ads?: boolean } = {},
-): string {
+export function buildCsp(extraOrigins: readonly string[] = []): string {
   const extras = extraOrigins.flatMap((value) => {
     try {
       return [new URL(value).origin];
@@ -147,21 +96,15 @@ export function buildCsp(
       return [];
     }
   });
-  const ads = options.ads === true;
-  const connectSrc = [...new Set([...CSP_CONNECT_SRC, ...extras, ...(ads ? ADS_CSP_ORIGINS.connectSrc : [])])];
+  const connectSrc = [...new Set([...CSP_CONNECT_SRC, ...extras])];
 
   const directives: Record<string, readonly string[]> = {
     'default-src': ["'self'"],
     // The inline theme bootstrap and Vite's module preload need inline script;
     // pdfium/pdf.js compile WebAssembly, which needs the wasm allowance.
-    'script-src': [
-      "'self'",
-      "'unsafe-inline'",
-      "'wasm-unsafe-eval'",
-      ...(ads ? ADS_CSP_ORIGINS.scriptSrc : []),
-    ],
+    'script-src': ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"],
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'blob:', ...(ads ? ADS_CSP_ORIGINS.imgSrc : [])],
+    'img-src': ["'self'", 'data:', 'blob:'],
     'font-src': ["'self'", 'data:'],
     'media-src': ["'self'", 'data:', 'blob:'],
     'worker-src': ["'self'", 'blob:'],
@@ -171,7 +114,7 @@ export function buildCsp(
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'form-action': ["'self'"],
-    'frame-src': ads ? ADS_CSP_ORIGINS.frameSrc : ["'none'"],
+    'frame-src': ["'none'"],
   };
 
   return Object.entries(directives)

@@ -7,6 +7,7 @@
 import { getCookie } from 'hono/cookie';
 import type { Context, Env } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { AppEnv } from '../app-env.js';
 import { tokensMatch } from './crypto.js';
 
 export const SESSION_COOKIE = 'pdfshush_session';
@@ -65,4 +66,36 @@ export function webOrigin(env: { WEB_ORIGIN?: string }, requestUrl: string): str
   const configured = env.WEB_ORIGIN?.trim();
   if (configured) return configured.replace(/\/+$/, '');
   return new URL(requestUrl).origin;
+}
+
+/**
+ * Whether a browser request came from this deployment.
+ *
+ * Both the configured canonical origin and the origin the request actually
+ * arrived on are accepted. They differ during a domain migration — the Worker
+ * can serve `*.workers.dev` while `WEB_ORIGIN` already names the custom domain —
+ * and rejecting the serving origin would break checkout on the URL people are
+ * using. A missing `Origin` is allowed for non-browser clients; a mismatched one
+ * never is.
+ */
+export function sameOriginRequest(c: Context<AppEnv>): boolean {
+  const origin = c.req.header('origin');
+  if (!origin) return true;
+  const requestOrigin = new URL(c.req.url).origin;
+  return origin === requestOrigin || origin === webOrigin(c.env, c.req.url);
+}
+
+/**
+ * A JSON object body, or `{}` for anything else. Never throws.
+ *
+ * Every route that accepts a body wants this exact behaviour: a form post, an
+ * empty body and a JSON array are all "no usable fields", not a 500.
+ */
+export async function readJsonObject<E extends Env>(
+  c: Context<E>,
+): Promise<Record<string, unknown>> {
+  const parsed = await c.req.json().catch(() => undefined);
+  return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : {};
 }

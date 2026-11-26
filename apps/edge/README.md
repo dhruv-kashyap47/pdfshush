@@ -73,38 +73,56 @@ server. The 51 tools still never upload anything; the AI panel has to say so.
 
 ## Plans
 
-`accounts.plan` is `'free'` or `'pro'`, returned by `/api/auth/me` and
-`/api/account`. The SPA uses it for two things: the AI allowance, and whether to
-render ads.
+`accounts.plan` is the *effective* plan: `'pro'` only while a paid term is
+running (`plan_expires_at` is null or in the future). It is returned by
+`/api/auth/me` and `/api/account`, and the SPA uses it for the AI allowance and
+for whether a sponsor card may render. `accounts.credit_messages` is a one-time
+balance, spent after the monthly Pro allowance is gone.
 
 | Plan | Price | Includes |
 |---|---|---|
-| Free | $0 | All tools, BYOK AI, 3 managed AI messages/day, ads |
-| Pro | $6/mo or $48/yr | 500 messages/month, cloud sync, **no ads** |
+| Free | $0 | All tools, BYOK AI, 3 managed AI messages/day |
+| Pro | $6/mo or $48/yr | 500 messages/month, cloud sync, **no sponsor cards** |
+| 30-day pass | $3 one-time | 30 days of Pro, no renewal |
+| Credit pack | $5 one-time | 1,000 messages, spent after the monthly cap |
 
-Payments are not wired yet. When they are, the shape is: a checkout route that
-creates a Dodo Payments session, and a webhook that verifies the signature and
-sets `plan = 'pro'` with an expiry column the cron can downgrade.
+## Billing
 
-## Ads (not enabled)
+Four rails share one Dodo Payments account and one webhook, in
+`routes/billing.ts` and `billing/dodo.ts`:
 
-Ads are **not** built here yet, deliberately. Google AdSense cannot run under
-the current CSP (`default-src 'self'`, pinned by `edge-headers.test.ts`), so a
-slot shipped now would be blocked and look broken.
+- Pro subscription;
+- two sponsor slots (see below);
+- 30-day pass;
+- AI credit pack and donation.
 
-Turning AdSense on needs all of:
+Dodo is the merchant of record, so it owns tax and receipts. With no
+`DODO_API_KEY`, every billing route answers `503 billing_disabled`; the SPA shows
+an email address rather than a button that lands on an error. `DODO_ENVIRONMENT`
+defaults to `test`, so a missing value cannot charge a real card.
 
-1. An approved AdSense account and a `ca-pub-…` publisher id.
-2. `public/ads.txt` with the `google.com, pub-…, DIRECT, f08c47fec0942fa0` line.
-3. CSP widened for `pagead2.googlesyndication.com`,
-   `googleads.g.doubleclick.net`, `adservice.google.com`, plus `frame-src` and
-   `img-src` for the same — and the CSP test updated with it.
-4. A consent mechanism for EEA/UK traffic (Google's CMP or a certified one).
-5. A slot component gated on `account?.plan !== 'pro'`, placed below the fold on
-   tool pages, and never on a result or error screen.
+Webhooks follow Standard Webhooks: `HMAC-SHA256(secret, id.timestamp.body)`,
+verified against the raw body, with a five-minute timestamp window. The message id
+is claimed in `billing_events` before the side effect, so a retry grants nothing
+twice; a handler failure releases the claim so the retry can succeed.
 
-Rule: **every non-Pro visitor sees ads; Pro never does.** A signed-in free user
-still sees them — signing in is not paying.
+## Sponsorship (no ad network)
+
+There is no third-party monetization script on this deployment. Two named slots
+are sold directly:
+
+| Slot | Price | Renders on |
+|---|---|---|
+| Featured | $39/mo (founding) | the home page, under the tool grid |
+| Standard | $19/mo (founding) | the guides index and the end of each guide |
+
+A card is first-party markup with a logo served from `/api/sponsors/:id/logo`, so
+the strict CSP (`default-src 'self'`) is unchanged. The route allowlist is
+home, `/guides` and `/guides/:slug`; never a tool workspace, a result, checkout,
+the account page, the verifier or status. Pro accounts render no card at all.
+
+The full decision record, data model and Dodo setup live in
+[`docs/SPONSORSHIP.md`](../../docs/SPONSORSHIP.md).
 
 ## Local development
 

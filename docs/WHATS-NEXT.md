@@ -9,10 +9,10 @@
 
 The website is live and every PDF tool runs in the visitor's browser. A second,
 free backend now exists on Cloudflare: it handles sign-in, cloud sync and the AI
-trial, and it costs $0 at your traffic. The 20 AdSense articles are written but
-not published. Ads are fully built but switched off, because there is no
-publisher ID yet. Nothing is broken; most things are just waiting on a decision
-or an account.
+trial, and it costs $0 at your traffic. The 20 guides are written but not
+published. AdSense is gone by decision; sponsorship and the one-time rails are
+built and switch on when Dodo is configured. Nothing is broken; most things are
+just waiting on a decision or an account.
 
 ---
 
@@ -24,17 +24,18 @@ or an account.
 | Accounts | Google sign-in, stored in Cloudflare D1 (not MongoDB) | Built |
 | Cloud sync | Preferences, history, workflows saved per account | Built |
 | AI proxy | Your OpenRouter key stays on the server; visitors never see it | Built, **off** |
-| Plans | Free = 3 AI messages/day + ads. Pro = 500/month + no ads | Built, no payments |
+| Plans | Free = 3 AI messages/day. Pro = 500/month, cloud sync, no sponsor cards | Built, no payments |
 | Guides | `/guides` plus 20 article drafts (~39,000 words) | Drafts only |
-| Ads | One unit on home/tool pages, two in articles, Pro never | Built, **off** |
+| Sponsorship | Two first-party slots ($39 + $19/mo, founding). No ad network, no CSP change | Built, **off** until Dodo is configured |
+| One-time rails | 30-day pass, AI credit pack, donation | Built, **off** until Dodo is configured |
 | Capability switch | The site hides features a deployment cannot run | Built |
 
 Two rules that shaped everything:
 
 1. **The 51 PDF tools never upload anything.** Only the AI panel sends text, and
    the site says so.
-2. **Free is not a trial.** It is a real, permanent tier funded by ads and
-   limited AI.
+2. **Free is not a trial.** It is a real, permanent tier funded by Pro and
+   sponsorships, with a limited AI allowance.
 
 ---
 
@@ -156,8 +157,9 @@ tick the boxes, move on. Each one is independent enough to stop after.
 
 ### Sprint 1 — Publish the guides (content, no code)
 
-**Why:** AdSense will not approve thin or unedited content, and this is also your
-US traffic engine.
+**Why:** the guides are the traffic engine. Sponsorship only becomes sellable once
+there are pages for search to send people to; nothing else on this list changes
+that.
 
 - [ ] Read all 20 files in `apps/web/src/content/guides/`
 - [ ] Tick every `NEEDS HUMAN EDIT` box (facts, screenshots, legal wording)
@@ -194,37 +196,55 @@ US traffic engine.
 
 **Done when:** a visitor can sign in and use the AI trial on the real domain.
 
-### Sprint 4 — Payments (Dodo)
+### Sprint 4 — Payments (Dodo) — code built 2026-11-26
 
-**Why:** this is the actual revenue, and it unlocks "no ads in Pro".
+**Why:** this is the actual revenue. Every paid rail shares one Dodo account and
+one webhook: Pro, the two sponsor slots, the 30-day pass, credit packs and
+donations.
 
-- [ ] Create the product in Dodo Payments ($6/mo, $48/yr)
-- [ ] `POST /api/billing/checkout` → creates a Dodo session
-- [ ] `POST /api/billing/webhook` → verify the signature, set `plan='pro'`
-- [ ] Add `plan_expires_at` and a cron downgrade when it lapses
-- [ ] Show "Manage subscription" on the account page
-- [ ] Test with Dodo's sandbox mode end to end
+**Built:** `/api/billing/credits`, `/api/billing/pass`, `/api/billing/donate`,
+`/api/billing/webhook` (Standard Webhooks verification + `billing_events`
+idempotency), credit spending after the monthly cap, and the account-page buy
+buttons. The checklist below is the Dodo dashboard and deploy work that remains.
 
-**Done when:** paying flips the account to Pro within seconds, and cancelling
-eventually flips it back.
+- [ ] Create the products in Dodo Payments (Pro $6/mo · $48/yr, sponsor $39 · $19,
+      pass $3, credits $5/1,000, donation pay-what-you-want)
+- [ ] `npx wrangler secret put DODO_API_KEY` and `DODO_WEBHOOK_SECRET`
+- [ ] Put the product ids in `wrangler.jsonc` (`DODO_PRODUCT_*`)
+- [ ] Point the webhook at `/api/billing/webhook`, subscribe to
+      `subscription.active`, `subscription.renewed`, `subscription.cancelled`,
+      `payment.succeeded`
+- [ ] Test with Dodo's test mode end to end: sponsor card goes live, credit pack
+      raises the AI cap, pass flips the plan, donation succeeds
+- [ ] Verify a replayed webhook grants nothing twice
 
-### Sprint 5 — Ads
+**Done when:** paying flips the entitlement within seconds, cancelling eventually
+flips it back, and an unconfigured deployment still answers `503` instead of
+showing a broken button.
 
-**Why:** a small floor under the free tier. Do it after payments, not before.
+### Sprint 5 — Sponsorship — code built 2026-11-26
 
-- [ ] Apply to AdSense once the 20 guides are live
-- [ ] On approval: real publisher ID in `public/ads.txt`, verify with `curl`
-- [ ] Configure the GDPR message in AdSense, copy its id
-- [ ] Set `VITE_ADS_ENABLED=true`, `VITE_ADSENSE_CLIENT`, 4 slot ids, `VITE_ADSENSE_CMP_ID`
-- [ ] Deploy, then verify with an EU VPN that the dialog appears **before** any ad
-- [ ] Verify a Pro account loads no ad script at all
+**Why:** the replacement for AdSense, and the only revenue rail that scales with
+traffic. Do it after payments, not before.
 
-**Done when:** an EU visitor sees consent first, and declining leaves no ad
-requests.
+**Built:** `/sponsor`, the two-slot inventory, self-serve checkout, logo storage
+in D1, the sponsor card on home/guides/article-end, the Pro gate and the
+`default-src 'self'` CSP proof. The checklist below is verification and launch.
+
+- [ ] Read `docs/SPONSORSHIP.md`
+- [ ] Confirm both slots read "Open" on `/sponsor`
+- [ ] Buy one slot yourself in test mode and confirm the card appears on the home
+      page within a minute
+- [ ] Confirm a Pro account renders no card at all
+- [ ] Confirm the CSP is unchanged (`default-src 'self'`, no Google origins)
+- [ ] Publish the page in Search Console; link it from the footer (already done)
+
+**Done when:** a stranger can pay for a slot without an email, and the card is
+live on the right page and nowhere else.
 
 ### Sprint 6 — Growth
 
-**Why:** neither ads nor subscriptions matter without traffic.
+**Why:** neither sponsorship nor subscriptions matter without traffic.
 
 - [ ] Add privacy-friendly analytics (no cookies, no banner)
 - [ ] Publish 20 more guides around the queries that already get impressions
@@ -254,7 +274,7 @@ requests.
 Sprint 1 (content)  ──►  Sprint 2 (deploy)  ──►  Sprint 3 (switch on)
                                                       │
                                                       ├──► Sprint 4 (payments)
-                                                      └──► Sprint 5 (ads)
+                                                      └──► Sprint 5 (sponsorship)
                                                                  │
                                                       Sprint 6 (growth)
                                                                  │
@@ -267,9 +287,9 @@ Sprint 1 and Sprint 2 can run in parallel: one is writing, one is accounts.
 
 ## 5. Rules we do not break
 
-1. **No fake publisher ID, ever.** An empty `ads.txt` is honest; a made-up one is
-   fraud.
-2. **Pro never loads the ad script.** Not hidden — never fetched.
+1. **No third-party monetization script, ever.** A sponsor card is first-party
+   markup with a same-origin logo; the CSP stays `default-src 'self'`.
+2. **Pro never renders a sponsor card.** Not hidden — the card is not rendered.
 3. **Drafts never reach production.** The build enforces it, not discipline.
 4. **The 51 tools never upload.** Only the AI panel does, and it says so.
 5. **No secrets in the repo.** Keys go through `wrangler secret`.
