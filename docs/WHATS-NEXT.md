@@ -7,12 +7,14 @@
 
 ## Where we are, in one paragraph
 
-The website is live and every PDF tool runs in the visitor's browser. A second,
-free backend now exists on Cloudflare: it handles sign-in, cloud sync and the AI
-trial, and it costs $0 at your traffic. The 20 guides are written but not
-published. AdSense is gone by decision; sponsorship and the one-time rails are
-built and switch on when Dodo is configured. Nothing is broken; most things are
-just waiting on a decision or an account.
+The website is live and every PDF tool runs in the visitor's browser. The product
+is now **Cloudflare-only**: one Worker on the free tier handles sign-in, cloud
+sync and the AI trial, and it costs $0 at your traffic. The Express/BullMQ/
+Redis/Mongo server tier has been archived in `archive/` for a later paid tier.
+The 20 guides are written but not published. AdSense is gone by decision;
+sponsorship and the one-time rails are built and switch on when Dodo is
+configured. Nothing is broken; most things are just waiting on a decision or an
+account.
 
 ---
 
@@ -20,7 +22,8 @@ just waiting on a decision or an account.
 
 | Thing | What it means | State |
 |---|---|---|
-| Free backend | A Cloudflare Worker serving the site and `/api` from one address | Built, runs locally |
+| Server tier | Express API + BullMQ + Redis + Mongo + MCP, kept for a later paid tier | **Archived** in `archive/`, tag `server-tier-v1` |
+| Free backend | A Cloudflare Worker serving the site and `/api` from one address | Built, deploy pending |
 | Accounts | Google sign-in, stored in Cloudflare D1 (not MongoDB) | Built |
 | Cloud sync | Preferences, history, workflows saved per account | Built |
 | AI proxy | Your OpenRouter key stays on the server; visitors never see it | Built, **off** |
@@ -155,6 +158,20 @@ costs ever surprise you.
 A sprint here is **one focused block of work**, not a calendar week. Finish it,
 tick the boxes, move on. Each one is independent enough to stop after.
 
+### Sprint 0 — Archive the server tier — done 2026-11-26
+
+**Why:** no servers, no monthly bill. One Worker and D1 cover everything the
+product actually needs.
+
+- [x] Tag the pre-cut commit `server-tier-v1`
+- [x] Move `apps/api`, `apps/mcp`, `api-contracts`, Docker/infra, server tests
+      and server-only docs into `archive/`
+- [x] Remove Redis/Mongo/Docker from `pnpm dev`, the workspace and CI
+- [x] Point the web dev proxy and E2E preflight at the Worker on `:8787`
+- [x] Verify: typecheck, 1 582 unit tests, build, bundle, guardrails, SEO
+
+**Done when:** the active workspace builds and tests without a server. ✅
+
 ### Sprint 1 — Publish the guides (content, no code)
 
 **Why:** the guides are the traffic engine. Sponsorship only becomes sellable once
@@ -188,11 +205,12 @@ that.
 
 **Why:** the site is still built as "no server", so nothing new is visible.
 
-- [ ] Split the site's one `serverDeployed` flag into per-feature capabilities
-- [ ] Hide Workflows / API / MCP where the deployment says they are unavailable
+- [x] Per-feature capability switch (`apps/web/src/lib/capabilities.ts`)
+- [ ] Hide Workflows / API / MCP in the header and catalog; keep honest
+      permanent pages instead of dead links
 - [ ] Build with `VITE_SERVER_API=on`
 - [ ] Confirm the AI panel appears and the nav has Guides
-- [ ] Point the domain at the Worker
+- [ ] Point `pdfshush.com` at the Worker and finish the origin migration
 
 **Done when:** a visitor can sign in and use the AI trial on the real domain.
 
@@ -287,13 +305,15 @@ Sprint 1 and Sprint 2 can run in parallel: one is writing, one is accounts.
 
 ## 5. Rules we do not break
 
-1. **No third-party monetization script, ever.** A sponsor card is first-party
+1. **No servers.** The active product runs in the browser and on one Cloudflare
+   Worker + D1. The archived Express/Redis/Mongo tier is not a fallback.
+2. **No third-party monetization script, ever.** A sponsor card is first-party
    markup with a same-origin logo; the CSP stays `default-src 'self'`.
-2. **Pro never renders a sponsor card.** Not hidden — the card is not rendered.
-3. **Drafts never reach production.** The build enforces it, not discipline.
-4. **The 51 tools never upload.** Only the AI panel does, and it says so.
-5. **No secrets in the repo.** Keys go through `wrangler secret`.
-6. **No dark patterns.** No fake download buttons, no ads next to a real one, no
+3. **Pro never renders a sponsor card.** Not hidden — the card is not rendered.
+4. **Drafts never reach production.** The build enforces it, not discipline.
+5. **The 51 tools never upload.** Only the AI panel does, and it says so.
+6. **No secrets in the repo.** Keys go through `wrangler secret`.
+7. **No dark patterns.** No fake download buttons, no ads next to a real one, no
    ad-blocker wall.
 
 ---
@@ -301,21 +321,25 @@ Sprint 1 and Sprint 2 can run in parallel: one is writing, one is accounts.
 ## 6. Useful commands
 
 ```bash
-# website
-pnpm --filter @pdfshush/web dev
-pnpm --filter @pdfshush/web test
-pnpm --filter @pdfshush/web build
+# website (all tools work with no backend)
+pnpm dev
+pnpm test
+pnpm build
 pnpm --filter @pdfshush/web guides:status
 pnpm --filter @pdfshush/web guides:check
 
-# backend
+# Worker (optional: accounts, sync, managed AI, billing)
+pnpm dev:edge
 pnpm --filter @pdfshush/edge typecheck
-npx wrangler dev --port 8787 --local
-npx wrangler deploy
+pnpm db:local
+pnpm db:remote
+pnpm deploy
 npx wrangler tail
-npx wrangler d1 execute pdfshush --remote --command "SELECT COUNT(*) FROM accounts"
 
 # quality gates that must stay green
-node scripts/seo-audit.mjs
-node tests/bundle-boundary.mjs
+pnpm typecheck
+pnpm test
+pnpm test:bundle
+pnpm test:guardrails
+pnpm seo:audit
 ```

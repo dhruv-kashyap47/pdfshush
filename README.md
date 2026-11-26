@@ -8,18 +8,18 @@
 <p align="center"><strong>Free PDF tools that never upload your files.</strong></p>
 
 <p align="center">
-  <a href="https://pdfshush.7468dhruv.workers.dev"><img alt="Open pdfshush" src="https://img.shields.io/badge/Open_the_app-%E2%86%92-2f9e6a?style=for-the-badge"></a>
+  <a href="https://pdfshush.com"><img alt="Open pdfshush" src="https://img.shields.io/badge/Open_the_app-%E2%86%92-2f9e6a?style=for-the-badge"></a>
 </p>
 
 <p align="center">
-  <a href="https://pdfshush.7468dhruv.workers.dev">Live app</a>
+  <a href="https://pdfshush.com">Live app</a>
   &nbsp;·&nbsp; <a href="#tools">Tools</a>
   &nbsp;·&nbsp; <a href="#private-by-default">Privacy</a>
   &nbsp;·&nbsp; <a href="#run-it-yourself">Self-host</a>
 </p>
 
 <p align="center">
-  <img alt="48 browser tools" src="https://img.shields.io/badge/48-browser_tools-2f9e6a?style=flat-square">
+  <img alt="48 browser tools" src="https://img.shields.io/badge/51-browser_tools-2f9e6a?style=flat-square">
   <img alt="0 uploads" src="https://img.shields.io/badge/uploads-0-0b3b2c?style=flat-square">
   <img alt="AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e6a?style=flat-square">
 </p>
@@ -31,11 +31,11 @@
 No account. No upload. No waiting for a server.
 
 <p align="center">
-  <a href="https://pdfshush.7468dhruv.workers.dev/tools/merge-pdf">Merge PDF</a> ·
-  <a href="https://pdfshush.7468dhruv.workers.dev/tools/compress-pdf">Compress PDF</a> ·
-  <a href="https://pdfshush.7468dhruv.workers.dev/tools/redact-pdf">Redact PDF</a> ·
-  <a href="https://pdfshush.7468dhruv.workers.dev/tools/fill-sign">Sign a PDF</a> ·
-  <a href="https://pdfshush.7468dhruv.workers.dev/tools/ocr-pdf">OCR a scan</a>
+  <a href="https://pdfshush.com/tools/merge-pdf">Merge PDF</a> ·
+  <a href="https://pdfshush.com/tools/compress-pdf">Compress PDF</a> ·
+  <a href="https://pdfshush.com/tools/redact-pdf">Redact PDF</a> ·
+  <a href="https://pdfshush.com/tools/fill-sign">Sign a PDF</a> ·
+  <a href="https://pdfshush.com/tools/ocr-pdf">OCR a scan</a>
 </p>
 
 ## A real look
@@ -56,19 +56,19 @@ No account. No upload. No waiting for a server.
 
 **Protect:** Redact PDF (with a verifier), Protect with a password, Unlock.
 
-**AI, with your own key:** Summarize, Chat with a PDF, Edit with AI.
+**AI:** Summarize, Chat with a PDF, Edit with AI and Smart redaction. Bring your own provider key, or use a small managed trial.
 
 <p align="center">
-  <a href="https://pdfshush.7468dhruv.workers.dev"><strong>See all 48 tools →</strong></a>
+  <a href="https://pdfshush.com"><strong>See all 51 tools →</strong></a>
 </p>
 
 ## Private by default
 
 | Your files stay here | Your keys stay here | Your work still works |
 | --- | --- | --- |
-| Every tool runs inside your browser tab. There is no upload endpoint, no file server, and no copy of your document on our side. | AI tools use your own provider key. It is stored in your browser and sent straight to the provider you chose. | Install pdfshush as an app and keep using tools offline. Once a tool is open, the network is optional. |
+| Every tool runs inside your browser tab. There is no upload endpoint, no file server, and no copy of your document on our side. | AI tools use your own provider key by default. It is stored in your browser and sent straight to the provider you chose. The optional managed trial sends only the text you choose through our Worker. | Install pdfshush as an app and keep using tools offline. Once a tool is open, the network is optional. |
 
-Redaction is the one you can check: pages are rebuilt without the hidden text or images, then reopened and verified before the download appears. The [verifier](https://pdfshush.7468dhruv.workers.dev/verify) lets you inspect the result yourself.
+Redaction is the one you can check: pages are rebuilt without the hidden text or images, then reopened and verified before the download appears. The [verifier](https://pdfshush.com/verify) lets you inspect the result yourself.
 
 When you use an AI tool, the text you choose to send goes to your AI provider, not to us. Everything else stays on your device.
 
@@ -91,11 +91,12 @@ records the engine and touch matrix.
 
 ## Run it yourself
 
-pdfshush is open source. The frontend runs on its own. No Docker, no database, no API keys.
+pdfshush is open source. The frontend runs on its own — no Docker, no database, no API keys. The optional Cloudflare Worker adds Google sign-in, D1 sync and the managed AI trial; every PDF tool works without it.
 
 ```bash
 pnpm install
-pnpm dev            # http://localhost:5173
+pnpm dev            # http://localhost:5173, all tools, no Worker needed
+pnpm dev:edge       # optional Worker on http://localhost:8787
 ```
 
 Production build and deploy:
@@ -105,7 +106,7 @@ pnpm build
 npx wrangler deploy
 ```
 
-Requires Node 20.19+ and pnpm 12. The production build is frontend-only by default. The optional server tier (account sync, workflow recipes, REST API, MCP) is documented in [`docs/DEPLOY.md`](./docs/DEPLOY.md); the Cloudflare Workers runbook is [`docs/DEPLOY-WORKERS.md`](./docs/DEPLOY-WORKERS.md).
+Requires Node 20.19+ and pnpm 12. The deployment is one Cloudflare Worker serving the SPA from Static Assets and `/api` from `apps/edge`; the runbook is [`docs/DEPLOY-WORKERS.md`](./docs/DEPLOY-WORKERS.md). The old Express/BullMQ/Redis/Mongo server tier is deliberately archived in [`archive/`](./archive/README.md) for a later paid tier.
 
 ## License
 

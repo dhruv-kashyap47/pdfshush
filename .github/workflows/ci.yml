@@ -1,10 +1,9 @@
 name: CI
 
-# The gates that need no Docker, no Redis and no network: typecheck, the unit
-# suites, a production build and the bundle boundary. The stack-dependent gates
-# (`pnpm test:api`, `pnpm test:hardening`, the browser E2E suites) still run
-# locally against `docker compose up -d --build`, as documented in PLAN.md §9 --
-# a green run here does not claim they passed.
+# The Cloudflare-only gates: typecheck, the unit suites, a production build and
+# the bundle boundary. The server tier (Express, BullMQ, Redis, Mongo) lives in
+# `archive/` and is not installed, built or tested here. Browser E2E suites run
+# separately against the built preview, as documented in README.md.
 on:
   push:
     branches: [main]
@@ -61,7 +60,7 @@ jobs:
 
       - run: pnpm test:bundle
 
-  # Q3/Q7 is a browser measurement, not a unit test. It needs no API or Redis,
+  # Q3/Q7 is a browser measurement, not a unit test. It needs no Worker,
   # only the production build and Chromium. CI uses the public spec ceilings
   # (`M5_PERF_CI=1`); the tighter ratified numbers are measured locally on the
   # machine that produced them, because a shared runner is not that machine.

@@ -50,6 +50,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 301 |
 | **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; bug pass fixed 10 boundary defects; pdf-core 639+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waited on C-07 |
 | **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 657+1 expected fail, web 309, corpus 2/2, `text-ux` 56/56, main 150.4 kB / 0 engines; **Gate C met** |
+| **Cloudflare-only cut** | No servers. One Worker + Static Assets + D1; archive the Express/BullMQ/Redis/Mongo tier; browser-only PDF work; AI = BYOK everywhere + managed OpenRouter trial | 🟢 **Phase 0 done 2026-11-26** — server tier moved to `archive/`, tagged `server-tier-v1`; active workspace is 5 projects; typecheck + 1 582 unit tests + build + bundle + guardrails + SEO green. Worker deploy, surface gating and AI enablement next (§44.5) |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -8562,3 +8563,36 @@ the product ids in `wrangler.jsonc`, point the webhook at
 `/api/billing/webhook`, deploy with `VITE_SERVER_API=on`, and publish the 20
 guides. Sponsorship is ready before the traffic exists; it is not revenue before
 the traffic exists.
+
+### 44.5 Cloudflare-only cut - server tier archived (2026-11-26)
+
+The owner has no servers and will not rent one. The product is therefore
+**Cloudflare-only**: one Worker serves the SPA from Static Assets and `/api` from
+`apps/edge`, accounts and sync live in D1, every PDF operation runs in the
+visitor's browser, and the Express/BullMQ/Redis/Mongo tier is archived until
+revenue justifies it.
+
+**Moved to `archive/` (tag `server-tier-v1` is the exact prior commit):**
+`apps/api`, `apps/mcp`, `packages/api-contracts`, `infra/`,
+`docker-compose.yml`, `tests/api/`, `tests/e2e/ai-managed.mjs`,
+`tests/e2e/share-boundary.mjs`, `scripts/ensure-redis.mjs`,
+`scripts/check-merge-clean.mjs`, `docs/DEPLOY.md` (as `DEPLOY-server.md`) and the
+old server `.env.example`/`.dockerignore`. `archive/README.md` records what each
+piece was and how to restore it.
+
+**Active workspace is now five projects:** `apps/web`, `apps/edge`,
+`packages/pdf-core`, `packages/ai-provider`, `packages/ai-agent`. The root
+scripts no longer start Redis or the API: `pnpm dev` is the web app,
+`pnpm dev:edge` is the Worker, `pnpm dev:full` runs both. The Vite `/api` proxy
+points at the Worker on `:8787`, and `tests/support/preflight.mjs` treats the
+Worker as optional because every tool works without it.
+
+**Still to come:** deploy the Worker on `pdfshush.com`, hide the archived
+surfaces (Workflows, REST API, MCP) from the header/catalog while keeping honest
+permanent pages, enable the OpenRouter trial, and publish the guides.
+
+**Evidence for Phase 0:** `pnpm typecheck` green across the five active projects;
+`pnpm test` **1 582 passed + 1 expected fail** (pdf-core 707, web 348,
+ai-provider 375, ai-agent 152); `pnpm build` green with 84 prerendered routes /
+75 sitemap URLs at `https://pdfshush.com`; `test:bundle` main **182.6 kB /
+0 engines**; `test:guardrails`, `test:provenance` and `seo:audit` clean.

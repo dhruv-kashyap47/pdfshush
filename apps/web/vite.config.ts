@@ -271,13 +271,14 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: true,
       // The SPA calls `/api/*` same-origin. Without this the browser would talk to
-      // :8080 cross-origin, which needs a CORS layer and `SameSite=None` cookies
-      // (i.e. `Secure`, i.e. HTTPS even in dev). Proxying keeps the session cookie
-      // `SameSite=Lax` and needs no CORS at all. Production serves web and /api
-      // from one origin the same way.
+      // the Worker on :8787 cross-origin, which needs a CORS layer and
+      // `SameSite=None` cookies (i.e. `Secure`, i.e. HTTPS even in dev). Proxying
+      // keeps the session cookie `SameSite=Lax` and needs no CORS at all.
+      // Production serves web and /api from one Worker on one origin the same way.
+      // Start the Worker with `pnpm dev:edge`; the tools themselves do not need it.
       proxy: {
         '/api': {
-          target: 'http://localhost:8080',
+          target: 'http://localhost:8787',
           changeOrigin: true,
         },
       },

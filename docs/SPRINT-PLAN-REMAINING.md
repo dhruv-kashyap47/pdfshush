@@ -1,5 +1,11 @@
 # Remaining work → sprint plan (2026-11-24, post-deploy reality)
 
+> **2026-11-26 update: the server tier is archived.** `apps/api`, BullMQ/Redis,
+> Mongo, Docker, the REST API and MCP now live in `archive/` (tag
+> `server-tier-v1`). The active product is one Cloudflare Worker + Static Assets
+> + D1. Sprints 11–12 below are historical and will not run; the current plan is
+> [`WHATS-NEXT.md`](./WHATS-NEXT.md).
+>
 > This replaces the earlier ship-first draft. Production is already live at
 > `https://pdfshush.space`, all 63 `reaTask.md` cards are closed, and the
 > production smoke + sign suites are green. The remaining work is the public

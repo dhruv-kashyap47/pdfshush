@@ -9,10 +9,15 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "predev": "node scripts/ensure-redis.mjs && pnpm --filter @pdfshush/api build",
-    "dev": "pnpm --parallel --filter @pdfshush/web --filter @pdfshush/api dev",
+    "dev": "pnpm --filter @pdfshush/web dev",
+    "dev:web": "pnpm --filter @pdfshush/web dev",
+    "dev:edge": "pnpm --filter @pdfshush/edge dev",
+    "dev:full": "pnpm build && pnpm --parallel --filter @pdfshush/web --filter @pdfshush/edge dev",
     "build": "pnpm --filter @pdfshush/web build",
+    "deploy": "pnpm build && npx wrangler deploy",
     "preview": "pnpm --filter @pdfshush/web preview",
+    "db:local": "pnpm --filter @pdfshush/edge db:local",
+    "db:remote": "pnpm --filter @pdfshush/edge db:remote",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
     "test:e2e": "node tests/support/preflight.mjs && node tests/e2e/smoke.mjs",
@@ -21,7 +26,6 @@
     "test:e2e:text-model": "node tests/support/preflight.mjs && node tests/e2e/text-model.mjs",
     "test:e2e:text-ux": "node tests/support/preflight.mjs && node tests/e2e/text-ux.mjs",
     "test:e2e:ai": "node tests/support/preflight.mjs && node tests/e2e/ai.mjs",
-    "test:e2e:ai-managed": "node tests/support/preflight.mjs && node tests/e2e/ai-managed.mjs",
     "test:e2e:plain-tools": "node tests/support/preflight.mjs && node tests/e2e/plain-tools.mjs",
     "test:e2e:next-tools": "node tests/support/preflight.mjs && node tests/e2e/next-tools.mjs",
     "test:e2e:bookmark-batch": "node tests/support/preflight.mjs && node tests/e2e/bookmark-batch.mjs",
@@ -44,7 +48,6 @@
     "test:e2e:deskew": "node tests/support/preflight.mjs && node tests/e2e/deskew.mjs",
     "test:e2e:ocr": "node tests/support/preflight.mjs && node tests/e2e/ocr.mjs",
     "test:e2e:sprint6": "node tests/support/preflight.mjs && node tests/e2e/sprint6-trust.mjs",
-    "test:e2e:share": "node tests/support/preflight.mjs && node tests/e2e/share-boundary.mjs",
     "test:bundle": "node tests/bundle-boundary.mjs",
     "test:guardrails": "node tests/guardrails.mjs && node tests/guardrails.mjs --self-test",
     "test:provenance": "node scripts/check-provenance.mjs",
@@ -52,21 +55,14 @@
     "seo:lengths": "node --experimental-strip-types scripts/seo-lengths.mjs",
     "test:corpus": "node scripts/corpus.mjs",
     "test:fuzz": "pnpm --filter @pdfshush/pdf-core test:fuzz",
-    "test:merge-clean": "node scripts/check-merge-clean.mjs rea-uplift origin/main",
     "test:baseline": "node tests/benchmarks/m5-0-baseline.mjs",
     "test:perf": "node tests/benchmarks/m5-4-ceilings.mjs",
     "test:editor-perf": "pnpm --filter @pdfshush/pdf-core exec vitest run test/editorBench.test.ts --reporter=verbose",
-    "test:sweep": "node tests/support/preflight.mjs && node tests/sweep.mjs",
-    "test:api": "node tests/api/smoke.mjs",
-    "test:hardening": "node tests/api/hardening.mjs",
-    "stack:up": "docker compose up -d --build",
-    "stack:down": "docker compose down",
-    "redis:up": "docker compose up -d redis"
+    "test:sweep": "node tests/support/preflight.mjs && node tests/sweep.mjs"
   },
   "devDependencies": {
     "@dodopayments/opencode-plugin": "^0.8.0",
     "axe-core": "^4.14.0",
-    "mongodb": "^7.7.0",
     "playwright": "^1.63.0"
   }
 }
