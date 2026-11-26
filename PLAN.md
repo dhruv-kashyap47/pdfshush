@@ -52,7 +52,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 657+1 expected fail, web 309, corpus 2/2, `text-ux` 56/56, main 150.4 kB / 0 engines; **Gate C met** |
 | **Cloudflare-only cut** | No servers. One Worker + Static Assets + D1; archive the Express/BullMQ/Redis/Mongo tier; browser-only PDF work; AI = BYOK everywhere + managed OpenRouter trial | 🟢 **Shipped and deployed 2026-11-26** — server tier moved to `archive/`, tagged `server-tier-v1`; active workspace is 5 projects; typecheck + 1 582 unit tests at the cut (1 586 after the audit) + build + bundle + guardrails + SEO green. Worker deployed to `pdfshush.com`, surfaces gated, accounts and managed AI live; repository audit, CI recovery and licence ledger closed (see §45) |
 | **Audit, CI recovery and licensing** | Full-repository audit: bug fixes, the cross-browser 502, the profile photo, dependency/licence inventory and browser gates | ✅ **done 2026-11-26** - 14 commits, 1 586 unit tests + 1 expected fail, all 29 `test:e2e:*` suites green, production redeployed; open owner decisions in §45 |
-| **Dodo payments sprint** | Recurring Pro (`$6/mo` · `$48/yr`), 30-day pass, credit packs, donations and the two sponsor slots; one webhook, Standard Webhooks verification, `billing_events` idempotency | 🟢 **code + tests complete 2026-11-26** — the Pro rail was missing and is now built (`/api/billing/pro`, two subscription products, full `subscription.*` lifecycle, account-page buttons); 35 new edge tests run the real migrations over `node:sqlite`; typecheck, `pnpm test` (**1 667 + 1 expected fail**), build, bundle, guardrails and deploy-config green. Operator steps remain: seven test-mode products, secrets, product ids, webhook endpoint, migration `0004` — see `docs/WHATS-NEXT.md` §Sprint 4 and §46 |
+| **Dodo payments sprint** | Recurring Pro (`$6/mo` · `$48/yr`), 30-day pass, credit packs, donations and the two sponsor slots; one webhook, Standard Webhooks verification, `billing_events` idempotency | 🟢 **code + tests complete 2026-11-26** — the Pro rail was missing and is now built (`/api/billing/pro`, two subscription products, full `subscription.*` lifecycle, account-page buttons); 35 new edge tests run the real migrations over `node:sqlite`; typecheck, `pnpm test` (**1 668 + 1 expected fail**), build, bundle, guardrails and deploy-config green. Operator steps remain: seven test-mode products, secrets, product ids, webhook endpoint, migration `0004` — see `docs/WHATS-NEXT.md` §Sprint 4 and §46 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -8761,7 +8761,7 @@ had:
 **Gates.**
 
 - `pnpm typecheck` green (all five projects).
-- `pnpm test` **1 667 passed + 1 expected fail** (pdf-core 709, web 391, edge 40,
+- `pnpm test` **1 668 passed + 1 expected fail** (pdf-core 709, web 392, edge 40,
   ai-provider 375, ai-agent 152).
 - `pnpm build` green — 84 prerendered routes / 71 sitemap; `test:bundle` main
   **153.7 kB / 0 engines**; `test:deploy-config` and `test:guardrails` (plus
@@ -8798,7 +8798,7 @@ yes. The rest of the world is measured by default and can switch it off from the
 footer (`Privacy settings`). The container is loaded from JavaScript, not from
 `index.html`, because a static tag would run before any choice could be read.
 `isAnalyticsOrigin` keeps the tag's own beacons out of the locality proof, so
-"zero cross-origin requests" still describes the job. The CSP keeps the three
+"zero cross-origin requests" still describes the job. Automated browsers (`navigator.webdriver`) get neither the tag nor the panel, so a benchmark never pays for a third-party script. The CSP keeps the three
 measurement origins named and the policy test asserts there is no wildcard.
 
 **Guides.** All 20 articles are published: the "NEEDS HUMAN EDIT" notes are
@@ -8807,7 +8807,7 @@ benchmarks, no legal advice), each article carries three frontmatter FAQs used
 by both the visible block and the FAQPage schema, and `draft` is false. Titles
 and descriptions were brought inside the 50-60 / 150-160 audit window.
 
-**Evidence.** `pnpm typecheck` green; `pnpm test` **1 667 + 1 expected fail**;
+**Evidence.** `pnpm typecheck` green; `pnpm test` **1 668 + 1 expected fail**;
 `pnpm build` 104 prerendered routes / 92 sitemap URLs; `seo:audit` PASS (0
 warnings); `guides:check` OK: 20; `test:bundle`, `test:guardrails`,
 `test:provenance` and `test:deploy-config` green.
@@ -8821,5 +8821,6 @@ answer 200 with FAQPage and BreadcrumbList markup, the prerendered HTML contains
 no `gtm.js` (the consent gate runs before the tag), and `/api/health` reports
 `database:ok`. The billing rails remain disabled until the Dodo products and
 secrets exist, which is the intended `503` shape.
+
 
 
