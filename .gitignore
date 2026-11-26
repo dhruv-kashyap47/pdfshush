@@ -78,3 +78,6 @@ tests/benchmarks/layout-benchmark-latest.md
 # Local Cloudflare state from `wrangler pages dev` (the emulator used to
 # verify the Pages routing locally).
 .wrangler/
+
+# Account recovery codes must never enter the repository.
+docs/*recovery-codes*

@@ -56,6 +56,37 @@ same name wins over that file.
 **Current D1 id:** `64dee00a-9259-465f-8462-f053c6fa4d95` (APAC), set in
 `wrangler.jsonc`.
 
+### Git-connected Workers Builds
+
+If the Worker is connected to the GitHub repo, the build runs on a branch and
+reads **that branch's** `wrangler.jsonc`. A stale branch produces a build that
+looks healthy until the deploy step, then fails with:
+
+```
+D1 binding 'DB' references database '00000000-0000-0000-0000-000000000000'
+```
+
+That is a wrong-branch symptom, not a Cloudflare problem. The production branch
+must be **`main`** (or `cloudflare-only`), and both were updated to the same
+commit on 2026-11-26. Set:
+
+| Setting | Value |
+|---|---|
+| Production branch | `main` |
+| Build command | `pnpm --filter @pdfshush/web build` |
+| Deploy command | `npx wrangler deploy` |
+| Root directory | repository root (the `wrangler.jsonc` is there) |
+
+The guard runs before a local/CI deploy:
+
+```bash
+pnpm test:deploy-config
+```
+
+It fails on the placeholder D1 id, a missing `pdfshush.com` route, a
+frontend-only `.env.production`, or a redirect URI that does not match
+`WEB_ORIGIN`.
+
 ---
 
 ## 3. Configuration

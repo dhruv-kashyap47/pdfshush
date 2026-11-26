@@ -37,6 +37,11 @@ jobs:
 
       - run: pnpm typecheck
 
+      # A Git-connected Workers Build reads wrangler.jsonc from the branch it
+      # watches. Catch the placeholder D1 id and a frontend-only build here,
+      # before a deploy can fail with an opaque Cloudflare error.
+      - run: pnpm test:deploy-config
+
       - run: pnpm test:provenance
 
       # G-05: no document text in logs, bounded local drafts, no off-origin
