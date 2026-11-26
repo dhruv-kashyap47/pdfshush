@@ -26,6 +26,36 @@ const BASE = (process.env.E2E_BASE_URL ?? 'http://localhost:4173').replace(/\/$/
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WORK = path.join(HERE, 'artifacts', 'cross-browser');
 
+/**
+ * The Worker is optional for every tool, and this suite is started against a
+ * preview build without one. `vite preview` inherits the dev proxy, so an
+ * unavailable Worker used to answer `/api/*` with a 502 and Chromium/WebKit
+ * logged that as a console error, failing an editor run that had nothing wrong
+ * with it. Probe once and decide explicitly: when the API is absent, `/api`
+ * failures are expected and ignored; when it is present, they stay fatal.
+ */
+async function workerReachable() {
+  try {
+    const response = await fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(3_000) });
+    return (
+      response.ok &&
+      (response.headers.get('content-type') ?? '').toLowerCase().includes('application/json')
+    );
+  } catch {
+    return false;
+  }
+}
+
+const apiAvailable = await workerReachable();
+if (!apiAvailable) {
+  console.log('Optional Worker not reachable; /api console errors are expected and ignored.');
+}
+
+/** Console text sometimes carries the URL, sometimes only `message.location()`. */
+function isApiResource(text, source) {
+  return source.includes('/api/') || /\/api\//.test(text);
+}
+
 const results = [];
 let failures = 0;
 
@@ -73,11 +103,20 @@ async function runEngine(name, launcher, fixturePath) {
   });
   const page = await context.newPage();
   const consoleErrors = [];
+  const failedResources = [];
   page.on('pageerror', (error) => consoleErrors.push(error.message));
+  page.on('response', (response) => {
+    if (response.status() >= 500) failedResources.push(`${response.status()} ${response.url()}`);
+  });
   page.on('console', (message) => {
-    if (message.type() === 'error' && !/api\/(auth|tools)/.test(message.text())) {
-      consoleErrors.push(message.text());
-    }
+    if (message.type() !== 'error') return;
+    const text = message.text();
+    // Playwright reports the failing resource as the message location; the
+    // text alone does not name it, which is why the old `api/(auth|tools)`
+    // filter let an `/api/capabilities` 502 through.
+    const source = message.location?.()?.url ?? '';
+    if (!apiAvailable && isApiResource(text, source)) return;
+    consoleErrors.push(source ? `${text} (${source})` : text);
   });
   try {
     await page.goto(`${BASE}/tools/edit-pdf`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
@@ -154,11 +193,15 @@ async function runEngine(name, launcher, fixturePath) {
     const unexpected = consoleErrors.filter(
       (message) => !/no canvas implementation/i.test(message),
     );
+    // A failing resource is the useful part of a console error: keep the URL in
+    // the report, and never blame the optional Worker for a non-`/api` 5xx.
+    const failed = failedResources.filter((entry) => apiAvailable || !entry.includes('/api/'));
+    const detail = unexpected[0] ?? failed[0] ?? 'clean';
     record(
       name,
       'no unexpected page errors',
-      unexpected.length === 0 ? 'PASS' : 'FAIL',
-      unexpected[0] ?? 'clean',
+      unexpected.length === 0 && failed.length === 0 ? 'PASS' : 'FAIL',
+      detail,
     );
   } catch (error) {
     record(name, 'editor loop', 'FAIL', String(error.message).split('\n')[0]);

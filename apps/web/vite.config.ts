@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite';
 import { prerenderPlugin, prerenderedRoutesPlugin } from './build/prerender.ts';
 import { buildCsp } from './src/lib/csp.ts';
 
@@ -242,6 +242,31 @@ export default defineConfig(({ mode }) => {
     .map((value) => value.trim())
     .filter(Boolean);
 
+  const edgeProxy = {
+    '/api': {
+      target: 'http://localhost:8787',
+      changeOrigin: true,
+    },
+  };
+
+  /**
+   * `vite preview` falls back to `server.proxy`, so it used to forward `/api`
+   * to a Worker that the preview command does not start. Every API call then
+   * became a `502 Bad Gateway`, which Chromium and WebKit log as a console
+   * error and the cross-browser gate fails on. The Worker is optional for every
+   * tool, so preview is too: opt in with `VITE_PREVIEW_PROXY=http://localhost:8787`
+   * when the Worker is running, otherwise let `/api` fall through to the SPA.
+   */
+  const previewProxyTarget = (env.VITE_PREVIEW_PROXY ?? '').trim();
+  const previewProxy: Record<string, ProxyOptions> = previewProxyTarget
+    ? {
+        '/api': {
+          target: previewProxyTarget,
+          changeOrigin: true,
+        },
+      }
+    : {};
+
   return {
     plugins: [
       react(),
@@ -276,12 +301,11 @@ export default defineConfig(({ mode }) => {
       // keeps the session cookie `SameSite=Lax` and needs no CORS at all.
       // Production serves web and /api from one Worker on one origin the same way.
       // Start the Worker with `pnpm dev:edge`; the tools themselves do not need it.
-      proxy: {
-        '/api': {
-          target: 'http://localhost:8787',
-          changeOrigin: true,
-        },
-      },
+      proxy: edgeProxy,
+    },
+    // Deliberately not inherited from `server.proxy`; see previewProxyTarget.
+    preview: {
+      proxy: previewProxy,
     },
     build: {
       target: 'es2022',
