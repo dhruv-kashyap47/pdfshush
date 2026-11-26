@@ -25,7 +25,26 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT = path.join(ROOT, 'THIRD_PARTY_LICENSES.deps.md');
-const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+
+/**
+ * `npm_execpath` is set when this runs through `pnpm deps:licenses`; invoking
+ * pnpm's JavaScript entry with the current node avoids `shell: true` (and its
+ * Windows argument-escaping warning) entirely. A direct `node` invocation
+ * falls back to the pnpm binary.
+ */
+function pnpmCommand() {
+  const execPath = process.env.npm_execpath;
+  if (execPath) {
+    // pnpm 12 exposes a standalone `pnpm.exe`; older/corepack shims expose a
+    // JavaScript entry. Run neither through a shell: no escaping ambiguity.
+    if (/\.(c?js|mjs)$/i.test(execPath)) {
+      return { command: process.execPath, prefix: [execPath], shell: false };
+    }
+    return { command: execPath, prefix: [], shell: /\.cmd$/i.test(execPath) };
+  }
+  const windows = process.platform === 'win32';
+  return { command: windows ? 'pnpm.cmd' : 'pnpm', prefix: [], shell: windows };
+}
 
 const LICENSE_FILE = /^(licen[cs]e|copying|notice)(\.|-|$)/i;
 const SKIP_PACKAGE = /^@pdfshush\//;
@@ -60,12 +79,17 @@ function readLicenceText(directory) {
 }
 
 function inventory() {
-  const raw = execFileSync(PNPM, ['-r', 'licenses', 'list', '--prod', '--json'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-    shell: process.platform === 'win32',
-  });
+  const { command, prefix, shell } = pnpmCommand();
+  const raw = execFileSync(
+    command,
+    [...prefix, '-r', 'licenses', 'list', '--prod', '--json'],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      shell,
+    },
+  );
   const parsed = JSON.parse(raw);
   const packages = [];
   for (const [declared, entries] of Object.entries(parsed)) {
