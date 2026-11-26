@@ -16,3 +16,18 @@ GOOGLE_REDIRECT_URI=http://localhost:8787/api/auth/callback
 # Chrome and Edge treat localhost as a trustworthy origin, so `true` works even
 # over http during development.
 SESSION_COOKIE_SECURE=true
+
+# Billing (optional). Without DODO_API_KEY every billing route answers 503.
+# DODO_ENVIRONMENT defaults to "test"; only the exact word "live" charges real
+# cards. Product ids are non-secret vars in `wrangler.jsonc`; set them there, or
+# override them here for a local run.
+DODO_API_KEY=
+DODO_WEBHOOK_SECRET=
+DODO_ENVIRONMENT=test
+# DODO_PRODUCT_PRO_MONTHLY=
+# DODO_PRODUCT_PRO_YEARLY=
+# DODO_PRODUCT_SPONSOR_FEATURED=
+# DODO_PRODUCT_SPONSOR_STANDARD=
+# DODO_PRODUCT_CREDITS=
+# DODO_PRODUCT_PASS_30D=
+# DODO_PRODUCT_DONATE=

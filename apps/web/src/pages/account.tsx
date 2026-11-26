@@ -18,6 +18,7 @@ import { ApiKeysPanel } from '@/components/account/api-keys';
 import { AccountAvatar } from '@/components/account/account-avatar';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/api';
+import { purchaseRequest, type PurchaseKind } from '@/lib/billing';
 import { serverDeployed } from '@/lib/deployment';
 import { downloadBytes } from '@/lib/download';
 import { setHistorySyncEnabled } from '@/lib/history-sync';
@@ -46,7 +47,7 @@ export function AccountPage() {
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [syncHistory, setSyncHistory] = useState(false);
   const [billingEnabled, setBillingEnabled] = useState(false);
-  const [buying, setBuying] = useState<'credits' | 'pass' | null>(null);
+  const [buying, setBuying] = useState<PurchaseKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadSequence = useRef(0);
@@ -94,7 +95,7 @@ export function AccountPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const status = params.get('status');
-    if (status !== 'credits' && status !== 'pass') return;
+    if (status !== 'credits' && status !== 'pass' && status !== 'pro') return;
 
     toast.success(
       status === 'credits'
@@ -213,13 +214,14 @@ export function AccountPage() {
     }
   };
 
-  const buy = async (kind: 'credits' | 'pass') => {
+  const buy = async (kind: PurchaseKind) => {
     setBuying(kind);
     try {
-      const result = await api<{ url: string }>(
-        kind === 'credits' ? '/api/billing/credits' : '/api/billing/pass',
-        { method: 'POST' },
-      );
+      const request = purchaseRequest(kind);
+      const result = await api<{ url: string }>(request.path, {
+        method: 'POST',
+        ...(request.body ? { body: request.body } : {}),
+      });
       if (!result?.url) throw new Error('The checkout did not return a link.');
       window.location.assign(result.url);
     } catch (error) {
@@ -349,15 +351,31 @@ export function AccountPage() {
           </p>
 
           {billingEnabled ? (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" disabled={buying !== null} onClick={() => void buy('credits')}>
-                {buying === 'credits' ? 'Opening checkout…' : 'Buy 1,000 messages — $5'}
-              </Button>
+            <div className="space-y-3">
               {account.plan === 'pro' ? null : (
-                <Button variant="outline" disabled={buying !== null} onClick={() => void buy('pass')}>
-                  {buying === 'pass' ? 'Opening checkout…' : 'Get 30 days of Pro — $3'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={buying !== null} onClick={() => void buy('pro-monthly')}>
+                    {buying === 'pro-monthly' ? 'Opening checkout…' : 'Pro — $6/month'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={buying !== null}
+                    onClick={() => void buy('pro-yearly')}
+                  >
+                    {buying === 'pro-yearly' ? 'Opening checkout…' : 'Pro — $48/year'}
+                  </Button>
+                </div>
               )}
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" disabled={buying !== null} onClick={() => void buy('credits')}>
+                  {buying === 'credits' ? 'Opening checkout…' : 'Buy 1,000 messages — $5'}
+                </Button>
+                {account.plan === 'pro' ? null : (
+                  <Button variant="outline" disabled={buying !== null} onClick={() => void buy('pass')}>
+                    {buying === 'pass' ? 'Opening checkout…' : 'Get 30 days of Pro — $3'}
+                  </Button>
+                )}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -366,8 +384,10 @@ export function AccountPage() {
           )}
 
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Dodo Payments handles the card and the receipt. Credits are spent only after the
-            monthly Pro allowance is gone, and they never expire while the account exists.
+            Dodo Payments handles the card and the receipt. A monthly or yearly Pro subscription
+            renews until you cancel it from the Dodo receipt; access still runs to the end of the
+            month you paid for. Credits are spent only after the monthly Pro allowance is gone, and
+            they never expire while the account exists.
           </p>
         </CardContent>
       </Card>

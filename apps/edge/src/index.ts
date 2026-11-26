@@ -10,41 +10,17 @@
  * unknown `/api/...` path from falling through to the SPA shell and returning
  * HTML with a 200. The static router is never consulted for API paths, so the
  * same origin serves both without a rewrite rule.
+ *
+ * The routes themselves live in `app.ts`, so tests can call them directly with a
+ * binding-shaped environment and no runtime.
  */
 
-import { Hono } from 'hono';
-import type { AppEnv } from './app-env.js';
 import type { Env, ExecutionContextLike } from './env.js';
 import { D1AuthStore } from './db/auth-store.js';
 import { D1BillingStore } from './db/billing-store.js';
 import { D1SponsorStore } from './db/sponsor-store.js';
 import { downgradeLapsed } from './billing/entitlements.js';
-import { fail } from './lib/http.js';
-import { accountRoutes } from './routes/account.js';
-import { aiRoutes } from './routes/ai.js';
-import { authRoutes } from './routes/auth.js';
-import { billingRoutes } from './routes/billing.js';
-import { metaRoutes } from './routes/meta.js';
-import { sponsorRoutes } from './routes/sponsors.js';
-
-const app = new Hono<AppEnv>();
-
-// Registered before the gate table in `metaRoutes`, which owns the catch-all
-// `/api/jobs/*`, `/api/v1/*` and friends. `/api/ai/chat` is a real route now.
-app.route('/', aiRoutes);
-app.route('/', metaRoutes);
-app.route('/', authRoutes);
-app.route('/', accountRoutes);
-app.route('/', sponsorRoutes);
-app.route('/', billingRoutes);
-
-app.notFound((c) => fail(c, 404, 'not_found', 'No such endpoint.'));
-app.onError((error, c) => {
-  // The message can quote a request or a row; the log keeps it, the client does
-  // not need it.
-  console.error('unhandled error', error);
-  return fail(c, 500, 'internal', 'Something went wrong on the server.');
-});
+import { app } from './app.js';
 
 /** `/api`, `/api/`, `/API/health` — the eight spellings the asset router sees. */
 function isApiPath(pathname: string): boolean {

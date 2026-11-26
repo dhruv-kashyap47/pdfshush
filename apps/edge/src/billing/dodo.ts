@@ -19,7 +19,14 @@
 
 import type { Env } from '../env.js';
 
-export type BillingProduct = 'sponsor-featured' | 'sponsor-standard' | 'credits' | 'pass-30d' | 'donate';
+export type BillingProduct =
+  | 'pro-monthly'
+  | 'pro-yearly'
+  | 'sponsor-featured'
+  | 'sponsor-standard'
+  | 'credits'
+  | 'pass-30d'
+  | 'donate';
 
 export interface DodoConfig {
   apiKey: string;
@@ -42,6 +49,8 @@ export function dodoConfig(env: Env): DodoConfig | undefined {
     baseUrl: environment === 'live' ? 'https://live.dodopayments.com' : 'https://test.dodopayments.com',
     webhookSecret: env.DODO_WEBHOOK_SECRET?.trim() || null,
     products: {
+      'pro-monthly': env.DODO_PRODUCT_PRO_MONTHLY?.trim() || undefined,
+      'pro-yearly': env.DODO_PRODUCT_PRO_YEARLY?.trim() || undefined,
       'sponsor-featured': env.DODO_PRODUCT_SPONSOR_FEATURED?.trim() || undefined,
       'sponsor-standard': env.DODO_PRODUCT_SPONSOR_STANDARD?.trim() || undefined,
       credits: env.DODO_PRODUCT_CREDITS?.trim() || undefined,

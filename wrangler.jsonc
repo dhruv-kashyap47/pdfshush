@@ -126,6 +126,8 @@
     // no DODO_API_KEY (a secret) every billing route answers 503. DODO_ENVIRONMENT
     // defaults to "test", so a missing value cannot charge a real card.
     "DODO_ENVIRONMENT": "test",
+    "DODO_PRODUCT_PRO_MONTHLY": "",
+    "DODO_PRODUCT_PRO_YEARLY": "",
     "DODO_PRODUCT_SPONSOR_FEATURED": "",
     "DODO_PRODUCT_SPONSOR_STANDARD": "",
     "DODO_PRODUCT_CREDITS": "",

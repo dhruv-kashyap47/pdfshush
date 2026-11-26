@@ -83,6 +83,9 @@ export interface Env {
   /** 'test' or 'live'. Defaults to 'test' so a missing value cannot take money. */
   DODO_ENVIRONMENT?: string;
   DODO_WEBHOOK_SECRET?: string;
+  /** Recurring Pro: `$6/mo` and `$48/yr`, two separate Dodo subscriptions. */
+  DODO_PRODUCT_PRO_MONTHLY?: string;
+  DODO_PRODUCT_PRO_YEARLY?: string;
   DODO_PRODUCT_SPONSOR_FEATURED?: string;
   DODO_PRODUCT_SPONSOR_STANDARD?: string;
   DODO_PRODUCT_CREDITS?: string;

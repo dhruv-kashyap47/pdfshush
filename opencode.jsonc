@@ -5,6 +5,9 @@
   // OpenCode V2 rejects its export shape ("Plugin must export a default
   // definition with an id"). The package is still useful: its skill directory
   // and MCP endpoint are loaded here in the V2 shapes.
+  // The paths below are relative to this directory, so run `pnpm install`
+  // first (this repo is pnpm-managed; npm install breaks the linked tree).
+  // `opencode mcp list` should show dodopayments; sign in via /mcps.
   "skills": ["node_modules/@dodopayments/opencode-plugin/skills"],
   "mcp": {
     "servers": {

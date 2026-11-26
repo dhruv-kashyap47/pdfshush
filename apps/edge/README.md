@@ -89,12 +89,20 @@ balance, spent after the monthly Pro allowance is gone.
 ## Billing
 
 Four rails share one Dodo Payments account and one webhook, in
-`routes/billing.ts` and `billing/dodo.ts`:
+`routes/billing.ts`, `billing/webhook.ts` and `billing/dodo.ts`:
 
-- Pro subscription;
+- Pro subscription (`$6/mo`, `$48/yr`) — `DODO_PRODUCT_PRO_MONTHLY` and
+  `DODO_PRODUCT_PRO_YEARLY`, two recurring products;
 - two sponsor slots (see below);
 - 30-day pass;
 - AI credit pack and donation.
+
+A subscription is attached to the account by the `account_id` in the checkout
+metadata and then by the Dodo subscription id stored on the account row, so
+`subscription.renewed` does not depend on metadata surviving. `subscription.active`
+sets the term, `renewed` moves it, `cancelled` keeps the paid month, and only
+`subscription.expired` ends access early. `plan_expires_at` is the single source of
+truth for every paid grant.
 
 Dodo is the merchant of record, so it owns tax and receipts. With no
 `DODO_API_KEY`, every billing route answers `503 billing_disabled`; the SPA shows

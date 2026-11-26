@@ -1,13 +1,15 @@
 /**
- * Billing: the three one-time rails and the webhook that makes them real.
+ * Billing: the recurring Pro rail, the three one-time rails, and the webhook
+ * that makes them all real.
  *
- *   30-day pass   $3   — Pro for 30 days, no renewal
- *   credit pack   $5   — 1,000 managed AI messages, spent after the monthly cap
- *   donation      any  — a thank-you, no entitlement
+ *   Pro             $6/mo · $48/yr — a Dodo subscription
+ *   30-day pass     $3             — Pro for 30 days, no renewal
+ *   credit pack     $5             — 1,000 managed AI messages
+ *   donation        any            — a thank-you, no entitlement
  *
- * The subscription and the sponsor slots are created elsewhere; all four share
- * the same Dodo account and the same webhook. Dodo is the merchant of record, so
- * the money, tax and receipts never enter this Worker.
+ * The sponsor slots are created in `routes/sponsors.ts`; every rail shares the
+ * same Dodo account and the same webhook. Dodo is the merchant of record, so the
+ * money, tax and receipts never enter this Worker.
  *
  * The webhook is the only place a payment becomes an entitlement. It verifies
  * the Standard Webhooks signature against the raw body, claims the message id
@@ -17,18 +19,16 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { AppEnv } from '../app-env.js';
-import { grantCredits, grantPass, PASS_DAYS } from '../billing/entitlements.js';
+import { PASS_DAYS } from '../billing/entitlements.js';
 import {
-  asString,
-  asTime,
   createCheckout,
   dodoConfig,
   productId,
   verifyWebhook,
   webhookEvent,
 } from '../billing/dodo.js';
+import { applyBillingEvent } from '../billing/webhook.js';
 import { D1BillingStore } from '../db/billing-store.js';
-import { D1SponsorStore } from '../db/sponsor-store.js';
 import { fail, readJsonObject, requireCsrf, sameOriginRequest, webOrigin } from '../lib/http.js';
 import { underHourlyLimit } from '../lib/rate-limit.js';
 import { requireAccount } from '../lib/session.js';
@@ -38,23 +38,13 @@ export const billingRoutes = new Hono<AppEnv>();
 /** One SKU each; the numbers live here, not in three copies of a landing page. */
 export const CREDIT_PACK = { messages: 1_000, priceCents: 500 } as const;
 export const PASS = { days: PASS_DAYS, priceCents: 300 } as const;
+export const PRO = { monthlyCents: 600, yearlyCents: 4_800 } as const;
 export const DONATION = { minCents: 100, maxCents: 50_000 } as const;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+type ProInterval = 'month' | 'year';
 
-/** A Dodo subscription with no usable next date still gets a full month. */
-function termEnd(value: unknown, now: number): number {
-  return asTime(value) ?? now + 31 * DAY_MS;
-}
-
-/** Dodo metadata is a string map; anything else is ignored, not coerced. */
-function metadataOf(value: unknown): Record<string, string> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const out: Record<string, string> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string') out[key] = entry;
-  }
-  return out;
+function proInterval(value: unknown): ProInterval {
+  return value === 'year' ? 'year' : 'month';
 }
 
 function billingDown(c: Context<AppEnv>, product: string) {
@@ -124,6 +114,43 @@ billingRoutes.post('/api/billing/pass', async (c) => {
     return c.json({ url: checkout.url, days: PASS.days, priceCents: PASS.priceCents });
   } catch (error) {
     console.error('dodo pass checkout failed', error);
+    return fail(c, 502, 'billing_error', 'The payment provider did not answer. Try again.');
+  }
+});
+
+billingRoutes.post('/api/billing/pro', async (c) => {
+  const account = await requireAccount(c);
+  if (account instanceof Response) return account;
+  const denied = requireCsrf(c);
+  if (denied) return denied;
+  if (!account.email) return fail(c, 400, 'email_required', 'Add an email before subscribing.');
+
+  const body = await readJsonObject(c);
+  const interval = proInterval(body.interval);
+
+  const config = dodoConfig(c.env);
+  const product = config
+    ? productId(config, interval === 'year' ? 'pro-yearly' : 'pro-monthly')
+    : undefined;
+  if (!config || !product) return billingDown(c, 'Pro subscription');
+
+  const priceCents = interval === 'year' ? PRO.yearlyCents : PRO.monthlyCents;
+
+  try {
+    const checkout = await createCheckout(config, {
+      productId: product,
+      email: account.email,
+      ...(account.name ? { name: account.name } : {}),
+      returnUrl: `${webOrigin(c.env, c.req.url)}/account?status=pro`,
+      metadata: {
+        kind: 'pro',
+        account_id: account.id,
+        interval,
+      },
+    });
+    return c.json({ url: checkout.url, interval, priceCents });
+  } catch (error) {
+    console.error('dodo pro checkout failed', error);
     return fail(c, 502, 'billing_error', 'The payment provider did not answer. Try again.');
   }
 });
@@ -204,7 +231,7 @@ billingRoutes.post('/api/billing/webhook', async (c) => {
   if (!claimed) return c.json({ received: true, duplicate: true });
 
   try {
-    await apply(c, event.type, event.data);
+    await applyBillingEvent(c.env.DB, event.type, event.data);
   } catch (error) {
     // Release the claim so the provider's retry can try again; a 500 asks for it.
     await billing.releaseEvent(event.id);
@@ -215,85 +242,3 @@ billingRoutes.post('/api/billing/webhook', async (c) => {
   return c.json({ received: true });
 });
 
-async function apply(c: Context<AppEnv>, type: string, data: Record<string, unknown>): Promise<void> {
-  const now = Date.now();
-  const meta = metadataOf(data.metadata);
-  const subscriptionId = asString(data.subscription_id);
-  const store = new D1SponsorStore(c.env.DB);
-
-  switch (type) {
-    case 'subscription.active': {
-      const sponsorId = asString(meta.sponsor_id);
-      if (!sponsorId) {
-        console.warn('subscription.active without a sponsor_id', subscriptionId);
-        return;
-      }
-      const activated = await store.activate({
-        id: sponsorId,
-        subscriptionId: subscriptionId ?? null,
-        endsAt: termEnd(data.next_billing_date, now),
-      });
-      if (!activated) {
-        console.error('sponsor activation refused: slot taken or draft missing', sponsorId);
-      }
-      return;
-    }
-
-    case 'subscription.renewed': {
-      if (!subscriptionId) return;
-      await store.renew(subscriptionId, termEnd(data.next_billing_date, now));
-      return;
-    }
-
-    case 'subscription.cancelled':
-    case 'subscription.expired': {
-      if (!subscriptionId) return;
-      await store.cancel(subscriptionId);
-      return;
-    }
-
-    case 'payment.succeeded': {
-      switch (meta.kind) {
-        case 'credits': {
-          const accountId = asString(meta.account_id);
-          const credits = Number(meta.credits);
-          if (!accountId || !Number.isFinite(credits)) return;
-          const balance = await grantCredits(c.env.DB, accountId, credits);
-          if (balance === undefined) console.warn('credit grant found no account', accountId);
-          return;
-        }
-        case 'pass': {
-          const accountId = asString(meta.account_id);
-          const days = Number(meta.days);
-          if (!accountId || !Number.isFinite(days)) return;
-          const expires = await grantPass(
-            c.env.DB,
-            accountId,
-            Math.min(365, Math.max(1, Math.trunc(days))),
-          );
-          if (expires === undefined) console.warn('pass grant found no account', accountId);
-          return;
-        }
-        // A sponsor's first payment normally arrives alongside
-        // `subscription.active`; this is the fallback for a delivery that lands
-        // first or alone. `activate` only moves a draft, so a renewal is a no-op.
-        case 'sponsor': {
-          const sponsorId = asString(meta.sponsor_id);
-          if (!sponsorId) return;
-          await store.activate({
-            id: sponsorId,
-            subscriptionId: subscriptionId ?? null,
-            endsAt: termEnd(data.next_billing_date, now),
-          });
-          return;
-        }
-        // A donation grants nothing.
-        default:
-          return;
-      }
-    }
-
-    default:
-      return;
-  }
-}
