@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 import {
   createBrowserRouter,
+  Navigate,
   Outlet,
   RouterProvider,
   useLocation,
@@ -17,7 +18,7 @@ import { useReveal } from '@/hooks/use-reveal';
 import { AccountPage } from '@/pages/account';
 import { HomePage } from '@/pages/home';
 import { NotFoundPage } from '@/pages/not-found';
-import { WorkflowsPage } from '@/pages/workflows';
+
 import { mark } from '@/lib/marks';
 import { usePageHead } from '@/seo/head';
 import { webPageSchema } from '@/seo/schema';
@@ -218,7 +219,9 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
-      { path: 'workflows', element: <WorkflowsPage /> },
+      // Legacy URL: the workflow runner is archived. Send it to the permanent
+      // tool page, which explains why instead of showing a broken builder.
+      { path: 'workflows', element: <Navigate to="/tools/workflows" replace /> },
       {
         path: 'trust',
         element: (

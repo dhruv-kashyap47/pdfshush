@@ -394,11 +394,17 @@ async function main() {
     check('editor PDF is valid', isPdf(imagePdfDl.bytes));
     check('editor PDF has one page', pdfPageCount(imagePdfDl.bytes) === 1);
 
-    /* 8. Workflows tool page */
-    console.log('\n8. Workflows page');
+    /* 8. Workflows tool page (archived with the server tier) */
+    console.log('\n8. Workflows archive page');
     await openTool('workflows');
-    check('workflow builder is embedded on the tool page', await page.getByText('New workflow').isVisible());
-    check('planned notice is gone', !(await page.getByText(/is on the roadmap/).isVisible()));
+    check(
+      'archived workflows page is honest',
+      await page.getByText(/Not available on this deployment/i).isVisible(),
+    );
+    check(
+      'the server-backed workflow builder is not rendered',
+      (await page.getByText('New workflow').count()) === 0,
+    );
 
     /* Console errors */
     console.log('\nConsole');

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowRight, Search, X } from 'lucide-react';
 import { ToolCard } from '@/components/landing/tool-card';
-import { TOOL_CATEGORIES, ALL_TOOLS, popularTools } from '@/tools/registry';
+import { catalogCategories, catalogTools, liveTools, popularTools } from '@/tools/registry';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -26,7 +26,7 @@ export function PopularToolsSection() {
             href="#all-tools"
             className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-colors hover:text-primary/80"
           >
-            Browse all {ALL_TOOLS.length} tools
+            Browse all {catalogTools().length} tools
             <ArrowRight className="h-4 w-4" />
           </a>
         </div>
@@ -59,7 +59,7 @@ export function AllToolsSection() {
   const [activeTab, setActiveTab] = useState<string>('all');
 
   const filteredTools = useMemo(() => {
-    let result = ALL_TOOLS;
+    let result = catalogTools();
 
     // Filter by tab
     if (activeTab === 'live') {
@@ -100,8 +100,8 @@ export function AllToolsSection() {
               Every tool has a permanent home
             </h2>
             <p className="mt-2 max-w-2xl text-base text-foreground sm:text-lg">
-              {ALL_TOOLS.length} tools, one steady catalog. Live tools run immediately;
-              coming-soon tools keep stable links and a clear status.
+              {liveTools().length} live tools, one steady catalog. Live tools run
+              immediately; coming-soon tools keep stable links and a clear status.
             </p>
           </div>
 
@@ -170,7 +170,7 @@ export function AllToolsSection() {
               </div>
             ) : (
               <div className="space-y-10">
-                {TOOL_CATEGORIES.map((category) => (
+                {catalogCategories().map((category) => (
                   <div key={category.id} id={category.id}>
                     <div className="mb-4 flex items-baseline justify-between gap-3">
                       <h3 className="text-[15px] font-semibold text-foreground">{category.label}</h3>

@@ -25,7 +25,7 @@
  * so once, in plain language, and it removes the controls that could only
  * fail: no sign-in button, no account panel, no workflow runner, no managed-AI
  * trial, and an API console that documents the surface without pretending it
- * is reachable. What is left is the product's real claim -- 51 tools that run
+ * is reachable. What is left is the product's real claim -- 48 tools that run
  * locally, with no upload and no account.
  */
 

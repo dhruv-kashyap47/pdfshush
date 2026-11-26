@@ -23,7 +23,7 @@ const H = 630;
 const OUT = path.join(ROOT, 'apps/web/public/og');
 
 function parseRegistry(source) {
-  const liveBlock = source.slice(source.indexOf('const LIVE'), source.indexOf('const TOOL_NEXT'));
+  const liveBlock = source.slice(source.indexOf('const LIVE'), source.indexOf('const ARCHIVED'));
   const live = new Set([...liveBlock.matchAll(/'([a-z0-9-]+)'/g)].map((match) => match[1]));
   const tools = [];
   const categoryPattern =
@@ -31,7 +31,7 @@ function parseRegistry(source) {
   for (const match of source.matchAll(categoryPattern)) {
     const [, category, label, body] = match;
     for (const toolMatch of body.matchAll(
-      /tool\('([a-z0-9-]+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*([A-Za-z0-9_]+),\s*'([a-z]+)'\)/g,
+      /tool\('([a-z0-9-]+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*([A-Za-z0-9_]+),\s*'([a-z]+)'(?:,\s*'([a-z]+)')?\)/g,
     )) {
       tools.push({
         slug: toolMatch[1],

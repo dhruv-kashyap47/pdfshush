@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img alt="48 browser tools" src="https://img.shields.io/badge/51-browser_tools-2f9e6a?style=flat-square">
+  <img alt="48 browser tools" src="https://img.shields.io/badge/48-browser_tools-2f9e6a?style=flat-square">
   <img alt="0 uploads" src="https://img.shields.io/badge/uploads-0-0b3b2c?style=flat-square">
   <img alt="AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2f9e6a?style=flat-square">
 </p>
@@ -59,7 +59,7 @@ No account. No upload. No waiting for a server.
 **AI:** Summarize, Chat with a PDF, Edit with AI and Smart redaction. Bring your own provider key, or use a small managed trial.
 
 <p align="center">
-  <a href="https://pdfshush.com"><strong>See all 51 tools →</strong></a>
+  <a href="https://pdfshush.com"><strong>See all 48 tools →</strong></a>
 </p>
 
 ## Private by default

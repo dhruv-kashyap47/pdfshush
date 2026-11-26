@@ -186,17 +186,17 @@ export const HOME_FAQS = [
   {
     question: 'Are PDFShush tools really free?',
     answer:
-      'Yes. The browser tools are free with no task limit, no watermark and no account. Server-run tools such as workflows and the REST API have their own stated limits, but the everyday tools on this page do not.',
+      'Yes. All 48 browser tools are free with no task limit, no watermark and no account. Workflows, the REST API and MCP are archived with the server tier, so they are not offered here.',
   },
   {
     question: 'Do I need to sign up to use these PDF tools?',
     answer:
-      'No. Every browser tool opens and runs without an account. An account is optional and only syncs settings and workflow recipes. It is never required to edit a local file.',
+      'No. Every browser tool opens and runs without an account. An account is optional and only syncs settings and history. It is never required to edit a local file.',
   },
   {
     question: 'Are my PDF files uploaded to a server?',
     answer:
-      'No. The file is read and rebuilt inside your browser tab. Workflows, the REST API and MCP run on a server, and those pages say so instead of claiming otherwise.',
+      'No. The file is read and rebuilt inside your browser tab. Workflows, the REST API and MCP need a server tier that is archived, so those surfaces are not available here and their pages say so.',
   },
   {
     question: 'Can I compress a PDF to 200 KB or 100 KB?',

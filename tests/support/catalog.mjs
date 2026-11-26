@@ -17,8 +17,15 @@ const REGISTRY = path.join(ROOT, 'apps/web/src/tools/registry.ts');
 
 /** Categories in registry order, with their tools. */
 export function parseRegistry(source) {
-  const liveBlock = source.slice(source.indexOf('const LIVE'), source.indexOf('const TOOL_NEXT'));
+  const liveBlock = source.slice(source.indexOf('const LIVE'), source.indexOf('const ARCHIVED'));
   const live = new Set([...liveBlock.matchAll(/'([a-z0-9-]+)'/g)].map((match) => match[1]));
+  const archivedBlock = source.slice(
+    source.indexOf('const ARCHIVED'),
+    source.indexOf('const TOOL_NEXT'),
+  );
+  const archived = new Set(
+    [...archivedBlock.matchAll(/'([a-z0-9-]+)'/g)].map((match) => match[1]),
+  );
 
   const categories = [];
   const tools = [];
@@ -28,9 +35,9 @@ export function parseRegistry(source) {
     const [, id, label, body] = match;
     const entries = [];
     for (const toolMatch of body.matchAll(
-      /tool\('([a-z0-9-]+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*([A-Za-z0-9_]+),\s*'([a-z]+)'\)/g,
+      /tool\('([a-z0-9-]+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*([A-Za-z0-9_]+),\s*'([a-z]+)'(?:,\s*'([a-z]+)')?\)/g,
     )) {
-      const [, slug, name, description, category, icon, accent] = toolMatch;
+      const [, slug, name, description, category, icon, accent, explicitStatus] = toolMatch;
       const entry = {
         slug,
         name,
@@ -38,7 +45,12 @@ export function parseRegistry(source) {
         category,
         icon,
         accent,
-        status: live.has(slug) ? 'live' : 'declined',
+        status:
+          explicitStatus === 'archived' || archived.has(slug)
+            ? 'archived'
+            : live.has(slug)
+              ? 'live'
+              : 'declined',
       };
       entries.push(entry);
       tools.push(entry);

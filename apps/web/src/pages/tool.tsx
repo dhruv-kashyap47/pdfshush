@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { lazy, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Clock, Flame, Sparkles } from 'lucide-react';
+import { Archive, Clock, Flame, Sparkles } from 'lucide-react';
 import { AlternateMixTool } from '@/components/tools/alternate-mix-tool';
 import { CropTool } from '@/components/tools/crop-tool';
 import { DarkModePdfTool } from '@/components/tools/dark-mode-pdf-tool';
@@ -42,14 +42,11 @@ import { ImageEditorTool } from '@/components/tools/image-editor-tool';
 import { CreateFormsTool } from '@/components/tools/create-forms-tool';
 import { CreateBookmarksTool } from '@/components/tools/create-bookmarks-tool';
 import { SignatureTool } from '@/components/tools/signature-tool';
-import { ApiToolPage } from '@/components/tools/api-tool';
-import { McpToolPage } from '@/components/tools/mcp-tool';
 import { ToolFrame } from '@/components/tools/tool-frame';
 import { ToolCard } from '@/components/landing/tool-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { NotFoundPage } from '@/pages/not-found';
-import { WorkflowsPage } from '@/pages/workflows';
 import { AiTrustNotes } from '@/components/ai/ai-trust-notes';
 import { getTool, TOOL_CATEGORIES, liveTools, type ToolDef } from '@/tools/registry';
 import { TOOL_SEO, toolSeoFor } from '@/seo/tool-seo';
@@ -61,6 +58,7 @@ import {
 } from '@/seo/schema';
 import { SITE_ORIGIN } from '@/seo/site';
 import { DECLINED_COPY } from '@/tools/declined';
+import { ARCHIVED_COPY } from '@/tools/archived';
 // The studio visual system is tool-page-only: it ships in this lazy chunk, so
 // the landing page never pays for it.
 import '@/studio.css';
@@ -146,8 +144,6 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'edit-pdf-with-ai': EditPdfWithAiTool,
   'fill-sign': FillSignTool,
   signature: SignatureTool,
-  api: ApiToolPage,
-  mcp: McpToolPage,
   // Plain-tools batch (PLAN.md changelog, 2026-10-20).
   'flip-pdf': FlipTool,
   watermark: WatermarkTool,
@@ -174,7 +170,6 @@ const LIVE_BODIES: Record<string, ComponentType> = {
   'combine-pdf': CombineFilesTool,
   'batch-run': BatchRunTool,
   'image-editor': ImageEditorTool,
-  workflows: () => <WorkflowsPage embedded />,
   // Authoring batch (2026-10-26).
   'create-forms': CreateFormsTool,
   'create-bookmarks': CreateBookmarksTool,
@@ -196,37 +191,48 @@ export function ToolPage() {
 }
 
 function ToolPageView({ tool }: { tool: ToolDef }) {
-  const Body = LIVE_BODIES[tool.slug];
-  const ai = AI_BODIES[tool.slug];
+  const archived = tool.status === 'archived';
+  // Archived pages keep their permanent URL, but they must not render the
+  // server-backed body they used to ship (workflows, API console, MCP console).
+  const Body = tool.status === 'live' ? LIVE_BODIES[tool.slug] : undefined;
+  const ai = tool.status === 'live' ? AI_BODIES[tool.slug] : undefined;
   const isAi = tool.category === 'ai';
-  const seo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
+  const baseSeo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
+  const archivedSeo = archived ? ARCHIVED_COPY[tool.slug] : undefined;
+  const seo = archivedSeo
+    ? { ...baseSeo, title: archivedSeo.title, description: archivedSeo.description }
+    : baseSeo;
   const categoryLabel =
     TOOL_CATEGORIES.find((category) => category.id === tool.category)?.label ?? 'PDF tools';
   const route = `/tools/${tool.slug}`;
   const image = `/og/${tool.slug}.png`;
 
-  const jsonLd = useMemo(
-    () => [
+  const jsonLd = useMemo(() => {
+    const crumbs = breadcrumbSchema(
+      [
+        { name: 'Home', route: '/' },
+        { name: 'All PDF tools', route: '/#all-tools' },
+        { name: tool.name, route },
+      ],
+      SITE_ORIGIN,
+    );
+    const page = webPageSchema(
+      { name: seo.title, description: seo.description, route, image },
+      SITE_ORIGIN,
+    );
+    // An archived surface is not a live application, so it does not claim to be
+    // one in structured data. The page still explains itself to a reader.
+    if (archived) return [crumbs, page];
+    return [
       softwareApplicationSchema(
         { slug: tool.slug, name: tool.name, description: seo.description },
         SITE_ORIGIN,
         route,
       ),
-      breadcrumbSchema(
-        [
-          { name: 'Home', route: '/' },
-          { name: 'All PDF tools', route: '/#all-tools' },
-          { name: tool.name, route },
-        ],
-        SITE_ORIGIN,
-      ),
-      webPageSchema(
-        { name: seo.title, description: seo.description, route, image },
-        SITE_ORIGIN,
-      ),
-    ],
-    [tool.slug, tool.name, seo.description, seo.title, route, image],
-  );
+      crumbs,
+      page,
+    ];
+  }, [archived, tool.slug, tool.name, seo.description, seo.title, route, image]);
 
   usePageHead({
     title: seo.title,
@@ -246,7 +252,9 @@ function ToolPageView({ tool }: { tool: ToolDef }) {
       chrome={isAi ? 'studio' : 'default'}
       notes={isAi ? <AiTrustNotes /> : undefined}
     >
-      {ai ? (
+      {archived ? (
+        <ArchivedNotice tool={tool} />
+      ) : ai ? (
         <AiWorkspace variant={ai.variant} {...(ai.autoPrompt ? { autoPrompt: ai.autoPrompt } : {})} />
       ) : Body ? (
         <Body />
@@ -254,6 +262,79 @@ function ToolPageView({ tool }: { tool: ToolDef }) {
         <DeclinedNotice tool={tool} />
       )}
     </ToolFrame>
+  );
+}
+
+function ArchivedNotice({ tool }: { tool: ToolDef }) {
+  const live = liveTools().slice(0, 3);
+  const copy = ARCHIVED_COPY[tool.slug];
+  const alternative =
+    copy?.alternative && 'slug' in copy.alternative
+      ? getTool(copy.alternative.slug)
+      : undefined;
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col gap-4 px-6 pb-6 pt-0 sm:flex-row sm:items-start">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <Archive className="h-5 w-5" />
+          </span>
+          <div className="flex-1">
+            <h2 className="font-semibold">Not available on this deployment</h2>
+            <div className="mt-1 space-y-2 text-sm text-muted-foreground">
+              <p>
+                <strong className="text-foreground">{tool.name}</strong>{' '}
+                {copy?.what ?? 'needs the server tier, which is archived.'}
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Why.</span>{' '}
+                {copy?.why ??
+                  'This deployment runs every PDF tool in your browser and has no server-side PDF worker.'}
+              </p>
+              <p>
+                <span className="font-medium text-foreground">What works instead.</span>{' '}
+                {alternative ? (
+                  <Link
+                    to={`/tools/${alternative.slug}`}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {alternative.name}
+                  </Link>
+                ) : null}
+                {alternative ? ' ' : null}
+                {copy?.alternative?.note}
+              </p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {alternative ? (
+                <Button size="sm" asChild>
+                  <Link to={`/tools/${alternative.slug}`}>
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                    Use {alternative.name}
+                  </Link>
+                </Button>
+              ) : null}
+              <Button variant={alternative ? 'outline' : 'default'} size="sm" asChild>
+                <Link to="/#all-tools">See the {liveTools().length} live tools</Link>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div>
+        <p className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+          <Flame className="h-4 w-4 text-primary" />
+          Working right now, in your browser
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {live.map((def) => (
+            <ToolCard key={def.slug} tool={def} />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

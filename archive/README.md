@@ -18,6 +18,10 @@ packages/*      the engine and AI provider code the browser and Worker share
 |---|---|
 | `apps/api` | Express API + BullMQ worker + Redis queue + MongoDB accounts; 8 server-side job slugs, public `/api/v1` REST API, API keys and quotas |
 | `apps/mcp` | Local stdio MCP server that drove the archived `/api/v1` REST API |
+| `apps/web/src/pages/workflows.tsx` | The server-backed workflow builder UI |
+| `apps/web/src/components/tools/{api-tool,mcp-tool}.tsx` | The REST API and MCP consoles |
+| `apps/web/src/components/landing/mcp-dialog.tsx` | The hero's MCP showcase dialog |
+| `apps/web/src/lib/{workflows,mcp-catalog}.ts` | Workflow client and MCP catalog reader |
 | `packages/api-contracts` | Shared request/response contracts used only by `apps/api` and `apps/mcp` |
 | `infra` | Dockerfiles for the API and worker images |
 | `docker-compose.yml` | Redis + API + worker local stack |

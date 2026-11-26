@@ -53,7 +53,7 @@ const ROUTES = [
   '/tools/chat-with-pdf',
   '/tools/deskew',
   '/tools/ocr-pdf',
-  '/workflows',
+  '/tools/workflows',
   '/trust',
   '/verify',
   '/privacy',

@@ -33,7 +33,6 @@ import { Button } from '@/components/ui/button';
 import { formatBytes } from '@/lib/format';
 import { staggerUI } from '@/lib/motion';
 import { useMotionScope } from '@/hooks/use-motion';
-import { McpShowcaseButton } from '@/components/landing/mcp-dialog';
 import { getTool } from '@/tools/registry';
 import './hero.css';
 
@@ -367,7 +366,6 @@ export function HeroSection() {
               Talk to a PDF
             </Link>
           </Button>
-          <McpShowcaseButton className="h-9 border-transparent bg-transparent px-2 text-[13px] font-medium text-muted-foreground shadow-none hover:bg-white/5 hover:text-foreground" />
         </motion.div>
 
         <motion.div

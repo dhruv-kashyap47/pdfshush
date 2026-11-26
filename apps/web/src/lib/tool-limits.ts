@@ -12,7 +12,7 @@
  *    at 150 pages, because every page becomes a bitmap;
  *  - combine/jpg-to-pdf bound the input count;
  *  - AI tools bound text characters and model turns, not pages;
- *  - workflows/API/MCP are server-run and have their own daily quotas.
+ *  - workflows, the REST API and MCP are archived with the server tier.
  *
  * Numbers come from the engine constants wherever one exists, so a limit change
  * updates the copy in the same commit instead of leaving the page lying.
@@ -28,7 +28,7 @@ import {
   formatBytes,
 } from '@pdfshush/pdf-core';
 
-const { client, tool, server, workflow, ai } = LIMITS;
+const { client, tool, ai } = LIMITS;
 
 const mb = (bytes: number): string => formatBytes(bytes, 0);
 const pages = client.maxPages.toLocaleString();
@@ -57,8 +57,6 @@ export const TOOL_LIMIT_NOTES: Record<string, string> = {
   'edit-pdf-with-ai': `Up to ${ai.clientMaxContextChars.toLocaleString()} characters of document text and ${ai.clientMaxTurns} model turns per run.`,
   'fill-sign': `Up to ${tool.maxEditObjects.toLocaleString()} overlay objects in one export; signatures are drawn or typed in this browser and never uploaded.`,
   signature: 'Stored only in this browser. There is no account, no sync and no expiry.',
-  api: `Anonymous callers get ${server.anonymousTasksPerDay} tasks/day and ${server.anonymousTasksPerMinute}/minute; a key gets ${server.api.tasksPerDay}/day per key and ${server.api.accountTasksPerDay.toLocaleString()}/day per account, with ${mb(server.maxUploadBytes)} uploads. Files are deleted within an hour of the job finishing.`,
-  mcp: `Runs as a local process over stdio. Each tool call still uses the API quota: ${server.api.tasksPerDay} tasks/day per key and ${mb(server.api.bytesPerDay)} of uploads per day.`,
   'flip-pdf': `Up to ${pages} pages and ${perRun} per run (${perFile} per file).`,
   watermark: `Up to ${pages} pages and ${perRun} per run; image watermarks must be PNG or JPEG up to ${mb(tool.maxImageBytes)}.`,
   'edit-metadata': 'Up to 500 characters per metadata field. Creation and modification dates are left untouched rather than invented.',
@@ -75,7 +73,6 @@ export const TOOL_LIMIT_NOTES: Record<string, string> = {
   'bates-numbering': `Up to ${pages} pages per run; prefixes are capped at ${BATES_LIMITS.maxPrefixChars} characters and numbers at ${BATES_LIMITS.maxDigits} digits.`,
   'split-by-text': `Up to ${pages} pages per run. Matching is literal, not fuzzy, and a scan with no text layer cannot match.`,
   'compress-pdf': `Smart compression handles the full ${pages}-page limit; strong (raster) compression rebuilds pages as images and stops at ${tool.maxRedactPages} pages.`,
-  workflows: `Server-run, so each step uses the API quota (${server.anonymousTasksPerDay} tasks/day anonymous, ${server.api.tasksPerDay}/day with a key). A recipe has at most ${workflow.maxSteps} steps, and files are deleted within an hour.`,
   'batch-run': `Runs one operation over up to ${tool.maxZipEntries} files, because the results are packed into a single ZIP. Each file still has to fit the ${pages}-page / ${perRun} client limit.`,
   stamp: `Up to ${pages} pages and ${perRun} per run (${perFile} per file).`,
   'repair-pdf': `Up to ${perFile} per file. This rebuilds the cross-reference table and trailer; it does not reconstruct damaged content streams or missing fonts.`,

@@ -60,7 +60,7 @@ export const STATIC_PAGE_META: Record<string, StaticPageHead> = {
   '/about': {
     title: 'About PDFShush – Free, Private, Open-Source PDF Tools',
     description:
-      'Why PDFShush exists: ordinary PDF tasks should not require uploading the document. An independent, open-source workspace with 51 live client-side tools.',
+      'Why PDFShush exists: ordinary PDF tasks should not require uploading the document. An independent, open-source workspace with 48 live client-side tools.',
     image: '/og/home.png',
     imageAlt: 'About PDFShush – an open-source PDF workspace',
     keywords: ['about pdfshush', 'open source pdf tools', 'private pdf workspace'],
@@ -84,7 +84,7 @@ export const STATIC_PAGE_META: Record<string, StaticPageHead> = {
   '/status': {
     title: 'Service Status – All Client PDF Tools Online | PDFShush',
     description:
-      'The static app and all 51 client-side PDF tools are operational. Accounts, workflows, the REST API and MCP are not deployed on this origin. No login needed.',
+      'The static app and all 48 client-side PDF tools are operational. Workflows, the REST API and MCP are archived with the server tier and explained on their permanent pages. No login needed.',
     image: '/og/home.png',
     imageAlt: 'PDFShush service status',
     keywords: ['pdfshush status', 'pdf tools status'],

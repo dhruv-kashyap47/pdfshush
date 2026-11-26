@@ -29,8 +29,8 @@ import {
 } from '@/components/ui/sheet';
 import { useAuth, useAuthRedirectNotice } from '@/hooks/use-auth';
 import {
-  ALL_TOOLS,
-  TOOL_CATEGORIES,
+  catalogCategories,
+  catalogTools,
   getTool,
   type ToolDef,
 } from '@/tools/registry';
@@ -56,8 +56,10 @@ const MOBILE_FOOTER_LINKS = [
  * Category names are needed inside a flat search result, where the column
  * header that normally supplies context is gone.
  */
+const CATALOG_CATEGORIES = catalogCategories();
+
 const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
-  TOOL_CATEGORIES.map((category) => [category.id, category.label]),
+  CATALOG_CATEGORIES.map((category) => [category.id, category.label]),
 );
 
 /**
@@ -82,7 +84,7 @@ const MEGA_COLUMNS: readonly (readonly string[])[] = [
 ];
 
 const CATEGORY_BY_ID = Object.fromEntries(
-  TOOL_CATEGORIES.map((category) => [category.id, category]),
+  CATALOG_CATEGORIES.map((category) => [category.id, category]),
 );
 
 /** Every word must match, so "split text" finds Split by text and nothing else. */
@@ -90,7 +92,7 @@ function filterTools(query: string): ToolDef[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
   const parts = needle.split(/\s+/);
-  return ALL_TOOLS.filter((tool) => {
+  return catalogTools().filter((tool) => {
     const haystack = [
       tool.name,
       tool.description,
@@ -150,9 +152,6 @@ function AccountControl() {
           <Link to="/account">
             <User className="mr-2 h-4 w-4" /> Account
           </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/workflows">Workflows</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -308,7 +307,7 @@ export function SiteHeader() {
                 >
                   All Tools
                   <span className="text-[11px] font-normal tabular-nums text-muted-foreground">
-                    {ALL_TOOLS.length}
+                    {catalogTools().length}
                   </span>
                 </SheetTitle>
                 <SheetDescription className="sr-only">
@@ -406,7 +405,7 @@ function MegaMenu({ onNavigate }: { onNavigate: () => void }) {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={`Search ${ALL_TOOLS.length} tools…`}
+            placeholder={`Search ${catalogTools().length} tools…`}
             aria-label="Search the tool catalog"
             autoComplete="off"
             spellCheck={false}
@@ -540,7 +539,7 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={`Search ${ALL_TOOLS.length} tools…`}
+              placeholder={`Search ${catalogTools().length} tools…`}
               aria-label="Search the tool catalog"
               autoComplete="off"
               spellCheck={false}
@@ -561,7 +560,7 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
 
         {!searching && (
           <div className="mt-3 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {TOOL_CATEGORIES.map((category) => (
+            {CATALOG_CATEGORIES.map((category) => (
               <button
                 key={category.id}
                 type="button"
@@ -611,7 +610,7 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <>
-              {TOOL_CATEGORIES.map((category) => (
+              {CATALOG_CATEGORIES.map((category) => (
                 <section
                   key={category.id}
                   id={`mobile-category-${category.id}`}
@@ -650,15 +649,6 @@ function MobileToolList({ onClose }: { onClose: () => void }) {
                         onClick={() => go('/account')}
                       >
                         Account
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-9"
-                        onClick={() => go('/workflows')}
-                      >
-                        Workflows
                       </Button>
                       <Button
                         type="button"

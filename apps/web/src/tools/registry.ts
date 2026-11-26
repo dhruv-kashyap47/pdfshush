@@ -58,7 +58,13 @@ import {
   Workflow,
 } from 'lucide-react';
 
-export type ToolStatus = 'live' | 'declined';
+/**
+ * `live` runs here; `declined` is a parity decision with a "coming soon" page;
+ * `archived` is a surface whose implementation moved to `archive/` (the server
+ * tier) and is not available on this deployment. Archived pages stay reachable
+ * with an honest explanation, but leave the catalog, menus and sitemap.
+ */
+export type ToolStatus = 'live' | 'declined' | 'archived';
 
 export interface ToolDef {
   slug: string;
@@ -120,10 +126,7 @@ const LIVE = new Set([
   // Phase 6 (e-sign, PLAN.md §25): same editor engine, signature mode first.
   'fill-sign',
   'signature',
-  // Phase 6 (public API, PLAN.md §25.3): the docs page + key management.
-  'api',
-  // Phase 6 (MCP, PLAN.md §25.4): the stdio server docs page.
-  'mcp',
+
   // Plain-tools batch (PLAN.md changelog, 2026-10-20): ten more client-side
   // tools over the existing engine, shipped in one wave.
   'flip-pdf',
@@ -144,7 +147,6 @@ const LIVE = new Set([
   'split-by-text',
   'compress-pdf',
   // Bookmark batch (2026-10-25): easy remaining catalog entries.
-  'workflows',
   'batch-run',
   'stamp',
   'repair-pdf',
@@ -164,6 +166,15 @@ const LIVE = new Set([
   // Scans batch (2026-11-08): Tesseract in the job worker, invisible text layer.
   'ocr-pdf',
 ]);
+
+/**
+ * Surfaces whose implementation moved to `archive/` with the server tier.
+ *
+ * They keep a permanent URL and an honest explanation, but they are not part of
+ * the catalog, the menus, the sitemap or the "live tools" count. A customer PDF
+ * tool must never be presented as available when the deployment has no server.
+ */
+const ARCHIVED = new Set(['api', 'mcp', 'workflows']);
 
 /**
  * Cross-pollination: which live tools each live tool should suggest on its
@@ -234,7 +245,17 @@ const tool = (
   category: string,
   icon: LucideIcon,
   accent: Accent,
-): ToolDef => t(slug, name, description, category, icon, accent, LIVE.has(slug) ? 'live' : 'declined');
+  status?: ToolStatus,
+): ToolDef =>
+  t(
+    slug,
+    name,
+    description,
+    category,
+    icon,
+    accent,
+    status ?? (LIVE.has(slug) ? 'live' : ARCHIVED.has(slug) ? 'archived' : 'declined'),
+  );
 
 export const TOOL_CATEGORIES: ToolCategory[] = [
   {
@@ -349,10 +370,10 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     id: 'automate', // "Workflows" on Sejda, renamed: Sejda's brand word, not their feature
     label: 'Automate',
     tools: [
-      tool('workflows', 'Workflows', 'Chain tools together and re-run them on new files automatically.', 'automate', Workflow, 'violet'),
+      tool('workflows', 'Workflows', 'Chain tools together and re-run them on new files automatically.', 'automate', Workflow, 'violet', 'archived'),
       tool('batch-run', 'Batch run', 'Apply one operation to a whole folder of PDFs.', 'automate', Sparkles, 'amber'),
-      tool('api', 'REST API', 'Call every tool from your own code with a public API key.', 'automate', Link2, 'blue'),
-      tool('mcp', 'MCP server', 'Drive pdfshush from any AI agent over the Model Context Protocol.', 'automate', Wand2, 'cyan'),
+      tool('api', 'REST API', 'Call every tool from your own code with a public API key.', 'automate', Link2, 'blue', 'archived'),
+      tool('mcp', 'MCP server', 'Drive pdfshush from any AI agent over the Model Context Protocol.', 'automate', Wand2, 'cyan', 'archived'),
       tool('sign-workflow', 'Sign & route', 'Collect signatures in order, then file the finished document.', 'automate', Mail, 'pink'),
       tool('convert-batch', 'Batch convert', 'Convert many files at once with shared settings.', 'automate', Combine, 'green'),
     ],
@@ -374,6 +395,27 @@ export const ALL_TOOLS: ToolDef[] = TOOL_CATEGORIES.flatMap((category) => catego
 export const TOOLS_BY_SLUG: Record<string, ToolDef> = Object.fromEntries(
   ALL_TOOLS.map((def) => [def.slug, def]),
 );
+
+/**
+ * The catalog as a visitor sees it: live tools plus honest "coming soon" pages,
+ * without the surfaces that moved to `archive/`. Menus, the home grid, search
+ * and the static SEO index all read this, so an archived surface cannot leak
+ * back in through one of them.
+ */
+export function catalogCategories(): ToolCategory[] {
+  return TOOL_CATEGORIES.map((category) => ({
+    ...category,
+    tools: category.tools.filter((def) => def.status !== 'archived'),
+  })).filter((category) => category.tools.length > 0);
+}
+
+export function catalogTools(): ToolDef[] {
+  return catalogCategories().flatMap((category) => category.tools);
+}
+
+export function archivedTools(): ToolDef[] {
+  return ALL_TOOLS.filter((def) => def.status === 'archived');
+}
 
 /** Homepage "Most popular" row, mirroring the Sejda landing grid. */
 export const POPULAR_SLUGS = [

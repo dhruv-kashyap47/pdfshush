@@ -144,18 +144,26 @@ for (const slug of declined) {
   check(`${route} is not indexed while unbuilt`, robotsMeta?.includes('noindex') === true, robotsMeta ?? 'missing');
 }
 
-const remoteTools = ['workflows', 'api', 'mcp'];
-for (const slug of remoteTools) {
-  const page = await text(`/tools/${slug}`);
+const archivedTools = ['workflows', 'api', 'mcp'];
+for (const slug of archivedTools) {
+  const route = `/tools/${slug}`;
+  const page = await text(route);
   const body = rootText(page.body);
+  const robotsMeta = first(page.body, /<meta name="robots" content="([^"]+)"/);
+  check(`${route} is not indexed`, robotsMeta?.includes('noindex') === true, robotsMeta ?? 'missing');
   check(
-    `/tools/${slug} does not claim client-side processing`,
-    !/parsed inside this browser tab|never leave the browser|nothing is uploaded/i.test(body),
-    body.match(/server|api|upload|delete/i)?.[0] ?? 'no data-path sentence',
+    `${route} is not in the sitemap`,
+    !sitemapUrls.includes(`${origin}${route}`),
+    `${sitemapUrls.length} URLs`,
   );
   check(
-    `/tools/${slug} states its server data path`,
-    /api|server|upload|delete/i.test(body),
+    `${route} explains that the surface is archived`,
+    /archived|not available on this deployment/i.test(body),
+  );
+  check(
+    `${route} is not linked from the home catalog`,
+    !home.body.includes(`/tools/${slug}"`),
+    'archived surface found in home HTML',
   );
 }
 

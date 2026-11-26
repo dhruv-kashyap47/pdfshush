@@ -597,62 +597,6 @@ export const TOOL_FAQS: Record<string, readonly ToolFaqItem[]> = {
     },
   ],
 
-  api: [
-    {
-      question: 'How do I use the pdfshush API?',
-      answer:
-        'Create an API key, submit a job with POST /api/v1/jobs, then poll the job until it completes and download the result. The OpenAPI spec lists every operation.',
-    },
-    {
-      question: 'How do I authenticate a request?',
-      answer:
-        'Send the key in the x-api-key header. Keys carry explicit scopes such as jobs:write and jobs:read, and you can create up to 10 keys per account.',
-    },
-    {
-      question: 'What are the API quotas?',
-      answer:
-        'Anonymous callers get 150 tasks per day and 6 per minute. A key gets 500 tasks per day and 30 per minute, with an account ceiling of 2,000 tasks per day and a 500 MB upload limit.',
-    },
-    {
-      question: 'What happens to my uploaded files?',
-      answer:
-        'A job uploads the file to the API for processing. Files are deleted within an hour of the job finishing; this is a server-side path by design, not a browser-only one.',
-    },
-    {
-      question: 'How is the API priced?',
-      answer:
-        'Quotas are stated up front: anonymous callers have a daily allowance, and an API key gets its own higher quota. There is no separate paid tier deployed on this origin.',
-    },
-  ],
-
-  mcp: [
-    {
-      question: 'What is the pdfshush MCP server?',
-      answer:
-        'It is a local process that lets an AI agent call pdfshush tools over the Model Context Protocol. The agent sends a tool call, and the server runs the job through the pdfshush API.',
-    },
-    {
-      question: 'How do I connect it to Claude or another agent?',
-      answer:
-        'Add the server command to your MCP client configuration and provide your API key as an environment variable. The MCP page includes a copyable configuration block.',
-    },
-    {
-      question: 'Does the MCP server store my documents?',
-      answer:
-        'No. It ships no PDF engine and keeps no document store. Each call uploads the file to the API for that job, and the API deletes it within an hour.',
-    },
-    {
-      question: 'Which quota does an MCP call use?',
-      answer:
-        'The same per-key API quota: 500 tasks per day, 30 submissions per minute, and a 5 GB daily upload allowance. The key is spent server-side, just like a REST call.',
-    },
-    {
-      question: 'Do I need to install anything besides the server?',
-      answer:
-        'You need Node.js for the local process and a pdfshush API key. The MCP page includes the npx command your client can launch; the server itself ships no PDF engine.',
-    },
-  ],
-
   'flip-pdf': [
     {
       question: 'How do I flip a PDF page?',
@@ -1108,34 +1052,6 @@ export const TOOL_FAQS: Record<string, readonly ToolFaqItem[]> = {
       question: 'Are my files uploaded?',
       answer:
         'No. Compression runs in this browser tab. Nothing is uploaded and no account is required.',
-    },
-  ],
-
-  workflows: [
-    {
-      question: 'What are pdfshush workflows?',
-      answer:
-        'A workflow chains several tools into one recipe, such as merge, compress and add page numbers. You can save the recipe and run it again on new files.',
-    },
-    {
-      question: 'Are workflows run in my browser?',
-      answer:
-        'No. Workflows are server-run by design: each step sends the file to the pdfshush API. Client-side tools on their own pages still run in the browser.',
-    },
-    {
-      question: 'How many steps can a workflow have?',
-      answer:
-        'A recipe can contain up to 20 steps. Each step uses the API quota, and the final result is available to download when the run completes.',
-    },
-    {
-      question: 'What happens to my uploaded files?',
-      answer:
-        'The API deletes them within an hour of the job finishing. The workflow page states that retention window rather than making a browser-only claim.',
-    },
-    {
-      question: 'Do I need an account to run a workflow?',
-      answer:
-        'Anonymous visitors can run workflows within the daily allowance. An API key raises the quota and is required for heavier or automated use.',
     },
   ],
 

@@ -31,21 +31,24 @@ export function AvailabilityMark({
   status,
   className,
 }: {
-  status: 'live' | 'declined';
+  status: 'live' | 'declined' | 'archived';
   className?: string;
 }) {
   const live = status === 'live';
+  const archived = status === 'archived';
   return (
     <span
       className={cn(
         'inline-flex shrink-0 items-center rounded-[5px] border px-1.5 py-[3px] text-[10px] font-medium leading-none tracking-[0.01em]',
         live
           ? 'border-white/[0.08] bg-white/[0.04] text-foreground/60'
-          : 'border-amber-400/20 bg-amber-400/[0.07] text-amber-200/90',
+          : archived
+            ? 'border-white/[0.08] bg-white/[0.04] text-muted-foreground'
+            : 'border-amber-400/20 bg-amber-400/[0.07] text-amber-200/90',
         className,
       )}
     >
-      {live ? 'Live' : 'Coming soon'}
+      {live ? 'Live' : archived ? 'Archived' : 'Coming soon'}
     </span>
   );
 }

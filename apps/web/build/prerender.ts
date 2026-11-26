@@ -20,6 +20,7 @@ import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plugin } from 'vite';
 import { faqsFor } from '../src/tools/tool-faqs.ts';
+import { ARCHIVED_COPY } from '../src/tools/archived.ts';
 import {
   CATEGORY_BLURBS,
   HOME_DESCRIPTION,
@@ -67,30 +68,12 @@ interface ToolEntry {
   category: string;
   categoryLabel: string;
   live: boolean;
+  archived: boolean;
 }
 
 const DEFAULT_ORIGIN = SITE_ORIGIN;
-/** Live tools get indexable pages; a not-built page is not a search result. */
+/** Live tools get indexable pages; a not-built or archived page is not a search result. */
 const NOT_INDEXABLE = new Set(['/account']);
-/** These live surfaces upload by design; the static copy must not claim otherwise. */
-const REMOTE = new Set(['workflows', 'api', 'mcp']);
-const REMOTE_COPY: Record<string, { status: string; how: string }> = {
-  workflows: {
-    status:
-      'Server-run by design. Each step uploads the file to the PDFShush API, which deletes it within an hour of the job finishing. This is not a client-side promise.',
-    how: 'Build a recipe, send the file to the PDFShush API, and download the result. The quota and the one-hour retention window are stated on the page.',
-  },
-  api: {
-    status:
-      'Server-side by design. An API call uploads the file to the endpoint, and the API deletes the result after the retention window. This docs page stores no document.',
-    how: 'Create a key, POST a PDF to `/api/v1`, poll the job and download the result. The per-key quota and deletion window are stated on the page.',
-  },
-  mcp: {
-    status:
-      'Runs on your machine, calls the API. The MCP server is a local process; each tool call uploads the file to the PDFShush API for that call, and the API deletes it within an hour.',
-    how: 'Launch the local MCP server, point your agent at it, and call a tool. The document is uploaded for that call and deleted on the API schedule.',
-  },
-};
 
 /**
  * Honest metadata for the seven tools this origin declined. They stay
@@ -145,8 +128,15 @@ function escapeHtml(value: string): string {
 
 /** Same regular shape as `tests/support/catalog.mjs`; no second list to forget. */
 function parseRegistry(source: string): ToolEntry[] {
-  const liveBlock = source.slice(source.indexOf('const LIVE'), source.indexOf('const TOOL_NEXT'));
+  const liveBlock = source.slice(source.indexOf('const LIVE'), source.indexOf('const ARCHIVED'));
   const live = new Set([...liveBlock.matchAll(/'([a-z0-9-]+)'/g)].map((match) => match[1]));
+  const archivedBlock = source.slice(
+    source.indexOf('const ARCHIVED'),
+    source.indexOf('const TOOL_NEXT'),
+  );
+  const archived = new Set(
+    [...archivedBlock.matchAll(/'([a-z0-9-]+)'/g)].map((match) => match[1]),
+  );
   const tools: ToolEntry[] = [];
   const categoryPattern =
     /id:\s*'([^']+)',[^\[]*?label:\s*'([^']+)',[^\[]*?tools:\s*\[([\s\S]*?)\n\s{4}\],/g;
@@ -155,15 +145,17 @@ function parseRegistry(source: string): ToolEntry[] {
     const categoryLabel = match[2] ?? '';
     const body = match[3] ?? '';
     for (const toolMatch of body.matchAll(
-      /tool\('([a-z0-9-]+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*([A-Za-z0-9_]+),\s*'([a-z]+)'\)/g,
+      /tool\('([a-z0-9-]+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*([A-Za-z0-9_]+),\s*'([a-z]+)'(?:,\s*'([a-z]+)')?\)/g,
     )) {
+      const slug = toolMatch[1]!;
       tools.push({
-        slug: toolMatch[1]!,
+        slug,
         name: toolMatch[2]!,
         description: toolMatch[3]!,
         category,
         categoryLabel,
-        live: live.has(toolMatch[1]!),
+        live: live.has(slug),
+        archived: toolMatch[7] === 'archived' || archived.has(slug),
       });
     }
   }
@@ -253,17 +245,17 @@ ${items
 function toolPage(tool: ToolEntry, tools: ToolEntry[], guides: Guide[]): string {
   const related = relatedTools(tool, tools);
   const landingGuides = guidesFor(tool.slug);
-  const remote = REMOTE.has(tool.slug);
+  const archived = tool.archived;
+  const archivedCopy = ARCHIVED_COPY[tool.slug];
   const seo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
-  const status = !tool.live
-    ? `<p class="pre-note"><strong>Coming soon.</strong> This page is not a promise with a date. It explains what the tool will do, why it is not here yet, and points at the closest thing that works today. The live catalog is on the <a href="/#all-tools">home page</a>.</p>`
-    : remote
-      ? `<p class="pre-note">${escapeHtml(REMOTE_COPY[tool.slug]?.status ?? 'Server-run by design. The file is uploaded for the job and deleted on the API schedule.')}</p>`
+  const status = archived
+    ? `<p class="pre-note"><strong>Not available on this deployment.</strong> ${escapeHtml(archivedCopy?.why ?? 'This surface needs the server tier, which is archived. Every live PDF tool runs in the browser.')}</p>`
+    : !tool.live
+      ? `<p class="pre-note"><strong>Coming soon.</strong> This page is not a promise with a date. It explains what the tool will do, why it is not here yet, and points at the closest thing that works today. The live catalog is on the <a href="/#all-tools">home page</a>.</p>`
       : `<p class="pre-note"><strong>Private by construction.</strong> The PDF is parsed inside this browser tab. Nothing is uploaded, and there is no account or quota for this tool.</p>`;
-  const how = !tool.live
-    ? ''
-    : remote
-      ? `<h2>How it works</h2><p>${escapeHtml(REMOTE_COPY[tool.slug]?.how ?? 'Send the file to the PDFShush API and download the result; the API deletes it on its stated schedule.')}</p>`
+  const how =
+    archived || !tool.live
+      ? ''
       : `<h2>How to use ${escapeHtml(seo.h1)}</h2><ol>${seo.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol>`;
   const articleGuides = guides.filter((entry) => entry.frontmatter.relatedTools.includes(tool.slug));
   const guidesBlock =
@@ -288,9 +280,11 @@ ${status}
 ${how}
 <h2>Good to know</h2>
 <p>${
-    remote
-      ? 'This surface is server-run by design, with a stated quota and retention window. The file is uploaded for the job, not processed in the browser, and the API deletes it on the schedule described on the page.'
-      : 'The file is processed inside this browser tab, so there is no upload and no account. Up to 100 MB per file, 250 MB per run and 500 pages, with a lower page cap for tools that rebuild pages as images (redaction, grayscale, dark mode and strong compression).'
+    archived
+      ? 'This surface is archived with the server tier, so it is not available on this deployment. The live PDF tools still run inside your browser with no upload.'
+      : !tool.live
+        ? 'This tool is not available on this deployment. The page names the closest live tool that works today, and the live catalog is on the home page.'
+        : 'The file is processed inside this browser tab, so there is no upload and no account. Up to 100 MB per file, 250 MB per run and 500 pages, with a lower page cap for tools that rebuild pages as images (redaction, grayscale, dark mode and strong compression).'
   }</p>
 ${related.length > 0 ? `<h2>Related PDF tools</h2><ul class="pre-list">${related.map((entry) => `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}<span>${escapeHtml(TOOL_BENEFITS[entry.slug] ?? entry.description)}</span></a></li>`).join('')}</ul>` : ''}
 ${guidesBlock}
@@ -568,18 +562,18 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         },
         {
           route: '/workflows',
-          title: 'PDF Workflows – Automate and Re-Run PDF Tasks | PDFShush',
+          title: 'PDF Workflows Moved - Archived on This Deployment | PDFShush',
           description:
-            'Chain PDF tools into a saved workflow recipe and re-run it on new files. Workflows are server-run, with a stated quota and a one-hour deletion window.',
+            'The workflow runner moved to its permanent page because the server tier is archived. It explains why and points at Batch run, which runs in your browser.',
           html: simplePage(
-            'PDF Workflows – Chain Tools and Re-Run',
-            'Chain tools into a recipe and run it again on new files.',
-            'Workflows are server-run and state their quota. A client-side tool in a recipe still runs in the browser; the API and MCP pages document the server path.',
+            'PDF Workflows - Archived',
+            'Workflow recipes are not available on this deployment.',
+            'The runner needed a server job queue. Every individual PDF tool still runs in your browser; <a href="/tools/workflows">the permanent page</a> names Batch run as the closest working path.',
           ),
           image: '/og/workflows.png',
-          imageAlt: 'PDFShush workflows – chain PDF tools and re-run them',
+          imageAlt: 'PDFShush workflows archive notice',
           keywords: ['pdf workflow', 'automate pdf tasks', 'pdf pipeline'],
-          indexable: true,
+          indexable: false,
           type: 'website',
         },
         {
@@ -732,7 +726,16 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         },
         ...tools.map((tool) => {
           const seo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
-          const meta = tool.live ? seo : { ...seo, ...(DECLINED_SEO[tool.slug] ?? {}) };
+          const archivedMeta = tool.archived ? ARCHIVED_COPY[tool.slug] : undefined;
+          const meta = tool.live
+            ? seo
+            : archivedMeta
+              ? {
+                  ...seo,
+                  title: archivedMeta.title,
+                  description: archivedMeta.description,
+                }
+              : { ...seo, ...(DECLINED_SEO[tool.slug] ?? {}) };
           return {
             route: `/tools/${tool.slug}`,
             title: meta.title,

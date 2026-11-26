@@ -21,15 +21,19 @@
  *   npx wrangler secret put DODO_API_KEY            # optional, billing
  *   npx wrangler secret put DODO_WEBHOOK_SECRET     # optional, billing
  *
- * The scope note this file used to carry ("deploys the frontend only, the
- * Express API stays local") is no longer true. The Express shape still exists in
- * the repository and still runs from `docker-compose.yml`; it is a separate
- * deployment, not this one.
+ * The Express/BullMQ/Redis/Mongo tier is archived in `archive/` (tag
+ * `server-tier-v1`). This Worker is the only deployment.
  */
 {
   "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
   "name": "pdfshush",
   "compatibility_date": "2026-11-13",
+
+  // One canonical origin. The apex custom domain is attached by the deploy;
+  // the workers.dev URL is disabled so previews cannot become an accidental
+  // duplicate origin for cookies, OAuth redirects or search.
+  "workers_dev": false,
+  "routes": [{ "pattern": "pdfshush.com", "custom_domain": true }],
 
   // The API and the asset router share one script. `nodejs_compat` is
   // deliberately absent: this Worker uses WebCrypto and fetch only, so the
@@ -82,28 +86,32 @@
     {
       "binding": "DB",
       "database_name": "pdfshush",
-      // Replace with the id from `wrangler d1 create pdfshush`. Local dev
-      // (`wrangler dev`) works with this placeholder; deploy will not.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // Created 2026-11-26: `npx wrangler d1 create pdfshush` (APAC).
+      "database_id": "64dee00a-9259-465f-8462-f053c6fa4d95",
       "migrations_dir": "./apps/edge/migrations"
     }
   ],
 
   "vars": {
     "WEB_ORIGIN": "https://pdfshush.com",
+    // Must match the Google Cloud Console redirect URI byte for byte.
+    "GOOGLE_REDIRECT_URI": "https://pdfshush.com/api/auth/callback",
     "SESSION_COOKIE_SECURE": "true",
 
     // Managed AI stays OFF until both a model (here) and a key (secret) exist.
-    // That keeps a fresh deploy identical to the pre-AI shape. To turn it on:
+    // To turn it on:
     //
     //   npx wrangler secret put AI_MANAGED_API_KEY   # sk-or-v1-...
-    //   # then set AI_MANAGED_MODEL below to any OpenRouter model id
     //
-    // IMPORTANT: buy 10 credits on OpenRouter once. Below 10 credits its
-    // free-model limit is 50 requests/day *for the whole account*; at 10+ it is
-    // 1,000/day. The Worker budgets 700 anonymous + 200 Pro out of that.
+    // `openrouter/free` is OpenRouter's own free-model router: it selects an
+    // available free model per request, so the site keeps working when one free
+    // model is retired. IMPORTANT: buy 10 credits on OpenRouter once. Below 10
+    // credits its free-model limit is 50 requests/day *for the whole account*;
+    // at 10+ it is 1,000/day. The Worker budgets 700 anonymous + 200 Pro out of
+    // that; while the account is under 10 credits, lower the global caps in
+    // `apps/edge/src/ai/budget.ts` to about 30 + 10.
     "AI_MANAGED_PROVIDER": "openrouter",
-    "AI_MANAGED_MODEL": "",
+    "AI_MANAGED_MODEL": "openrouter/free",
     "AI_MANAGED_MAX_OUTPUT_TOKENS": "4096",
 
     // Billing. Dodo Payments is the merchant of record, so it owns tax and

@@ -1162,95 +1162,23 @@ async function main() {
   // that must not break anything, so it is the state that gets tested.
   console.log('\n19. Accounts & workflows');
 
+  // The workflow runner is archived with the server tier. The legacy URL must
+  // still land on an honest page that points at the browser tool that works.
   await page.goto(`${BASE}/workflows`, { waitUntil: 'networkidle' });
+  await page.waitForURL('**/tools/workflows', { timeout: 10_000 }).catch(() => {});
   check(
-    'workflows page loads',
-    await page.getByRole('heading', { name: 'Workflows', exact: true }).isVisible(),
+    'legacy /workflows redirects to the permanent tool page',
+    page.url().endsWith('/tools/workflows'),
+    page.url(),
   );
   check(
-    'workflows page works signed out (local storage, not a sign-in wall)',
-    await page.getByText(/Saved in this browser/i).isVisible(),
+    'archived workflows page explains it is not available here',
+    await page.getByText(/Not available on this deployment/i).isVisible(),
   );
-
-  // The step picker is populated from `/api/tools`, so the recipe and run steps
-  // need the API stack. Skipping them explicitly is honest about that dependency;
-  // a 30-second locator timeout only hid which service was missing.
-  let apiReachable = false;
-  try {
-    apiReachable = (await fetch(`${BASE}/api/tools`)).ok;
-  } catch {
-    apiReachable = false;
-  }
-  // `/api/tools` answers without Redis; the queue does not. Running a recipe
-  // submits to `/api/jobs`, so ask health rather than discovering the outage as
-  // a three-minute download timeout.
-  let queueLive = false;
-  if (apiReachable) {
-    try {
-      const health = await (await fetch(`${BASE}/api/health`)).json();
-      queueLive = health?.redis?.status === 'connected';
-    } catch {
-      queueLive = false;
-    }
-  }
-  if (!apiReachable) {
-    console.log('   [SKIP] workflow recipe + run need the API stack (/api/tools is not reachable)');
-  } else {
-
-  // Build a two-step recipe: the first step takes the uploaded file, the second
-  // consumes the first. The engine's validator is what guarantees that re-linking
-  // is legal, so this exercises the real contract end to end.
-  await page.getByLabel('Name').fill('E2E merge then stamp');
-  const addStep = page.getByLabel('Add a step');
-  // Job slugs, not tool slugs: a recipe names engine jobs (`merge`), and the
-  // builder only offers the ones this deployment can actually run.
-  await addStep.selectOption('merge');
-  await addStep.selectOption('organize');
-  const stepItems = page.locator('ol li');
-  const stepNames = async () =>
-    (await stepItems.allInnerTexts()).map((text) => text.replace(/^\s*\d+\s*/, '').split('\n')[0]?.trim() ?? '');
-  check('two steps added to the recipe', (await stepItems.count()) === 2, `${await stepItems.count()} steps`);
-
-  // Reordering must keep the chain valid rather than leaving a dangling input.
-  const before = await stepNames();
-  await page.getByRole('button', { name: 'Move step down' }).first().click();
-  const after = await stepNames();
   check(
-    'reordering swaps the two steps',
-    before.length === 2 && after[0] === before[1] && after[1] === before[0],
-    `${before.join(' | ')} -> ${after.join(' | ')}`,
+    'archived workflows page points at Batch run',
+    (await page.getByRole('link', { name: /Batch run/i }).count()) > 0,
   );
-
-  // Run it for real: upload → step 1 → step 2 → download. This is the whole
-  // point of the feature, so it is asserted on the bytes rather than on a toast.
-  if (!queueLive) {
-    console.log('   [SKIP] workflow run needs Redis (/api/health reports redis unavailable)');
-  } else {
-    await page.getByLabel('File to run the workflow on').setInputFiles([fileA]);
-    const [workflowDownload] = await Promise.all([
-      page.waitForEvent('download', { timeout: 180_000 }),
-      page.getByRole('button', { name: /run workflow/i }).click(),
-    ]);
-    const workflowBytes = await readFile(await workflowDownload.path());
-    check(
-      'workflow runs end to end and downloads a PDF',
-      workflowBytes.subarray(0, 5).toString('latin1') === '%PDF-',
-      `${workflowDownload.suggestedFilename()} - ${workflowBytes.length} bytes`,
-    );
-  }
-
-  await page.getByRole('button', { name: /save workflow/i }).click();
-  await waitFor(
-    async () => (await page.getByText('E2E merge then stamp').count()) === 1,
-    30_000,
-    'saved recipe to appear',
-  );
-  check('a reordered recipe still validates and saves', true, 'engine accepted the re-linked chain');
-
-  await page.getByRole('button', { name: 'Delete workflow' }).first().click();
-  await waitFor(async () => (await page.getByText('E2E merge then stamp').count()) === 0, 20_000, 'recipe removal');
-  check('recipe can be deleted', true);
-  }
 
   // `/api/auth/me` answers 204 both for "nobody signed in" and for "this
   // deployment has no account system". The header must not advertise a sign-in
