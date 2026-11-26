@@ -8812,3 +8812,14 @@ and descriptions were brought inside the 50-60 / 150-160 audit window.
 warnings); `guides:check` OK: 20; `test:bundle`, `test:guardrails`,
 `test:provenance` and `test:deploy-config` green.
 
+**Shipped.** Migration `0004` was applied to the remote D1 *before* the Worker
+deploy (the sponsor and account queries name the new column, so the order
+matters). Worker `2bcd75e8-9dc3-4fff-9dc8-f35819af587a` now serves
+`https://pdfshush.com`. Production `pnpm test:e2e` and `test:e2e:reach` are
+green: 92 sitemap URLs, 48 tools, no console errors. `/guides` and every article
+answer 200 with FAQPage and BreadcrumbList markup, the prerendered HTML contains
+no `gtm.js` (the consent gate runs before the tag), and `/api/health` reports
+`database:ok`. The billing rails remain disabled until the Dodo products and
+secrets exist, which is the intended `503` shape.
+
+

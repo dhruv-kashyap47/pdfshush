@@ -19,6 +19,13 @@ AdSense is gone by decision; sponsorship and the one-time rails are built and
 switch on when Dodo is configured. Nothing is broken; most things are just
 waiting on a decision or an account.
 
+**Latest (2026-11-26, later):** the Dodo billing rails, the consent-gated
+measurement tag and the 20 published guides shipped as Worker
+`2bcd75e8-9dc3-4fff-9dc8-f35819af587a`, after migration `0004` was applied to
+the remote D1. Production `test:e2e` and `test:e2e:reach` are green with 92
+sitemap URLs. Billing stays at `503` until the Dodo products and secrets exist;
+that is the intended shape. See `PLAN.md` §46-47.
+
 **Latest (2026-11-26):** a full repository audit and the failing cross-browser
 gate are closed, and production was redeployed as Worker
 `b6bde10b-1e27-44f4-8e6a-13d4aa1fa9ad`. Accounts and managed AI answer live;
