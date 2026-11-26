@@ -1,6 +1,11 @@
 /**
  * SpotlightCard — React Bits (TS + Tailwind), vendored and customised.
  *
+ * Copyright (c) 2026 David Haz. Licensed under the React Bits
+ * "MIT + Commons Clause License Condition v1.0"; the full text is in
+ * `licenses/react-bits-LICENSE.md`. Not AGPL-3.0-or-later: this file keeps the
+ * upstream licence and is excluded from the repository's AGPL grant.
+ *
  * Source: https://reactbits.dev/components/spotlight-card
  * The pointer/edge/focus logic is kept; the palette is bound to pdfshush's
  * theme tokens instead of a fixed dark palette, ambient drift is off by

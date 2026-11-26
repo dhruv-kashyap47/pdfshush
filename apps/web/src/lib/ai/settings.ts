@@ -65,9 +65,9 @@ export function providerUsable(settings: AiSettings, id: AiProviderId): boolean 
  *
  * The implementation lives in `@pdfshush/ai-provider` because it is pure,
  * dependency-free logic that both runtimes need (the browser BYOK and the
- * API's managed gateway) and because a package is where it can be unit-tested
- * (`apps/web` has no runner of its own). Re-exported here so the existing
- * `./settings` import site keeps working.
+ * Worker's managed gateway), and because it is unit-tested with the package's
+ * own runner. Re-exported here so the existing `./settings` import site keeps
+ * working.
  */
 export { redactSecrets } from '@pdfshush/ai-provider/browser';
 

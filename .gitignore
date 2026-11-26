@@ -11,6 +11,13 @@ coverage/
 *.tsbuildinfo
 .env
 .env.local
+.env.*.local
+# `wrangler dev` secrets for the Worker. The committed `.example` documents the
+# names; a real file contains OAuth and payment keys and must never be staged.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+!**/.dev.vars.example
 .DS_Store
 Thumbs.db
 logs/

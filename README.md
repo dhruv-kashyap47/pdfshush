@@ -110,6 +110,6 @@ Requires Node 20.19+ and pnpm 12. The deployment is one Cloudflare Worker servin
 
 ## License
 
-[AGPL-3.0-or-later](./LICENSE). The UI foundation is the MIT-licensed [shadcn dashboard & landing template](https://github.com/shadcnstore/shadcn-dashboard-landing-template); its notice is in [`licenses/`](./licenses/). The PDF engine builds on [pdf-lib](https://github.com/cantoo-pdf-lib/pdf-lib), [pdf.js](https://mozilla.github.io/pdf.js/), [PDFium](https://github.com/embedpdf/embed-pdf-viewer), [Tesseract.js](https://github.com/naptha/tesseract.js) and [fflate](https://github.com/101arrowz/fflate). Product scope is modeled on [Sejda](https://www.sejda.com/) (not affiliated).
+[AGPL-3.0-or-later](./LICENSE). The UI foundation is the MIT-licensed [shadcn dashboard & landing template](https://github.com/shadcnstore/shadcn-dashboard-landing-template); its notice is in [`licenses/`](./licenses/). The PDF engine builds on [pdf-lib](https://github.com/cantoo-pdf-lib/pdf-lib), [pdf.js](https://mozilla.github.io/pdf.js/), [PDFium](https://github.com/embedpdf/embed-pdf-viewer), [Tesseract.js](https://github.com/naptha/tesseract.js) and [fflate](https://github.com/101arrowz/fflate). The vendored-code ledger, font and image provenance, and the full dependency notices are in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md) and [`NOTICE`](./NOTICE). Product scope is modeled on [Sejda](https://www.sejda.com/) (not affiliated).
 
 <p align="center"><sub>Made for documents that are nobody else's business.</sub></p>

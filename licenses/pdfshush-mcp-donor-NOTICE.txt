@@ -1,10 +1,12 @@
-pdfshush `apps/mcp` — design donor attribution
+pdfshush `archive/apps/mcp` — design donor attribution
 ================================================
 
-The MCP server architecture in `apps/mcp/src/` is adapted from GenOffice
+The MCP server architecture in `archive/apps/mcp/src/` is adapted from GenOffice
 (`genoffice-main/packages/cli/src/mcp/`: tools.ts tool-shape generation,
 remote.ts URL-guard/materialization concepts, server.ts stdio assembly and
-the per-tool guide-resource pattern).
+the per-tool guide-resource pattern). The app is archived and is not part of
+the deployed Worker or SPA; this notice is kept because the source remains in
+the repository.
 
 GenOffice is licensed Apache-2.0; the full text is in
 `licenses/genoffice-MCP-donor-Apache-2.0.txt`.
