@@ -184,7 +184,7 @@ async function main() {
     console.log('\n3. Dark Mode PDF (run + download)');
     const runButton = page.getByRole('button', { name: 'Convert to dark mode' });
     await runButton.click();
-    await page.getByText(/rebuilt for night reading/).waitFor({ timeout: 120_000 });
+    await page.getByText(/rebuilt for night reading/).first().waitFor({ timeout: 120_000 });
     const darkDl = await download(page, 'Download');
     check('dark-mode output is a valid PDF', isPdf(darkDl.bytes), `${darkDl.name} ${darkDl.bytes.length}B`);
     check('output is the rasterized rebuild (JPEG inside)', darkDl.bytes.includes('DCTDecode'));

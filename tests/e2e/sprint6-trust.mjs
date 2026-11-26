@@ -161,7 +161,11 @@ async function main() {
       30_000,
       'second scan banner',
     );
-    await page.getByTestId('ocr-read-page').click();
+    // The button unmounts as soon as OCR starts; a normal click can lose the
+    // node between pointerdown and pointerup. Dispatch the click in one turn.
+    await page
+      .getByTestId('ocr-read-page')
+      .evaluate((element) => element.click());
     await waitFor(
       async () => (await page.getByTestId('ocr-provenance').count()) === 1,
       300_000,
