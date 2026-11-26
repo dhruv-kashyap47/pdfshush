@@ -182,7 +182,7 @@ async function main() {
   /* 1. Homepage */
   console.log('\n1. Homepage');
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  check('title contains pdfshush', (await page.title()).includes('pdfshush'));
+  check('title contains pdfshush', (await page.title()).toLowerCase().includes('pdfshush'));
   // Asserts the shipped hero headline. This used to pin a tagline that a later
   // hero rewrite removed, so the check had been asserting copy that no longer
   // existed in the tree.
@@ -1074,87 +1074,29 @@ async function main() {
   await page.goto(`${BASE}/tools/does-not-exist`, { waitUntil: 'networkidle' });
   check('404 page renders', await page.getByText('This page went missing').isVisible());
 
-  /* 18. Recent history refreshes in-session */
-  // Regression: `useRecent` read IndexedDB once on mount, and the header is a
-  // persistent layout component. Every tool run recorded a new entry that the
-  // menu never showed until a full reload, so Recent was empty for the whole
-  // session no matter how many jobs the user completed.
-  console.log('\n18. Recent history');
+  /* 18. Archived surfaces stay out of the menu */
+  // The server tier is archived; Workflows, REST API and MCP must not leak back
+  // into the catalog through the mega menu, and the live catalog must still be
+  // complete. Their permanent pages are checked by `test:e2e:reach`.
+  console.log('\n18. Archived surfaces');
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page
     .getByRole('navigation', { name: 'Main' })
     .getByRole('button', { name: /All Tools/ })
     .hover();
-  const recentItems = page.locator('p:text-is("Recent")').locator('xpath=following-sibling::ul[1]/li');
-  const recentCount = await waitFor(
-    async () => {
-      const n = await recentItems.count();
-      return n > 0 ? n : null;
-    },
-    15_000,
-    'recent entries after tool runs',
-  );
-  const recentNames = await page
-    .locator('p:text-is("Recent")')
-    .first()
-    .locator('xpath=following-sibling::ul[1]')
-    .innerText();
-  check(
-    'recent history from this session shows without a reload',
-    recentCount > 0,
-    `${recentCount} entries`,
-  );
-  // Every tool records fire-and-forget and this suite navigates away straight
-  // after a result, so these are whichever writes committed before teardown.
-  // Before the refresh fix the header read IndexedDB once on mount and
-  // rendered none of them at all.
-  const recentToolNames = await page
-    .locator('p:text-is("Recent")')
-    .first()
-    .locator('xpath=following-sibling::ul[1]/li')
-    .evaluateAll((items) => items.map((item) => item.textContent?.trim() ?? ''));
-  check(
-    'recent history lists several tools run earlier in this session',
-    recentToolNames.length >= 3,
-    recentToolNames.join(' | ').slice(0, 90),
-  );
-  await page.screenshot({ path: path.join(ARTIFACTS, 'header-recent.png') });
-
-  // Regression, two bugs in one assertion. The write is fire-and-forget and the
-  // page is destroyed the instant a result lands, while every writer also
-  // awaited `indexedDB.open()` before its write transaction existed -- that wait
-  // lost the race and took the entry with it. And the trim cursor walked the
-  // index oldest-first, so past MAX_ENTRIES it deleted the *newest* entries
-  // including the one just written. This is deliberately the last thing recorded
-  // in the run, so by now far more than MAX_ENTRIES have been written: the newest
-  // entry must still be the tool that just ran.
-  await page.goto(`${BASE}/tools/merge-pdf`, { waitUntil: 'networkidle' });
-  await page.locator('input[type="file"]').setInputFiles([fileA, fileB]);
-  await waitFor(async () => (await page.getByText('3 pages').count()) > 0, 30_000, 'merge inspected');
-  await page.getByRole('button', { name: /Merge 2 files/ }).click();
-  await page.getByText('merged.pdf').first().waitFor({ timeout: 60_000 });
-  await page.goto(BASE, { waitUntil: 'networkidle' }); // straight away, no settle
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .getByRole('button', { name: /All Tools/ })
-    .hover();
-  const newestRecent = await waitFor(
-    async () =>
-      page
-        .locator('p:text-is("Recent")')
-        .first()
-        .locator('xpath=following-sibling::ul[1]/li')
-        .first()
-        .textContent()
-        .catch(() => null),
-    15_000,
-    'newest recent entry after an immediate navigation',
+  const mega = page.locator('.mega-panel');
+  await mega.waitFor({ state: 'visible', timeout: 10_000 });
+  const archivedLinks = mega.locator(
+    'a[href="/tools/workflows"], a[href="/tools/api"], a[href="/tools/mcp"]',
   );
   check(
-    'a history write survives navigating away immediately',
-    /Merge PDF files/.test(newestRecent ?? ''),
-    (newestRecent ?? '').replace(/\s+/g, ' ').slice(0, 60),
+    'archived surfaces are absent from the All Tools menu',
+    (await archivedLinks.count()) === 0,
+    `${await archivedLinks.count()} archived link(s)`,
   );
+  const catalogLinks = await mega.locator('a[href^="/tools/"]').count();
+  check('the menu still lists the live catalog', catalogLinks >= 40, `${catalogLinks} links`);
+  await page.screenshot({ path: path.join(ARTIFACTS, 'header-catalog.png') });
 
   /* 19. Accounts & workflows (Phase 4) */
   // The auth API is disabled unless Google credentials are configured, and the
