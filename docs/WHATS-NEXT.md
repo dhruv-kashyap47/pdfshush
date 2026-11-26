@@ -11,12 +11,19 @@ The website is live at **https://pdfshush.com** and every PDF tool runs in the
 visitor's browser. The product is now **Cloudflare-only**: one Worker on the free
 tier handles sign-in, cloud sync and the AI trial, and it costs $0 at your
 traffic. The Express/BullMQ/Redis/Mongo server tier has been archived in
-`archive/` for a later paid tier. The Worker and D1 are deployed; the only thing
-switched off is the pair of secrets (Google and OpenRouter).
+`archive/` for a later paid tier. The Worker and D1 are deployed, **accounts and
+the managed AI trial are live**, and Dodo is the only rail still switched off
+until its key and products are set.
 The 20 guides are written but not published. AdSense is gone by decision;
 sponsorship and the one-time rails are built and switch on when Dodo is
 configured. Nothing is broken; most things are just waiting on a decision or an
 account.
+
+**Latest (2026-11-26):** a full repository audit and the failing cross-browser
+gate are closed, and production was redeployed as Worker
+`b6bde10b-1e27-44f4-8e6a-13d4aa1fa9ad`. Accounts and managed AI answer live;
+`/api/health` is green. See `PLAN.md` §45 for the fixes, the licence findings
+and the four owner decisions that remain.
 
 ---
 
@@ -25,15 +32,16 @@ account.
 | Thing | What it means | State |
 |---|---|---|
 | Server tier | Express API + BullMQ + Redis + Mongo + MCP, kept for a later paid tier | **Archived** in `archive/`, tag `server-tier-v1` |
-| Free backend | A Cloudflare Worker serving the site and `/api` from one address | Built, deploy pending |
-| Accounts | Google sign-in, stored in Cloudflare D1 (not MongoDB) | Built |
-| Cloud sync | Preferences, history, workflows saved per account | Built |
-| AI proxy | Your OpenRouter key stays on the server; visitors never see it | Built, **off** |
+| Free backend | A Cloudflare Worker serving the site and `/api` from one address | **Deployed** (`b6bde10b-1e27-44f4-8e6a-13d4aa1fa9ad`) |
+| Accounts | Google sign-in, stored in Cloudflare D1 (not MongoDB) | **Live** (OIDC on D1) |
+| Cloud sync | Preferences, history, workflows saved per account | **Live** for signed-in accounts |
+| AI proxy | Your OpenRouter key stays on the server; visitors never see it | **On** (managed trial; BYOK always) |
 | Plans | Free = 3 AI messages/day. Pro = 500/month, cloud sync, no sponsor cards | Built, no payments |
 | Guides | `/guides` plus 20 article drafts (~39,000 words) | Drafts only |
 | Sponsorship | Two first-party slots ($39 + $19/mo, founding). No ad network, no CSP change | Built, **off** until Dodo is configured |
 | One-time rails | 30-day pass, AI credit pack, donation | Built, **off** until Dodo is configured |
 | Capability switch | The site hides features a deployment cannot run | Built |
+| Audit / CI | Repository audit, licence ledger, CI recovery and browser gates | **Done 2026-11-26** (1 586 unit tests; 29 E2E suites) |
 
 Two rules that shaped everything:
 
@@ -46,6 +54,10 @@ Two rules that shaped everything:
 
 ## 2. How to enable and manage the AI
 
+**Status: live in production** (verified 2026-11-26: `/api/tools` reports
+`ai.enabled: true`). The steps below are for a fresh deployment or a key
+rotation, not a pending launch task.
+
 This is the part that earns money, so it is worth doing carefully.
 
 ### 2.1 Before you start
@@ -56,7 +68,7 @@ This is the part that earns money, so it is worth doing carefully.
    At 10+ it is **1,000/day**. Without it, the site runs out before lunch.
 3. Create an API key (`sk-or-v1-…`).
 
-### 2.2 Turn it on (4 commands)
+### 2.2 Turn it on (or rotate the key)
 
 ```bash
 # 1. Store the key as a Worker secret (never in a file)
@@ -170,7 +182,7 @@ product actually needs.
       and server-only docs into `archive/`
 - [x] Remove Redis/Mongo/Docker from `pnpm dev`, the workspace and CI
 - [x] Point the web dev proxy and E2E preflight at the Worker on `:8787`
-- [x] Verify: typecheck, 1 582 unit tests, build, bundle, guardrails, SEO
+- [x] Verify: typecheck, 1 586 unit tests, build, bundle, guardrails, SEO
 
 **Done when:** the active workspace builds and tests without a server. ✅
 
@@ -195,7 +207,9 @@ that.
 
 - [x] `npx wrangler d1 create pdfshush` → id in `wrangler.jsonc`
 - [x] `npx wrangler d1 migrations apply pdfshush --remote`
-- [ ] Add Google secrets + the AI key
+- [x] Add Google secrets + the AI key
+      (verified 2026-11-26: `/api/tools` reports `accounts.enabled: true` and
+      `ai.enabled: true`)
 - [x] `GOOGLE_REDIRECT_URI` set to `https://pdfshush.com/api/auth/callback`
       (still register the same URL in Google Cloud Console)
 - [x] `npx wrangler deploy` to the `pdfshush.com` custom domain
@@ -213,10 +227,37 @@ what remains is proving the account and AI paths with real secrets.
 - [x] Hide Workflows / API / MCP in the header, hero and catalog; keep honest
       permanent pages instead of dead links
 - [x] Build with `VITE_SERVER_API=on`
-- [ ] Confirm the AI panel appears after `AI_MANAGED_API_KEY` is set
+- [x] Confirm the AI panel appears after `AI_MANAGED_API_KEY` is set
+      (the client gates on `/api/tools`; `ai.enabled: true` on 2026-11-26)
 - [x] Point `pdfshush.com` at the Worker and retire `pdfshush.space`
 
-**Done when:** a visitor can sign in and use the AI trial on the real domain.
+**Done when:** the AI half is confirmed by `/api/tools`; the interactive Google
+round-trip is the one manual check worth doing before announcing accounts. The
+server-side switch is live, so the panel appears.
+
+### Sprint 3.5 — Audit, CI and licence close-out — done 2026-11-26
+
+**Why:** the production deploy exposed a failing browser gate and a stale profile
+photo; the pre-launch audit also needed a licence ledger and a clean dependency
+inventory.
+
+- [x] Fix the cross-browser 502: preview no longer proxies `/api` to an absent
+      Worker, and the gate probes `/api/health` and names the failing URL
+- [x] Fix the profile photo: CSP avatar origin, `picture`/`avatar_url`
+      normalisation, initials fallback and `?auth=success` refresh
+- [x] Harden malformed-cookie parsing, blocked IndexedDB upgrades, private API
+      caching and the AI client identity
+- [x] Add `NOTICE` + `THIRD_PARTY_LICENSES.md` + the generated dependency
+      notices; record GenOffice, React Bits, fonts and bundled engine data
+- [x] Run the gates: 1 586 unit tests + 1 expected fail, build/bundle,
+      guardrails/provenance/deploy-config, all 29 `test:e2e:*` suites, perf
+- [x] Redeploy: Worker `b6bde10b-1e27-44f4-8e6a-13d4aa1fa9ad` on
+      `pdfshush.com`; audit close `ada18b3` on both branches
+- [ ] Owner decisions: React Bits Commons Clause, hero-image provenance, four
+      MIT packages without a licence file, linter/formatter choice
+
+**Done when:** CI is green, production is redeployed, and the only remaining
+items are decisions rather than code. ✅ (tracked in `PLAN.md` §45)
 
 ### Sprint 4 — Payments (Dodo) — code built 2026-11-26
 
@@ -293,17 +334,20 @@ live on the right page and nowhere else.
 ## 4. Suggested order
 
 ```
-Sprint 1 (content)  ──►  Sprint 2 (deploy)  ──►  Sprint 3 (switch on)
-                                                      │
-                                                      ├──► Sprint 4 (payments)
-                                                      └──► Sprint 5 (sponsorship)
-                                                                 │
-                                                      Sprint 6 (growth)
-                                                                 │
-                                                      Sprint 7 (polish)
+Sprint 0 (archive) ──► Sprint 1 (content) ──► Sprint 2 (deploy) ──► Sprint 3 (switch on)
+                                                                        │
+                                                        Sprint 3.5 (audit) ✅
+                                                                        │
+                                                        ├──► Sprint 4 (payments)
+                                                        └──► Sprint 5 (sponsorship)
+                                                                   │
+                                                          Sprint 6 (growth)
+                                                                   │
+                                                          Sprint 7 (polish)
 ```
 
 Sprint 1 and Sprint 2 can run in parallel: one is writing, one is accounts.
+Sprint 3.5 is complete; only its owner decisions remain.
 
 ---
 

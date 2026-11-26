@@ -8,7 +8,7 @@
 extras (AI, e-sign, public API + own MCP server, workflow automation).
 **Stack:** MERN + TypeScript (React 19, Vite 8, Express, MongoDB) · pnpm monorepo.
 **License:** AGPL-3.0-or-later · **Name:** PDFShush (locked).
-**Last updated:** 2026-11-24
+**Last updated:** 2026-11-26
 
 ---
 
@@ -50,7 +50,8 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **rea-uplift Sprint 3** | Text UX + recovery: undo-safe paragraph revert, native moved reflow, detection-details drawer, transparent inline editing with line covers, find & replace (engine + panel), IndexedDB draft autosave/restore, honest styled-paragraph overlay | ✅ **done 2026-11-18** — T-01/T-02/T-03/T-05, T-06 UI half, S-01..S-04; `text-ux` E2E 44 checks, pdf-core 601+1 expected fail, web 301 |
 | **rea-uplift Sprint 4** | Engine core: byte-preserving content-stream lexer/emitter, document font metrics, per-glyph removal with `TJ` advance compensation, stream isolation, verification completion, edit-coverage invariant, XObject/Type3 honesty, golden corpus command | ✅ **done 2026-11-21** — C-01..C-04, C-06, C-12..C-14 and G-03; bug pass fixed 10 boundary defects; pdf-core 639+1 expected fail, web 301, corpus 2/2, main chunk 150.4 kB / 0 engines; Gate C still waited on C-07 |
 | **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 657+1 expected fail, web 309, corpus 2/2, `text-ux` 56/56, main 150.4 kB / 0 engines; **Gate C met** |
-| **Cloudflare-only cut** | No servers. One Worker + Static Assets + D1; archive the Express/BullMQ/Redis/Mongo tier; browser-only PDF work; AI = BYOK everywhere + managed OpenRouter trial | 🟢 **Phase 0 done 2026-11-26** — server tier moved to `archive/`, tagged `server-tier-v1`; active workspace is 5 projects; typecheck + 1 582 unit tests + build + bundle + guardrails + SEO green. Worker deploy, surface gating and AI enablement next (§44.5) |
+| **Cloudflare-only cut** | No servers. One Worker + Static Assets + D1; archive the Express/BullMQ/Redis/Mongo tier; browser-only PDF work; AI = BYOK everywhere + managed OpenRouter trial | 🟢 **Shipped and deployed 2026-11-26** — server tier moved to `archive/`, tagged `server-tier-v1`; active workspace is 5 projects; typecheck + 1 582 unit tests at the cut (1 586 after the audit) + build + bundle + guardrails + SEO green. Worker deployed to `pdfshush.com`, surfaces gated, accounts and managed AI live; repository audit, CI recovery and licence ledger closed (see §45) |
+| **Audit, CI recovery and licensing** | Full-repository audit: bug fixes, the cross-browser 502, the profile photo, dependency/licence inventory and browser gates | ✅ **done 2026-11-26** - 14 commits, 1 586 unit tests + 1 expected fail, all 29 `test:e2e:*` suites green, production redeployed; open owner decisions in §45 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -8602,19 +8603,21 @@ and a new `ARCHIVED_COPY` record. The live catalog is **48 tools** (7 declined,
 3 archived, 58 total). The archived frontend files (workflow builder, API/MCP
 consoles, MCP hero dialog, their clients and tests) moved to `archive/`.
 
-**AI (configured, waiting on one secret).** `AI_MANAGED_MODEL` is
-`openrouter/free` — OpenRouter's free-model router, 200k context, tools and
-structured outputs. Deployment-wide caps are env-driven:
-`AI_ANON_GLOBAL_PER_DAY=30`, `AI_PRO_GLOBAL_PER_DAY=10` until the account has
-$10+ of credit, then 700/200. The feature stays hidden until
-`AI_MANAGED_API_KEY` and the Google secrets are set. BYOK works without them.
+**Accounts and AI (live, verified 2026-11-26).** Google OIDC is configured:
+`/api/tools` reports `accounts.enabled: true` and a signed-out
+`/api/auth/me` answers `204`. `AI_MANAGED_MODEL` is `openrouter/free` -
+OpenRouter's free-model router, 200k context, tools and structured outputs.
+Deployment-wide caps are env-driven: `AI_ANON_GLOBAL_PER_DAY=30`,
+`AI_PRO_GLOBAL_PER_DAY=10` until the account has $10+ of credit, then 700/200.
+The managed trial is live (`ai.enabled: true`); BYOK remains the default for a
+visitor who brings a key.
 
-**Still to do (operator):** set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and
-`AI_MANAGED_API_KEY` with `wrangler secret put`; register
-`https://pdfshush.com/api/auth/callback` in Google Cloud Console; publish the 20
-guides. Dodo stays off by decision.
+**Still to do (operator):** publish the 20 guides; create the five Dodo products
+and set `DODO_API_KEY`/`DODO_WEBHOOK_SECRET` when the paid rails are wanted;
+rotate the Google client secret and move the deployment secrets into a manager
+(the residue recorded in §24.2). Dodo is the only rail still off.
 
-**Evidence:** `pnpm typecheck` green across five active projects; `pnpm test`
+**Evidence at the cut:** `pnpm typecheck` green across five active projects; `pnpm test`
 **1 575 passed + 1 expected fail** (pdf-core 707, web 341, ai-provider 375,
 ai-agent 152); `pnpm build` green with 84 prerendered routes / **71 sitemap
 URLs**; `test:bundle` main **150.0 kB / 0 engines**; `test:guardrails`,
@@ -8623,3 +8626,75 @@ URLs**; `test:bundle` main **150.0 kB / 0 engines**; `test:guardrails`,
 (including archived surfaces absent from the menu, legacy `/workflows` redirect,
 redaction and console health); `test:e2e:reach` → **all checks passed** (48
 indexable tools, 71 sitemap URLs, archived pages noindex and absent from home).
+
+### 45. Audit, CI recovery and production deploy (2026-11-26)
+
+After the Cloudflare-only cut went live, a full repository audit closed the
+remaining release blockers and re-deployed production.
+
+**Fixed.**
+
+- **Cross-browser 502.** `vite preview` inherited the dev proxy and forwarded
+  `/api/*` to `localhost:8787`, where CI starts no Worker. Chromium and WebKit
+  logged the 502 as a console error and failed the "no unexpected page errors"
+  check. Preview proxying is now opt-in (`VITE_PREVIEW_PROXY`), and the gate
+  probes `/api/health` and classifies console errors by resource URL.
+- **Profile photo.** The OIDC `picture` was stored and returned correctly but
+  blocked by `img-src`. Added the Google avatar CDN, validated
+  `picture`/`avatar_url`/`avatarUrl`, an initials fallback, and a
+  `?auth=success` session refresh so a re-login updates the header.
+- **Hardening.** A malformed cookie no longer throws before `fetch`; a blocked
+  IndexedDB upgrade rejects and can retry, and the connection closes on
+  `versionchange`; `/api/auth/*` and `/api/account/*` answer
+  `private, no-store`; the AI client no longer identifies as the donor.
+- **Browser tests.** Fixed the offline H1 selector and removed the system-Edge
+  dependency, the stale-build heading, the next-tools "Before" label, the smoke
+  suite's unknown account state, the dark-mode duplicate copy and the
+  sprint6 self-unmounting OCR button.
+- **Licensing.** Added `NOTICE`, `THIRD_PARTY_LICENSES.md`, the generated
+  `THIRD_PARTY_LICENSES.deps.md`, GenOffice Apache-2.0 attribution, the React
+  Bits licence text, the Instrument Serif OFL, `.dev.vars` ignores, and a CI
+  drift gate for the generated notices.
+
+**Production state (verified 2026-11-26).**
+
+- Audit close: `origin/main` and `origin/cloudflare-only` were both `ada18b3`
+  (the sprint-record commit follows immediately after).
+- Worker version `b6bde10b-1e27-44f4-8e6a-13d4aa1fa9ad` on `pdfshush.com`;
+  `workers_dev:false`, cron `17 * * * *`.
+- `GET /` 200 and the CSP includes `https://*.googleusercontent.com`;
+  `/api/auth/me` answers 204 with `private, no-store`; `/api/health` reports
+  `database:ok` and `managedAi:true`; `/api/tools` reports
+  `accounts.enabled:true` and `ai.enabled:true`; `/api/sponsors` reports
+  `billing.enabled:false` with both slots available.
+
+**Gates.**
+
+- `pnpm typecheck` green; `pnpm test` **1 586 passed + 1 expected fail**
+  (pdf-core 707, web 352, ai-provider 375, ai-agent 152).
+- `pnpm build` 84 prerendered routes / 71 sitemap URLs; `test:bundle` main
+  **152.8 kB / 0 engines**; `test:guardrails` plus self-test, `test:provenance`,
+  `test:deploy-config`, `test:editor-perf` and `test:fuzz` green; the licence
+  appendix regenerates byte-identically.
+- All 29 `test:e2e:*` suites green locally, including cross-browser on
+  Chromium/Firefox/WebKit, offline/privacy, a11y, keyboard, account-avatar, the
+  perf ceilings, editor/touch/text, OCR, AI and the tool batches.
+
+**Open owner decisions.**
+
+- React Bits `SpotlightCard` is MIT + Commons Clause v1.0 (not OSI-approved;
+  it restricts redistribution of the component). Keep it with the notice,
+  rewrite it, or remove it.
+- `apps/web/public/hero/greek-night*.webp` has no provenance record. Confirm
+  the licence or replace the files.
+- Four production packages declare MIT but ship no licence file (`brotli`,
+  `dfa`, `react-remove-scroll-bar`, `tr46`). Confirm them before a release that
+  relies on their notice terms.
+- No linter/formatter is configured; `tsc`, the guardrails and the browser
+  suites are the gates.
+- The Google secret rotation and secrets-manager residue in §24.2 is still
+  operator work.
+
+**Next move:** the product is deployed and green. The next sprint is operator
+work: publish the 20 guides, create the Dodo products and set its keys when the
+paid rails are wanted, and settle the four open licence/decision items above.
