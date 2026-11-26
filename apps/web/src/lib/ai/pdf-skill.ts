@@ -20,7 +20,12 @@ export interface PdfSkillOptions {
 const pageLabel = (index: number): string => `[page ${index + 1}]`;
 
 export function createPdfSkill(doc: AiDocument, options: PdfSkillOptions = {}): AgentSkill {
-  const pageCount = doc.pages.length;
+  const pageCount = doc.pageCount;
+  const textPageCount = Math.min(doc.textPageCount, doc.pages.length);
+  const textGap =
+    textPageCount < pageCount
+      ? `Text was extracted for pages 1-${textPageCount} only (the document has ${pageCount}); later pages were not read.`
+      : '';
 
   const clampPage = (raw: unknown): number | null => {
     const n = typeof raw === 'number' ? Math.floor(raw) : Number(raw);
@@ -33,6 +38,7 @@ export function createPdfSkill(doc: AiDocument, options: PdfSkillOptions = {}): 
     systemPrompt: [
       'You are a careful PDF assistant. The only way you can see the document is through the tools.',
       `The document has ${pageCount} page(s).`,
+      ...(textGap ? [textGap, 'If the answer may be on an unread page, say that plainly instead of guessing.'] : []),
       'Rules:',
       '- Read the relevant pages before answering; never invent content.',
       '- Cite what you used as [page N] (1-based) right after each claim.',
@@ -84,13 +90,16 @@ export function createPdfSkill(doc: AiDocument, options: PdfSkillOptions = {}): 
       },
     ],
     buildContext() {
-      return `Document: ${doc.fileName} (${pageCount} pages).`;
+      return `Document: ${doc.fileName} (${pageCount} pages).${textGap ? ` ${textGap}` : ''}`;
     },
     executeTool(call: AgentToolCall): ToolExecution {
       const input = call.input ?? {};
       switch (call.name) {
         case 'get_document':
-          return { output: `${doc.fileName}\nPages: ${pageCount}`, summary: 'Document info' };
+          return {
+            output: `${doc.fileName}\nPages: ${pageCount}${textGap ? `\n${textGap}` : ''}`,
+            summary: 'Document info',
+          };
 
         case 'read_pages': {
           const start = clampPage(input.start);
@@ -100,18 +109,30 @@ export function createPdfSkill(doc: AiDocument, options: PdfSkillOptions = {}): 
           }
           const from = Math.min(start, end);
           const to = Math.min(Math.max(start, end), from + MAX_PAGES_PER_READ - 1);
+          if (from > textPageCount) {
+            return {
+              output: `Pages ${from}-${to} were not read: text extraction stops at page ${textPageCount} on this device, and the document has ${pageCount} pages. Say that plainly if the answer depends on them.`,
+              isError: true,
+              summary: 'read_pages (outside extracted text)',
+            };
+          }
+          const availableTo = Math.min(to, textPageCount);
           const parts: string[] = [];
           let chars = 0;
-          for (let page = from; page <= to; page += 1) {
+          for (let page = from; page <= availableTo; page += 1) {
             const text = doc.pages[page - 1] ?? '';
             const block = `${pageLabel(page - 1)}\n${text || '(no extractable text on this page)'}`;
             if (chars + block.length > MAX_CHARS_PER_READ) break;
             chars += block.length;
             parts.push(block);
           }
+          const gap =
+            availableTo < to
+              ? `\n\n(Text is available only up to page ${textPageCount}; pages ${availableTo + 1}-${to} were not extracted.)`
+              : '';
           return {
-            output: parts.join('\n\n') || '(no text in that range)',
-            summary: `Read pages ${from}\u2013${to}`,
+            output: (parts.join('\n\n') || '(no text in that range)') + gap,
+            summary: `Read pages ${from}\u2013${availableTo}`,
           };
         }
 
@@ -120,15 +141,17 @@ export function createPdfSkill(doc: AiDocument, options: PdfSkillOptions = {}): 
           if (!query) return { output: 'query is required.', isError: true, summary: 'search_text' };
           const needle = query.toLowerCase();
           const hits: string[] = [];
-          for (let page = 0; page < pageCount && hits.length < MAX_SEARCH_HITS; page += 1) {
+          for (let page = 0; page < textPageCount && hits.length < MAX_SEARCH_HITS; page += 1) {
             const text = doc.pages[page] ?? '';
             const at = text.toLowerCase().indexOf(needle);
             if (at < 0) continue;
             const from = Math.max(0, at - 60);
             hits.push(`${pageLabel(page)} \u2026${text.slice(from, at + MAX_SNIPPET)}\u2026`);
           }
+          const gap = textGap ? `\n(${textGap})` : '';
           return {
-            output: hits.length ? hits.join('\n') : `No page contains "${query}".`,
+            output:
+              (hits.length ? hits.join('\n') : `No page contains "${query}".`) + gap,
             summary: `Search "${query}" (${hits.length} hit${hits.length === 1 ? '' : 's'})`,
           };
         }

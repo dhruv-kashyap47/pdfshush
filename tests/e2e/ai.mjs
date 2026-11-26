@@ -81,7 +81,9 @@ async function readStoredAiState(page) {
 async function main() {
   await mkdir(WORK, { recursive: true });
   const fixture = path.join(WORK, 'report.pdf');
-  await writeFile(fixture, buildPdf(MOCK_MARK_PHRASE));
+  // Deliberately more than the phrase being edited: it proves a fragment
+  // replacement keeps the rest of the line ("Invoice Total:" and "2026").
+  await writeFile(fixture, buildPdf(`Invoice Total: ${MOCK_MARK_PHRASE} 2026`));
 
   const mock = await startMockLlm({ port: MOCK_PORT });
   const mockOrigin = new URL(mock.url).origin;
@@ -332,6 +334,11 @@ async function main() {
     check(
       'the original run is gone, not covered',
       !replacedText.includes(MOCK_MARK_PHRASE),
+      replacedText.trim(),
+    );
+    check(
+      'the rest of the line survives a fragment replacement',
+      replacedText.includes('Invoice Total:') && replacedText.includes('2026'),
       replacedText.trim(),
     );
     await page

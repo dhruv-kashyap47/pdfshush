@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FileWarning, Loader2, RotateCcw, Settings2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { LIMITS } from '@pdfshush/pdf-core';
 import type { AiSettings } from '@pdfshush/ai-provider/browser';
 import { AiChat } from '@/components/ai/ai-chat';
 import { AiCover } from '@/components/ai/ai-cover';
@@ -154,6 +155,13 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   const pick = useCallback((files: File[]) => {
     const next = files[0];
     if (!next) return;
+    // The dropzone prints this limit; enforce it before a doomed extraction.
+    if (next.size > LIMITS.client.maxFileBytes) {
+      toast.error('That PDF is too large for the AI panel', {
+        description: `The limit is ${formatBytes(LIMITS.client.maxFileBytes)}. Try a smaller file or split it first.`,
+      });
+      return;
+    }
     setFile(next);
     setDoc(null);
     setResult(null);
@@ -340,14 +348,14 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
     setApplyStep(null);
     setApplyError(null);
     try {
-      const pageCount = doc.pages.length;
+      const pageCount = doc.pageCount;
       const output = await applyEditPlan(target, plan, {
         pageCount,
         signal: controller.signal,
         onProgress: setApplyProgress,
         onStep: setApplyStep,
       });
-      const outputPages = plan.order ? plan.order.length : pageCount;
+      const outputPages = output.pageCount;
       setResult(output);
       setResultPageCount(outputPages);
       active.clear();
@@ -462,7 +470,7 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
   }, [effectiveMode, settings]);
 
   const dismissWelcome = useCallback(() => setWelcomeOpen(false), []);
-  const pageCount = doc?.pages.length ?? 0;
+  const pageCount = doc?.pageCount ?? 0;
   const previewTile = tiles.find((tile) => tile.pageIndex === activePage - 1);
   const activeSize = pageSizes?.[activePage - 1];
 
@@ -625,9 +633,11 @@ export function AiWorkspace({ variant, autoPrompt }: AiWorkspaceProps) {
                   hint={copy.rail.hint}
                   emptyLead={copy.rail.emptyLead}
                   emptyCopy={
-                    variant === 'edit'
-                      ? `It reads ${doc.fileName} page by page. Every proposed change waits for your approval.`
-                      : `It reads ${doc.fileName} page by page, and cites the pages it used.`
+                    doc.textPageCount < doc.pageCount
+                      ? `It reads the first ${doc.textPageCount} of ${doc.pageCount} pages of ${doc.fileName}; page-level operations still cover every page.`
+                      : variant === 'edit'
+                        ? `It reads ${doc.fileName} page by page. Every proposed change waits for your approval.`
+                        : `It reads ${doc.fileName} page by page, and cites the pages it used.`
                   }
                 />
                 {variant === 'edit' && editor ? (

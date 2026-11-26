@@ -6,10 +6,11 @@
  */
 
 import type { JobDefinition } from '../job.js';
-import { extractTextRuns, type TextRun } from '../render/textRuns.js';
+import { extractTextRunsDetailed, type TextRun } from '../render/textRuns.js';
 import { extractTextRunsAndLayouts } from '../render/textLayout.js';
 import type { LayoutBuildOptions } from '../document/group.js';
 import type { PageLayout } from '../document/types.js';
+import { probePageCount } from '../ops/pages.js';
 import { inspectDocumentCapabilities } from '../textedit/capabilities.js';
 import { loadPdfiumModule } from '../textedit/runtime.js';
 import type { PageTextCapability } from '../textedit/types.js';
@@ -28,6 +29,17 @@ export type TextRunsOptions = {
   includeCapabilities?: boolean;
   /** C-11: sample each page's ink colour (one bounded render per page). */
   includeColors?: boolean;
+  /**
+   * With no explicit `pageIndexes`, read at most this many leading pages.
+   * Used by the AI tools so a 1,000-page file does not cost 1,000 page reads.
+   * `pageCount`/`pageSizes` in the result still describe the real document.
+   */
+  maxPages?: number;
+  /**
+   * Return the true document page count and display-space sizes for the pages
+   * that were extracted. Lets the AI layer avoid a second `inspect` parse.
+   */
+  includePageInfo?: boolean;
   /** Overrides for the layout heuristics; mainly for diagnostics and tests. */
   layout?: LayoutBuildOptions;
 };
@@ -46,6 +58,10 @@ export interface TextRunsOutput {
   capabilities?: PageTextCapability[];
   /** Set when capability inspection was requested but PDFium was unavailable/failed. */
   capabilityWarning?: string;
+  /** True document page count, independent of `maxPages`. */
+  pageCount?: number;
+  /** Present when `includePageInfo` was true, aligned with `runs`. */
+  pageSizes?: { width: number; height: number }[];
 }
 
 export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
@@ -55,6 +71,10 @@ export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
   validate(input) {
     if (input.files.length !== 1) {
       return { ok: false, issues: [{ message: 'Choose exactly one PDF' }] };
+    }
+    const maxPages = input.options?.maxPages;
+    if (maxPages !== undefined && (!Number.isInteger(maxPages) || maxPages < 1)) {
+      return { ok: false, issues: [{ message: 'maxPages must be a positive integer' }] };
     }
     return { ok: true };
   },
@@ -66,8 +86,11 @@ export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
   async run(input, ctx) {
     const file = input.files[0]!;
     const pageIndexes = input.options?.pageIndexes ?? [];
+    const includePageInfo = input.options?.includePageInfo === true;
     let runs: TextRun[][];
     let layouts: PageLayout[] | undefined;
+    let pageCount: number | undefined;
+    let pageSizes: { width: number; height: number }[] | undefined;
     if (input.options?.includeLayout) {
       const result = await extractTextRunsAndLayouts(
         file.data,
@@ -79,8 +102,21 @@ export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
       );
       runs = result.runs;
       layouts = result.layouts;
+      // The layout path has no page geometry of its own; only a page count is
+      // cheaply available. AI callers use the runs-only path for both.
+      if (includePageInfo) pageCount = await probePageCount(file.data, {
+        ...(file.password !== undefined ? { password: file.password } : {}),
+      });
     } else {
-      runs = await extractTextRuns(file.data, pageIndexes, ctx, file.password);
+      const detailed = await extractTextRunsDetailed(file.data, pageIndexes, ctx, file.password, {
+        ...(input.options?.maxPages !== undefined ? { maxPages: input.options.maxPages } : {}),
+        includePageSize: includePageInfo,
+      });
+      runs = detailed.runs;
+      if (includePageInfo) {
+        pageCount = detailed.pageCount;
+        pageSizes = detailed.pageSizes;
+      }
     }
 
     let capabilities: PageTextCapability[] | undefined;
@@ -105,6 +141,8 @@ export const textRunsJob: JobDefinition<TextRunsInput, TextRunsOutput> = {
       ...(layouts ? { layouts } : {}),
       ...(capabilities ? { capabilities } : {}),
       ...(capabilityWarning ? { capabilityWarning } : {}),
+      ...(pageCount !== undefined ? { pageCount } : {}),
+      ...(pageSizes ? { pageSizes } : {}),
     };
   },
 };

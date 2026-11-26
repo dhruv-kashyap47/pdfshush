@@ -101,6 +101,7 @@ export function EditPlanPanel({
   const applyRef = useMagnetic<HTMLButtonElement>(3);
 
   const blockedCount = blocked?.length ?? 0;
+  const layoutCount = entries.filter((entry) => entry.impact === 'layout').length;
   const remaining = Math.max(0, entries.length - blockedCount);
   const expanded = entries.length > 0 || blockedCount > 0;
 
@@ -180,8 +181,12 @@ export function EditPlanPanel({
           </p>
           <p className="studio-ledger-sub">
             {entries.length === 0
-              ? 'Every proposed edit lands here before it touches the file.'
-              : `${entries.length} proposed, nothing written yet`}
+              ? 'Every proposed edit lands here first. Your original stays untouched.'
+              : `${entries.length} proposed, your original is untouched${
+                  layoutCount > 0
+                    ? ` · ${layoutCount} layout-sensitive`
+                    : ''
+                }`}
           </p>
         </div>
         {entries.length > 0 && !applying ? (
@@ -284,6 +289,14 @@ export function EditPlanPanel({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <p className="studio-change-title">{entry.title}</p>
+                      {entry.impact === 'layout' ? (
+                        <span
+                          className="studio-change-impact"
+                          title="This change moves content or adds a positioned element; check the page before applying."
+                        >
+                          Layout
+                        </span>
+                      ) : null}
                       <span className="studio-change-pages">
                         {entry.pages.slice(0, 4).map((page) => (
                           <button

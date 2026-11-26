@@ -41,7 +41,6 @@ import { UI, dur } from '@/lib/motion';
 
 export interface EditorAiPanelProps {
   file: File;
-  pageCount: number;
   /** Zero-based current page. */
   currentPage: number;
   onShowPage: (pageIndex: number) => void;
@@ -60,7 +59,6 @@ const SUGGESTIONS = [
 
 export function EditorAiPanel({
   file,
-  pageCount,
   currentPage,
   onShowPage,
   onProposalsChange,
@@ -250,12 +248,14 @@ export function EditorAiPanel({
     setApplyError(null);
     try {
       const output = await applyEditPlan(file, plan, {
-        pageCount,
+        // The document's true page count: extraction may stop at the AI cap,
+        // but a page operation must still cover every page.
+        pageCount: doc.pageCount,
         signal: controller.signal,
         onProgress: setApplyProgress,
         onStep: setApplyStep,
       });
-      const outputPages = plan.order ? plan.order.length : doc.pages.length;
+      const outputPages = output.pageCount;
       active.clear();
       setRefused(null);
       onApplyResult(output, outputPages);
@@ -404,13 +404,20 @@ export function EditorAiPanel({
               title="Instructions"
               hint="The assistant proposes; you decide."
               emptyLead="Describe the change you want."
-              emptyCopy={`It reads ${doc.fileName} page by page. Every proposed change waits for your approval.`}
+              emptyCopy={
+                doc.textPageCount < doc.pageCount
+                  ? `It reads the first ${doc.textPageCount} of ${doc.pageCount} pages of ${doc.fileName}. Every proposed change waits for your approval.`
+                  : `It reads ${doc.fileName} page by page. Every proposed change waits for your approval.`
+              }
             />
             <div className="editor-ai-trust">
               <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
               <p>
                 Parsed here. Only the text needed for your request reaches your provider. Page changes
                 are applied through the same verified engine as manual edits.
+                {doc.textPageCount < doc.pageCount
+                  ? ` Text search covers pages 1-${doc.textPageCount} of ${doc.pageCount}; page operations still cover every page.`
+                  : ''}
               </p>
             </div>
           </div>

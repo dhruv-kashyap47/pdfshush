@@ -4968,7 +4968,6 @@ export function PdfEditorWorkspace({ mode: initialMode }: { mode: EditorMode }) 
                     {aiMounted && files[0] ? (
                       <EditorAiPanel
                         file={files[0]}
-                        pageCount={pageCount}
                         currentPage={currentPage}
                         onShowPage={goToPage}
                         onProposalsChange={onAiProposals}

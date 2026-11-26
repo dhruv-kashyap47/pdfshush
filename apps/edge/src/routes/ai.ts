@@ -38,6 +38,14 @@ const MAX_TOOLS = 32;
  * model's context window and the point of metering messages rather than tokens.
  */
 const MAX_TOTAL_CHARS = 300_000;
+/**
+ * Hard request-body ceiling. The free Worker has 128 MiB of memory and no
+ * reason to parse a larger JSON document: the real prompt cap is 300k
+ * characters, and the largest legitimate tool history is well under this.
+ * Checked from the header *and* while streaming, because the header is optional
+ * and must not be trusted on its own.
+ */
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 interface ChatBody {
   system: string;
@@ -49,16 +57,78 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function textualLength(message: Record<string, unknown>): number {
-  let total = 0;
-  if (typeof message.text === 'string') total += message.text.length;
-  if (typeof message.reasoning === 'string') total += message.reasoning.length;
-  if (Array.isArray(message.images)) {
-    for (const image of message.images) {
-      if (isRecord(image) && typeof image.base64 === 'string') total += image.base64.length;
-    }
+/**
+ * Read a request body with a hard byte ceiling. `content-length` is checked
+ * first (a cheap refusal before any work), then the stream itself, so a missing
+ * or lying header cannot make the Worker buffer an oversized JSON body.
+ */
+async function readBodyCapped(
+  request: Request,
+  maxBytes: number,
+): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
+  const declared = Number.parseInt(request.headers.get('content-length') ?? '', 10);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    return { ok: false, message: `The request body may not exceed ${maxBytes} bytes.` };
   }
-  return total;
+  if (!request.body) return { ok: true, text: '' };
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, message: `The request body may not exceed ${maxBytes} bytes.` };
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { ok: true, text: new TextDecoder().decode(bytes) };
+}
+
+/**
+ * Approximate character cost of any JSON value. Tool calls and tool results
+ * travel as nested objects, so counting only `message.text` left the prompt
+ * ceiling trivially bypassable (and could push a large provider request).
+ */
+function valueChars(value: unknown, depth = 0): number {
+  if (typeof value === 'string') return value.length;
+  if (typeof value === 'number' || typeof value === 'boolean') return 8;
+  if (depth > 6) return 64;
+  if (Array.isArray(value)) {
+    let total = 0;
+    for (const item of value) total += valueChars(item, depth + 1);
+    return total;
+  }
+  if (isRecord(value)) {
+    let total = 0;
+    for (const [key, item] of Object.entries(value)) total += key.length + valueChars(item, depth + 1);
+    return total;
+  }
+  return 0;
+}
+
+function textualLength(message: Record<string, unknown>): number {
+  return (
+    valueChars(message.text) +
+    valueChars(message.reasoning) +
+    valueChars(message.images) +
+    valueChars(message.toolCalls) +
+    valueChars(message.results)
+  );
 }
 
 function parseBody(value: unknown): { ok: true; body: ChatBody } | { ok: false; message: string } {
@@ -101,8 +171,13 @@ function parseBody(value: unknown): { ok: true; body: ChatBody } | { ok: false; 
       if (!isRecord(tool) || typeof tool.name !== 'string' || !isRecord(tool.inputSchema)) {
         return { ok: false, message: 'Each tool needs a name and an inputSchema object.' };
       }
+      total += valueChars(tool);
       tools.push(tool);
     }
+  }
+
+  if (total > MAX_TOTAL_CHARS) {
+    return { ok: false, message: 'That document is too large for the AI panel. Try fewer pages.' };
   }
 
   return { ok: true, body: { system: value.system, messages, tools } };
@@ -155,7 +230,16 @@ aiRoutes.post('/api/ai/chat', async (c) => {
     if (denied) return denied;
   }
 
-  const parsed = parseBody(await c.req.json().catch(() => undefined));
+  const raw = await readBodyCapped(c.req.raw, MAX_BODY_BYTES);
+  if (!raw.ok) return fail(c, 413, 'body_too_large', raw.message);
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw.text);
+  } catch {
+    return fail(c, 400, 'validation', 'The request body must be valid JSON.');
+  }
+  const parsed = parseBody(payload);
   if (!parsed.ok) return fail(c, 400, 'validation', parsed.message);
 
   const { subject, plan, accountId } = await subjectFor(c);

@@ -660,6 +660,39 @@ describe('text-runs job', () => {
     expect(output.runs[0]![0]!.text).toContain('page 2');
     expect(output.runs[1]![0]!.text).toContain('page 1');
   });
+
+  it('caps extracted pages but reports the true page count and page sizes', async () => {
+    const source = await makeFixturePdf({ pages: 4, label: 'Alpha' });
+    const output = await textRunsJob.run(
+      {
+        files: [{ name: 'alpha.pdf', data: source }],
+        options: { maxPages: 2, includePageInfo: true },
+      },
+      testContext(),
+    );
+
+    expect(output.runs).toHaveLength(2);
+    expect(output.pageCount).toBe(4);
+    expect(output.pageSizes).toHaveLength(2);
+    expect(output.pageSizes![0]!.width).toBeGreaterThan(0);
+    expect(output.pageSizes![0]!.height).toBeGreaterThan(0);
+  });
+
+  it('does not let maxPages override explicit page indexes', async () => {
+    const source = await makeFixturePdf({ pages: 3, label: 'Alpha' });
+    const output = await textRunsJob.run(
+      {
+        files: [{ name: 'alpha.pdf', data: source }],
+        options: { pageIndexes: [2], maxPages: 1, includePageInfo: true },
+      },
+      testContext(),
+    );
+
+    expect(output.runs).toHaveLength(1);
+    expect(output.runs[0]![0]!.text).toContain('page 3');
+    expect(output.pageCount).toBe(3);
+    expect(output.pageSizes).toHaveLength(1);
+  });
 });
 
 /* ------------------------------------------------------------- P2 audit */

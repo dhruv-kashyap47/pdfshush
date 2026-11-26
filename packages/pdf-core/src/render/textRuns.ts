@@ -166,39 +166,72 @@ export function runItemsFromTextContent(
   return items;
 }
 
+/** Bounds for a text-run extraction; both default to "no extra bound". */
+export interface TextRunExtractOptions {
+  /**
+   * When `pageIndexes` is empty, extract at most this many leading pages.
+   * `pageCount` in the result is still the document's true page count, so a
+   * caller can tell the model that text beyond the cap was not read.
+   */
+  maxPages?: number;
+  /** Also report display-space page sizes for the pages actually extracted. */
+  includePageSize?: boolean;
+}
+
+/** Text runs plus the document-scale facts a caller needs to stay honest. */
+export interface ExtractedTextRuns {
+  runs: TextRun[][];
+  /** True page count of the document, independent of `maxPages`. */
+  pageCount: number;
+  /** Display-space size per extracted page, aligned with `runs`. */
+  pageSizes?: { width: number; height: number }[];
+  /** Zero-based indexes of the pages in `runs`, in order. */
+  pageIndexes: number[];
+}
+
 /**
- * Extracts display-space text runs for the given pages (0-based; empty/missing
- * means every page). Returns one run list per requested page, in order.
+ * Extracts display-space text runs and, when asked, page sizes in one document
+ * parse. This is the AI path's single read: page count, page geometry and text
+ * all come from the same pdf.js load instead of a second `inspect` pass.
  */
-export async function extractTextRuns(
+export async function extractTextRunsDetailed(
   data: Uint8Array,
   pageIndexes: number[],
   ctx?: JobContext,
   password?: string,
-): Promise<TextRun[][]> {
+  options: TextRunExtractOptions = {},
+): Promise<ExtractedTextRuns> {
   const loaded = await loadPdfForRender(data, { ...(password ? { password } : {}) });
   try {
     const pageCount = loaded.doc.numPages;
+    const maxPages =
+      options.maxPages === undefined
+        ? pageCount
+        : Math.max(0, Math.min(pageCount, Math.floor(options.maxPages)));
     const targets =
       pageIndexes.length > 0
         ? pageIndexes
-        : Array.from({ length: pageCount }, (_, i) => i);
+        : Array.from({ length: maxPages }, (_, i) => i);
     for (const index of targets) {
       if (!Number.isInteger(index) || index < 0 || index >= pageCount) {
         throw new Error(`Page ${index + 1} does not exist (document has ${pageCount} pages)`);
       }
     }
 
-    const results: TextRun[][] = [];
+    const runs: TextRun[][] = [];
+    const pageSizes: { width: number; height: number }[] = [];
     for (let i = 0; i < targets.length; i += 1) {
       ctx?.throwIfAborted();
       const page = await loaded.doc.getPage(targets[i]! + 1);
       try {
         const viewport = page.getViewport({ scale: 1 });
         const content = await page.getTextContent();
-        results.push(
+        runs.push(
           clusterTextRuns(runItemsFromTextContent(content as unknown as TextContentLike, viewport)),
         );
+        if (options.includePageSize) {
+          pageSizes.push({ width: viewport.width, height: viewport.height });
+        }
       } finally {
         // Text content buffers are the biggest per-page allocation here; on a
         // 500-page run, holding them all is how you kill a tab.
@@ -210,10 +243,28 @@ export async function extractTextRuns(
         message: `Page ${targets[i]! + 1}`,
       });
     }
-    return results;
+    return {
+      runs,
+      pageCount,
+      pageIndexes: targets,
+      ...(options.includePageSize ? { pageSizes } : {}),
+    };
   } finally {
     await loaded.destroy();
   }
+}
+
+/**
+ * Extracts display-space text runs for the given pages (0-based; empty/missing
+ * means every page). Returns one run list per requested page, in order.
+ */
+export async function extractTextRuns(
+  data: Uint8Array,
+  pageIndexes: number[],
+  ctx?: JobContext,
+  password?: string,
+): Promise<TextRun[][]> {
+  return (await extractTextRunsDetailed(data, pageIndexes, ctx, password)).runs;
 }
 
 /** Font matrix → display-space box, via the page viewport (rotation-safe). */
