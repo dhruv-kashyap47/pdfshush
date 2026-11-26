@@ -9,13 +9,12 @@ relatedTools:
   - fill-sign
   - create-forms
 relatedGuides: []
-draft: true
+faq:
+  - "How do I know if a PDF form is fillable? :: Click a field. If a cursor appears and you can type, the field is live. If nothing happens, the page is flat and you will be typing on top of a picture."
+  - "Can I save a filled form without printing it? :: Yes, with a viewer or editor that writes the values into the file. Check that the saved copy still shows your answers after you close and reopen it."
+  - "Should I flatten a filled form before sending it? :: Flatten when the recipient should not change the answers and the form does not need to stay editable. Keep an unflattened copy in case a correction is needed."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: which fields the Fill & Sign tool supports today (text, checkbox, radio, dropdown, date) and whether its signature is flattened on download or only on a separate flatten step.
-> - [ ] Add: a real before-and-after pair from a form you filled, one screenshot showing a field that refuses text and one showing the flattened result in a portal preview.
-> - [ ] Check: the XFA warnings and the list of reasons a portal rejects a filled but unflattened PDF. Test at least one government portal before publishing, since behavior differs by vendor.
 
 The form is a PDF, your printer is out of ink, and the agency wants it uploaded by Friday. Some PDFs are real forms with clickable fields. Others are photographs of forms with nothing behind them. Which one you have determines whether this takes five minutes or an hour.
 

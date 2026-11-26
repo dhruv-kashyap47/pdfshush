@@ -7,13 +7,14 @@
 
 import { Link } from 'react-router-dom';
 import { guideCategories, GUIDES } from '@/content/guides';
+import { GUIDE_INDEX_FAQS } from '@/content/guides-index';
 import { guidePath } from '@/content/guide-format';
 import { SponsorSlot } from '@/components/sponsors/sponsor-slot';
-import { breadcrumbSchema, webPageSchema } from '@/seo/schema';
+import { breadcrumbSchema, faqPageSchema, webPageSchema } from '@/seo/schema';
 import { SITE_ORIGIN } from '@/seo/site';
 import { usePageHead } from '@/seo/head';
 
-const TITLE = 'PDF Guides — Practical, No-Fluff How-Tos | PDFShush';
+const TITLE = 'PDF Guides - Practical, No-Fluff How-Tos | PDFShush';
 const DESCRIPTION =
   'Step-by-step guides for redacting, merging, signing and compressing PDFs, written for people who need the file to be right the first time. No filler at all.';
 
@@ -35,6 +36,7 @@ export function GuidesPage() {
         ],
         SITE_ORIGIN,
       ),
+      faqPageSchema(GUIDE_INDEX_FAQS, SITE_ORIGIN, '/guides'),
     ],
   });
 
@@ -89,7 +91,22 @@ export function GuidesPage() {
         ))}
       </div>
 
+      <section aria-labelledby="guides-faq" className="mt-14">
+        <h2 id="guides-faq" className="text-2xl font-bold tracking-tight">
+          Questions people ask
+        </h2>
+        <dl className="mt-4 space-y-5">
+          {GUIDE_INDEX_FAQS.map((faq) => (
+            <div key={faq.question}>
+              <dt className="text-[15px] font-semibold leading-7">{faq.question}</dt>
+              <dd className="mt-1 text-[15px] leading-7 text-muted-foreground">{faq.answer}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
       <SponsorSlot only={['guides']} className="mt-12 px-0 py-0 sm:px-0 lg:px-0" />
     </div>
   );
 }
+

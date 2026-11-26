@@ -43,7 +43,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **Milestone 5 — Product excellence & competitive differentiation** | Verifiable privacy (offline PWA, CSP proof, user-facing redaction verifier), honest editing/structure receipts, measured perf + a11y + SEO baselines, parity-debt resolution for the 9 `planned` entries | ✅ **M5.0-M5.8 done 2026-11-04** — baseline (§31.12), Q2 determinism fix (§31.13), truthful surface (§31.14), verifiable privacy (§31.15), receipts/structure confidence (§31.16), performance gate (§31.17), reach/prerender (§31.18), accessibility/input parity (§31.19), parity decisions (§31.20) and release evidence (§31.21). Container `test:api`/`test:hardening` were not runnable here (Docker daemon unavailable) and are not claimed green. |
 | **Responsive product shell** | One shared editor and document session across three interaction models: desktop workstation, tablet drawers, phone bottom-nav app; mobile marketing stripped to a lightweight editorial surface | ✅ **done 2026-11-05** — see §34; 1 356 unit tests, responsive sweep clean, phone/tablet editor checks green |
 | **Deploy recovery** | Stale hashed CSS/JS can no longer strand an open tab: empty stylesheet/SPA-fallback detection, one guarded fresh-shell reload, hard-reset reload, service-worker navigation cache bypass, critical fallback CSS | ? **done 2026-11-05** - see section 34.7; stale-build E2E 8/8 |
-| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 + M6.2 are done** — `https://pdfshush.space` is live on Cloudflare Workers + Static Assets, and the launch surface now has real `/privacy`, `/terms`, `/about`, `/contact` and `/status` routes (deployed 2026-11-24, latest Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`; 68 prerendered routes, 60 sitemap URLs; production smoke/reach/a11y/offline/sign green). **M6.3–M6.6 are not started** and require the server tier, which stays **parked** (§33.11) |
+| **M6 - Monetization** | Deploy to a real origin, content/SEO foundation, plan catalog + entitlements + Stripe test mode (managed AI, API volume, priority queue), content-only ads behind two CSP profiles | 🟡 **M6.1 + M6.2 are done** — `https://pdfshush.com` is live on Cloudflare Workers + Static Assets, and the launch surface now has real `/privacy`, `/terms`, `/about`, `/contact` and `/status` routes (deployed 2026-11-24, latest Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`; 68 prerendered routes, 60 sitemap URLs; production smoke/reach/a11y/offline/sign green). **M6.3–M6.6 are not started** and require the server tier, which stays **parked** (§33.11) |
 | **Reliability pass** | One auth owner, real history write-through, API hardening, route error boundary, mobile/editor keyboard parity, workflow cancellation | ✅ **done 2026-11-05** — see §8; 1 344 unit tests at the time, browser suites re-run green before deskew |
 | **Scans batch** | Deskew: projection-profile skew detection, per-page raster rotation, manual override, honest image-rebuild disclosure; also fixes the blank-page raster rebuild in grayscale, dark mode and strong compress | ✅ **shipped 2026-11-05** — see §8 entry; 50 of 58 live, 8 declined, 1 354 unit tests at the time |
 | **OCR batch** | OCR: Tesseract in the existing job worker, self-hosted English data, invisible selectable text layer over the original scan, already-searchable pages copied untouched, browser-only with no new origin in the CSP | ✅ **shipped 2026-11-08** — see §8 top entry; 51 of 58 live, 7 declined, 1 409 unit tests |
@@ -52,6 +52,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 657+1 expected fail, web 309, corpus 2/2, `text-ux` 56/56, main 150.4 kB / 0 engines; **Gate C met** |
 | **Cloudflare-only cut** | No servers. One Worker + Static Assets + D1; archive the Express/BullMQ/Redis/Mongo tier; browser-only PDF work; AI = BYOK everywhere + managed OpenRouter trial | 🟢 **Shipped and deployed 2026-11-26** — server tier moved to `archive/`, tagged `server-tier-v1`; active workspace is 5 projects; typecheck + 1 582 unit tests at the cut (1 586 after the audit) + build + bundle + guardrails + SEO green. Worker deployed to `pdfshush.com`, surfaces gated, accounts and managed AI live; repository audit, CI recovery and licence ledger closed (see §45) |
 | **Audit, CI recovery and licensing** | Full-repository audit: bug fixes, the cross-browser 502, the profile photo, dependency/licence inventory and browser gates | ✅ **done 2026-11-26** - 14 commits, 1 586 unit tests + 1 expected fail, all 29 `test:e2e:*` suites green, production redeployed; open owner decisions in §45 |
+| **Dodo payments sprint** | Recurring Pro (`$6/mo` · `$48/yr`), 30-day pass, credit packs, donations and the two sponsor slots; one webhook, Standard Webhooks verification, `billing_events` idempotency | 🟢 **code + tests complete 2026-11-26** — the Pro rail was missing and is now built (`/api/billing/pro`, two subscription products, full `subscription.*` lifecycle, account-page buttons); 35 new edge tests run the real migrations over `node:sqlite`; typecheck, `pnpm test` (**1 667 + 1 expected fail**), build, bundle, guardrails and deploy-config green. Operator steps remain: seven test-mode products, secrets, product ids, webhook endpoint, migration `0004` — see `docs/WHATS-NEXT.md` §Sprint 4 and §46 |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -76,7 +77,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 
 **Current gate:** re-measured 2026-11-13 for the **Pages deployment** (`pnpm -r typecheck`, `pnpm test` -
 **1 528/1 528 unit** (1 expected fail) - `pnpm build` with `VITE_SERVER_API=off` +
-`VITE_SITE_ORIGIN=https://pdfshush.space` - `pnpm test:bundle` green; main chunk 172.9 kB with 0
+`VITE_SITE_ORIGIN=https://pdfshush.com` - `pnpm test:bundle` green; main chunk 172.9 kB with 0
 engines, 17 lazy app chunks with 0 engines, engines only in worker chunks). The 2026-11-08 OCR
 batch is unchanged; the delta since is the **pdf-audit remediation** (engine/API fixes on
 `main`) plus this session's five deployment tests. The Phase 4 profile, before/after numbers and
@@ -201,7 +202,7 @@ export with a fail-closed audit sidecar** · main chunk 0 pdf-lib /
 (PDFium is a lazy 4.6 MB asset fetched on first text edit; Tesseract's worker, core and English
 model are lazy assets fetched only when a scanned page needs recognition; `signature_pad` + the
 bundled Caveat faces ride the 33 kB lazy signature-pad dialog chunk).
-**Next: S9 evidence close** — run the Docker-backed `test:api`/`test:hardening` gates and settle the one recorded corpus gap (linearized PDF). **M6.1 and M6.2 are shipped**: `https://pdfshush.space` is live on Cloudflare Workers + Static Assets, and the policy surface (`/privacy`, `/terms`, `/about`, `/contact`, `/status`) is prerendered and indexed. The **server tier is parked**, so accounts, workflow recipes, the REST API and the MCP backend are switched off in the build rather than offered and left to fail. M6.3–M6.6 (catalog, entitlements, global breaker, Stripe, pricing, ads) require that tier and a set of owner decisions; they are not open-ended development while it stays parked. P7.2 SEO prerender and P7.3 perf/a11y were absorbed by M5.5/M5.6. R2 stays deferred until R1 has a dedicated production proof and its own security gate; P4.4 triggers stay gated on the SSRF/scheduling design. If the server tier stays parked, **development is complete after S9**.
+**Next: S9 evidence close** — run the Docker-backed `test:api`/`test:hardening` gates and settle the one recorded corpus gap (linearized PDF). **M6.1 and M6.2 are shipped**: `https://pdfshush.com` is live on Cloudflare Workers + Static Assets, and the policy surface (`/privacy`, `/terms`, `/about`, `/contact`, `/status`) is prerendered and indexed. The **server tier is parked**, so accounts, workflow recipes, the REST API and the MCP backend are switched off in the build rather than offered and left to fail. M6.3–M6.6 (catalog, entitlements, global breaker, Stripe, pricing, ads) require that tier and a set of owner decisions; they are not open-ended development while it stays parked. P7.2 SEO prerender and P7.3 perf/a11y were absorbed by M5.5/M5.6. R2 stays deferred until R1 has a dedicated production proof and its own security gate; P4.4 triggers stay gated on the SSRF/scheduling design. If the server tier stays parked, **development is complete after S9**.
 *(2026-10-18 addendum:)* the landing page's editorial band was rebuilt as a stem-plate poster +
 rooted-tree silent-loop pair (§8, 2026-10-18 entry), gated by typecheck, a fresh production build, the
 881-test unit run and targeted browser inspection, not a new measurement of the E2E counts above.
@@ -921,7 +922,7 @@ never actually wired, and a stream with no error listener.*
   The owner set a hard constraint — **₹0/month, no credit card, no paid infrastructure** — and that
   constraint decided the deployment architecture rather than the other way round. The frontend now
   ships on **Cloudflare Pages** (free, no card, Git integration, free TLS), the custom domain is
-  `pdfshush.space`, and the Express API, the BullMQ worker, Redis and MongoDB **stay in the
+  `pdfshush.com`, and the Express API, the BullMQ worker, Redis and MongoDB **stay in the
   repository** for local development and are **not deployed**.
 
   **The draft VPS deployment was deleted, not parked.** The Caddyfile, the web Dockerfile, the
@@ -972,7 +973,7 @@ never actually wired, and a stream with no error listener.*
   boundary are green.
 
   **Not claimed:** no Cloudflare account, no Pages project, no public URL yet. M6.1 stays open until
-  `docs/DEPLOY.md` §7 is green against `https://pdfshush.space`. And the **server tier is M6.1b**,
+  `docs/DEPLOY.md` §7 is green against `https://pdfshush.com`. And the **server tier is M6.1b**,
   deferred: it needs a host that runs a persistent queue and a writable volume, and every card-free
   option either sleeps (Render), has no free tier (Fly.io), costs $29/month (Koyeb), cannot be the
   BullMQ broker (Upstash has no blocking commands) or needs a card and can be reclaimed after seven
@@ -3115,7 +3116,7 @@ spent — `docker compose restart redis` resets them. *(2026-10-18 addendum: Doc
 on PATH now — `docker compose up -d --build` works directly from the session.)*
 
 **Next move:** **finish M6.1 by publishing the frontend on Cloudflare Pages and running the §33.4
-gate against `https://pdfshush.space`** — the domain exists, the build is verified locally
+gate against `https://pdfshush.com`** — the domain exists, the build is verified locally
 (`VITE_SERVER_API=off` + `VITE_SITE_ORIGIN`), and the Pages configuration is documented in
 `docs/DEPLOY.md` §3; what remains is the Cloudflare account, the Pages project and the gate
 itself. The **server tier is parked** (§33.11): the API, the BullMQ worker, Redis and MongoDB stay
@@ -6958,7 +6959,7 @@ the *revenue-funded* roadmap, not the launch.
 **State on 2026-11-04:** absent — no web Dockerfile, no reverse-proxy config, no deploy workflow,
 no `web` service in `docker-compose.yml`, and no hosting doc anywhere in the plan.
 
-**State on 2026-11-13:** the owner bought `https://pdfshush.space`, and the deployment shape was
+**State on 2026-11-13:** the owner bought `https://pdfshush.com`, and the deployment shape was
 **changed** on that day: the frontend ships on **Cloudflare Pages** (free, no card) and the server
 tier is **parked** (§33.11). The Caddy/Tunnel/VPS artifacts that were drafted earlier the same
 day were removed rather than left behind as dead configuration. **M6.1 is still not delivered**:
@@ -7002,7 +7003,7 @@ because the app already reads the deployment shape: the same source produces bot
 `tests/e2e/smoke.mjs` is green against `E2E_BASE_URL`. The server-backed checks (accounts, a
 workflow run, the REST API) **skip** in this shape and say which dependency was missing.
 
-**Gate mechanics (2026-11-13).** `E2E_BASE_URL=https://pdfshush.space pnpm test:e2e` now works: the
+**Gate mechanics (2026-11-13).** `E2E_BASE_URL=https://pdfshush.com pnpm test:e2e` now works: the
 shared `tests/support/preflight.mjs` checks that origin and **skips the local compose assertions**,
 because a running local stack says nothing about the deployment under test. The preflight reports a
 missing API as a note rather than a failure — a frontend-only deployment is a valid shape, and the
@@ -7070,7 +7071,7 @@ later. Decide before `billing/` exists, not after.
 
 ### 33.10 Open decisions owned by the project owner
 
-1. ~~Domain + VPS/Cloudflare access~~ → **domain bought (`pdfshush.space`)**; a free Cloudflare
+1. ~~Domain + VPS/Cloudflare access~~ → **domain bought (`pdfshush.com`)**; a free Cloudflare
    account is still needed to create the Pages project and attach the domain (§33.11). No VPS and no
    card are required.
 2. Stripe account + business entity/tax details (M6.4; no card data ever reaches us).
@@ -7080,7 +7081,7 @@ later. Decide before `billing/` exists, not after.
 
 ### 33.11 M6.1 — the frontend ships on Cloudflare Pages, the server tier is parked (2026-11-13)
 
-The owner bought `https://pdfshush.space` and set a hard constraint: **₹0/month, no credit card,
+The owner bought `https://pdfshush.com` and set a hard constraint: **₹0/month, no credit card,
 no paid infrastructure.** That constraint decided the architecture, and it deleted more than it
 added.
 
@@ -7135,7 +7136,7 @@ and text-model suites are green against that origin, with **no console errors**.
 
 **Not claimed.** No Cloudflare account has been created, no Pages project exists, the public URL
 has never answered, and **M6.1 stays open** until `docs/DEPLOY.md` §7 is green against
-`https://pdfshush.space`. §33.4's rule applies to this section too — files are not evidence.
+`https://pdfshush.com`. §33.4's rule applies to this section too — files are not evidence.
 
 **Known, pre-existing, unrelated:** `tests/e2e/sign.mjs` fails its "the manage page saves a
 signature" check against any **production build** (it passes against the dev server). Reproduced
@@ -8399,7 +8400,7 @@ Verification after the pass: typecheck (8 projects), full unit suite (pdf-core
 `keyboard` 31 checks, `a11y` all routes/contexts and `offline`.
 
 Production deploy: Worker version `2cf0f359-ff67-41fb-8a56-929a8b8dfa70` on
-`https://pdfshush.space`. The deployed origin returned 200 for `/` and
+`https://pdfshush.com`. The deployed origin returned 200 for `/` and
 `/tools/merge-pdf` with the canonical link and prerendered heading, served
 `sitemap.xml`/`robots.txt`, kept the SPA fallback for an unknown page, and
 returned the JSON 404 fence for `/api`, `/api/health` and `/API/health`.
@@ -8430,14 +8431,14 @@ passed all 19 tools across 5 workspaces.
 
 ## 44. Pre-flight audit — production is live, launch surface is not (2026-11-24)
 
-The 2026-11-23 deploy entries are correct: `https://pdfshush.space` is live on
+The 2026-11-23 deploy entries are correct: `https://pdfshush.com` is live on
 Cloudflare Workers + Static Assets (Worker `aff540a7-6a77-4501-bc9d-df693503c6b8`,
 service-worker build `941f8513ca57`). This session re-ran the public evidence
 rather than trusting the prose:
 
-- `E2E_BASE_URL=https://pdfshush.space pnpm test:e2e` → **ALL CHECKS PASSED**
+- `E2E_BASE_URL=https://pdfshush.com pnpm test:e2e` → **ALL CHECKS PASSED**
   (89 mega-menu links, all client tools, editor, redaction, no console errors).
-- `E2E_BASE_URL=https://pdfshush.space node tests/e2e/sign.mjs` → **18/18 green**,
+- `E2E_BASE_URL=https://pdfshush.com node tests/e2e/sign.mjs` → **18/18 green**,
   including “the manage page saves a signature”. The previously reported
   production-only defect is **fixed**; it is no longer a launch blocker.
 - `pnpm test:merge-clean` → no conflicts; local `rea-uplift` was 10 commits behind
@@ -8591,7 +8592,7 @@ Worker as optional because every tool works without it.
 **Deployed (Phase 1).** D1 `pdfshush` was created in APAC
 (`64dee00a-9259-465f-8462-f053c6fa4d95`), migrations `0001`-`0003` applied, and
 the Worker deployed to the `pdfshush.com` custom domain with `workers_dev:false`.
-`pdfshush.space` no longer resolves; `.com` is the only origin. Latest Worker in
+`pdfshush.com` is the only origin; `workers.dev` is disabled. Latest Worker in
 this session: `372f97f0-d37e-4298-9410-93ab85642728`. `/api/health` reports
 `database:ok`; `/api/capabilities` reports the free shape with
 `serverJobs/workflows/publicApi/mcp:false`.
@@ -8698,3 +8699,116 @@ remaining release blockers and re-deployed production.
 **Next move:** the product is deployed and green. The next sprint is operator
 work: publish the 20 guides, create the Dodo products and set its keys when the
 paid rails are wanted, and settle the four open licence/decision items above.
+
+---
+
+## 46. Dodo payments sprint — the missing Pro rail (2026-11-26)
+
+**Starting state.** `docs/WHATS-NEXT.md` §Sprint 4 said "code built" and listed
+a Pro product (`$6/mo`, `$48/yr`); the Worker had `credits`, `pass-30d`,
+`donate` and the sponsor subscription, but **no Pro rail at all**:
+`BillingProduct` had no Pro entry, there was no `/api/billing/pro`, and
+`subscription.active` only looked for a `sponsor_id`, so a Pro checkout would
+have taken money and granted nothing. `docs/SPRINT-PLAN-REMAINING.md` still
+described "three one-time rails", contradicting WHATS-NEXT. Two docs, both dated
+the same day, disagreed about what had shipped.
+
+**Decision (owner, this session).** Ship Pro exactly as the README prices it —
+`$6/mo` and `$48/yr` as two recurring Dodo products, both on the account page;
+cancellation keeps access to the paid-through date; the `$3` pass stays as the
+secondary "try Pro" offer.
+
+**Built.**
+
+| Piece | Where |
+|---|---|
+| `BillingProduct` gains `pro-monthly`, `pro-yearly`; config reads `DODO_PRODUCT_PRO_MONTHLY` / `_PRO_YEARLY` | `apps/edge/src/billing/dodo.ts`, `env.ts` |
+| `POST /api/billing/pro` — account + CSRF + email, `interval: 'month' \| 'year'`, metadata `{kind:'pro', account_id, interval}`, returns the price | `routes/billing.ts` |
+| `subscription.active` / `renewed` / `cancelled` / `expired` and the `payment.succeeded` fallback | `billing/webhook.ts` (extracted from the route) |
+| `activateSubscription`, `extendSubscription`, `endSubscription` | `billing/entitlements.ts` |
+| `accounts.dodo_subscription_id` + partial unique index | `migrations/0004_pro_subscription.sql` |
+| Pro monthly/yearly buttons, `?status=pro` return handling, honest cancellation copy | `apps/web/src/pages/account.tsx` |
+| Empty `DODO_PRODUCT_PRO_*` vars, documented `.dev.vars` keys | `wrangler.jsonc`, `apps/edge/.dev.vars.example` |
+| `app.ts` split from `index.ts` so tests call `app.fetch()` directly | `apps/edge/src/app.ts` |
+
+**Lifecycle, stated once.** `plan_expires_at` remains the only source of truth.
+Activation writes `MAX(existing, new)` so a subscriber who already owns a pass is
+not shortened; renewal matches on the stored Dodo subscription id (metadata is
+not guaranteed to survive every event); cancellation is a no-op because the term
+already ends on the right day; `subscription.expired` is the only event that ends
+access early. `downgradeLapsed` still sweeps the column hourly. A payment for a
+subscription already owned by another account hits the unique index, answers
+`500`, and **releases** the message-id claim so the provider's retry can be
+applied once the operator fixes it.
+
+**Tests (new).** 35 in `apps/edge/test/`, the first tests this Worker has ever
+had:
+
+- `test/support/db.ts` — D1 adapter over `node:sqlite` with every migration
+  applied; the tests exercise the real SQL, `RETURNING`, `MAX()` and the partial
+  unique index instead of a mock that agrees with itself.
+- `test/support/env.ts` — binding-shaped env, real session rows (hash-only
+  tokens), and Standard Webhooks signing helpers.
+- `dodo.test.ts` — config (test-mode default, blank product = off), signature
+  verification (valid, multi-token, wrong secret, stale timestamp, missing
+  headers), metadata coercion, term fallback.
+- `billing-flow.test.ts` — checkout bodies and prices, CSRF/401/502/503 paths,
+  Pro activation/renewal/cancel/expiry/lapse, orphan subscription, first-payment
+  fallback, the cross-account clash and claim release, credit grant once + cap,
+  pass not shortening a subscription, donation granting nothing, sponsor
+  activation/cancellation/renewal on the same webhook, unsigned and forged bodies.
+
+**Gates.**
+
+- `pnpm typecheck` green (all five projects).
+- `pnpm test` **1 667 passed + 1 expected fail** (pdf-core 709, web 391, edge 40,
+  ai-provider 375, ai-agent 152).
+- `pnpm build` green — 84 prerendered routes / 71 sitemap; `test:bundle` main
+  **153.7 kB / 0 engines**; `test:deploy-config` and `test:guardrails` (plus
+  self-test) green.
+- `npx wrangler dev` (wrangler 4.168.0, `workerd`) against the local D1 after
+  `npx wrangler d1 migrations apply pdfshush --local` applied `0004`:
+  - signed `subscription.active` → `200`; D1 then reads
+    `plan = 'pro'`, `dodo_subscription_id = 'sub_local_1'` and the stored term;
+  - the identical delivery replayed → `200 { duplicate: true }`, term unchanged;
+  - a forged signature and a nine-minute-old timestamp → `400 invalid_signature`;
+  - `GET /api/account` with a real session → `200`, `plan: 'pro'`,
+    `billing.enabled: true`; with no session → `401`;
+  - `POST /api/billing/pro` with a fixture key → `502 billing_error`, and the
+    Worker log records Dodo's own `401 {"error":"Unauthorized"}` — the outbound
+    call is wired and the failure is translated, not swallowed.
+
+**Not claimed.** No Dodo account was touched: products, webhook endpoint, API
+key and webhook secret are owner steps, so no *successful* checkout has run
+against Dodo's test API from this session — the fixture key can only prove the
+request path and the error handling. The two docs that disagreed are now aligned.
+
+
+
+---
+
+## 47. Measurement consent and the guides go live (2026-11-26)
+
+**Measurement.** The site now carries one Google Tag Manager container
+(`GTM-W5QPVR3Z`). It is not a tool dependency and never receives a document,
+filename or job result. Because it sets cookies, it is **opt-in in the EEA and
+the UK**: `apps/web/src/lib/consent.ts` reads the browser time zone, asks on the
+first page when the zone is European, and injects the container only after a
+yes. The rest of the world is measured by default and can switch it off from the
+footer (`Privacy settings`). The container is loaded from JavaScript, not from
+`index.html`, because a static tag would run before any choice could be read.
+`isAnalyticsOrigin` keeps the tag's own beacons out of the locality proof, so
+"zero cross-origin requests" still describes the job. The CSP keeps the three
+measurement origins named and the policy test asserts there is no wildcard.
+
+**Guides.** All 20 articles are published: the "NEEDS HUMAN EDIT" notes are
+gone, the copy keeps only claims that hold (no screenshots, no measured
+benchmarks, no legal advice), each article carries three frontmatter FAQs used
+by both the visible block and the FAQPage schema, and `draft` is false. Titles
+and descriptions were brought inside the 50-60 / 150-160 audit window.
+
+**Evidence.** `pnpm typecheck` green; `pnpm test` **1 667 + 1 expected fail**;
+`pnpm build` 104 prerendered routes / 92 sitemap URLs; `seo:audit` PASS (0
+warnings); `guides:check` OK: 20; `test:bundle`, `test:guardrails`,
+`test:provenance` and `test:deploy-config` green.
+

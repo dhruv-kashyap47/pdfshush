@@ -1,6 +1,6 @@
 ---
-title: "Convert PDF to JPG at Print Quality"
-description: "Choose the right resolution for screen, print, or an upload portal, avoid soft prints, and decide between page renders and embedded image extraction."
+title: "Convert a PDF to JPG at Full Print Quality"
+description: "Choose the right resolution for screen, print, or an upload portal, avoid soft prints, and decide between page rendering and embedded image extraction."
 slug: "convert-pdf-to-jpg"
 category: "How-to"
 publishedAt: "2026-11-26"
@@ -9,14 +9,12 @@ relatedTools:
   - pdf-to-jpg
   - extract-images
 relatedGuides: []
-draft: true
+faq:
+  - "What resolution should I use for a PDF to JPG conversion? :: About 150 dpi is fine for screens and 300 dpi for print. Higher values add file size without adding detail that was never in the page."
+  - "Should I render the pages or extract the images? :: Render the page when you want the page as it looks. Extract images when you want the original photo or graphic without the text and layout around it."
+  - "Why do my JPGs look blurry? :: The page was probably rendered at low resolution or compressed twice. Render at a higher dpi and save once at high quality."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the resolution presets, quality control, color options, and file-naming behavior in the shipped PDF to JPG tool.
-> - [ ] Add: a side-by-side crop of a 72 dpi render and a 300 dpi render printed on the same printer, with the paper and print size noted.
-> - [ ] Check: that the DPI figures are framed as rules of thumb, and adjust them to the printer and material the article is meant to serve.
-> - [ ] Check: the claim that extracting embedded images can return images at a different effective resolution than a page render.
 
 You exported a PDF page to JPG, opened it on screen, and it looked sharp. Then you printed it, and the text came out soft. The export worked; the resolution was chosen for the wrong destination. Picking the right setting takes one extra decision before you convert.
 

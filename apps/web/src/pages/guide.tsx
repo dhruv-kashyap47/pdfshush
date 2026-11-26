@@ -18,7 +18,7 @@ import { GUIDES, getGuide, type Guide } from '@/content/guides';
 import { guidePath } from '@/content/guide-format';
 import { NotFoundPage } from '@/pages/not-found';
 import { articleSchema } from '@/seo/article';
-import { breadcrumbSchema } from '@/seo/schema';
+import { breadcrumbSchema, faqPageSchema } from '@/seo/schema';
 import { SITE_ORIGIN } from '@/seo/site';
 import { usePageHead } from '@/seo/head';
 import { getTool } from '@/tools/registry';
@@ -88,6 +88,18 @@ function GuideArticle({ guide }: { guide: Guide }) {
         ],
         SITE_ORIGIN,
       ),
+      ...(frontmatter.faq.length > 0
+        ? [
+            faqPageSchema(
+              frontmatter.faq.map((entry) => ({
+                question: entry.question,
+                answer: entry.answer,
+              })),
+              SITE_ORIGIN,
+              route,
+            ),
+          ]
+        : []),
     ],
   });
 
@@ -166,6 +178,22 @@ function GuideArticle({ guide }: { guide: Guide }) {
           </Fragment>
         ))}
       </div>
+
+      {frontmatter.faq.length > 0 ? (
+        <section aria-labelledby="faq" className="mt-12">
+          <h2 id="faq" className="text-2xl font-bold tracking-tight">
+            Questions people ask
+          </h2>
+          <dl className="mt-4 space-y-5">
+            {frontmatter.faq.map((entry) => (
+              <div key={entry.question}>
+                <dt className="text-[15px] font-semibold leading-7">{entry.question}</dt>
+                <dd className="mt-1 text-[15px] leading-7 text-muted-foreground">{entry.answer}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
 
       {relatedTools.length > 0 ? (
         <section aria-labelledby="related-tools" className="mt-12 rounded-xl border border-border/60 p-5">

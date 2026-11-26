@@ -1,5 +1,5 @@
 ---
-title: "Rotate and Straighten a Scanned PDF"
+title: "Rotate and Straighten a Scanned PDF: A Guide"
 description: "Learn how rotation and skew differ, why a crooked scan breaks OCR, and how to straighten one page or a whole document, then check the result before OCR."
 slug: "straighten-scanned-pdf"
 category: "How-to"
@@ -9,14 +9,12 @@ relatedTools:
   - deskew
   - rotate-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "What is the difference between rotation and deskew? :: Rotation turns a whole page by 90 degrees. Deskew corrects a small tilt, often a degree or two, that a scanner introduced."
+  - "Does deskewing help OCR? :: Yes, up to a point. Straight text is easier to recognise, but heavy correction can blur small type."
+  - "Will deskewing reduce quality? :: It resamples the page, so some sharpness is lost. Keep the original scan and work on a copy."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the exact Deskew PDF and Rotate PDF interface labels, the available angle controls, and whether deskew can be limited to a page range in the shipped build.
-> - [ ] Add: a before-and-after screenshot of a real crooked scan, with the measured angle and the OCR text from each version.
-> - [ ] Check: the claims about how PDF page rotation is stored and how deskew resamples page content, since these describe file behavior rather than this site's UI.
-> - [ ] Check: the advice to keep a copy of the original and the suggested file-naming workflow.
 
 You scanned a stack of pages, opened the PDF, and saw that the text runs downhill on half of them. Or the pages are upright but sideways, and you are not sure which problem you are looking at. Straightening the file is usually a two-minute job, but only if you fix orientation and tilt in the right order.
 

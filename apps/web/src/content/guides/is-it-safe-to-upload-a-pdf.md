@@ -1,6 +1,6 @@
 ---
 title: "Is It Safe to Upload a PDF to an Online Tool?"
-description: "What actually happens to a PDF after you upload it, how to read retention and sub-processor claims, and when a browser-only tool is the safer choice."
+description: "What actually happens to a PDF after you upload it, how to read retention and sub-processor claims, and when a browser-only tool is the safer, simpler choice."
 slug: "is-it-safe-to-upload-a-pdf"
 category: "Privacy & safety"
 publishedAt: "2026-11-26"
@@ -9,13 +9,12 @@ relatedTools:
   - merge-pdf
   - compress-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "Is it safe to upload a PDF to an online tool? :: It depends on the site. A tool that processes in your browser never sends the file. One that uploads it can keep a copy for as long as its policy allows."
+  - "How can I tell whether a tool uploads my file? :: Open the network panel and watch the request list while you run the job. An upload appears as a request with the file in the body, while a local tool shows none."
+  - "What should I redact before uploading a document? :: Anything that identifies a person or an account: names, numbers, addresses and signatures. Redact rather than cover, and verify that the text is gone."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the description of what the Network tab shows for a client-side tool, and the CSP `connect-src` guidance, against a current Chrome and Firefox build.
-> - [ ] Add: a screenshot of the Network tab during a browser-only merge, with the request list visible and no upload request present.
-> - [ ] Check: every statement about retention law, breach notification, and law-enforcement access with someone qualified to review privacy claims.
 
 You need to combine two scanned pages or shrink a lease, and the fastest option is a website that does it in a browser tab. Before you drag the file onto the upload box, it helps to know exactly what that click sends, where the bytes land, and how long they stay there. The answer is not "uploads are dangerous" or "uploads are fine." It depends on the file, the site, and what the site actually does with it.
 

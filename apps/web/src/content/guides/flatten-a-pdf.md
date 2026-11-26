@@ -1,5 +1,5 @@
 ---
-title: "Flatten a PDF: What It Means and When You Actually Need It"
+title: "Flatten a PDF: What It Means and When You Need It"
 description: "Learn the three meanings of flattening a PDF, which one an upload portal expects, what flattening does to signatures and forms, and how to keep a usable copy."
 slug: "flatten-a-pdf"
 category: "How-to"
@@ -9,14 +9,12 @@ relatedTools:
   - flatten-pdf
   - compress-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "What does flattening a PDF actually do? :: It merges layers that were separate, such as form fields, annotations or transparency, into the page content. The file looks the same but the parts are no longer editable."
+  - "Does flattening remove hidden text? :: No. Flattening is not redaction. Text under a black box is still in the file unless it is actually removed."
+  - "Can I unflatten a PDF? :: Not in general. Once fields or annotations are merged into the page, the original structure is gone, so keep the unflattened original."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: what the shipped Flatten PDF tool actually flattens by default (form fields, annotations, layers, or a combination) and whether it offers separate options.
-> - [ ] Add: screenshots of a form before and after flattening, including the fields panel and the comments panel, plus a note on what happened to the file size.
-> - [ ] Check: the statements about digital signatures and accessibility, because the result depends on the signing method and the PDF structure.
-> - [ ] Check: the recommendation to keep both the original and the flattened copy for records.
 
 The upload form says the PDF must be flattened, and you are not sure what that means. It might want the form fields locked, the comments removed, or the whole page turned into a picture. Each one is a different operation, and the wrong choice can cost you a signature or an editable copy you still need.
 

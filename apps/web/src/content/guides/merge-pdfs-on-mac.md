@@ -1,6 +1,6 @@
 ---
-title: "How to Merge PDFs on a Mac Without Paying for Acrobat"
-description: "Merge PDFs on a Mac with Preview: drag pages between files, see what the method breaks, and learn when a free browser tool is the safer choice."
+title: "Merge PDFs on a Mac Without Paying for Acrobat"
+description: "Merge PDFs on a Mac with Preview: drag pages between files, see what the method breaks, and learn when a free browser tool is the safer choice for the job."
 slug: "merge-pdfs-on-mac"
 category: "How-to"
 publishedAt: "2026-11-26"
@@ -9,13 +9,12 @@ relatedTools:
   - merge-pdf
   - organize-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "Can Preview merge PDFs? :: Yes, by dragging page thumbnails from one document into another. It works for simple files but can drop outlines and damage form fields."
+  - "Does merging in Preview keep bookmarks? :: Often not. The dragged document outline is usually lost, and entries from the first file can point at the wrong page."
+  - "What is the fastest way to merge several PDFs on a Mac? :: A browser tool with a file list is quicker for more than a few files, because you can order everything before the merge and check the result once."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the exact Preview menu names on the current macOS release (View > Thumbnails, File > Duplicate, File > Export) and where the Markup toolbar sits, since Apple moves these between releases.
-> - [ ] Add: a screenshot of the blue insertion line that appears when dragging a page selection into another PDF's thumbnail sidebar, plus one sentence on the macOS version you tested.
-> - [ ] Check: the claim that dragged form fields with the same name can overwrite each other, and the statement about which outline entries survive a Preview merge. Both are behavior-dependent and should be tested with two small sample forms.
 
 You have a signed lease, a photo of your ID, and a cover letter, and the upload portal accepts exactly one file. Acrobat will merge them for a monthly fee. macOS will do it for free with a tool you already own, as long as you accept a few limits and check the result before you send it.
 

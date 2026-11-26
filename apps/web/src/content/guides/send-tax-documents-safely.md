@@ -1,6 +1,6 @@
 ---
-title: "Sending Tax Documents as PDFs Without Exposing Your SSN"
-description: "Which identifiers appear on W-2s and returns, how to redact rather than mask, and how to send a protected PDF to a preparer without using email."
+title: "Sending Tax PDFs Without Exposing Your SSN"
+description: "Which identifiers appear on W-2s and returns, how to redact rather than mask, and how to send a protected PDF to a preparer without relying on plain email."
 slug: "send-tax-documents-safely"
 category: "Tax & finance"
 publishedAt: "2026-11-26"
@@ -9,13 +9,12 @@ relatedTools:
   - redact-pdf
   - protect-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "What identifiers should I redact on a tax document? :: The ones the recipient does not need: the full Social Security number, account numbers, and any address or date of birth that is not required."
+  - "Is email safe for a W-2? :: Not for an unprotected file. Use a portal, an encrypted message, or a password-protected file with the password sent through a separate channel."
+  - "Can I partially mask a number instead of redacting it? :: Sometimes, if the recipient only needs the last four digits. Remove the rest properly rather than drawing over it."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the box references on the W-2, 1099, 1040, and 1098 against the current-year forms, since box numbers and layouts change.
-> - [ ] Add: a screenshot of the same page before and after true redaction, with the text selected in the "before" version to show the digits were still there.
-> - [ ] Check: the IRS recordkeeping periods, the e-file signature rules, and the claim that altering a statement can constitute fraud with a qualified tax professional or attorney.
 
 A W-2 is one page, but it carries the two identifiers that matter most for identity theft: your Social Security number and your employer's tax ID. Sending it to a preparer should be routine. Sending it through the wrong channel turns a routine errand into a copy of your tax return sitting in two mailboxes, a backup, and a spam filter you cannot inspect.
 

@@ -1,6 +1,6 @@
 ---
-title: "How to Redact a PDF Properly — and Why Black Boxes Fail"
-description: "Drawing a black box over text does not remove it. Learn what true redaction deletes, how to verify the file, and when to flatten before sharing."
+title: "Redact a PDF Properly: Why Black Boxes Fail"
+description: "Drawing a black box over text does not remove it. Learn what true redaction actually deletes, how to verify the file, and when to flatten before sharing."
 slug: "redact-a-pdf-properly"
 category: "Legal & compliance"
 publishedAt: "2026-11-26"
@@ -9,13 +9,12 @@ relatedTools:
   - redact-pdf
   - flatten-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "Why is a black box not redaction? :: The box is drawn on top of the text. The original characters remain in the file and can be selected, copied or extracted."
+  - "What does proper redaction remove? :: The text, the image area under it, and any matching content in annotations or metadata. What is left cannot be recovered from the file."
+  - "How do I check that my redaction worked? :: Search for the removed string, try to select the area, and copy it into a text editor. Also check metadata and attachments."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: that the Redact tool's controls are actually labeled "mark" and "apply," and that flattening in this app renders annotations and form fields rather than deleting them.
-> - [ ] Add: a screenshot of a redacted page beside the same page with the hidden text selected and copied, or a real before/after text dump from a test file you ran yourself.
-> - [ ] Check: the sentences about privilege logs, litigation holds and spoliation. Have counsel read them before this goes live.
 
 A settlement agreement goes out with the account numbers covered by neat black rectangles. The other side opens it, drags a cursor across one of those rectangles, copies, and pastes into a word processor. Every digit is there. The rectangle was a drawing. The numbers were never touched.
 

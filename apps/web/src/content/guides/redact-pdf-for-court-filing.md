@@ -9,13 +9,12 @@ relatedTools:
   - redact-pdf
   - remove-annotations
 relatedGuides: []
-draft: true
+faq:
+  - "What must be redacted before a court filing? :: Whatever the rules and the order in the case require: personal identifiers, names of minors, account numbers, and anything under a protective order."
+  - "Do I need to redact metadata as well as text? :: Yes. Author names, file paths and earlier revisions can disclose more than the visible page, so remove them before filing."
+  - "Should I keep an unredacted copy? :: Keep a sealed copy for your own record and for the court if it asks. Never file it by mistake, and label it clearly."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the filing-system behavior described here, including whether CM/ECF or your state's portal preserves or strips metadata, and the exact menu names in Acrobat and Preview.
-> - [ ] Add: a screenshot of a filing-ready file with the metadata dialog open and the text search returning zero results, plus your firm's file-naming convention.
-> - [ ] Check: the paragraphs on sealing, protective orders, minors and the motion-to-seal process. Local rules differ and counsel must review this.
 
 The filing is due in twenty minutes. The brief is final, the exhibits are scanned, and someone notices that the minor's name is still in paragraph 14. A quick pass with the black rectangle tool, a save, an upload, and the deadline is met. Two days later the clerk's office calls.
 

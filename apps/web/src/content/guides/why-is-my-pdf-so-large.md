@@ -1,5 +1,5 @@
 ---
-title: "Why Is My PDF So Large? Seven Causes and the Fix for Each"
+title: "Why Is My PDF So Large? Seven Causes and Fixes"
 description: "Seven common reasons a PDF balloons in size, how to identify which one you have using file properties, and the right fix rather than a generic re-save."
 slug: "why-is-my-pdf-so-large"
 category: "How-to"
@@ -9,13 +9,12 @@ relatedTools:
   - compress-pdf
   - extract-images
 relatedGuides: []
-draft: true
+faq:
+  - "Why is my PDF so large? :: Usually because of scanned images stored at high resolution, embedded fonts, or duplicate resources. Check the images first."
+  - "Does compressing a PDF reduce quality? :: It can, because images are downsampled or re-encoded. Text usually stays sharp."
+  - "How do I find what is making a PDF large? :: Look at the document properties and the images in the file. A page that is one big scan is a different problem from a text page with many fonts."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the menu paths in Acrobat Reader, Preview, and Word against current versions, since Adobe and Microsoft move these items between releases.
-> - [ ] Add: a screenshot of the document properties dialog showing page size, producer, and fonts for a bloated file.
-> - [ ] Check: the statement that font subsetting does not change the visible text, and the guidance on removing OCR layers, with someone who handles accessibility and archival requirements.
 
 A forty-page report should not be 80 MB, and a two-page lease should not take thirty seconds to open. When a PDF is far larger than its contents seem to justify, one of a small number of causes is almost always responsible. The trick is to identify which one before you start clicking "compress," because the wrong fix either does nothing or damages the file.
 

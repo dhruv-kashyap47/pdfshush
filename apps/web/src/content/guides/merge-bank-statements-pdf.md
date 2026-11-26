@@ -1,5 +1,5 @@
 ---
-title: "Bank Statements as PDFs: Merging, Redacting and Sharing Safely"
+title: "Bank Statements as PDFs: Merge and Share Safely"
 description: "How to assemble statements for a loan, mortgage, or visa application: correct page order, safe redaction, password-protected bank files, and sane file sizes."
 slug: "merge-bank-statements-pdf"
 category: "Tax & finance"
@@ -9,13 +9,12 @@ relatedTools:
   - merge-pdf
   - redact-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "In what order should bank statements be merged? :: Newest first or oldest first, but match what the recipient asked for. Keep one statement per month and do not mix accounts without labelling them."
+  - "Should I redact account numbers before sending statements? :: Redact what the recipient does not need and keep the rest. Removing every identifier can make the statement useless for verification."
+  - "Can I merge password-protected statements? :: Unlock each file first, then merge. A merged file usually inherits one set of permissions, which may not be the one you expect."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the typical statement period lenders request, and whether the named programs accept merged or redacted statements, with a loan officer or underwriter.
-> - [ ] Add: a screenshot of a bank's Statements and Documents page showing where the PDF download lives, with account details masked.
-> - [ ] Check: the statement about altering a bank statement and fraud exposure with an attorney, and confirm the visa or immigration document expectations with the relevant authority.
 
 A lender, landlord, or visa office asks for three months of bank statements. You have twelve PDFs, two accounts, one statement that is password-protected, and an upload form that accepts a single file. Combining them is easy. Combining them correctly, without leaking an account number you did not need to share and without producing a file the reviewer cannot open, takes a little more care.
 

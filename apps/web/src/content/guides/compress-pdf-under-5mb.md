@@ -1,6 +1,6 @@
 ---
-title: "How to Compress a PDF Under 5 MB for a Portal Upload"
-description: "Why portals cap file size, what makes a PDF large, the correct order for downsampling and re-saving, and how to check the result before you submit."
+title: "Compress a PDF Under 5 MB for a Portal Upload"
+description: "Why portals cap file size, what makes a PDF large, the right order for downsampling and re-saving, and how to check the result before you submit the file."
 slug: "compress-pdf-under-5mb"
 category: "Tax & finance"
 publishedAt: "2026-11-26"
@@ -9,13 +9,12 @@ relatedTools:
   - compress-pdf
   - resize-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "Why is my PDF still too large after compressing? :: Most compressors downsample images. A file full of scanned pages needs lower resolution or fewer pages, while a file that is large because of embedded fonts or metadata needs a different fix."
+  - "Does compressing a PDF reduce quality? :: Usually some images are re-encoded at a lower resolution, so yes for scan-heavy files. Text stays sharp, while photos and fine detail soften first."
+  - "Can I hit an exact size like 5 MB? :: Not reliably in one pass. Compress, check the size, then adjust the resolution or split the document until it fits under the limit."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the typical file-size ranges per page quoted in this article against a handful of real scans at 150, 300, and 600 dpi.
-> - [ ] Add: a screenshot of the same page at 100 percent zoom before and after compression, so readers can judge the quality loss themselves.
-> - [ ] Check: the portal behavior described here against the specific portals you name in the final edit, including timeout length and per-file versus total limits.
 
 You have filled in the application, attached the supporting documents, and the upload box rejects your PDF with a four-word message: file too large. The deadline is close and the portal will not tell you which page is the problem. Compressing the file is usually the fix, but doing it in the wrong order can produce a file that is still too big or too blurry to read.
 

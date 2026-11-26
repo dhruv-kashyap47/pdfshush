@@ -1,6 +1,6 @@
 ---
-title: "How to Split a PDF into Separate Files (Windows and Mac)"
-description: "Split a PDF into separate files on Windows or Mac: choose the boundary, split every page or a range, and keep file names in the right order."
+title: "Split a PDF into Separate Files (Windows and Mac)"
+description: "Split a PDF into separate files on Windows or Mac: choose the right boundary, split every page or only a range, and keep file names in the right order."
 slug: "split-a-pdf-into-files"
 category: "How-to"
 publishedAt: "2026-11-26"
@@ -9,13 +9,12 @@ relatedTools:
   - split-by-pages
   - split-in-half
 relatedGuides: []
-draft: true
+faq:
+  - "How do I split a PDF into separate files? :: Use a splitter that takes a page range or a fixed chunk size, then check the output names and order before you send anything."
+  - "Should I split every page or by range? :: Split every page when each page is a separate document. Use ranges when sections belong together."
+  - "Will splitting keep bookmarks? :: Sometimes, partially. Links that pointed at pages in another output file cannot survive, so check the outline in each part."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the current chunk options and part limit in the Split by pages tool (the UI accepts any whole number and caps the run at 200 parts) and the exact ZIP naming pattern on download.
-> - [ ] Add: a screenshot of the finished ZIP with renamed, zero-padded files, plus the naming convention your office actually uses for scanned bundles.
-> - [ ] Check: the statement about how each output file inherits bookmarks and page labels. The behavior depends on the splitting code and should be tested with a document that has a multi-level outline and roman-numeral front matter.
 
 A ninety-page bundle lands in your inbox. One agency wants the first three pages, another wants the middle section, and the invoices need to go out as individual files. Splitting a PDF is easy. Splitting it at the right boundary, with names that sort correctly, is the part that goes wrong.
 

@@ -7,7 +7,7 @@
 > [`WHATS-NEXT.md`](./WHATS-NEXT.md).
 >
 > This replaces the earlier ship-first draft. Production is already live at
-> `https://pdfshush.space`, all 63 `reaTask.md` cards are closed, and the
+> `https://pdfshush.com`, all 63 `reaTask.md` cards are closed, and the
 > production smoke + sign suites are green. The remaining work is the public
 > launch surface, hardening evidence, and monetization decisions — not the
 > editor or engine.
@@ -19,7 +19,7 @@
 ## 0. Verified state (2026-11-24)
 
 **Sprint 8 is complete.** The five policy routes are live on
-`https://pdfshush.space` (Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`), with
+`https://pdfshush.com` (Worker `54210160-c9b5-4a57-a43f-e6f3d9a82127`), with
 68 prerendered routes / 60 sitemap URLs. Production `reach`, `smoke`, `a11y`,
 `offline` and `sign` all pass.
 
@@ -35,7 +35,7 @@ work. **Tracked development is complete.**
 | Item | State |
 | --- | --- |
 | `origin/main` / `origin/rea-uplift` | `a8b0cf4`, identical |
-| Production | `https://pdfshush.space`, Cloudflare Workers + Static Assets |
+| Production | `https://pdfshush.com`, Cloudflare Workers + Static Assets |
 | Production smoke | **ALL CHECKS PASSED** (89 mega-menu links, all tools, editor, redaction, no console errors) |
 | Production sign E2E | **18/18 green**, including “the manage page saves a signature” |
 | Cloudflare Wrangler | authenticated as `7468dhruv@gmail.com` (account `c50c0cc04ad6e0bfea4db65b2b615b69`) |
@@ -95,7 +95,7 @@ AI, API volume and priority queue are server features.
 | S8.1 | Add real `/privacy`, `/terms`, `/about`, `/contact`, `/status` routes | Each renders its own page with a unique `<h1>`, title, description and canonical; no placeholder copy |
 | S8.2 | Wire the footer and mobile header | About, Contact, Status, Privacy and Terms link to real routes; “soon” labels removed from live pages |
 | S8.3 | Prerender and sitemap | Each route is in `apps/web/build/prerender.ts` routes, has static HTML and appears once in `sitemap.xml` |
-| S8.4 | Build, deploy and verify | `pnpm typecheck`, relevant tests, `pnpm build`, `pnpm test:bundle`; `npx wrangler deploy`; `E2E_BASE_URL=https://pdfshush.space pnpm test:e2e:reach` and `pnpm test:e2e` green |
+| S8.4 | Build, deploy and verify | `pnpm typecheck`, relevant tests, `pnpm build`, `pnpm test:bundle`; `npx wrangler deploy`; `E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:reach` and `pnpm test:e2e` green |
 | S8.5 | Record | `PLAN.md`/`reaTask.md` updated with the deployed worker version and route evidence |
 
 **Exit gate:** all five routes answer 200 with their own prerendered content;
@@ -195,9 +195,9 @@ document bytes on any ad origin.
 
 ## Sprint 14 — MONETIZATION RESET: SPONSORSHIP + DODO (done 2026-11-26)
 
-**Decision.** Drop AdSense. Replace it with first-party sponsorship and three
-one-time rails, all through Dodo Payments on the existing free Worker tier. No
-ad network, no CMP, no CSP widening, no server tier. Full record:
+**Decision.** Drop AdSense. Replace it with first-party sponsorship, a recurring
+Pro rail and three one-time rails, all through Dodo Payments on the existing free
+Worker tier. No ad network, no CMP, no CSP widening, no server tier. Full record:
 [`SPONSORSHIP.md`](./SPONSORSHIP.md).
 
 **Shipped.**
@@ -216,13 +216,18 @@ ad network, no CMP, no CSP widening, no server tier. Full record:
    message-id claim before the side effect, release on failure. Handles
    `subscription.active`, `subscription.renewed`, `subscription.cancelled` and
    `payment.succeeded`.
-5. **One-time rails.** 30-day pass ($3), AI credit pack ($5 / 1,000 messages)
+5. **Recurring Pro.** `$6/mo` and `$48/yr` as two Dodo subscriptions
+   (`DODO_PRODUCT_PRO_MONTHLY`, `_PRO_YEARLY`). Checkout metadata carries
+   `kind: 'pro'` and the account id; activation stores the Dodo subscription id
+   on the account, so `subscription.renewed` matches without metadata.
+   Cancellation keeps the paid month; only `subscription.expired` ends access.
+6. **One-time rails.** 30-day pass ($3), AI credit pack ($5 / 1,000 messages)
    and donation (pay-what-you-want). Credits are spent only after the monthly Pro
    allowance and are drained by a single conditional `UPDATE`.
-6. **Surfaces.** Sponsor cards render on content routes only and never for Pro;
+7. **Surfaces.** Sponsor cards render on content routes only and never for Pro;
    `/sponsor` carries the pricing, form, donation and FAQ; `/account` shows plan,
-   expiry, credit balance and the two buy buttons.
-7. **Tooling.** `@dodopayments/opencode-plugin` installed at the workspace root;
+   expiry, credit balance and the buy buttons (Pro monthly/yearly, pass, credits).
+8. **Tooling.** `@dodopayments/opencode-plugin` installed at the workspace root;
    `opencode.jsonc` loads its skill and MCP.
 
 **Verification.**
@@ -230,16 +235,18 @@ ad network, no CMP, no CSP widening, no server tier. Full record:
 | Gate | Result |
 | --- | --- |
 | `pnpm -r typecheck` | green (all packages) |
-| Web unit tests | 348 passed, including 8 sponsor-gating tests |
-| `pnpm build` + `seo:audit` | 84 prerendered routes / 75 sitemap; PASS |
-| `test:bundle` / `test:guardrails` | PASS |
-| Local Worker + D1 | signed webhook activates a sponsor; replay is a no-op; bad signature 400; credits granted once; pass sets a 30-day term |
+| Web unit tests | 355 passed, including the sponsor-gating tests and the purchase-route mapping |
+| Edge unit tests | 35 passed in `apps/edge/test/` — real migrations over `node:sqlite`, signed webhooks through `app.fetch()`; Pro activation/renewal/cancel/expiry, credit cap, pass, donation, replay, forged signature, 503 |
+| `pnpm build` + `seo:audit` | 84 prerendered routes / 71 sitemap; PASS |
+| `test:bundle` / `test:guardrails` / `test:deploy-config` | PASS |
 
 **Open operator steps (not code).**
 
-1. Create the five Dodo products; set `DODO_API_KEY` and `DODO_WEBHOOK_SECRET`;
-   put the product ids in `wrangler.jsonc`; point the webhook at
-   `/api/billing/webhook`.
+1. Create the seven Dodo products in test mode; set `DODO_API_KEY` and
+   `DODO_WEBHOOK_SECRET`; put the product ids in `wrangler.jsonc`; point the
+   webhook at `/api/billing/webhook` (active/renewed/cancelled/expired/payment
+   succeeded) and apply migration `0004`. The step-by-step list is in
+   [`WHATS-NEXT.md`](./WHATS-NEXT.md) §Sprint 4.
 2. Deploy with `VITE_SERVER_API=on` — the committed `.env.production` is the
    frontend-only shape, which has no API and therefore no sponsor card.
 3. Publish the 20 guides. Sponsorship is sellable around 10k sessions/month; the
@@ -282,9 +289,9 @@ pnpm test:guardrails
 pnpm test:editor-perf
 
 # after a deploy:
-E2E_BASE_URL=https://pdfshush.space pnpm test:e2e
-E2E_BASE_URL=https://pdfshush.space pnpm test:e2e:reach
-E2E_BASE_URL=https://pdfshush.space pnpm test:e2e:offline
+E2E_BASE_URL=https://pdfshush.com pnpm test:e2e
+E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:reach
+E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:offline
 
 # Sprint 9, with Docker running:
 docker compose up -d --build

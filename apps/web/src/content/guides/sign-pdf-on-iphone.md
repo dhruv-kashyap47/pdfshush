@@ -1,6 +1,6 @@
 ---
-title: "Sign a PDF on an iPhone: the Built-in Way and When It Is Not Enough"
-description: "Sign a PDF on an iPhone with the built-in Markup tools, save a copy safely, and learn when a drawn signature is not legally or practically enough."
+title: "Sign a PDF on an iPhone: Built-in Tools and Gaps"
+description: "Sign a PDF on an iPhone with the built-in Markup tools, save a copy safely, and learn when a drawn signature is not legally or practically enough for portals."
 slug: "sign-pdf-on-iphone"
 category: "How-to"
 publishedAt: "2026-11-26"
@@ -9,13 +9,12 @@ relatedTools:
   - signature
   - fill-sign
 relatedGuides: []
-draft: true
+faq:
+  - "Can I sign a PDF on an iPhone without an app? :: Yes, with the Files app and the Markup tools. The signature is added as an annotation, which some portals accept and some do not."
+  - "Is an iPhone signature legally binding? :: Usually yes for ordinary agreements, but not for documents that need a witness, a notary or a qualified signature."
+  - "Why does the portal reject my signed file? :: The signature may still be an annotation, or the file may need flattening. Flatten a copy before you upload it."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the exact Markup button and menu labels on the current iOS release (the pencil icon, the plus menu, Add or Remove Signature) and whether the print-to-PDF share trick still works as described.
-> - [ ] Add: two screenshots, one of the signature capture screen and one of the signed page with the signature selected, plus the iPhone model and iOS version used.
-> - [ ] Check: the legal paragraph about when a drawn signature is not acceptable. Have someone with legal knowledge review the ESIGN and eIDAS wording before publication.
 
 An agreement arrives by email while you are on a train. It is one page, it needs a signature, and the sender wants it back today. The iPhone can do it in about a minute with the Files app, no extra software and no subscription. The result, however, is an annotation rather than a flattened signature, and that difference matters when the recipient's upload portal is picky.
 

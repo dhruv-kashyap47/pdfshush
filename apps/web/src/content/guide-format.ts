@@ -14,6 +14,11 @@
  * input is escaped before any tag is produced.
  */
 
+export interface GuideFaq {
+  question: string;
+  answer: string;
+}
+
 export interface GuideFrontmatter {
   title: string;
   description: string;
@@ -23,6 +28,12 @@ export interface GuideFrontmatter {
   updatedAt: string;
   relatedTools: string[];
   relatedGuides: string[];
+  /**
+   * Questions the article answers, used for the visible FAQ block and the
+   * FAQPage schema. Written in frontmatter as `- "Question :: Answer"` because
+   * the parser deliberately supports only flat keys and string lists.
+   */
+  faq: GuideFaq[];
   draft: boolean;
 }
 
@@ -280,6 +291,23 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+/**
+ * `- "Question :: Answer"` pairs. The separator is chosen so neither a question
+ * nor an answer has to escape anything; a guide that needs to use it can put the
+ * literal question and answer in the body instead.
+ */
+function faqList(value: unknown): GuideFaq[] {
+  return stringList(value)
+    .map((entry) => {
+      const separator = entry.indexOf(' :: ');
+      if (separator < 0) return null;
+      const question = entry.slice(0, separator).trim();
+      const answer = entry.slice(separator + 4).trim();
+      return question && answer ? { question, answer } : null;
+    })
+    .filter((entry): entry is GuideFaq => entry !== null);
+}
+
 function requiredString(data: Record<string, unknown>, key: string, where: string): string {
   const value = data[key];
   if (typeof value !== 'string' || value.trim() === '') {
@@ -310,6 +338,7 @@ export function parseGuide(source: string, where = 'guide'): Guide {
       updatedAt: typeof data.updatedAt === 'string' && data.updatedAt ? data.updatedAt : requiredString(data, 'publishedAt', where),
       relatedTools: stringList(data.relatedTools),
       relatedGuides: stringList(data.relatedGuides),
+      faq: faqList(data.faq),
       draft,
     },
     body,

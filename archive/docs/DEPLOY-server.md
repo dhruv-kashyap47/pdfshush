@@ -74,7 +74,7 @@ The Cloudflare free plan includes Pages with unlimited static bandwidth, 500 bui
 
    | Variable | Value | Scope | Why |
    | --- | --- | --- | --- |
-   | `VITE_SITE_ORIGIN` | `https://pdfshush.space` | Production + Preview | Canonical URLs, Open Graph cards, `sitemap.xml` and `robots.txt` are **baked into the HTML at build time**. |
+   | `VITE_SITE_ORIGIN` | `https://pdfshush.com` | Production + Preview | Canonical URLs, Open Graph cards, `sitemap.xml` and `robots.txt` are **baked into the HTML at build time**. |
    | `VITE_SERVER_API` | `off` | Production + Preview | Tells the app the server is not deployed here. See §4. |
    | `NODE_VERSION` | `24` | Production + Preview | Belt and braces; `.node-version` covers it. |
 
@@ -84,7 +84,7 @@ The Cloudflare free plan includes Pages with unlimited static bandwidth, 500 bui
 5. **Save and Deploy** again. The build log should end with:
 
    ```
-   [plugin pdfshush-prerender] prerendered 63 routes, 55 in the sitemap (origin https://pdfshush.space, 22 top-level entries)
+   [plugin pdfshush-prerender] prerendered 63 routes, 55 in the sitemap (origin https://pdfshush.com, 22 top-level entries)
    ```
 
    63 routes = 58 tool pages + `/` + `/workflows` + `/trust` + `/verify` + `/account`.
@@ -133,7 +133,7 @@ the offline mode, and every page of the catalog.
 
 The domain's nameservers must already point at Cloudflare for the simplest path.
 
-1. Project → **Custom domains** → **Set up a domain** → enter `pdfshush.space` → **Continue**.
+1. Project → **Custom domains** → **Set up a domain** → enter `pdfshush.com` → **Continue**.
 2. Because the zone is on Cloudflare, Pages creates the DNS record itself and issues the
    certificate. Nothing to paste.
 3. Wait for **Active**. The certificate takes a few minutes; the first request may briefly fail
@@ -191,32 +191,32 @@ From any machine:
 
 ```bash
 # 1. The site answers over TLS.
-curl -sI https://pdfshush.space | head -1                 # HTTP/2 200
+curl -sI https://pdfshush.com | head -1                 # HTTP/2 200
 
 # 2. A prerendered tool page is real HTML, not an empty shell.
-curl -fsS https://pdfshush.space/tools/merge-pdf | grep -o '<h1[^>]*>[^<]*</h1>'
+curl -fsS https://pdfshush.com/tools/merge-pdf | grep -o '<h1[^>]*>[^<]*</h1>'
 #    -> <h1>Merge PDF files</h1>
-curl -fsS https://pdfshush.space/tools/merge-pdf | grep -o '<link rel="canonical"[^>]*>'
-#    -> <link rel="canonical" href="https://pdfshush.space/tools/merge-pdf" />
+curl -fsS https://pdfshush.com/tools/merge-pdf | grep -o '<link rel="canonical"[^>]*>'
+#    -> <link rel="canonical" href="https://pdfshush.com/tools/merge-pdf" />
 
 # 3. The SEO files exist and point at the right origin.
-curl -fsS https://pdfshush.space/sitemap.xml | head -3
-curl -fsS https://pdfshush.space/robots.txt
+curl -fsS https://pdfshush.com/sitemap.xml | head -3
+curl -fsS https://pdfshush.com/robots.txt
 
 # 4. An unknown URL is a real 404, not a 200 with a 404 page.
-curl -s -o /dev/null -w '%{http_code}\n' https://pdfshush.space/no-such-page   # 404
+curl -s -o /dev/null -w '%{http_code}\n' https://pdfshush.com/no-such-page   # 404
 
 # 5. Assets are immutable; the shell is not, and it may not be rewritten.
-curl -sI https://pdfshush.space/assets/$(ls apps/web/dist/assets | head -1) | grep -i cache-control
-curl -sI https://pdfshush.space/sw.js | grep -i cache-control
-curl -sI https://pdfshush.space/ | grep -i cache-control   # ... must-revalidate, no-transform
+curl -sI https://pdfshush.com/assets/$(ls apps/web/dist/assets | head -1) | grep -i cache-control
+curl -sI https://pdfshush.com/sw.js | grep -i cache-control
+curl -sI https://pdfshush.com/ | grep -i cache-control   # ... must-revalidate, no-transform
 ```
 
 Then the browser suites against the live URL:
 
 ```bash
 pnpm install
-E2E_BASE_URL=https://pdfshush.space pnpm test:e2e
+E2E_BASE_URL=https://pdfshush.com pnpm test:e2e
 ```
 
 The shared preflight (`tests/support/preflight.mjs`) reads `E2E_BASE_URL`: it checks that origin
@@ -276,7 +276,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
         env:
-          VITE_SITE_ORIGIN: https://pdfshush.space
+          VITE_SITE_ORIGIN: https://pdfshush.com
           VITE_SERVER_API: 'off'
       - run: pnpm test:bundle
       - uses: cloudflare/wrangler-action@v3

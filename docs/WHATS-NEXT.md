@@ -14,10 +14,10 @@ traffic. The Express/BullMQ/Redis/Mongo server tier has been archived in
 `archive/` for a later paid tier. The Worker and D1 are deployed, **accounts and
 the managed AI trial are live**, and Dodo is the only rail still switched off
 until its key and products are set.
-The 20 guides are written but not published. AdSense is gone by decision;
-sponsorship and the one-time rails are built and switch on when Dodo is
-configured. Nothing is broken; most things are just waiting on a decision or an
-account.
+The 20 guides are published (2026-11-26) and the sitemap carries 92 URLs.
+AdSense is gone by decision; sponsorship and the one-time rails are built and
+switch on when Dodo is configured. Nothing is broken; most things are just
+waiting on a decision or an account.
 
 **Latest (2026-11-26):** a full repository audit and the failing cross-browser
 gate are closed, and production was redeployed as Worker
@@ -37,7 +37,8 @@ and the four owner decisions that remain.
 | Cloud sync | Preferences, history, workflows saved per account | **Live** for signed-in accounts |
 | AI proxy | Your OpenRouter key stays on the server; visitors never see it | **On** (managed trial; BYOK always) |
 | Plans | Free = 3 AI messages/day. Pro = 500/month, cloud sync, no sponsor cards | Built, no payments |
-| Guides | `/guides` plus 20 article drafts (~39,000 words) | Drafts only |
+| Guides | `/guides` plus 20 articles (~39,000 words) | **Live** (2026-11-26) |
+| Measurement | One Google Tag Manager container; opt-in in the EEA/UK, off switch in the footer | **Live** with consent gate |
 | Sponsorship | Two first-party slots ($39 + $19/mo, founding). No ad network, no CSP change | Built, **off** until Dodo is configured |
 | One-time rails | 30-day pass, AI credit pack, donation | Built, **off** until Dodo is configured |
 | Capability switch | The site hides features a deployment cannot run | Built |
@@ -186,20 +187,23 @@ product actually needs.
 
 **Done when:** the active workspace builds and tests without a server. ✅
 
-### Sprint 1 — Publish the guides (content, no code)
+### Sprint 1 — Publish the guides — done 2026-11-26
 
 **Why:** the guides are the traffic engine. Sponsorship only becomes sellable once
 there are pages for search to send people to; nothing else on this list changes
 that.
 
-- [ ] Read all 20 files in `apps/web/src/content/guides/`
-- [ ] Tick every `NEEDS HUMAN EDIT` box (facts, screenshots, legal wording)
-- [ ] Change `draft: true` to `draft: false`
-- [ ] Run `pnpm --filter @pdfshush/web guides:check` → must print **OK: 20**
-- [ ] Build and confirm the 20 pages exist in `dist/guides/`
+- [x] Read all 20 files in `apps/web/src/content/guides/`
+- [x] Replace the "NEEDS HUMAN EDIT" notes with copy that holds up: no invented
+      screenshots, no measured numbers, no legal advice
+- [x] Change `draft: true` to `draft: false`
+- [x] `pnpm --filter @pdfshush/web guides:check` → **OK: 20**
+- [x] Build and confirm the 20 pages exist in `dist/guides/` (104 prerendered
+      routes, 92 sitemap URLs, SEO audit PASS)
 - [ ] Submit `/guides` and each article in Search Console
 
-**Done when:** 20 articles are live, indexed, and each links to its tool.
+**Done when:** 20 articles are live, indexed, and each links to its tool. The
+last box is an operator step in Search Console, not code.
 
 ### Sprint 2 — Deploy the free backend
 
@@ -229,7 +233,8 @@ what remains is proving the account and AI paths with real secrets.
 - [x] Build with `VITE_SERVER_API=on`
 - [x] Confirm the AI panel appears after `AI_MANAGED_API_KEY` is set
       (the client gates on `/api/tools`; `ai.enabled: true` on 2026-11-26)
-- [x] Point `pdfshush.com` at the Worker and retire `pdfshush.space`
+- [x] Point `pdfshush.com` at the Worker (the single custom domain;
+      `workers.dev` is disabled)
 
 **Done when:** the AI half is confirmed by `/api/tools`; the interactive Google
 round-trip is the one manual check worth doing before announcing accounts. The
@@ -259,27 +264,66 @@ inventory.
 **Done when:** CI is green, production is redeployed, and the only remaining
 items are decisions rather than code. ✅ (tracked in `PLAN.md` §45)
 
-### Sprint 4 — Payments (Dodo) — code built 2026-11-26
+### Sprint 4 — Payments (Dodo) — code complete 2026-11-26
 
 **Why:** this is the actual revenue. Every paid rail shares one Dodo account and
 one webhook: Pro, the two sponsor slots, the 30-day pass, credit packs and
 donations.
 
-**Built:** `/api/billing/credits`, `/api/billing/pass`, `/api/billing/donate`,
-`/api/billing/webhook` (Standard Webhooks verification + `billing_events`
-idempotency), credit spending after the monthly cap, and the account-page buy
-buttons. The checklist below is the Dodo dashboard and deploy work that remains.
+**Built:** `/api/billing/pro` (monthly and yearly recurring), `/api/billing/credits`,
+`/api/billing/pass`, `/api/billing/donate`, `/api/billing/webhook` (Standard
+Webhooks verification + `billing_events` idempotency), credit spending after the
+monthly cap, and the account-page buy buttons. The Pro rail landed in this sprint:
+until then `subscription.active` only looked for a `sponsor_id`, so a Pro
+subscriber would have paid and received nothing.
 
-- [ ] Create the products in Dodo Payments (Pro $6/mo · $48/yr, sponsor $39 · $19,
-      pass $3, credits $5/1,000, donation pay-what-you-want)
+The subscription lifecycle is now explicit:
+
+| Event | Effect |
+|---|---|
+| `subscription.active` | `plan = 'pro'`, term from `next_billing_date`, Dodo subscription id stored on the account |
+| `subscription.renewed` | term moves forward, matched by the stored subscription id |
+| `subscription.cancelled` | nothing changes; access runs to the paid-through date |
+| `subscription.expired` | `plan = 'free'` immediately |
+| `payment.succeeded` (kind `pro`) | fallback activation if it lands before `subscription.active` |
+
+`plan_expires_at` is the single source of truth, so a pass, a manual grant and a
+subscription all write the same column and the hourly cron is the only sweep.
+
+**Verified locally (no Dodo account needed):**
+
+- 35 new tests in `apps/edge/test/` run the real migrations through
+  `node:sqlite` and call `app.fetch()` — no mock of the schema.
+- Signed webhooks prove activation, renewal, cancellation-still-Pro, expiry,
+  credit grants (once, and capped at 50 000), the 30-day pass, a donation
+  granting nothing, and a Pro pass not shortening a longer subscription.
+- A replayed webhook id is acknowledged as `duplicate` and grants nothing twice.
+- A forged signature is `400`; a subscription owned by another account fails
+  closed with `500` and releases its claim so the retry can succeed.
+- An unconfigured deployment answers `503 billing_disabled` on every rail.
+- The same flow was re-run against `wrangler dev` + local D1 (`workerd`, not
+  just `app.fetch()`): activation flips the row, replay is a duplicate, forged
+  and stale signatures are refused, and a fixture API key produces a translated
+  `502` with Dodo's own `401` in the log.
+
+**The dashboard and deploy work that remains:**
+
+- [ ] Create the seven products in Dodo **test mode**: Pro monthly $6, Pro yearly
+      $48, sponsor Featured $39/mo, sponsor Standard $19/mo, pass $3, credits
+      $5/1 000, donation pay-what-you-want
 - [ ] `npx wrangler secret put DODO_API_KEY` and `DODO_WEBHOOK_SECRET`
-- [ ] Put the product ids in `wrangler.jsonc` (`DODO_PRODUCT_*`)
-- [ ] Point the webhook at `/api/billing/webhook`, subscribe to
+- [ ] Put the seven product ids in `wrangler.jsonc` (`DODO_PRODUCT_PRO_MONTHLY`,
+      `_PRO_YEARLY`, `_SPONSOR_FEATURED`, `_SPONSOR_STANDARD`, `_CREDITS`,
+      `_PASS_30D`, `_DONATE`)
+- [ ] `npx wrangler d1 migrations apply pdfshush --remote` (adds
+      `accounts.dodo_subscription_id`)
+- [ ] Point the webhook at `/api/billing/webhook` and subscribe to
       `subscription.active`, `subscription.renewed`, `subscription.cancelled`,
-      `payment.succeeded`
+      `subscription.expired`, `payment.succeeded`
 - [ ] Test with Dodo's test mode end to end: sponsor card goes live, credit pack
-      raises the AI cap, pass flips the plan, donation succeeds
-- [ ] Verify a replayed webhook grants nothing twice
+      raises the AI cap, pass flips the plan, Pro monthly then yearly, donation
+      succeeds, and cancel keeps the month
+- [x] Verify a replayed webhook grants nothing twice (automated)
 
 **Done when:** paying flips the entitlement within seconds, cancelling eventually
 flips it back, and an unconfigured deployment still answers `503` instead of
@@ -309,7 +353,9 @@ live on the right page and nowhere else.
 
 **Why:** neither sponsorship nor subscriptions matter without traffic.
 
-- [ ] Add privacy-friendly analytics (no cookies, no banner)
+- [x] Add page-view measurement: one Google Tag Manager container, opt-in in the
+      EEA/UK, and a footer off switch that works everywhere
+- [ ] Decide whether to ask every visitor for consent or keep the EEA/UK-only gate
 - [ ] Publish 20 more guides around the queries that already get impressions
 - [ ] Add internal links: tool → guide → guide → tool
 - [ ] Measure: which pages convert to sign-in, which convert to Pro

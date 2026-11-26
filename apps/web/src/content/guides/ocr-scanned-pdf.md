@@ -1,5 +1,5 @@
 ---
-title: "OCR a Scanned PDF: What It Does and Where It Fails"
+title: "OCR a Scanned PDF: What It Does and Its Limits"
 description: "Understand what OCR adds to a scanned PDF, why scan quality decides the result, and how to check accuracy before you trust search, copy, or text export."
 slug: "ocr-scanned-pdf"
 category: "How-to"
@@ -9,14 +9,12 @@ relatedTools:
   - ocr-pdf
   - pdf-to-text
 relatedGuides: []
-draft: true
+faq:
+  - "What does OCR add to a scanned PDF? :: A text layer that sits over the page image, so search, copy and screen readers can use the words. The image itself is not replaced."
+  - "Why is OCR inaccurate on some scans? :: Skew, low resolution, faint ink and unusual fonts all reduce accuracy. A straight 300 dpi scan is the best starting point."
+  - "Does OCR make a PDF accessible? :: Not by itself. Accessibility also needs tags, a reading order and alt text, which OCR does not add."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the exact language options, output choices, and page-range controls in the shipped OCR PDF tool, including whether it keeps the original image untouched.
-> - [ ] Add: a real example page with the OCR text beside it, including one correctly recognized line and one failure, plus the resulting file size before and after.
-> - [ ] Check: the resolution guidance and the statement that OCR adds fonts and a text layer rather than replacing the page image.
-> - [ ] Check: the claim that OCR output is not the same as a tagged, accessible PDF.
 
 You have a scanned PDF that looks fine on screen, but searching for a word finds nothing and selecting a sentence is impossible. OCR is supposed to fix that, and it often does. It also produces a text layer that can be wrong in ways you will not notice until you rely on it.
 

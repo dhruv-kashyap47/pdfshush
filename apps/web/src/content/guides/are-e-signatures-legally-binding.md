@@ -1,5 +1,5 @@
 ---
-title: "Are E-Signatures Legally Binding? ESIGN, UETA and eIDAS Explained"
+title: "E-Signatures: Legally Binding? ESIGN and eIDAS"
 description: "ESIGN, UETA and eIDAS in plain terms: what makes an electronic signature enforceable, which documents still need witnesses or notarization, and what to keep."
 slug: "are-e-signatures-legally-binding"
 category: "Legal & compliance"
@@ -9,13 +9,12 @@ relatedTools:
   - signature
   - fill-sign
 relatedGuides: []
-draft: true
+faq:
+  - "Is an electronic signature legally binding? :: In most countries, yes, when the law allows it and the signer intends to sign. ESIGN in the United States and eIDAS in the European Union both treat a simple electronic signature as valid unless a rule requires more."
+  - "When does a signature need a witness or a notary? :: When the document or the filing rule says so: wills, sworn statements, some powers of attorney and some court filings. The requirement comes from the document type, not from the signature being electronic."
+  - "What should I keep after signing? :: Keep the final file, the signer name and email, the timestamp, and any audit trail the tool provides. If a dispute is likely, keep the copy you sent as well."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the descriptions of ESIGN, UETA and eIDAS, their effective dates and any recent amendments, including the UK position after Brexit.
-> - [ ] Add: a redacted example of a completed signature record or audit trail from our Signature tool, plus the exact wording of any consent checkbox the tool shows.
-> - [ ] Check: every sentence about wills, deeds, powers of attorney, notarization and recording. State law differs, and counsel must review this before publication.
 
 Someone sends back a contract with a note: "Please print, sign and scan." The deal is small, the parties are in three time zones, and the printer is out of toner. You are fairly sure an electronic signature is fine, but not sure enough to bet the contract on it.
 

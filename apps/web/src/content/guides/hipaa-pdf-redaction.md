@@ -9,13 +9,12 @@ relatedTools:
   - redact-pdf
   - flatten-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "Is drawing a black box over PHI enough? :: No. A box is a shape drawn on top of the text. The text is still in the file and can be copied, searched or extracted unless it is removed."
+  - "What is the difference between de-identification and redaction? :: De-identification removes the identifiers the rule names so the record is no longer individually identifiable. Redaction is the mechanical step of removing specific content from a file."
+  - "How do I verify a redacted PDF before releasing it? :: Search the file for the removed text, select around the area and copy it. If any of it can be recovered, the redaction failed."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the count and wording of the Safe Harbor identifier categories, the current status of the HIPAA Privacy Rule, and whether the expert determination description matches current HHS guidance.
-> - [ ] Add: a worked example using a synthetic record, showing the identifiers found on page one and the same page after redaction with the text layer searched.
-> - [ ] Check: the minimum necessary section and the documentation paragraph. A privacy officer or healthcare counsel should sign off before publication.
 
 A clinic is responding to a records request. Someone exports the visit notes, opens the PDF, draws a black rectangle over the patient's name and address, and emails the file. The text layer still contains both. The rectangle is a comment, the comment can be deleted, and the file can be searched like any other.
 

@@ -40,6 +40,7 @@ import { guidePath, type Guide } from '../src/content/guide-format.ts';
 import { articleSchema } from '../src/seo/article.ts';
 import { LANDING_PAGES, type LandingPage } from '../src/seo/landing-pages.ts';
 import { SPONSOR_FAQ, SPONSOR_STATIC_BODY } from '../src/content/sponsor.ts';
+import { GUIDE_INDEX_FAQS } from '../src/content/guides-index.ts';
 import {
   OG_IMAGE_HEIGHT,
   OG_IMAGE_WIDTH,
@@ -317,6 +318,7 @@ function guidesIndexPage(guides: Guide[]): string {
 <h1>PDF guides for work that has to be right</h1>
 <p class="pre-lead">Redaction that actually removes text, numbering a court production, filling a form a portal will accept.</p>
 ${sections || '<p>Guides are being written. Check back shortly.</p>'}
+${faqBlock(GUIDE_INDEX_FAQS, 'these guides', 'guides')}
 </main>${footer()}</div>`;
 }
 
@@ -355,6 +357,7 @@ ${
     : ''
 }
 ${guide.html}
+${faqBlock(fm.faq, fm.title, 'guide')}
 ${relatedTools ? `<h2>Do it now, in your browser</h2><ul class="pre-list">${relatedTools}</ul>` : ''}
 ${relatedGuides ? `<h2>Related reading</h2><ul class="pre-list">${relatedGuides}</ul>` : ''}
 </main>${footer()}</div>`;
@@ -858,6 +861,11 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
               origin,
             ),
           );
+          if (guide.frontmatter.faq.length > 0) {
+            schemas.push(
+              faqPageSchema(guide.frontmatter.faq, origin, entry.route),
+            );
+          }
         } else if (entry.landing) {
           const page = entry.landing;
           schemas.push(
@@ -898,9 +906,21 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           );
         }
 
-        // `/sponsor` is the one static page that also carries FAQ and breadcrumb
-        // markup: its questions are real search intent, and the SPA renders the
-        // same array.
+        // `/sponsor` and `/guides` are the static pages that also carry FAQ and
+        // breadcrumb markup: their questions are real search intent, and the SPA
+        // renders the same arrays.
+        if (entry.route === '/guides') {
+          schemas.push(
+            breadcrumbSchema(
+              [
+                { name: 'Home', route: '/' },
+                { name: 'Guides', route: '/guides' },
+              ],
+              origin,
+            ),
+          );
+          schemas.push(faqPageSchema(GUIDE_INDEX_FAQS, origin, '/guides'));
+        }
         if (entry.route === '/sponsor') {
           schemas.push(
             breadcrumbSchema(

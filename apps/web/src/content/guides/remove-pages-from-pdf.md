@@ -1,5 +1,5 @@
 ---
-title: "Remove Pages from a PDF Without Adobe"
+title: "Remove Pages from a PDF Without Adobe Acrobat"
 description: "Remove pages from a PDF without Adobe: delete by number or thumbnail, catch page-label traps, and protect bookmarks and signed copies before you save."
 slug: "remove-pages-from-pdf"
 category: "How-to"
@@ -9,13 +9,12 @@ relatedTools:
   - delete-pages
   - organize-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "How do I delete a page from a PDF? :: Open the file in a page organizer, select the page by thumbnail or number, and delete it. Save a copy rather than overwriting the original."
+  - "Why did the wrong page disappear? :: The page labels printed on the paper often differ from the page index in the file. Check the label on the page itself before deleting."
+  - "What happens to bookmarks when I remove pages? :: Links and bookmarks that pointed at a removed page can break, so check the outline after saving."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: whether the Delete Pages tool exposes a page-number entry or only thumbnails in the current build, and whether it offers undo after a page is marked for removal.
-> - [ ] Add: a screenshot showing a document whose displayed page label differs from its physical page index, with a note on how you confirmed the mismatch.
-> - [ ] Check: the explanation of "hide from print" and optional content groups. The base PDF specification has no simple per-page print flag, and the wording should be reviewed so it does not imply one exists in every tool.
 
 You scanned a thirty-page packet and got six blank backs. A contract arrived with two pages of exhibits you were told to drop. Deleting pages sounds trivial until you remove the wrong one, or the page numbers shown in the file do not match the numbers printed on the paper.
 

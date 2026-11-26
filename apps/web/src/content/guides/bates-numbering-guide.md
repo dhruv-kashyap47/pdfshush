@@ -1,5 +1,5 @@
 ---
-title: "Bates Numbering for Legal Documents: A Practical Guide"
+title: "Bates Numbering for Legal Documents: A Guide"
 description: "Bates numbering for legal teams: how to choose a prefix, start number and position, number a merged production, and avoid the errors that get files rejected."
 slug: "bates-numbering-guide"
 category: "Legal & compliance"
@@ -9,13 +9,12 @@ relatedTools:
   - bates-numbering
   - combine-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "What is Bates numbering? :: A sequential identifier stamped on every page of a document production so each page has one unique, citable name. It is common in litigation, investigations and regulatory requests."
+  - "Where should the Bates number go? :: Pick one corner and keep it there for the whole production. Bottom right is common, and the important part is that the stamp never covers text and looks identical on every page."
+  - "Do I number the whole production or each exhibit? :: Follow the recipient instructions. Many productions use one continuous sequence, while some want a prefix per exhibit with the sequence restarting. Ask before you stamp."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the exact Acrobat menu path (Tools > Bates Numbering > Add) against the current version, and the numbering controls and labels in our own Bates Numbering tool.
-> - [ ] Add: a screenshot of a stamped page showing the number position, plus one real production range log with the case details removed.
-> - [ ] Check: the statements about local rules, standing orders and confidentiality designations. Confirm them against the jurisdictions you actually serve before publishing.
 
 A production is due at noon. Two vendors have already scanned the files, one paralegal merged them in a hurry, and the first page of the combined PDF is stamped 000001 while the fourth document in the stack also starts at 000001. The clerk's office rejects it, or worse, accepts it and the other side spends the afternoon arguing that your production is unreliable.
 

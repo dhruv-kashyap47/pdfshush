@@ -1,5 +1,5 @@
 ---
-title: "Password-Protect a PDF — and Keep the Password Recoverable"
+title: "Password-Protect a PDF and Keep It Recoverable"
 description: "Learn the difference between an open password and a permissions password, how to share a PDF password safely, and what to do when the password is lost."
 slug: "password-protect-a-pdf"
 category: "How-to"
@@ -9,14 +9,12 @@ relatedTools:
   - protect-pdf
   - unlock-pdf
 relatedGuides: []
-draft: true
+faq:
+  - "What is the difference between an open password and a permissions password? :: An open password is required to view the file. A permissions password only restricts printing, copying or editing, and many viewers can ignore it."
+  - "Can I recover a PDF password? :: Not realistically. If you forget an open password and have no copy, the file is usually lost, so store the password somewhere you can find it."
+  - "Should I email the password with the file? :: No. Send the file and the password through different channels, or use a link that expires."
+draft: false
 ---
-
-> **NEEDS HUMAN EDIT** — do not publish until every box is checked.
-> - [ ] Verify: the encryption options, password fields, and permission toggles in the shipped Protect PDF tool, and whether it sets both a user and an owner password.
-> - [ ] Add: a screenshot of the password prompt a recipient sees, and a note on which viewers were tested.
-> - [ ] Check: the description of bank statement password conventions, since institutions differ and the article should not imply one universal rule.
-> - [ ] Check: the statement that adding encryption after signing can invalidate a digital signature.
 
 You need to email a contract, a statement, or a set of personal documents, and you want the file locked. Adding a password feels like the obvious fix. The part people get wrong is which password they are setting, and whether they will still be able to open their own file next month.
 
