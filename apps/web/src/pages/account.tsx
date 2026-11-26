@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ApiKeysPanel } from '@/components/account/api-keys';
+import { AccountAvatar } from '@/components/account/account-avatar';
 import { useAuth } from '@/hooks/use-auth';
 import { api } from '@/lib/api';
 import { serverDeployed } from '@/lib/deployment';
@@ -306,16 +307,14 @@ export function AccountPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-3">
-            {account.picture && (
-              <img
-                src={account.picture}
-                alt={`${account.name ?? 'Account'} profile picture`}
-                className="h-9 w-9 rounded-full"
-                referrerPolicy="no-referrer"
-                loading="lazy"
-                decoding="async"
-              />
-            )}
+            <AccountAvatar
+              picture={account.picture}
+              name={account.name}
+              email={account.email}
+              size="md"
+              alt={account.name ? `${account.name} profile picture` : 'Profile picture'}
+              loading="lazy"
+            />
             {account.name ?? account.email ?? 'Your account'}
           </CardTitle>
           <CardDescription>{account.email}</CardDescription>

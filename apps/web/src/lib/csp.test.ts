@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AI_PROVIDER_ORIGINS,
+  PROFILE_IMAGE_ORIGINS,
   buildCsp,
   isConnectOriginListed,
   parseConnectSrc,
@@ -51,6 +52,23 @@ describe('content security policy', () => {
     for (const origin of AI_PROVIDER_ORIGINS) {
       expect(connect.filter((entry) => entry === origin), origin).toHaveLength(1);
     }
+  });
+
+  it('permits the Google avatar CDN and no other remote image host', () => {
+    const imgSrc = policy
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('img-src '));
+    expect(imgSrc).toBe(
+      `img-src 'self' data: blob: ${PROFILE_IMAGE_ORIGINS.join(' ')}`,
+    );
+    const sources = (imgSrc ?? '').slice('img-src '.length).split(/\s+/);
+    // The avatar origin is Google's CDN, not a general HTTPS or wildcard
+    // allowance: `https:` and a bare `*` would re-open the egress the policy
+    // exists to close.
+    expect(sources).toContain('https://*.googleusercontent.com');
+    expect(sources).not.toContain('https:');
+    expect(sources).not.toContain('*');
   });
 
   it('keeps loopback model servers reachable without opening the internet', () => {

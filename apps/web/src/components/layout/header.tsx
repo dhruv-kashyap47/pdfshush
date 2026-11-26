@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { Logo } from '@/components/logo';
+import { AccountAvatar } from '@/components/account/account-avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -133,13 +134,12 @@ function AccountControl() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2" aria-label="Account menu">
-          {account.picture ? (
-            <img src={account.picture} alt="" className="h-6 w-6 rounded-full" referrerPolicy="no-referrer" />
-          ) : (
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
-              <User className="h-3.5 w-3.5" />
-            </span>
-          )}
+          <AccountAvatar
+            picture={account.picture}
+            name={account.name}
+            email={account.email}
+            loading="eager"
+          />
           <span className="hidden max-w-[10rem] truncate sm:inline">{label}</span>
         </Button>
       </DropdownMenuTrigger>
@@ -172,9 +172,12 @@ export function SiteHeader() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<number | null>(null);
   const location = useLocation();
+  const { refresh } = useAuth();
   // Surfaces a failed sign-in once and strips the query, so a refresh does not
-  // re-toast a message the user already read.
-  useAuthRedirectNotice();
+  // re-toast a message the user already read. On success it refreshes the
+  // session immediately instead of waiting for a reload, which is what made a
+  // re-login (new photo, different Google account) keep the old header state.
+  useAuthRedirectNotice(refresh);
 
   // Close the mega panel on route change or Escape.
   useEffect(() => setMegaOpen(false), [location.pathname, location.search, location.hash]);

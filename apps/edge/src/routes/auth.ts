@@ -27,6 +27,15 @@ import {
 
 export const authRoutes = new Hono<AppEnv>();
 
+// OAuth transactions carry state/nonce/code-verifier, and `/api/auth/me` is
+// cookie-scoped account data. Neither belongs in any cache: a shared or
+// heuristic cache must not replay a login redirect or hand one visitor another
+// visitor's session answer.
+authRoutes.use('*', async (c, next) => {
+  c.header('cache-control', 'private, no-store');
+  await next();
+});
+
 const disabled = (c: Context<AppEnv>) =>
   fail(c, 503, 'auth_disabled', 'Accounts are not enabled on this deployment.');
 
@@ -122,7 +131,13 @@ authRoutes.get('/api/auth/callback', async (c) => {
     maxAge,
   });
 
-  return c.redirect(new URL(safeReturnTo(transaction.returnTo), origin).toString(), 302);
+  const destination = new URL(safeReturnTo(transaction.returnTo), origin);
+  // A full navigation back to the SPA is the reload, but the marker lets the
+  // header refresh the session (and consume the parameter) without waiting for
+  // a second mount. Re-login with a different Google account or photo then
+  // updates the header immediately instead of showing the previous identity.
+  destination.searchParams.set('auth', 'success');
+  return c.redirect(destination.toString(), 302);
 });
 
 /** The SPA asks who is signed in. 204 = nobody, and that is not an error. */

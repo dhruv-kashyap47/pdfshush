@@ -18,7 +18,9 @@
  *
  * `connect-src` is the important directive. `form-action 'self'` closes the
  * other obvious way to POST a file off-origin, and `img-src` / `media-src`
- * exclude remote hosts so a beacon cannot be hidden in a pixel.
+ * stay on this origin so a beacon cannot be hidden in a pixel. The single
+ * remote image exception is Google's avatar CDN (see PROFILE_IMAGE_ORIGINS):
+ * it loads only for a signed-in visitor whose OIDC profile carries a photo.
  */
 
 /**
@@ -69,6 +71,15 @@ export const LOCAL_MODEL_ORIGINS = [
   'https://127.0.0.1:*',
 ] as const;
 
+/**
+ * Google's avatar CDN. The only remote image this product loads, and only when
+ * a signed-in visitor's Google profile has a photo: the OIDC `picture` claim
+ * points here, and without the origin the browser blocks the image while the
+ * rest of the login succeeds. Nothing else is widened — a sponsor logo and the
+ * app's own artwork are same-origin, and `data:`/`blob:` stay as they were.
+ */
+export const PROFILE_IMAGE_ORIGINS = ['https://*.googleusercontent.com'] as const;
+
 export const CSP_CONNECT_SRC = [
   "'self'",
   'blob:',
@@ -104,7 +115,7 @@ export function buildCsp(extraOrigins: readonly string[] = []): string {
     // pdfium/pdf.js compile WebAssembly, which needs the wasm allowance.
     'script-src': ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"],
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'blob:'],
+    'img-src': ["'self'", 'data:', 'blob:', ...PROFILE_IMAGE_ORIGINS],
     'font-src': ["'self'", 'data:'],
     'media-src': ["'self'", 'data:', 'blob:'],
     'worker-src': ["'self'", 'blob:'],

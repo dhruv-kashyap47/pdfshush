@@ -21,6 +21,7 @@ import {
   type ReactNode,
 } from 'react';
 import { toast } from 'sonner';
+import { profilePictureFrom } from '@/lib/account-profile';
 import { ApiError, api } from '@/lib/api';
 import { SERVER_UNAVAILABLE_MESSAGE, serverDeployed } from '@/lib/deployment';
 import { setHistorySyncEnabled } from '@/lib/history-sync';
@@ -81,7 +82,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await api<{ account: Account }>('/api/auth/me', {
         signal: controller.signal,
       });
-      if (!controller.signal.aborted) setAccount(result?.account ?? null);
+      if (!controller.signal.aborted) {
+        // `picture` is Google's field, but a self-hosted or older API may answer
+        // `avatar_url`/`avatarUrl`. Resolve all three once here so every avatar
+        // in the app reads one validated value instead of an unchecked string.
+        setAccount(
+          result?.account
+            ? { ...result.account, picture: profilePictureFrom(result.account) }
+            : null,
+        );
+      }
     } catch (error) {
       // A 503 (accounts not configured) and a network blip look the same from
       // here and mean the same thing: signed out. Abort is not a real failure.
