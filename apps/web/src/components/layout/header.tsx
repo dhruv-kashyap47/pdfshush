@@ -44,6 +44,7 @@ const MOBILE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const MOBILE_FOOTER_LINKS = [
+  { label: 'Guides', path: '/guides' },
   { label: 'Trust & privacy', path: '/trust' },
   { label: 'Verify a redaction', path: '/verify' },
   { label: 'About', path: '/about' },
@@ -259,6 +260,18 @@ export function SiteHeader() {
               </Link>
             );
           })}
+
+          <Link
+            to="/guides"
+            aria-current={location.pathname.startsWith('/guides') ? 'page' : undefined}
+            className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              location.pathname.startsWith('/guides')
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            }`}
+          >
+            Guides
+          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">

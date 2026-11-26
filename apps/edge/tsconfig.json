@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The Worker realm owns fetch/Request/Response/crypto/URL; there is no DOM
+    // and no Node. `WebWorker` is the closest standard lib, and `types: []`
+    // keeps @types/node from leaking in through the workspace root.
+    "lib": ["ES2022", "WebWorker"],
+    "types": [],
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts"]
+}

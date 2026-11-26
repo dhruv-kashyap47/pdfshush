@@ -1,0 +1,18 @@
+# Local secrets for `wrangler dev` (apps/edge). Copy to `.dev.vars`.
+#
+# Nothing here is committed. In production these are Worker secrets:
+#   npx wrangler secret put GOOGLE_CLIENT_ID
+#   npx wrangler secret put GOOGLE_CLIENT_SECRET
+#
+# The redirect URI must match the one registered in Google Cloud Console
+# exactly, including scheme and port:
+#   http://localhost:8787/api/auth/callback   (wrangler dev)
+#   https://pdfshush.com/api/auth/callback    (production)
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8787/api/auth/callback
+
+# Chrome and Edge treat localhost as a trustworthy origin, so `true` works even
+# over http during development.
+SESSION_COOKIE_SECURE=true

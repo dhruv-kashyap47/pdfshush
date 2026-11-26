@@ -63,7 +63,7 @@ function syncHreflang(origin: string, route: string): void {
   for (const stale of document.head.querySelectorAll('link[data-seo-hreflang]')) stale.remove();
   const url = absoluteUrl(route, origin);
   const entries: Array<[string, string]> = [
-    ['en-IN', url],
+    ['en', url],
     ['en', url],
     ['x-default', url],
   ];
@@ -116,7 +116,7 @@ export function usePageHead(head: PageHead): void {
     const url = absoluteUrl(route, origin);
     const imageUrl = image.startsWith('http') ? image : `${origin}${image}`;
 
-    document.documentElement.lang = 'en-IN';
+    document.documentElement.lang = 'en';
     document.title = title;
 
     upsertMeta('name', 'description', description);

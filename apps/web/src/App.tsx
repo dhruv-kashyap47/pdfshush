@@ -6,7 +6,9 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
+import { AdSlot } from '@/components/ads/ad-slot';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { RelatedGuides } from '@/components/guides/related-guides';
 import { SiteFooter } from '@/components/layout/footer';
 import { SiteHeader } from '@/components/layout/header';
 import { UpdateBanner } from '@/components/layout/update-banner';
@@ -52,6 +54,12 @@ const TermsPage = lazy(() =>
 );
 const LandingPage = lazy(() =>
   import('@/pages/landing').then((module) => ({ default: module.LandingPage })),
+);
+const GuidesPage = lazy(() =>
+  import('@/pages/guides').then((module) => ({ default: module.GuidesPage })),
+);
+const GuidePage = lazy(() =>
+  import('@/pages/guide').then((module) => ({ default: module.GuidePage })),
 );
 
 function ToolPageFallback() {
@@ -176,7 +184,12 @@ function RootLayout() {
             <RevealArmer />
             <Outlet />
           </ErrorBoundary>
+          {/* Self-gating: renders only on /tools/:slug and only when guides exist. */}
+          <RelatedGuides />
         </main>
+        {/* Home and tool pages carry one unit after their content. Articles own
+            their two units in the flow, so they are excluded here. */}
+        <AdSlot only={['home', 'tool']} surface="end" />
         <SiteFooter />
         <Toaster position="bottom-right" richColors closeButton />
       </div>
@@ -260,6 +273,26 @@ const router = createBrowserRouter([
         ),
       },
       { path: 'account', element: <AccountPage /> },
+      /*
+       * Guides. Static segments rank above the `:slug` keyword-guide route
+       * below, so /guides is never treated as a landing page.
+       */
+      {
+        path: 'guides',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <GuidesPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'guides/:slug',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <GuidePage />
+          </Suspense>
+        ),
+      },
       /*
        * Keyword guide pages (/compress-pdf, /pdf-under-200kb, /merge-pdf …).
        * A single lazy dynamic route keeps the guide data out of the entry

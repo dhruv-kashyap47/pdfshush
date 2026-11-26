@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,58 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
  * injecting the production policy there would make the two environments behave
  * differently in a way that hides breakage until deploy.
  */
-function cspPlugin(extraOrigins: readonly string[]): Plugin {
+/**
+ * Guides as a virtual module.
+ *
+ * `import.meta.glob` cannot see frontmatter, so an eager glob would ship every
+ * draft's full text inside the production bundle even though it is never listed
+ * or routed. This resolves the directory at build time and includes a draft only
+ * in `serve` (so a writer can preview it). The bundle a visitor downloads
+ * therefore contains published articles and nothing else.
+ */
+function guidesPlugin(rootDir: string): Plugin {
+  const virtualId = 'virtual:guides';
+  const resolved = `\0${virtualId}`;
+  let serve = false;
+
+  return {
+    name: 'pdfshush-guides',
+    configResolved(config) {
+      serve = config.command === 'serve';
+    },
+    resolveId(id) {
+      return id === virtualId ? resolved : undefined;
+    },
+    load(id) {
+      if (id !== resolved) return undefined;
+
+      const directory = path.join(rootDir, 'src', 'content', 'guides');
+      let files: string[] = [];
+      try {
+        files = readdirSync(directory).filter((file) => file.endsWith('.md'));
+      } catch {
+        return 'export default {}';
+      }
+
+      const entries = files
+        .map((file) => ({
+          file,
+          source: readFileSync(path.join(directory, file), 'utf8'),
+        }))
+        .map((entry) => ({
+          ...entry,
+          draft: /^draft:\s*(true|"true")\s*$/m.test(entry.source),
+        }))
+        .filter((entry) => serve || !entry.draft);
+
+      return `export default {${entries
+        .map((entry) => `${JSON.stringify(entry.file)}:${JSON.stringify(entry.source)}`)
+        .join(',')}};`;
+    },
+  };
+}
+
+function cspPlugin(extraOrigins: readonly string[], ads = false): Plugin {
   return {
     name: 'pdfshush-csp',
     apply: 'build',
@@ -35,7 +86,7 @@ function cspPlugin(extraOrigins: readonly string[]): Plugin {
             tag: 'meta',
             attrs: {
               'http-equiv': 'Content-Security-Policy',
-              content: buildCsp(extraOrigins),
+              content: buildCsp(extraOrigins, { ads }),
             },
             injectTo: 'head-prepend',
           },
@@ -195,7 +246,8 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      cspPlugin(extraCspOrigins),
+      guidesPlugin(rootDir),
+      cspPlugin(extraCspOrigins, env.VITE_ADS_ENABLED === 'true'),
       serviceWorkerPlugin(),
       ocrTrainedDataPlugin(),
       previewAsset404Plugin(),

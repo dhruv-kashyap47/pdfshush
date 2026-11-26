@@ -31,6 +31,11 @@ export interface Account {
   emailVerified: boolean;
   name: string | null;
   picture: string | null;
+  /**
+   * 'free' | 'pro'. Absent on a deployment that predates plans, so callers must
+   * treat `undefined` as free — never as Pro.
+   */
+  plan?: 'free' | 'pro';
 }
 
 export interface AuthState {

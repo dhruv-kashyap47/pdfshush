@@ -1,5 +1,14 @@
 # Deploying the frontend on Cloudflare Workers
 
+> **Status change (2026-11-26).** This Worker now deploys the API as well:
+> accounts on D1, in `apps/edge`. `/api/*` no longer answers 404 — it is a Hono
+> app, and `infra/cloudflare/api-404.js` is no longer referenced by
+> `wrangler.jsonc`. Server-side PDF execution, `/api/v1`, workflows and MCP are
+> capability-gated off on this shape and answer `503` with a stable code.
+> See [`apps/edge/README.md`](../apps/edge/README.md) for the new deploy steps.
+> Everything below about the *hosting* layer still applies; the scope paragraphs
+> do not.
+
 The current production target: **Workers + Static Assets**, frontend only. The
 configuration lives in the repository root (`wrangler.jsonc`), so the deploy is
 the same command on a laptop and in CI.

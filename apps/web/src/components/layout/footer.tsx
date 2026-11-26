@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { POPULAR_SLUGS, getTool } from '@/tools/registry';
+import { adConfig } from '@/lib/ads';
+import { reopenConsent } from '@/lib/ad-loader';
+import { useCapabilities } from '@/lib/capabilities';
+import { serverDeployed } from '@/lib/deployment';
 
 /* The oversized close spells the name letter by letter so the hover wave can
    travel through it. Weights mirror the logo mark: "pdf" Light, "shush"
@@ -25,6 +29,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
     title: 'Product',
     links: [
       { label: 'All tools', to: '/#all-tools' },
+      { label: 'Guides', to: '/guides' },
       { label: 'REST API', to: '/tools/api' },
       { label: 'MCP server', to: '/tools/mcp' },
       { label: 'Workflows', to: '/workflows' },
@@ -37,7 +42,6 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
     title: 'Company',
     links: [
       { label: 'About', to: '/about' },
-      { label: 'Blog', soon: true },
       { label: 'Contact', to: '/contact' },
       { label: 'Status', to: '/status' },
     ],
@@ -45,6 +49,23 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
 ];
 
 export function SiteFooter() {
+  const capabilities = useCapabilities();
+
+  /**
+   * Links a deployment cannot honour are absent, not broken. A free Worker has
+   * no server-side jobs, so Workflows, the REST API and MCP would each land on a
+   * 503 — hiding them is the honest version of "not here yet".
+   */
+  const visible = (to?: string): boolean => {
+    // A frontend-only build has no API and therefore no capability report; its
+    // API/MCP pages are static documentation that still resolves.
+    if (!serverDeployed) return true;
+    if (to === '/workflows') return capabilities.workflows;
+    if (to === '/tools/api') return capabilities.publicApi;
+    if (to === '/tools/mcp') return capabilities.mcp;
+    return true;
+  };
+
   return (
     <footer className="bg-muted/30 dark:bg-[oklch(0.03_0_0)]">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -88,7 +109,7 @@ export function SiteFooter() {
               <p className="mb-3 text-sm font-semibold">{column.title}</p>
               <ul className="space-y-2">
                 {column.links.map((link) =>
-                  link.to ? (
+                  !visible(link.to) ? null : link.to ? (
                     <li key={link.label}>
                       <Link
                         to={link.to}
@@ -117,6 +138,20 @@ export function SiteFooter() {
             <Link to="/terms" className="transition-colors hover:text-foreground">
               Terms
             </Link>
+            {/*
+              Re-opens Google's consent dialog. Only meaningful when a CMP is
+              configured, so the control is absent from a build without ads
+              rather than present and inert.
+            */}
+            {adConfig(import.meta.env).cmpId ? (
+              <button
+                type="button"
+                onClick={reopenConsent}
+                className="transition-colors hover:text-foreground"
+              >
+                Privacy settings
+              </button>
+            ) : null}
             <a
               href={SOURCE_URL}
               target="_blank"

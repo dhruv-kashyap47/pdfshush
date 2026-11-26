@@ -106,6 +106,28 @@ export function PrivacyPage() {
         </p>
       </InfoSection>
 
+      <InfoSection id="ads" title="Advertising and cookies">
+        <p>
+          The PDF tools themselves never show ads and never load a third-party script. Advertising,
+          when it is enabled on this deployment, appears only on the home page, tool pages and guide
+          articles, and never on an account, status, result or error screen.
+        </p>
+        <p>
+          Ads are served by Google. Enabling them means Google may set cookies or read device
+          identifiers to select and measure advertising. Visitors in the EEA and the UK are asked for
+          consent first through Google&apos;s consent platform; if you decline, no personalised
+          advertising is requested. You can change that choice at any time with the{' '}
+          <strong>Privacy settings</strong> link in the footer.
+        </p>
+        <p>
+          Signed-in users on the Pro plan never load the advertising script at all.
+        </p>
+        <p>
+          If advertising is not enabled on the deployment you are using, no advertising script is
+          loaded and this section describes nothing that happens.
+        </p>
+      </InfoSection>
+
       <InfoSection id="changes" title="Changes and contact">
         <p>
           If this policy changes, the date at the top changes with it. Questions and requests can go

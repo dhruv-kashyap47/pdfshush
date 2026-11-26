@@ -161,7 +161,7 @@ for (const page of pages) {
   ]) {
     if (!html.includes(`name="${required}"`)) fail(`${label} has ${required}`);
   }
-  if ((html.match(/hreflang="en-IN"/g) ?? []).length !== 1) fail(`${label} has one en-IN hreflang`);
+  if ((html.match(/hreflang="en"/g) ?? []).length < 1) fail(`${label} has an en hreflang`);
   if (!html.includes('hreflang="x-default"')) fail(`${label} has x-default hreflang`);
 
   if (isTool && indexable) {

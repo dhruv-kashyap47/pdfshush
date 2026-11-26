@@ -34,6 +34,9 @@ import {
   WHY_CHOOSE,
 } from '../src/seo/home-content.ts';
 import { TOOL_SEO, toolSeoFor } from '../src/seo/tool-seo.ts';
+import { loadGuides } from './guides.ts';
+import { guidePath, type Guide } from '../src/content/guide-format.ts';
+import { articleSchema } from '../src/seo/article.ts';
 import { LANDING_PAGES, type LandingPage } from '../src/seo/landing-pages.ts';
 import {
   OG_IMAGE_HEIGHT,
@@ -246,9 +249,9 @@ ${items
 </section>`;
 }
 
-function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
+function toolPage(tool: ToolEntry, tools: ToolEntry[], guides: Guide[]): string {
   const related = relatedTools(tool, tools);
-  const guides = guidesFor(tool.slug);
+  const landingGuides = guidesFor(tool.slug);
   const remote = REMOTE.has(tool.slug);
   const seo = TOOL_SEO[tool.slug] ?? toolSeoFor(tool.slug, tool.name, tool.description);
   const status = !tool.live
@@ -261,9 +264,19 @@ function toolPage(tool: ToolEntry, tools: ToolEntry[]): string {
     : remote
       ? `<h2>How it works</h2><p>${escapeHtml(REMOTE_COPY[tool.slug]?.how ?? 'Send the file to the PDFShush API and download the result; the API deletes it on its stated schedule.')}</p>`
       : `<h2>How to use ${escapeHtml(seo.h1)}</h2><ol>${seo.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol>`;
+  const articleGuides = guides.filter((entry) => entry.frontmatter.relatedTools.includes(tool.slug));
   const guidesBlock =
-    guides.length > 0
-      ? `<h2>Guides</h2><ul class="pre-list">${guides.map((guide) => `<li><a href="${guide.path}">${escapeHtml(guide.h1)}<span>${escapeHtml(guide.description)}</span></a></li>`).join('')}</ul>`
+    landingGuides.length + articleGuides.length > 0
+      ? `<h2>Guides</h2><ul class="pre-list">${[
+          ...landingGuides.map(
+            (guide) =>
+              `<li><a href="${guide.path}">${escapeHtml(guide.h1)}<span>${escapeHtml(guide.description)}</span></a></li>`,
+          ),
+          ...articleGuides.map(
+            (guide) =>
+              `<li><a href="${guidePath(guide.frontmatter.slug)}">${escapeHtml(guide.frontmatter.title)}<span>${escapeHtml(guide.frontmatter.description)}</span></a></li>`,
+          ),
+        ].join('')}</ul>`
       : '';
   return `<div class="pre-shell">${header()}<main class="pre-main">
 <p class="pre-kicker">${escapeHtml(tool.categoryLabel)}</p>
@@ -281,6 +294,74 @@ ${how}
 ${related.length > 0 ? `<h2>Related PDF tools</h2><ul class="pre-list">${related.map((entry) => `<li><a href="/tools/${entry.slug}">${escapeHtml(entry.name)}<span>${escapeHtml(TOOL_BENEFITS[entry.slug] ?? entry.description)}</span></a></li>`).join('')}</ul>` : ''}
 ${guidesBlock}
 ${faqBlock(faqsFor(tool.slug), tool.name, tool.slug)}
+</main>${footer()}</div>`;
+}
+
+function guidesIndexPage(guides: Guide[]): string {
+  const categories = new Map<string, Guide[]>();
+  for (const guide of guides) {
+    const list = categories.get(guide.frontmatter.category) ?? [];
+    list.push(guide);
+    categories.set(guide.frontmatter.category, list);
+  }
+
+  const sections = [...categories.entries()]
+    .map(
+      ([name, entries]) =>
+        `<h2>${escapeHtml(name)}</h2><ul class="pre-list">${entries
+          .map(
+            (guide) =>
+              `<li><a href="${guidePath(guide.frontmatter.slug)}">${escapeHtml(guide.frontmatter.title)}<span>${escapeHtml(guide.frontmatter.description)}</span></a></li>`,
+          )
+          .join('')}</ul>`,
+    )
+    .join('\n');
+
+  return `<div class="pre-shell">${header()}<main class="pre-main">
+<p class="pre-kicker">Guides</p>
+<h1>PDF guides for work that has to be right</h1>
+<p class="pre-lead">Redaction that actually removes text, numbering a court production, filling a form a portal will accept.</p>
+${sections || '<p>Guides are being written. Check back shortly.</p>'}
+</main>${footer()}</div>`;
+}
+
+function guidePage(guide: Guide, all: Guide[]): string {
+  const fm = guide.frontmatter;
+  const toc = guide.headings.filter((heading) => heading.level === 2);
+  const relatedTools = fm.relatedTools
+    .map(
+      (slug) =>
+        `<li><a href="/tools/${slug}">${escapeHtml(slug.replace(/-/g, ' '))}</a></li>`,
+    )
+    .join('');
+  const relatedGuides = (
+    fm.relatedGuides.length > 0
+      ? fm.relatedGuides
+          .map((slug) => all.find((entry) => entry.frontmatter.slug === slug))
+          .filter((entry): entry is Guide => Boolean(entry))
+      : all.filter((entry) => entry.frontmatter.slug !== fm.slug).slice(0, 2)
+  )
+    .map(
+      (entry) =>
+        `<li><a href="${guidePath(entry.frontmatter.slug)}">${escapeHtml(entry.frontmatter.title)}</a></li>`,
+    )
+    .join('');
+
+  return `<div class="pre-shell">${header()}<main class="pre-main">
+<p class="pre-kicker"><a href="/guides">Guides</a> / ${escapeHtml(fm.category)}</p>
+<h1>${escapeHtml(fm.title)}</h1>
+<p class="pre-lead">${escapeHtml(fm.description)}</p>
+<p class="pre-note">${escapeHtml(fm.category)} · <time datetime="${escapeHtml(fm.publishedAt)}">${escapeHtml(fm.publishedAt)}</time> · ${guide.minutes} min read</p>
+${
+  toc.length >= 3
+    ? `<h2>On this page</h2><ol>${toc
+        .map((heading) => `<li><a href="#${heading.id}">${escapeHtml(heading.title)}</a></li>`)
+        .join('')}</ol>`
+    : ''
+}
+${guide.html}
+${relatedTools ? `<h2>Do it now, in your browser</h2><ul class="pre-list">${relatedTools}</ul>` : ''}
+${relatedGuides ? `<h2>Related reading</h2><ul class="pre-list">${relatedGuides}</ul>` : ''}
 </main>${footer()}</div>`;
 }
 
@@ -396,7 +477,6 @@ function withHead(
   const tags = [
     `<meta name="keywords" content="${escapeHtml(keywords.join(', '))}" />`,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,
-    `<link rel="alternate" hreflang="en-IN" href="${escapeHtml(url)}" />`,
     `<link rel="alternate" hreflang="en" href="${escapeHtml(url)}" />`,
     `<link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />`,
     `<meta property="og:type" content="${type}" />`,
@@ -453,6 +533,8 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         'utf8',
       );
       const tools = parseRegistry(registry);
+      // Published guides only: a draft is never prerendered and never sitemapped.
+      const guides = loadGuides(options.rootDir);
       const buildDate = new Date().toISOString().slice(0, 10);
 
       const routes: {
@@ -467,6 +549,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
         type: 'website' | 'article';
         tool?: ToolEntry;
         landing?: LandingPage;
+        guide?: Guide;
       }[] = [
         {
           route: '/',
@@ -630,7 +713,7 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
             route: `/tools/${tool.slug}`,
             title: meta.title,
             description: meta.description,
-            html: toolPage(tool, tools),
+            html: toolPage(tool, tools, guides),
             image: `/og/${tool.slug}.png`,
             imageAlt: `${tool.name} – ${tool.categoryLabel} on PDFShush`,
             keywords: seo.keywords,
@@ -645,11 +728,35 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           description: page.description,
           html: landingPage(page),
           image: page.image,
-          imageAlt: `${page.h1} – PDFShush guide`,
+          imageAlt: `${page.h1} - PDFShush guide`,
           keywords: page.keywords,
           indexable: true,
           type: 'article' as const,
           landing: page,
+        })),
+        {
+          route: '/guides',
+          title: 'PDF Guides - Practical, No-Fluff How-Tos | PDFShush',
+          description:
+            'Step-by-step guides for redacting, merging, signing and compressing PDFs, written for people who need the file to be right the first time. No filler at all.',
+          html: guidesIndexPage(guides),
+          image: '/og/home.png',
+          imageAlt: 'PDFShush guides',
+          keywords: ['pdf guides', 'how to edit pdf', 'pdf how-to'],
+          indexable: guides.length > 0,
+          type: 'website' as const,
+        },
+        ...guides.map((guide) => ({
+          route: guidePath(guide.frontmatter.slug),
+          title: `${guide.frontmatter.title} | PDFShush`,
+          description: guide.frontmatter.description,
+          html: guidePage(guide, guides),
+          image: '/og/home.png',
+          imageAlt: guide.frontmatter.title,
+          keywords: [guide.frontmatter.category.toLowerCase(), ...guide.frontmatter.relatedTools],
+          indexable: true,
+          type: 'article' as const,
+          guide,
         })),
       ];
 
@@ -698,6 +805,32 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           if (tool.live && faqs.length > 0) {
             schemas.push(faqPageSchema(faqs, origin, entry.route));
           }
+        } else if (entry.guide) {
+          const guide = entry.guide;
+          schemas.push(
+            articleSchema(
+              {
+                title: entry.title,
+                description: entry.description,
+                route: entry.route,
+                publishedAt: guide.frontmatter.publishedAt,
+                updatedAt: guide.frontmatter.updatedAt,
+                section: guide.frontmatter.category,
+                image: entry.image,
+              },
+              origin,
+            ),
+          );
+          schemas.push(
+            breadcrumbSchema(
+              [
+                { name: 'Home', route: '/' },
+                { name: 'Guides', route: '/guides' },
+                { name: guide.frontmatter.title, route: entry.route },
+              ],
+              origin,
+            ),
+          );
         } else if (entry.landing) {
           const page = entry.landing;
           schemas.push(
@@ -786,7 +919,6 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
             '  <url>',
             `    <loc>${loc}</loc>`,
             `    <lastmod>${buildDate}</lastmod>`,
-            '    <xhtml:link rel="alternate" hreflang="en-IN" href="' + loc + '" />',
             '    <xhtml:link rel="alternate" hreflang="en" href="' + loc + '" />',
             '    <xhtml:link rel="alternate" hreflang="x-default" href="' + loc + '" />',
             '  </url>',

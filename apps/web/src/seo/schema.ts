@@ -49,7 +49,7 @@ export function websiteSchema(origin: string = SITE_ORIGIN): Record<string, unkn
     url: origin,
     description:
       'Free online PDF tools for compressing, merging, splitting, editing and converting files in your browser. No signup and no watermark.',
-    inLanguage: 'en-IN',
+    inLanguage: 'en',
     publisher: { '@id': `${origin}/#organization` },
     potentialAction: {
       '@type': 'SearchAction',

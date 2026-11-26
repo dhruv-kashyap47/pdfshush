@@ -8,7 +8,9 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "guides:status": "node scripts/guides-status.mjs",
+    "guides:check": "node scripts/guides-status.mjs --check"
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",

@@ -1,26 +1,37 @@
 /**
- * pdfshush on Cloudflare Workers + Static Assets.
+ * pdfshush — the free deployment shape.
  *
- * This deploys the **frontend only**. The Express API, BullMQ worker, Redis and
- * MongoDB in `docker-compose.yml` stay local and untouched. The one Worker
- * script (`infra/cloudflare/api-404.js`) exists only to return a real 404 for
- * `/api/*`; every other request is routed as a static asset.
+ * One Worker script serves the SPA from Static Assets and the API from
+ * `apps/edge`. Accounts live in D1. There is no Redis, no Mongo and no
+ * server-side PDF worker: every tool runs in the visitor's browser, which is the
+ * product's actual claim.
  *
- * Build first, then deploy:
+ * Build and deploy:
  *
  *   pnpm --filter @pdfshush/web build
+ *   npx wrangler d1 create pdfshush          # once; paste the id below
+ *   npx wrangler d1 migrations apply pdfshush --remote
  *   npx wrangler deploy
  *
- * The build reads `apps/web/.env.production` (canonical origin, and
- * `VITE_SERVER_API=off`), so the uploaded HTML is already the frontend shape.
+ * Secrets (never in this file):
+ *
+ *   npx wrangler secret put GOOGLE_CLIENT_ID
+ *   npx wrangler secret put GOOGLE_CLIENT_SECRET
+ *
+ * The scope note this file used to carry ("deploys the frontend only, the
+ * Express API stays local") is no longer true. The Express shape still exists in
+ * the repository and still runs from `docker-compose.yml`; it is a separate
+ * deployment, not this one.
  */
 {
   "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
   "name": "pdfshush",
   "compatibility_date": "2026-11-13",
 
-  // Scoped by `run_worker_first` below to API paths only.
-  "main": "./infra/cloudflare/api-404.js",
+  // The API and the asset router share one script. `nodejs_compat` is
+  // deliberately absent: this Worker uses WebCrypto and fetch only, so the
+  // polyfill layer would be dead weight on every cold start.
+  "main": "./apps/edge/src/index.ts",
 
   "assets": {
     "directory": "./apps/web/dist",
@@ -33,17 +44,17 @@
     // "force-trailing-slash" would break every prerendered route.
     "html_handling": "auto-trailing-slash",
 
-    // Normal client-side routes keep the SPA fallback: an unmatched path gets
-    // `/index.html` with a 200 so the React router can render. API paths are
-    // the exception: `run_worker_first` invokes the Worker script, which returns
-    // a real 404 instead of the shell. `dist/404.html` is still generated but is
-    // not served by this fallback mode.
-    //
-    // Cloudflare matches these patterns case-sensitively, while HTTP servers
-    // (including Express, the server shape's router) match paths
-    // case-insensitively. All eight spellings of "api" are listed so
-    // `/API/health` cannot bypass the fence and receive the SPA shell.
+    // Client-side routes get `/index.html` with a 200 so the React router can
+    // render. API paths never reach this fallback: the Worker splits them off
+    // before it consults the asset router, and returns JSON.
     "not_found_handling": "single-page-application",
+
+    // Cloudflare matches these patterns case-sensitively while HTTP servers
+    // (including Express) match case-insensitively. All eight spellings of
+    // "api" are listed so `/API/health` cannot bypass the split. On the free
+    // plan, matching these patterns counts as a Worker invocation and returns
+    // 429 over the daily limit instead of falling back to assets — which is the
+    // correct failure for an API.
     "run_worker_first": [
       "/api",
       "/api/*",
@@ -62,5 +73,40 @@
       "/API",
       "/API/*"
     ]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pdfshush",
+      // Replace with the id from `wrangler d1 create pdfshush`. Local dev
+      // (`wrangler dev`) works with this placeholder; deploy will not.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "./apps/edge/migrations"
+    }
+  ],
+
+  "vars": {
+    "WEB_ORIGIN": "https://pdfshush.com",
+    "SESSION_COOKIE_SECURE": "true",
+
+    // Managed AI stays OFF until both a model (here) and a key (secret) exist.
+    // That keeps a fresh deploy identical to the pre-AI shape. To turn it on:
+    //
+    //   npx wrangler secret put AI_MANAGED_API_KEY   # sk-or-v1-...
+    //   # then set AI_MANAGED_MODEL below to any OpenRouter model id
+    //
+    // IMPORTANT: buy 10 credits on OpenRouter once. Below 10 credits its
+    // free-model limit is 50 requests/day *for the whole account*; at 10+ it is
+    // 1,000/day. The Worker budgets 700 anonymous + 200 Pro out of that.
+    "AI_MANAGED_PROVIDER": "openrouter",
+    "AI_MANAGED_MODEL": "",
+    "AI_MANAGED_MAX_OUTPUT_TOKENS": "4096"
+  },
+
+  // Session and transaction cleanup. Off the hour so it does not collide with
+  // other accounts' midnight cron jobs.
+  "triggers": {
+    "crons": ["17 * * * *"]
   }
 }

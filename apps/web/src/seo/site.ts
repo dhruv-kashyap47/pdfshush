@@ -11,8 +11,8 @@
 export const SITE_ORIGIN = 'https://pdfshush.com';
 export const SITE_NAME = 'PDFShush';
 export const SITE_SHORT_NAME = 'pdfshush';
-export const SITE_LOCALE = 'en_IN';
-export const SITE_LANG = 'en-IN';
+export const SITE_LOCALE = 'en_US';
+export const SITE_LANG = 'en';
 export const SITE_TAGLINE = 'Free online PDF tools that run in your browser';
 export const SITE_DESCRIPTION =
   'Free online PDF tools to compress, merge, split, edit and convert PDFs in your browser. No signup, no watermark, and your files never leave your device.';

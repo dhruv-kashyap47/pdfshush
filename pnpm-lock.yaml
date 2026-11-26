@@ -287,6 +287,25 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  apps/edge:
+    dependencies:
+      '@pdfshush/ai-provider':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider
+      '@pdfshush/pdf-core':
+        specifier: workspace:*
+        version: link:../../packages/pdf-core
+      hono:
+        specifier: ^4.13.16
+        version: 4.13.18
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+
   apps/mcp:
     dependencies:
       '@modelcontextprotocol/sdk':

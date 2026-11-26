@@ -1,0 +1,23 @@
+{
+  "name": "@pdfshush/edge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The free deployment shape: a Cloudflare Worker serving accounts (D1), the static build, and no server-side PDF work.",
+  "scripts": {
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:local": "npx wrangler d1 migrations apply pdfshush --local",
+    "db:remote": "npx wrangler d1 migrations apply pdfshush --remote"
+  },
+  "dependencies": {
+    "@pdfshush/ai-provider": "workspace:*",
+    "@pdfshush/pdf-core": "workspace:*",
+    "hono": "^4.13.18",
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}
