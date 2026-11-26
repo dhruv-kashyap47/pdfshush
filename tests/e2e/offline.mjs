@@ -209,7 +209,7 @@ async function main() {
     /* -------------------------------------------------------- online merge */
     console.log('\n3. Online run (warms the cache, records egress)');
     await page.goto(`${BASE}/tools/merge-pdf`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Merge PDF files' }).waitFor({ timeout: 30_000 });
+    await page.getByRole('heading', { level: 1, name: /merge pdf files/i }).waitFor({ timeout: 30_000 });
 
     const merge = async () => {
       await page.locator('input[type=file]').first().setInputFiles([fileA, fileB]);
@@ -252,7 +252,7 @@ async function main() {
     await context.setOffline(true);
     await page.reload({ waitUntil: 'domcontentloaded' });
     const heading = await waitFor(
-      async () => (await page.getByRole('heading', { name: 'Merge PDF files' }).count()) > 0,
+      async () => (await page.getByRole('heading', { level: 1, name: /merge pdf files/i }).count()) > 0,
       'cached shell + tool chunk',
       60_000,
     );
