@@ -28,7 +28,16 @@ export class ApiError extends Error {
 
 function readCookie(name: string): string {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`));
-  return match?.[1] ? decodeURIComponent(match[1]) : '';
+  if (!match?.[1]) return '';
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    // A truncated `%` escape (an extension, a manual edit, a proxy) makes
+    // decodeURIComponent throw. Return the raw value instead: the CSRF check
+    // compares it byte for byte, and an unreadable cookie must not turn every
+    // request in the tab into a URIError.
+    return match[1];
+  }
 }
 
 /** The double-submit token for callers that build their own request (AI SSE). */

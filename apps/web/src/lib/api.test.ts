@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, api } from './api';
+import { ApiError, api, csrfToken } from './api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -45,5 +45,13 @@ describe('api response handling', () => {
       code: 'validation_failed',
       details: [{ field: 'steps', message: 'Add at least one step' }],
     });
+  });
+
+  it('reads a malformed cookie without throwing', () => {
+    // A truncated percent escape used to escape readCookie as a URIError, so
+    // every non-GET request in the tab failed before fetch was even called.
+    vi.stubGlobal('document', { cookie: 'pdfshush_csrf=%E0%A4%A' });
+    expect(() => csrfToken()).not.toThrow();
+    expect(csrfToken()).toBe('%E0%A4%A');
   });
 });

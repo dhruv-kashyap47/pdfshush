@@ -48,8 +48,22 @@ export function pdfshushDb(): Promise<IDBDatabase> {
   connection ??= new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => upgrade(request.result);
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const database = request.result;
+      // Another tab may open a newer version. Holding this connection would
+      // block that upgrade forever; closing here lets the other tab proceed and
+      // makes the next call in this tab reopen at the new version.
+      database.onversionchange = () => {
+        database.close();
+        connection = undefined;
+      };
+      resolve(database);
+    };
     request.onerror = () => reject(request.error ?? new Error('IndexedDB unavailable'));
+    // Without this, an upgrade blocked by another tab left the promise pending
+    // forever: every reader hung and the history silently never loaded.
+    request.onblocked = () =>
+      reject(new Error('IndexedDB upgrade is blocked by another tab'));
   }).catch((error: unknown) => {
     // A cached rejection would poison every later call; forget it so the next
     // attempt opens afresh (a transient private-mode failure, for instance).

@@ -24,6 +24,14 @@ import { dodoConfig } from '../billing/dodo.js';
 
 export const accountRoutes = new Hono<AppEnv>();
 
+// Every response here is scoped to the session cookie. `private, no-store` is
+// the promise that a browser, a shared proxy or a CDN cannot keep one account's
+// history for the next visitor.
+accountRoutes.use('*', async (c, next) => {
+  c.header('cache-control', 'private, no-store');
+  await next();
+});
+
 /**
  * Structural ceiling for a synced history row's page count. A merged document's
  * count is a sum, so a per-document cap would reject legitimate rows; this
