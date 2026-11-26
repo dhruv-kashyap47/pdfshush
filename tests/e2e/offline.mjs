@@ -130,7 +130,12 @@ async function main() {
     return;
   }
 
-  const browser = await chromium.launch({ channel: 'msedge' });
+  // Bundled Chromium by default: CI installs Playwright's browsers but not the
+  // system Edge channel, and depending on a browser outside the lockfile made
+  // this suite fail before it could test anything. `E2E_BROWSER_CHANNEL=msedge`
+  // opts back into a system engine for a local cross-engine check.
+  const channel = (process.env.E2E_BROWSER_CHANNEL ?? '').trim();
+  const browser = await chromium.launch(channel ? { channel } : {});
   const context = await browser.newContext({
     viewport: { width: 1440, height: 960 },
     acceptDownloads: true,
