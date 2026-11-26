@@ -440,7 +440,7 @@ async function main() {
     await page.getByText(/Rebuilt as JPEG images/).waitFor({ timeout: 180_000 });
     const strongDl = await download(page, 'Download');
     check('strong compression output is a valid PDF', isPdf(strongDl.bytes), `${strongDl.name} ${strongDl.bytes.length}B`);
-    check('strong compression reports before and after', await page.getByText('Before').isVisible());
+    check('strong compression reports before and after', await page.getByText(/^Before\b/).first().isVisible());
     await page.screenshot({ path: path.join(ARTIFACTS, 'compress-result.png') });
 
     /* 8. Compress -- smart (images shrink, text survives) */

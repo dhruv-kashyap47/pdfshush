@@ -1127,19 +1127,24 @@ async function main() {
   // control that lands on a 503, so the assertions branch on the deployment
   // switch rather than assuming accounts are configured.
   //
-  // A deployment with no API at all (the frontend-only shape, PLAN.md 33.11)
-  // answers `/api/tools` with the static host's 404 document, not JSON. That is
-  // not a catalog with accounts enabled -- it is no catalog, so the switch
-  // cannot be read and the deployment has no account system. Treating "unknown"
-  // as "enabled" is what would make this suite demand a sign-in control on a
-  // static deployment.
+  // A build with no API answers `/api/tools` with HTML or a 404 document, not
+  // JSON. That is "unknown", not "disabled": the app cannot read the switch and
+  // keeps the default for the shape it was built for. Assert only when the
+  // switch is readable; a preview without a Worker is exercised by the
+  // account-avatar suite instead.
   const catalog = await fetch(`${BASE}/api/tools`)
     .then((response) => (response.ok ? response.json() : null))
     .catch(() => null);
-  const accountsEnabled = catalog !== null && catalog?.accounts?.enabled !== false;
+  // `null` means the API did not answer, not that accounts are disabled. A
+  // preview of the server-shaped build has no Worker, so the deployment state
+  // is genuinely unknown there; asserting either branch would be guessing.
+  const accountsKnown = catalog !== null && typeof catalog === 'object';
+  const accountsEnabled = accountsKnown && catalog?.accounts?.enabled !== false;
 
   await page.goto(`${BASE}/account`, { waitUntil: 'networkidle' });
-  if (accountsEnabled) {
+  if (!accountsKnown) {
+    console.log('  [SKIP] account state unknown: /api/tools did not answer');
+  } else if (accountsEnabled) {
     check(
       'account page offers sign-in without gating anything',
       await page.getByText(/Accounts are optional/i).isVisible(),
@@ -1161,7 +1166,9 @@ async function main() {
 
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   const signIn = page.getByRole('button', { name: 'Sign in' });
-  if (accountsEnabled) {
+  if (!accountsKnown) {
+    console.log('  [SKIP] header account state unknown: /api/tools did not answer');
+  } else if (accountsEnabled) {
     check(
       'header shows a working sign-in control once auth state resolves',
       await waitFor(async () => (await signIn.count()) > 0, 15_000, 'sign-in control'),
