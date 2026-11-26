@@ -158,6 +158,18 @@ export function browserTimeZone(): string | null {
   }
 }
 
+/**
+ * Playwright, Selenium and headless Chrome set `navigator.webdriver`. Automated
+ * visits are not people, they are not who measurement is for, and a benchmark
+ * must not pay for a third-party script's execution while it measures the
+ * product's own work. So: no tag and no prompt in automation.
+ */
+export function isAutomatedBrowser(
+  nav: { webdriver?: boolean } | null | undefined = globalThis.navigator,
+): boolean {
+  return Boolean(nav?.webdriver);
+}
+
 /** `localStorage`, or null where it throws (some private-mode browsers). */
 export function browserStorage(): StorageLike | null {
   try {

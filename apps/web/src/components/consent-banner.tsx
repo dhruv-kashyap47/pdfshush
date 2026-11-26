@@ -6,6 +6,7 @@ import {
   browserStorage,
   browserTimeZone,
   decideMeasurement,
+  isAutomatedBrowser,
   loadAnalytics,
   onOpenConsentSettings,
   openConsentSettings,
@@ -27,6 +28,10 @@ export function ConsentBanner() {
   const [choice, setChoice] = useState<ConsentChoice | null>(null);
 
   useEffect(() => {
+    // Automation (Playwright, Selenium) is not an audience and must not load a
+    // third-party script inside a benchmark's measurement window.
+    if (isAutomatedBrowser()) return undefined;
+
     const storage = browserStorage();
     const stored = readChoice(storage);
     setChoice(stored);

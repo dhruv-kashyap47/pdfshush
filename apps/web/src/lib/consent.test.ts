@@ -4,6 +4,7 @@ import {
   CONSENT_STORAGE_KEY,
   decideMeasurement,
   gtmScriptUrl,
+  isAutomatedBrowser,
   readChoice,
   requiresConsent,
   writeChoice,
@@ -116,5 +117,15 @@ describe('container url', () => {
   it('names the one container the CSP allows', () => {
     expect(ANALYTICS_CONTAINER_ID).toBe('GTM-W5QPVR3Z');
     expect(gtmScriptUrl()).toBe('https://www.googletagmanager.com/gtm.js?id=GTM-W5QPVR3Z');
+  });
+});
+
+describe('automation', () => {
+  it('recognises a driver-controlled browser', () => {
+    expect(isAutomatedBrowser({ webdriver: true })).toBe(true);
+    expect(isAutomatedBrowser({ webdriver: false })).toBe(false);
+    expect(isAutomatedBrowser({})).toBe(false);
+    expect(isAutomatedBrowser(null)).toBe(false);
+    expect(isAutomatedBrowser(undefined)).toBe(false);
   });
 });
