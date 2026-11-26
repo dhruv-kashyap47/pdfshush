@@ -19,18 +19,20 @@ concurrency:
 jobs:
   gate:
     name: typecheck + unit + bundle
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Reads `packageManager` from package.json (pnpm 12), so the CI pin and
       # the local pin cannot drift apart.
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      # One version source: `.node-version` (24). setup-node@v5 is the current
+      # major; v4 is deprecated on the Node 24 runtime.
+      - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -43,6 +45,12 @@ jobs:
       - run: pnpm test:deploy-config
 
       - run: pnpm test:provenance
+
+      # The dependency notice is generated from the lockfile's installed
+      # packages. If a bump adds a licence (or a package stops shipping its
+      # notice), the diff is the review trigger rather than a silent release.
+      - run: pnpm deps:licenses
+      - run: git diff --exit-code THIRD_PARTY_LICENSES.deps.md
 
       # G-05: no document text in logs, bounded local drafts, no off-origin
       # fetches, complete rail registry. The second run plants a violation in
@@ -71,16 +79,16 @@ jobs:
   # machine that produced them, because a shared runner is not that machine.
   perf:
     name: Q3/Q7 ceilings (spec)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       M5_PERF_CI: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # `--with-deps` shells out to apt. A transient DNS failure on the Ubuntu
@@ -105,6 +113,7 @@ jobs:
           node scripts/wait-for-url.mjs http://localhost:4173
       - run: pnpm test:perf
       - run: pnpm test:e2e:a11y
+      - run: pnpm test:e2e:account-avatar
       - run: pnpm test:e2e:keyboard
       - name: Cross-browser editor loop
         run: pnpm test:e2e:cross-browser
