@@ -1094,8 +1094,8 @@ async function main() {
     (await archivedLinks.count()) === 0,
     `${await archivedLinks.count()} archived link(s)`,
   );
-  const catalogLinks = await mega.locator('a[href^="/tools/"]').count();
-  check('the menu still lists the live catalog', catalogLinks >= 40, `${catalogLinks} links`);
+  const menuCatalogLinks = await mega.locator('a[href^="/tools/"]').count();
+  check('the menu still lists the live catalog', menuCatalogLinks >= 40, `${menuCatalogLinks} links`);
   await page.screenshot({ path: path.join(ARTIFACTS, 'header-catalog.png') });
 
   /* 19. Accounts & workflows (Phase 4) */
