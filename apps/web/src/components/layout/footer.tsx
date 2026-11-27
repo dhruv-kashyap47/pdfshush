@@ -34,7 +34,7 @@ const FOOTER_COLUMNS: { title: string; links: { label: string; to?: string; soon
       { label: 'Workflows', to: '/workflows' },
       { label: 'Trust & privacy', to: '/trust' },
       { label: 'Verify a redaction', to: '/verify' },
-      { label: 'Pricing', soon: true },
+      { label: 'Pricing', to: '/pricing' },
     ],
   },
   {

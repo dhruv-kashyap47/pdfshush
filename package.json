@@ -19,6 +19,7 @@
     "preview": "pnpm --filter @pdfshush/web preview",
     "db:local": "pnpm --filter @pdfshush/edge db:local",
     "db:remote": "pnpm --filter @pdfshush/edge db:remote",
+    "dev:session": "node scripts/dev-session.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
     "test:e2e": "node tests/support/preflight.mjs && node tests/e2e/smoke.mjs",

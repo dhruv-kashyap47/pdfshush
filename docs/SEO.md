@@ -16,6 +16,12 @@ VITE_SITE_ORIGIN=https://example.com pnpm build
 
 `apps/web/.env.production` sets the same origin for the hosted build.
 
+`www.pdfshush.com` is not a second canonical origin. Cloudflare answers every
+`www` request with a **301** to the same path and query on `https://pdfshush.com`
+(zone Redirect Rule; see [DEPLOY-WORKERS.md §3.1](DEPLOY-WORKERS.md#31-www-and-the-apex)).
+There is therefore one hostname to crawl, one set of canonical URLs and no
+duplicate-content pair to canonicalise.
+
 ## Two URL families
 
 | URL | Purpose |

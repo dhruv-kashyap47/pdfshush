@@ -125,14 +125,18 @@
     // Product ids are not secrets. An empty id switches that rail off, and with
     // no DODO_API_KEY (a secret) every billing route answers 503. DODO_ENVIRONMENT
     // defaults to "test", so a missing value cannot charge a real card.
-    "DODO_ENVIRONMENT": "test",
-    "DODO_PRODUCT_PRO_MONTHLY": "",
-    "DODO_PRODUCT_PRO_YEARLY": "",
-    "DODO_PRODUCT_SPONSOR_FEATURED": "",
-    "DODO_PRODUCT_SPONSOR_STANDARD": "",
-    "DODO_PRODUCT_CREDITS": "",
-    "DODO_PRODUCT_PASS_30D": "",
-    "DODO_PRODUCT_DONATE": ""
+    //
+    // These seven ids are the LIVE products, created 2026-11-27. Local dev overrides
+    // them with the test ids in `<repo>/.dev.vars`. The two sets never mix: a live
+    // key cannot see a test product and the reverse.
+    "DODO_ENVIRONMENT": "live",
+    "DODO_PRODUCT_PRO_MONTHLY": "pdt_0NspqtQ1Yu9uiXZ6Q4ppY",
+    "DODO_PRODUCT_PRO_YEARLY": "pdt_0NspqtS4SKo4v3qwdBVUi",
+    "DODO_PRODUCT_SPONSOR_FEATURED": "pdt_0NspqtYEiWtbb55QMwxt6",
+    "DODO_PRODUCT_SPONSOR_STANDARD": "pdt_0NspqtaPwrSw1aWI3rjiJ",
+    "DODO_PRODUCT_CREDITS": "pdt_0NspqtVTFlAPtXXWFkqAL",
+    "DODO_PRODUCT_PASS_30D": "pdt_0NspqtUB97p5Zdcf3CA33",
+    "DODO_PRODUCT_DONATE": "pdt_0NspqtXBlkuduR5i5Fj14"
   },
 
   // Session and transaction cleanup. Off the hour so it does not collide with

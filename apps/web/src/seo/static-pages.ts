@@ -81,6 +81,14 @@ export const STATIC_PAGE_META: Record<string, StaticPageHead> = {
     imageAlt: 'Sponsor PDFShush – first-party sponsor slots',
     keywords: ['sponsor pdfshush', 'pdf tool sponsorship', 'privacy friendly sponsorship'],
   },
+  '/pricing': {
+    title: 'Pricing: Free PDF Tools, Pro AI from $6/month | PDFShush',
+    description:
+      'Every PDF tool is free and runs in your browser. Pro adds 500 managed AI messages a month for $6, or $48 a year. Prices exclude tax. Dodo handles checkout.',
+    image: '/og/home.png',
+    imageAlt: 'PDFShush pricing: free tools, Pro for more managed AI',
+    keywords: ['pdfshush pricing', 'pdf tools price', 'pro pdf subscription'],
+  },
   '/status': {
     title: 'Service Status – All Client PDF Tools Online | PDFShush',
     description:

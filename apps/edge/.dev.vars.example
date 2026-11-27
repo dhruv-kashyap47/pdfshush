@@ -1,4 +1,8 @@
-# Local secrets for `wrangler dev` (apps/edge). Copy to `.dev.vars`.
+# Local secrets for `wrangler dev`.
+#
+# Wrangler resolves its config at the repository root, so the file it actually
+# reads is `<repo>/.dev.vars`, not `apps/edge/.dev.vars`. Keep this copy as the
+# documented shape and put the real values in the root file.
 #
 # Nothing here is committed. In production these are Worker secrets:
 #   npx wrangler secret put GOOGLE_CLIENT_ID

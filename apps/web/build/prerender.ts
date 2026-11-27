@@ -40,6 +40,7 @@ import { guidePath, type Guide } from '../src/content/guide-format.ts';
 import { articleSchema } from '../src/seo/article.ts';
 import { LANDING_PAGES, type LandingPage } from '../src/seo/landing-pages.ts';
 import { SPONSOR_FAQ, SPONSOR_STATIC_BODY } from '../src/content/sponsor.ts';
+import { PRICING_FAQ, PRICING_STATIC_BODY } from '../src/content/pricing.ts';
 import { GUIDE_INDEX_FAQS } from '../src/content/guides-index.ts';
 import {
   OG_IMAGE_HEIGHT,
@@ -696,8 +697,28 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
           type: 'website',
         },
         {
+          route: '/pricing',
+          title: 'Pricing: Free PDF Tools, Pro AI from $6/month | PDFShush',
+          description:
+            'Every PDF tool is free and runs in your browser. Pro adds 500 managed AI messages a month for $6, or $48 a year. Prices exclude tax. Dodo handles checkout.',
+          html: simplePage(
+            'Pricing',
+            'Every PDF tool is free. Pro adds more managed AI, and keeps pdfshush free of ad networks.',
+            `${PRICING_STATIC_BODY}${faqBlock(
+              PRICING_FAQ.map((entry) => ({ question: entry.q, answer: entry.a })),
+              'pricing at PDFShush',
+              'pricing',
+            )}`,
+          ),
+          image: '/og/home.png',
+          imageAlt: 'PDFShush pricing: free tools, Pro for more managed AI',
+          keywords: ['pdfshush pricing', 'pdf tools price', 'pro pdf subscription'],
+          indexable: true,
+          type: 'website',
+        },
+        {
           route: '/status',
-          title: 'Service Status – All Client PDF Tools Online | PDFShush',
+          title: 'Service Status - All Client PDF Tools Online | PDFShush',
           description:
             'The static app and all 51 client-side PDF tools are operational. Accounts, workflows, the REST API and MCP are not deployed on this origin. No login needed.',
           html: simplePage(
@@ -936,6 +957,25 @@ export function prerenderPlugin(options: PrerenderOptions): Plugin {
               SPONSOR_FAQ.map((entry) => ({ question: entry.q, answer: entry.a })),
               origin,
               '/sponsor',
+            ),
+          );
+        }
+
+        if (entry.route === '/pricing') {
+          schemas.push(
+            breadcrumbSchema(
+              [
+                { name: 'Home', route: '/' },
+                { name: 'Pricing', route: '/pricing' },
+              ],
+              origin,
+            ),
+          );
+          schemas.push(
+            faqPageSchema(
+              PRICING_FAQ.map((entry) => ({ question: entry.q, answer: entry.a })),
+              origin,
+              '/pricing',
             ),
           );
         }

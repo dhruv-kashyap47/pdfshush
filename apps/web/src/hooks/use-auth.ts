@@ -32,6 +32,8 @@ export interface Account {
   emailVerified: boolean;
   name: string | null;
   picture: string | null;
+  /** ISO string from the JSON API, used only to show "member since". */
+  createdAt?: string | number;
   /**
    * 'free' | 'pro'. Absent on a deployment that predates plans, so callers must
    * treat `undefined` as free — never as Pro.

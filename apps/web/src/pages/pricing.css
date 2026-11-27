@@ -1,0 +1,439 @@
+/*
+ * `/pricing` surface styles.
+ *
+ * Ambient motion lives in CSS on purpose: it is decorative, it stops under
+ * `prefers-reduced-motion`, and it never runs through the anime.js contract in
+ * `lib/motion.ts`, which is reserved for interaction and entrances.
+ */
+
+.pricing-page {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Hero ambience: two soft radial fields and a masked grid, no filter, no canvas. */
+.pricing-ambient {
+  position: absolute;
+  inset: -140px 0 auto;
+  height: 760px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.pricing-blob {
+  position: absolute;
+  width: 52rem;
+  height: 52rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    color-mix(in oklab, var(--primary) 34%, transparent) 0%,
+    transparent 62%
+  );
+  opacity: 0.5;
+  will-change: transform;
+  animation: pricing-drift 26s ease-in-out infinite alternate;
+}
+
+.pricing-blob-a {
+  top: -26rem;
+  left: 50%;
+  transform: translateX(-62%);
+}
+
+.pricing-blob-b {
+  top: -30rem;
+  left: 50%;
+  width: 40rem;
+  height: 40rem;
+  transform: translateX(6%);
+  opacity: 0.32;
+  animation-duration: 34s;
+  animation-direction: alternate-reverse;
+}
+
+.pricing-grid-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--border) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--border) 70%, transparent) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 10%, transparent 72%);
+  opacity: 0.5;
+}
+
+@keyframes pricing-drift {
+  from {
+    transform: translateX(-62%) translateY(0) scale(1);
+  }
+  to {
+    transform: translateX(-52%) translateY(38px) scale(1.08);
+  }
+}
+
+.pricing-blob-b {
+  animation-name: pricing-drift-b;
+}
+
+@keyframes pricing-drift-b {
+  from {
+    transform: translateX(6%) translateY(0) scale(1.04);
+  }
+  to {
+    transform: translateX(-4%) translateY(26px) scale(1);
+  }
+}
+
+/* Sheen on the headline. Paint only, small area, stops under reduced motion. */
+.pricing-shine {
+  background: linear-gradient(
+    100deg,
+    var(--foreground) 34%,
+    color-mix(in oklab, var(--primary) 85%, white) 50%,
+    var(--foreground) 66%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: pricing-sheen 8s linear infinite;
+}
+
+@keyframes pricing-sheen {
+  to {
+    background-position: -220% center;
+  }
+}
+
+/* ReactBits-style spotlight: one radial highlight that follows the pointer. */
+.pricing-popular {
+  background-image: radial-gradient(
+    120% 100% at 0% 0%,
+    color-mix(in oklab, var(--primary) 9%, transparent),
+    transparent 58%
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 34%, transparent),
+    0 40px 110px -70px color-mix(in oklab, var(--primary) 85%, transparent);
+}
+
+.pricing-popular::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--primary) 80%, white),
+    transparent
+  );
+  background-size: 45% 100%;
+  background-repeat: no-repeat;
+  background-position: -60% 0;
+  animation: pricing-border-sweep 6.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pricing-border-sweep {
+  0%,
+  100% {
+    background-position: -60% 0;
+  }
+  50% {
+    background-position: 160% 0;
+  }
+}
+
+/* Handwritten annotation on Pro: italic serif plus a drawn arrow. */
+.pricing-popular-note {
+  flex-shrink: 0;
+  width: 6.4rem;
+  color: color-mix(in oklab, var(--primary) 88%, white);
+  transform: rotate(-6deg);
+  transform-origin: 78% 100%;
+  will-change: transform;
+}
+
+.pricing-note-text {
+  display: block;
+  padding-right: 0.1rem;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-style: italic;
+  line-height: 1;
+}
+
+.pricing-note-arrow {
+  display: block;
+  width: 100%;
+  height: 2rem;
+  margin-top: -0.1rem;
+}
+
+/* The one sale-shaped element on the page. It states a real discount. */
+.pricing-sale {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  overflow: hidden;
+  margin: 1.6rem auto 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--primary) 32%, transparent);
+  background: color-mix(in oklab, var(--primary) 6%, transparent);
+  padding: 0.4rem 0.95rem 0.4rem 0.45rem;
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+}
+
+.pricing-sale::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-120%) skewX(-16deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--primary) 20%, transparent),
+    transparent
+  );
+  animation: pricing-sale-sweep 5.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pricing-sale-sweep {
+  0%,
+  55% {
+    transform: translateX(-120%) skewX(-16deg);
+  }
+  100% {
+    transform: translateX(120%) skewX(-16deg);
+  }
+}
+
+.pricing-sale-chip {
+  position: relative;
+  border-radius: 999px;
+  background: var(--primary);
+  padding: 0.18rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--primary-foreground);
+}
+
+/* Ticker. Two identical halves, translated by exactly 50 percent. */
+.pricing-marquee {
+  overflow: hidden;
+  border-block: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+  mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
+}
+
+.pricing-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: pricing-marquee 34s linear infinite;
+}
+
+.pricing-marquee:hover .pricing-marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes pricing-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* A real number: $72 monthly for a year vs $48 yearly. */
+.pricing-save {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--primary) 38%, transparent);
+  background:
+    linear-gradient(
+      100deg,
+      color-mix(in oklab, var(--primary) 8%, transparent),
+      color-mix(in oklab, var(--primary) 22%, transparent),
+      color-mix(in oklab, var(--primary) 8%, transparent)
+    );
+  background-size: 220% 100%;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--primary) 84%, white);
+  animation: pricing-save-shimmer 3.6s linear infinite;
+}
+
+@keyframes pricing-save-shimmer {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+.pricing-spark {
+  position: absolute;
+  color: color-mix(in oklab, var(--primary) 78%, white);
+  opacity: 0.5;
+  pointer-events: none;
+  animation: pricing-spark-float 5.4s ease-in-out infinite;
+}
+
+.pricing-spark-a {
+  top: 4.4rem;
+  right: 1.5rem;
+  font-size: 0.85rem;
+}
+
+.pricing-spark-b {
+  top: 8.2rem;
+  right: 2.5rem;
+  font-size: 0.55rem;
+  opacity: 0.32;
+  animation-delay: 1.4s;
+}
+
+@keyframes pricing-spark-float {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.28;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 0.62;
+  }
+}
+
+/* One sheen across the primary call to action on hover. */
+.pricing-cta {
+  position: relative;
+  overflow: hidden;
+}
+
+.pricing-cta::after {
+  content: '';
+  position: absolute;
+  inset: -40% -20%;
+  transform: translateX(-120%) rotate(8deg);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.4), transparent);
+  transition: transform 760ms ease;
+  pointer-events: none;
+}
+
+.pricing-cta:hover::after {
+  transform: translateX(120%) rotate(8deg);
+}
+
+/* Comparison table. Separate borders so the sticky header owns its own rule. */
+.pricing-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+}
+
+.pricing-table th,
+.pricing-table td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+}
+
+.pricing-table thead th {
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  backdrop-filter: blur(10px);
+  font-weight: 600;
+  vertical-align: top;
+}
+
+.pricing-table tbody tr:hover td {
+  background: color-mix(in oklab, var(--card) 55%, transparent);
+}
+
+.pricing-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The feature column stays put while the three plan columns scroll. */
+.pricing-table thead th:first-child,
+.pricing-table tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: color-mix(in oklab, var(--card) 92%, var(--background));
+}
+
+.pricing-table thead th:first-child {
+  z-index: 2;
+}
+
+.pricing-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--primary) 40%, transparent);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: color-mix(in oklab, var(--primary) 88%, white);
+}
+
+/* FAQ: the panel height is animated in JS; this only clips it. */
+.pricing-faq-panel {
+  overflow: hidden;
+}
+
+.pricing-faq-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.pricing-faq-trigger:hover {
+  color: color-mix(in oklab, var(--foreground) 78%, var(--primary));
+}
+
+.pricing-faq-icon {
+  flex-shrink: 0;
+  transition: transform 280ms ease;
+}
+
+.pricing-faq-trigger[aria-expanded='true'] .pricing-faq-icon {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-blob,
+  .pricing-shine,
+  .pricing-popular::after,
+  .pricing-sale::before,
+  .pricing-marquee-track,
+  .pricing-save,
+  .pricing-spark {
+    animation: none;
+  }
+
+  .pricing-faq-icon,
+  .pricing-cta::after {
+    transition: none;
+  }
+}

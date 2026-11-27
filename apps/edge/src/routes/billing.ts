@@ -18,18 +18,28 @@
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { getCookie } from 'hono/cookie';
 import type { AppEnv } from '../app-env.js';
 import { PASS_DAYS } from '../billing/entitlements.js';
 import {
   createCheckout,
+  createCustomerPortalSession,
   dodoConfig,
   productId,
   verifyWebhook,
   webhookEvent,
 } from '../billing/dodo.js';
 import { applyBillingEvent } from '../billing/webhook.js';
+import { D1AuthStore } from '../db/auth-store.js';
 import { D1BillingStore } from '../db/billing-store.js';
-import { fail, readJsonObject, requireCsrf, sameOriginRequest, webOrigin } from '../lib/http.js';
+import {
+  SESSION_COOKIE,
+  fail,
+  readJsonObject,
+  requireCsrf,
+  sameOriginRequest,
+  webOrigin,
+} from '../lib/http.js';
 import { underHourlyLimit } from '../lib/rate-limit.js';
 import { requireAccount } from '../lib/session.js';
 
@@ -186,19 +196,70 @@ billingRoutes.post('/api/billing/donate', async (c) => {
   }
 
   const base = webOrigin(c.env, c.req.url);
+
+  // A signed-in donor gets the donation attached to the account so it can appear
+  // in their dashboard history. A signed-out donor stays anonymous, exactly as
+  // before: donating never requires an account.
+  const token = getCookie(c, SESSION_COOKIE) ?? '';
+  const donor = token
+    ? await new D1AuthStore(c.env.DB).resolveSession(token).catch(() => undefined)
+    : undefined;
+
   try {
     const checkout = await createCheckout(config, {
       productId: product,
       email,
       returnUrl: `${base}/sponsor?status=thanks#donate`,
       cancelUrl: `${base}/sponsor?status=cancelled#donate`,
-      metadata: { kind: 'donation' },
+      metadata: { kind: 'donation', ...(donor ? { account_id: donor.id } : {}) },
       amountCents: amount,
     });
     return c.json({ url: checkout.url });
   } catch (error) {
     console.error('dodo donation checkout failed', error);
     return fail(c, 502, 'billing_error', 'The payment provider did not answer. Try again.');
+  }
+});
+
+/* --------------------------------------------------------------- portal */
+
+/**
+ * A hosted Dodo portal session for the signed-in customer. The Worker returns a
+ * short-lived URL and keeps nothing: card updates, invoices and cancellation
+ * all happen on Dodo's origin.
+ */
+billingRoutes.post('/api/billing/portal', async (c) => {
+  const account = await requireAccount(c);
+  if (account instanceof Response) return account;
+  const denied = requireCsrf(c);
+  if (denied) return denied;
+
+  const config = dodoConfig(c.env);
+  if (!config) return billingDown(c, 'billing portal');
+
+  // One portal session is cheap; a loop is not. Ten an hour is generous for a
+  // person changing a card and stingy for a script.
+  if (!(await underHourlyLimit(c, 'billing:portal', 10))) {
+    return fail(c, 429, 'rate_limited', 'Too many portal attempts. Try again in an hour.');
+  }
+
+  const row = await c.env.DB.prepare('SELECT dodo_customer_id FROM accounts WHERE id = ?')
+    .bind(account.id)
+    .first<{ dodo_customer_id: string | null }>();
+  if (!row?.dodo_customer_id) {
+    return fail(c, 409, 'no_customer', 'No billing profile yet. Make a purchase first.');
+  }
+
+  try {
+    const url = await createCustomerPortalSession(
+      config,
+      row.dodo_customer_id,
+      `${webOrigin(c.env, c.req.url)}/account`,
+    );
+    return c.json({ url });
+  } catch (error) {
+    console.error('dodo portal failed', error);
+    return fail(c, 502, 'billing_error', 'The billing portal did not answer. Try again.');
   }
 });
 

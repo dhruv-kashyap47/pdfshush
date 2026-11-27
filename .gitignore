@@ -88,3 +88,6 @@ tests/benchmarks/layout-benchmark-latest.md
 
 # Account recovery codes must never enter the repository.
 docs/*recovery-codes*
+
+# Local operator backups (D1 exports, wrangler logs)
+.backups/

@@ -66,6 +66,9 @@ const GuidePage = lazy(() =>
 const SponsorPage = lazy(() =>
   import('@/pages/sponsor').then((module) => ({ default: module.SponsorPage })),
 );
+const PricingPage = lazy(() =>
+  import('@/pages/pricing').then((module) => ({ default: module.PricingPage })),
+);
 
 function ToolPageFallback() {
   return (
@@ -308,6 +311,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<PageFallback />}>
             <SponsorPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: 'pricing',
+        element: (
+          <Suspense fallback={<PageFallback />}>
+            <PricingPage />
           </Suspense>
         ),
       },

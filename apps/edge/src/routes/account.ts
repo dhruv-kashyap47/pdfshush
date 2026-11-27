@@ -20,7 +20,8 @@ import { LIMITS } from '@pdfshush/pdf-core/limits';
 import { validateWorkflow, type Workflow } from '@pdfshush/pdf-core/workflow';
 import { SESSION_COOKIE, fail, requireCsrf } from '../lib/http.js';
 import { requireAccount } from '../lib/session.js';
-import { dodoConfig } from '../billing/dodo.js';
+import { dodoConfig, cancelSubscription, listCustomerPayments } from '../billing/dodo.js';
+import { readAiUsage } from '../ai/budget.js';
 
 export const accountRoutes = new Hono<AppEnv>();
 
@@ -68,11 +69,36 @@ accountRoutes.get('/api/account', async (c) => {
   if (account instanceof Response) return account;
 
   const store = new D1AccountStore(c.env.DB);
-  const [preferences, history, workflows] = await Promise.all([
+  const now = Date.now();
+  const [preferences, historyCount, billingRow, usage] = await Promise.all([
     store.getPreferences(account.id),
-    store.listHistory(account.id),
-    store.listWorkflows(account.id),
+    c.env.DB.prepare('SELECT COUNT(*) AS n FROM history WHERE account_id = ?')
+      .bind(account.id)
+      .first<{ n: number }>(),
+    c.env.DB.prepare('SELECT dodo_subscription_id, dodo_customer_id FROM accounts WHERE id = ?')
+      .bind(account.id)
+      .first<{ dodo_subscription_id: string | null; dodo_customer_id: string | null }>(),
+    readAiUsage(c.env.DB, { accountId: account.id, plan: account.plan, now }),
   ]);
+
+  const config = dodoConfig(c.env);
+  const customerId = billingRow?.dodo_customer_id ?? null;
+
+  // Dodo is the ledger. One subrequest gives the current page of payments;
+  // a provider hiccup degrades the history card, not the whole dashboard.
+  let payments: Awaited<ReturnType<typeof listCustomerPayments>> = [];
+  let paymentsUnavailable = false;
+  if (config && customerId) {
+    try {
+      payments = await listCustomerPayments(config, customerId, 10);
+    } catch (error) {
+      paymentsUnavailable = true;
+      console.warn(
+        'payment list unavailable',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
 
   return c.json({
     account: {
@@ -87,9 +113,17 @@ accountRoutes.get('/api/account', async (c) => {
       credits: account.credits,
     },
     preferences,
-    counts: { history: history.length, workflows: workflows.length, jobs: 0 },
-    // Whether the one-time rails can be offered without a broken button.
-    billing: { enabled: dodoConfig(c.env) !== undefined },
+    counts: { history: historyCount?.n ?? 0 },
+    // Whether the rails can be offered without a broken button, whether the
+    // running term renews, and whether a hosted billing portal exists yet.
+    billing: {
+      enabled: config !== undefined,
+      subscription: Boolean(billingRow?.dodo_subscription_id),
+      portal: Boolean(customerId),
+    },
+    usage,
+    payments,
+    paymentsUnavailable,
   });
 });
 
@@ -321,6 +355,38 @@ accountRoutes.delete('/api/account', async (c) => {
 
   const denied = requireCsrf(c);
   if (denied) return denied;
+
+  // Deleting the row must not leave a live subscription charging a person with
+  // no account to manage it. Cancel first, and refuse the deletion if that
+  // fails: a stuck account is recoverable, an orphaned charge is not.
+  const billing = await c.env.DB.prepare(
+    'SELECT dodo_subscription_id FROM accounts WHERE id = ?',
+  )
+    .bind(account.id)
+    .first<{ dodo_subscription_id: string | null }>();
+
+  if (billing?.dodo_subscription_id) {
+    const config = dodoConfig(c.env);
+    if (!config) {
+      return fail(
+        c,
+        503,
+        'billing_disabled',
+        'The active subscription cannot be cancelled on this deployment. Contact support before deleting the account.',
+      );
+    }
+    try {
+      await cancelSubscription(config, billing.dodo_subscription_id);
+    } catch (error) {
+      console.error('subscription cancel before delete failed', error);
+      return fail(
+        c,
+        502,
+        'billing_error',
+        'Could not cancel the active subscription. Cancel it in the billing portal, then delete the account.',
+      );
+    }
+  }
 
   const removed = await new D1AccountStore(c.env.DB).deleteAccountData(account.id);
   console.warn('account deleted on request', account.id, removed);

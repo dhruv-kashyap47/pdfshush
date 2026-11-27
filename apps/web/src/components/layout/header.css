@@ -1,0 +1,90 @@
+/*
+ * The Pricing nav item is the one link in the header that is allowed to look
+ * like a doorway rather than a label. The crown is the only gold on the site.
+ */
+
+.pricing-nav-link {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--primary) 34%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary) 13%, transparent),
+    color-mix(in oklab, var(--primary) 4%, transparent)
+  );
+  padding: 0.36rem 0.8rem 0.36rem 0.66rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+  transition:
+    border-color 240ms ease,
+    background-color 240ms ease,
+    transform 240ms ease;
+}
+
+.pricing-nav-link:hover {
+  border-color: color-mix(in oklab, var(--primary) 62%, transparent);
+  transform: translateY(-1px);
+}
+
+.pricing-nav-link-active {
+  border-color: color-mix(in oklab, var(--primary) 70%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary) 20%, transparent),
+    color-mix(in oklab, var(--primary) 6%, transparent)
+  );
+}
+
+/* A quiet shine crosses the pill on hover, once. */
+.pricing-nav-link::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: translateX(-130%) skewX(-18deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--primary) 26%, transparent),
+    transparent
+  );
+  transition: transform 720ms ease;
+}
+
+.pricing-nav-link:hover::before {
+  transform: translateX(130%) skewX(-18deg);
+}
+
+.pricing-crown {
+  color: #f2c66d;
+  filter: drop-shadow(0 0 5px color-mix(in oklab, #f2c66d 45%, transparent));
+  transform-origin: 50% 90%;
+  animation: pricing-crown-bob 3.6s ease-in-out infinite;
+}
+
+@keyframes pricing-crown-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-1.5px) rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-crown {
+    animation: none;
+  }
+
+  .pricing-nav-link,
+  .pricing-nav-link::before {
+    transition: none;
+  }
+}

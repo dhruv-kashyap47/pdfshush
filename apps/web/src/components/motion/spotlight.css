@@ -1,0 +1,38 @@
+/*
+ * Shared spotlight surface (ReactBits' SpotlightCard pattern). Used by the
+ * pricing cards and the account dashboard, so it lives with the component
+ * rather than in either route's stylesheet.
+ */
+
+.spotlight-card {
+  --mx: 50%;
+  --my: 0%;
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    460px circle at var(--mx) var(--my),
+    color-mix(in oklab, var(--primary) 10%, transparent),
+    transparent 48%
+  );
+  opacity: 0;
+  transition: opacity 360ms ease;
+  pointer-events: none;
+}
+
+.spotlight-card:hover::before,
+.spotlight-card:focus-within::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-card::before {
+    transition: none;
+  }
+}

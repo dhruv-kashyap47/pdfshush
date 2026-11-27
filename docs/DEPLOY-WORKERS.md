@@ -12,7 +12,9 @@ Express tier is archived in [`archive/`](../archive/README.md) (tag
 `server-tier-v1`).
 
 Production: **https://pdfshush.com** — the only attached custom domain.
-`workers.dev` is disabled.
+`workers.dev` is disabled. `www.pdfshush.com` is a **301 to the apex**, not a
+second copy of the site: a proxied CNAME plus one zone Redirect Rule
+([§3.1](#31-www-and-the-apex)).
 
 ---
 
@@ -97,6 +99,8 @@ frontend-only `.env.production`, or a redirect URI that does not match
 | `apps/web/.env.production` | `VITE_SERVER_API` | `on` for the Worker shape; `off` for a static-only build |
 | `wrangler.jsonc` | `routes` | `pdfshush.com` custom domain |
 | `wrangler.jsonc` | `workers_dev` | `false` — no second origin |
+| Cloudflare zone | `www` DNS | proxied CNAME to `pdfshush.com` ([§3.1](#31-www-and-the-apex)) |
+| Cloudflare zone | Redirect Rule | `www.pdfshush.com` → `https://pdfshush.com`, 301, path and query kept |
 | `wrangler.jsonc` | `WEB_ORIGIN` | `https://pdfshush.com` |
 | `wrangler.jsonc` | `GOOGLE_REDIRECT_URI` | `https://pdfshush.com/api/auth/callback` |
 | `wrangler.jsonc` | `AI_MANAGED_PROVIDER` | `openrouter` |
@@ -108,6 +112,53 @@ frontend-only `.env.production`, or a redirect URI that does not match
 The two AI global caps must always sum to **less than** the OpenRouter free-model
 quota: 50/day below $10 of credit, 1,000/day at $10+. At $10+, raise them to
 `700` and `200` together.
+
+### 3.1 www and the apex
+
+`www.pdfshush.com` resolves and serves, but it is deliberately **not** a second
+origin. Two things in the Cloudflare zone make it work:
+
+| Where | Setting | Value |
+|---|---|---|
+| DNS → Records | `www` record | **CNAME** → `pdfshush.com`, **Proxied** (orange cloud) |
+| Rules → Redirect Rules | one rule, "www to apex" | see below |
+
+```
+When incoming requests match:  http.host eq "www.pdfshush.com"
+Then redirect to:              Dynamic
+Expression:                    concat("https://pdfshush.com", http.request.uri.path)
+Status code:                   301
+Preserve query string:         on
+```
+
+Every path and query survives, so `https://www.pdfshush.com/tools/merge-pdf?x=1`
+answers `301 https://pdfshush.com/tools/merge-pdf?x=1` in one hop. The target is
+always `https`, so a plain-`http` request lands on the secure apex directly.
+
+**Why not attach it as a Worker custom domain?** The Worker is built around one
+origin: canonical URLs, the Google redirect URI, session cookies and the CSP all
+name `https://pdfshush.com`. Serving a second hostname would hand out a second
+set of cookies and make every page reachable at two URLs, which is exactly the
+duplicate-origin problem `workers_dev: false` avoids. A redirect also costs no
+Worker invocations.
+
+To recreate it from scratch (after pointing the nameservers at Cloudflare):
+
+1. **DNS → Records → Add record**: type `CNAME`, name `www`, target
+   `pdfshush.com`, proxy **on**.
+2. **Rules → Redirect Rules → Create rule**: paste the expression and options
+   above. The free plan includes Redirect Rules.
+3. Verify from a shell:
+
+   ```bash
+   curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+     'https://www.pdfshush.com/tools/merge-pdf?x=1'
+   # 301 https://pdfshush.com/tools/merge-pdf?x=1
+   ```
+
+`pnpm test:e2e:reach` against production (`E2E_BASE_URL=https://pdfshush.com`)
+asserts this redirect, so a deleted rule fails the reach suite rather than
+silently splitting the site.
 
 ---
 
@@ -133,6 +184,57 @@ Check what is set (names only, never values):
 ```bash
 npx wrangler secret list
 ```
+
+---
+
+## 4a. Billing in test mode (local)
+
+The seven test-mode Dodo products exist, and their ids are the `DODO_PRODUCT_*`
+values in `wrangler.jsonc`. They are **test ids**: deploying them is correct only
+while `DODO_ENVIRONMENT` is `test`.
+
+Wrangler resolves its config at the repository root, so the file it reads is
+`<repo>/.dev.vars`, **not** `apps/edge/.dev.vars` (they were moved; the copy under
+`apps/edge` is only documentation). A local run needs:
+
+```
+pnpm db:local                 # migration 0004, credits, billing_events
+pnpm dev:session              # local account + session + CSRF cookie
+pnpm dev                      # Vite on :5173
+pnpm dev:edge                 # Worker on :8787
+```
+
+`.dev.vars` also overrides `WEB_ORIGIN` to `http://localhost:5173`; without it a
+checkout returns to production and the local cookie jar loses the account.
+
+**Webhooks cannot be managed over OAuth.** The Dodo consent page exposes 16
+resources and none of them is Webhooks, so the CLI listener and the MCP both
+answer `403 webhooks:read`. Register the endpoint in the dashboard instead:
+
+```bash
+cloudflared tunnel --url http://localhost:8787 --no-autoupdate
+```
+
+Add `https://<tunnel>.trycloudflare.com/api/billing/webhook` in **Developer →
+Webhooks** with `payment.succeeded`, `subscription.active`,
+`subscription.renewed`, `subscription.cancelled` and `subscription.expired`, and
+put the signing secret in `DODO_WEBHOOK_SECRET`.
+
+Verified against the real test API on 2026-11-27, one purchase per rail:
+
+| Rail | Result in local D1 |
+|---|---|
+| Pro monthly (`$6`) | `plan=pro`, term ≈ 31 days, `dodo_subscription_id` stored |
+| 30-day pass (`$3`) | `plan=pro`, term ≈ 30 days, no subscription id |
+| 1,000 credits (`$5`) | `credit_messages=1000` |
+| Donation (`$5`) | `payment.succeeded` claimed, no entitlement change |
+| Sponsor featured (`$39/mo`) | draft → `status=active`, slot unavailable, card renders for free visitors |
+
+Going live is still operator work: create the same seven products in **live**
+mode (ids do not carry over), set `DODO_ENVIRONMENT=live` and the live product
+ids, add the live `DODO_API_KEY` and `DODO_WEBHOOK_SECRET`, register
+`https://pdfshush.com/api/billing/webhook`, then make one low-value real purchase
+and refund it.
 
 ---
 
@@ -222,7 +324,11 @@ curl -s https://pdfshush.com/sitemap.xml | grep -c '<loc>'
 curl -sI https://pdfshush.com/tools/workflows | grep -i robots
 curl -s  https://pdfshush.com/tools/workflows | grep -o 'Not available on this deployment'
 
-# 4. Browser suites
+# 4. www is a 301 to the apex, with the path and query intact
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+  'https://www.pdfshush.com/tools/merge-pdf?x=1'
+
+# 5. Browser suites
 E2E_BASE_URL=https://pdfshush.com pnpm test:e2e
 E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:reach
 E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:offline
@@ -257,7 +363,7 @@ abandoned drafts.
 | REST API `/api/v1` | Needs server-side PDF execution and a durable job store |
 | MCP server | Local stdio bridge over the archived REST API |
 | Server-side PDF jobs | No canvas in workerd; the browser is the processor |
-| Dodo billing | Code is built; routes answer `503 billing_disabled` until configured |
+| Dodo billing | Test-mode products and rails are verified; production answers `503 billing_disabled` until live keys and live product ids exist |
 
 Their permanent pages say "not available on this deployment" and are `noindex`.
 They are not in the catalog, menus or sitemap.

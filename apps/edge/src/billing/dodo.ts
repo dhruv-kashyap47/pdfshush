@@ -106,6 +106,8 @@ export async function createCheckout(
       'content-type': 'application/json',
     },
     body: JSON.stringify(body),
+    // A hung provider must not hold the Worker until the platform timeout.
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {
@@ -125,6 +127,154 @@ export async function createCheckout(
     url: payload.checkout_url,
     sessionId: typeof payload.session_id === 'string' ? payload.session_id : null,
   };
+}
+
+/* ------------------------------------------------------------ dashboard */
+
+export interface PaymentSummary {
+  id: string;
+  createdAt: string;
+  amount: number;
+  currency: string;
+  status: string;
+  refundStatus: string | null;
+  /** `metadata.kind` from the checkout: pro, pass, credits, donation. */
+  kind: string | null;
+  chargeType: string | null;
+  invoiceUrl: string | null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function textOf(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * The customer's payments, read from Dodo rather than a second local ledger.
+ *
+ * Dodo is the source of truth for amount, tax, status and refunds, and it
+ * already keeps every renewal. The dashboard only needs a page, so one
+ * subrequest is enough; a failure is reported to the caller, never thrown at
+ * the whole account response.
+ */
+export async function listCustomerPayments(
+  config: DodoConfig,
+  customerId: string,
+  limit = 10,
+): Promise<PaymentSummary[]> {
+  const url = `${config.baseUrl}/payments?customer_id=${encodeURIComponent(customerId)}&page_size=${limit}`;
+  const response = await fetch(url, {
+    headers: { authorization: `Bearer ${config.apiKey}` },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Dodo payments failed: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as
+    | { items?: unknown[]; data?: unknown[] }
+    | unknown[];
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.items)
+      ? payload.items
+      : Array.isArray(payload.data)
+        ? payload.data
+        : [];
+  const out: PaymentSummary[] = [];
+
+  for (const row of rows.slice(0, limit)) {
+    const payment = asRecord(row);
+    if (!payment) continue;
+    const id = textOf(payment.payment_id);
+    if (!id) continue;
+    const metadata = asRecord(payment.metadata);
+    out.push({
+      id,
+      createdAt: textOf(payment.created_at) ?? '',
+      amount: typeof payment.total_amount === 'number' ? payment.total_amount : 0,
+      currency: textOf(payment.currency) ?? 'USD',
+      status: textOf(payment.status) ?? 'unknown',
+      refundStatus: textOf(payment.refund_status),
+      kind: metadata ? textOf(metadata.kind) : null,
+      chargeType: textOf(payment.charge_type),
+      invoiceUrl: textOf(payment.invoice_url),
+    });
+  }
+
+  return out;
+}
+
+/**
+ * A short-lived hosted portal session. Returns the URL only; the Worker never
+ * sees a card and does not keep the session.
+ */
+export async function createCustomerPortalSession(
+  config: DodoConfig,
+  customerId: string,
+  returnUrl: string,
+): Promise<string> {
+  const response = await fetch(
+    `${config.baseUrl}/customers/${encodeURIComponent(customerId)}/customer-portal/session`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${config.apiKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ return_url: returnUrl }),
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => '')).slice(0, 200);
+    throw new Error(`Dodo portal failed: ${response.status} ${detail}`);
+  }
+
+  const payload = (await response.json()) as { link?: unknown };
+  if (typeof payload.link !== 'string' || !payload.link.startsWith('https://')) {
+    throw new Error('Dodo portal returned no usable link');
+  }
+  return payload.link;
+}
+
+/**
+ * Stop future charges before an account is deleted.
+ *
+ * `cancel_at_next_billing_date` keeps the provider from charging again while
+ * leaving any already-paid term intact. The caller deletes the account straight
+ * after, so the remaining term is intentionally forfeited by the customer.
+ */
+export async function cancelSubscription(
+  config: DodoConfig,
+  subscriptionId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${config.baseUrl}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        authorization: `Bearer ${config.apiKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ cancel_at_next_billing_date: true }),
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+
+  if (!response.ok) {
+    // A subscription Dodo no longer knows about cannot charge again. Treat it as
+    // already cancelled so an expired term never blocks an erasure request.
+    if (response.status === 404) return;
+    const detail = (await response.text().catch(() => '')).slice(0, 200);
+    throw new Error(`Dodo cancel failed: ${response.status} ${detail}`);
+  }
 }
 
 /* --------------------------------------------------------------- webhooks */

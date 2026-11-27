@@ -43,6 +43,63 @@ export interface AiGlobalCaps {
   pro: number;
 }
 
+export interface AiUsageSnapshot {
+  plan: Plan;
+  /** Messages used in the plan window, clamped to the limit. */
+  used: number;
+  limit: number;
+  /** Epoch ms when the plan window resets. */
+  resetsAt: number;
+  daily: {
+    used: number;
+    limit: number;
+    resetsAt: number;
+  };
+}
+
+/**
+ * Read-only usage for the dashboard. It uses the same keys as `spendAiMessage`,
+ * so the meter can never show a different number from the one that refuses the
+ * next message. It writes nothing and reads at most two counters.
+ */
+export async function readAiUsage(
+  db: D1Database,
+  options: { accountId: string; plan: Plan; now?: number },
+): Promise<AiUsageSnapshot> {
+  const now = options.now ?? Date.now();
+  const subject = `acct:${options.accountId}`;
+  const midnight = nextUtcMidnight(now);
+
+  if (options.plan === 'pro') {
+    const monthUsed = await peek(db, `ai:m:${subject}:${utcMonth(now)}`, now);
+    const dayUsed = await peek(db, `ai:pd:${subject}:${utcDay(now)}`, now);
+    return {
+      plan: 'pro',
+      used: Math.min(AI_LIMITS.proPerMonth, monthUsed),
+      limit: AI_LIMITS.proPerMonth,
+      resetsAt: nextUtcMonth(now),
+      daily: {
+        used: Math.min(AI_LIMITS.proPerDay, dayUsed),
+        limit: AI_LIMITS.proPerDay,
+        resetsAt: midnight,
+      },
+    };
+  }
+
+  const dayUsed = await peek(db, `ai:d:${subject}:${utcDay(now)}`, now);
+  return {
+    plan: 'free',
+    used: Math.min(AI_LIMITS.anonymousPerDay, dayUsed),
+    limit: AI_LIMITS.anonymousPerDay,
+    resetsAt: midnight,
+    daily: {
+      used: Math.min(AI_LIMITS.anonymousPerDay, dayUsed),
+      limit: AI_LIMITS.anonymousPerDay,
+      resetsAt: midnight,
+    },
+  };
+}
+
 function positiveInteger(raw: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(raw ?? '', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;

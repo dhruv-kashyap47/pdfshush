@@ -44,6 +44,32 @@ function termDays(interval: string | undefined): number {
   return interval === 'year' ? 366 : 31;
 }
 
+/** Dodo nests the customer on some events and flattens the id on others. */
+function customerIdOf(data: Record<string, unknown>): string | undefined {
+  const customer = data.customer;
+  if (customer && typeof customer === 'object' && !Array.isArray(customer)) {
+    const nested = (customer as Record<string, unknown>).customer_id;
+    if (typeof nested === 'string' && nested.length > 0) return nested;
+  }
+  return asString(data.customer_id);
+}
+
+/**
+ * The customer id is what unlocks the hosted billing portal and the payment
+ * list. It is written once, from a verified event, and never from the client.
+ */
+async function rememberCustomerId(
+  db: D1Database,
+  accountId: string,
+  customerId: string | undefined,
+): Promise<void> {
+  if (!customerId) return;
+  await db
+    .prepare('UPDATE accounts SET dodo_customer_id = COALESCE(dodo_customer_id, ?) WHERE id = ?')
+    .bind(customerId, accountId)
+    .run();
+}
+
 export async function applyBillingEvent(
   db: D1Database,
   type: string,
@@ -53,6 +79,9 @@ export async function applyBillingEvent(
   const meta = metadataOf(data.metadata);
   const subscriptionId = asString(data.subscription_id);
   const sponsors = new D1SponsorStore(db);
+
+  const ownerId = asString(meta.account_id);
+  if (ownerId) await rememberCustomerId(db, ownerId, customerIdOf(data));
 
   switch (type) {
     case 'subscription.active': {

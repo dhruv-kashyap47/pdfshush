@@ -44,6 +44,22 @@ if (home.status !== 200) {
 const origin = first(home.body, /rel="canonical" href="([^"]+)"/)?.replace(/\/$/, '');
 check('home has a canonical origin', Boolean(origin), origin ?? 'missing');
 
+/* www is another name for the same site, never a second origin: a proxied
+   CNAME plus a zone-level Redirect Rule answers 301 to the canonical host and
+   keeps the path and query. Only checked against production, because the
+   redirect lives in Cloudflare and not in this repository. */
+if (origin === 'https://pdfshush.com') {
+  const www = await fetch('https://www.pdfshush.com/tools/merge-pdf?from=www', {
+    redirect: 'manual',
+  });
+  const location = www.headers.get('location');
+  check(
+    'www redirects to the apex with the path and query intact',
+    www.status === 301 && location === 'https://pdfshush.com/tools/merge-pdf?from=www',
+    `${www.status} ${location ?? 'no location'}`,
+  );
+}
+
 const sitemap = await text('/sitemap.xml');
 const sitemapUrls = [...sitemap.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
 check('sitemap is served as XML', sitemap.status === 200 && sitemap.body.includes('<urlset'));
