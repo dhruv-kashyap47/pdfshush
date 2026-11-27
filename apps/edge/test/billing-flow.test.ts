@@ -319,21 +319,27 @@ describe('one-time rails', () => {
     expect(accountRow()!.credit_messages).toBe(50_000);
   });
 
-  it('a 30-day pass grants Pro without shortening a longer subscription', async () => {
+  it('a 30-day pass extends a longer subscription without shortening it', async () => {
     const subscriptionEnd = Date.now() + 90 * DAY;
-    await postWebhook({
-      type: 'subscription.active',
-      data: {
-        subscription_id: 'sub_fixture',
-        next_billing_date: iso(subscriptionEnd),
-        metadata: { kind: 'pro', account_id: buyer.accountId, interval: 'month' },
+    await postWebhook(
+      {
+        type: 'subscription.active',
+        data: {
+          subscription_id: 'sub_fixture',
+          next_billing_date: iso(subscriptionEnd),
+          metadata: { kind: 'pro', account_id: buyer.accountId, interval: 'month' },
+        },
       },
-    });
-    await postWebhook({
-      type: 'payment.succeeded',
-      data: { metadata: { kind: 'pass', account_id: buyer.accountId, days: '30' } },
-    });
-    expect(accountRow()!.plan_expires_at).toBe(subscriptionEnd);
+      'msg_sub_for_pass',
+    );
+    await postWebhook(
+      {
+        type: 'payment.succeeded',
+        data: { metadata: { kind: 'pass', account_id: buyer.accountId, days: '30' } },
+      },
+      'msg_pass_after_sub',
+    );
+    expect(accountRow()!.plan_expires_at).toBe(subscriptionEnd + 30 * DAY);
   });
 
   it('a pass on a free account is Pro for roughly thirty days', async () => {

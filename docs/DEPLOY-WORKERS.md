@@ -187,18 +187,19 @@ npx wrangler secret list
 
 ---
 
-## 4a. Billing in test mode (local)
+## 4a. Billing: live in production, test locally
 
-The seven test-mode Dodo products exist, and their ids are the `DODO_PRODUCT_*`
-values in `wrangler.jsonc`. They are **test ids**: deploying them is correct only
-while `DODO_ENVIRONMENT` is `test`.
+The seven **live** Dodo ids are the `DODO_PRODUCT_*` values in `wrangler.jsonc`,
+with `DODO_ENVIRONMENT=live`. The test ids live in `<repo>/.dev.vars`, which
+overrides `wrangler.jsonc` for a local run; they are documented in
+[`dodo-products.md`](./dodo-products.md).
 
 Wrangler resolves its config at the repository root, so the file it reads is
 `<repo>/.dev.vars`, **not** `apps/edge/.dev.vars` (they were moved; the copy under
 `apps/edge` is only documentation). A local run needs:
 
 ```
-pnpm db:local                 # migration 0004, credits, billing_events
+pnpm db:local                 # migrations, credits, billing_events, payment ledger
 pnpm dev:session              # local account + session + CSRF cookie
 pnpm dev                      # Vite on :5173
 pnpm dev:edge                 # Worker on :8787
@@ -216,9 +217,20 @@ cloudflared tunnel --url http://localhost:8787 --no-autoupdate
 ```
 
 Add `https://<tunnel>.trycloudflare.com/api/billing/webhook` in **Developer →
-Webhooks** with `payment.succeeded`, `subscription.active`,
-`subscription.renewed`, `subscription.cancelled` and `subscription.expired`, and
-put the signing secret in `DODO_WEBHOOK_SECRET`.
+Webhooks** with:
+
+```
+payment.succeeded
+subscription.active  subscription.renewed  subscription.cancelled  subscription.expired
+refund.succeeded     refund.failed
+dispute.opened       dispute.challenged     dispute.won
+dispute.cancelled    dispute.accepted       dispute.lost       dispute.expired
+```
+
+and put the signing secret in `DODO_WEBHOOK_SECRET`. The production endpoint is
+`https://pdfshush.com/api/billing/webhook` with the same list. **If the endpoint
+is not subscribed to the refund and dispute events, the Worker never receives
+them**; the code is there, but the dashboard must be updated by hand.
 
 Verified against the real test API on 2026-11-27, one purchase per rail:
 
@@ -230,11 +242,10 @@ Verified against the real test API on 2026-11-27, one purchase per rail:
 | Donation (`$5`) | `payment.succeeded` claimed, no entitlement change |
 | Sponsor featured (`$39/mo`) | draft → `status=active`, slot unavailable, card renders for free visitors |
 
-Going live is still operator work: create the same seven products in **live**
-mode (ids do not carry over), set `DODO_ENVIRONMENT=live` and the live product
-ids, add the live `DODO_API_KEY` and `DODO_WEBHOOK_SECRET`, register
-`https://pdfshush.com/api/billing/webhook`, then make one low-value real purchase
-and refund it.
+Live status (2026-11-27): the live products, live key and live webhook secret are
+set, and one real `$3` pass granted Pro (`pay_0Nsr107WnveRWS1WiWlI4`). The
+remaining live verification is one purchase per other rail and a real refund
+after settlement. A full refund revokes the grant; a partial refund keeps it.
 
 ---
 
@@ -334,10 +345,12 @@ E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:reach
 E2E_BASE_URL=https://pdfshush.com pnpm test:e2e:offline
 ```
 
-The last verified production run (2026-11-26, Worker `372f97f0` before the
-static-only surface deploy) passed: smoke **all checks**, reach **all checks**,
-48 live tools, 71 sitemap URLs, 84 prerendered routes, archived pages
-`noindex`, `/api/*` healthy, no console errors.
+The last recorded production run before the live-billing release
+(2026-11-26, Worker `372f97f0`) passed: smoke **all checks**, reach **all
+checks**, 48 live tools, 71 sitemap URLs, 84 prerendered routes, archived pages
+`noindex`, `/api/*` healthy, no console errors. The guides release raised this to
+92 sitemap URLs and 104 prerendered routes. Re-run both suites after every
+deploy; `/pricing` is part of the reach check.
 
 ---
 
@@ -363,7 +376,10 @@ abandoned drafts.
 | REST API `/api/v1` | Needs server-side PDF execution and a durable job store |
 | MCP server | Local stdio bridge over the archived REST API |
 | Server-side PDF jobs | No canvas in workerd; the browser is the processor |
-| Dodo billing | Test-mode products and rails are verified; production answers `503 billing_disabled` until live keys and live product ids exist |
+
+Dodo billing is **deployed and live** (seven live products, `/pricing`, the
+membership dashboard and the hosted portal). It is not in this table because it
+is no longer withheld.
 
 Their permanent pages say "not available on this deployment" and are `noindex`.
 They are not in the catalog, menus or sitemap.

@@ -24,15 +24,20 @@ export function clientAddress(c: Context<AppEnv>): string {
  * Counts this address in the current hour and reports whether it is still under
  * `limit`. A refusal still costs a count, which is the safe direction: a client
  * that keeps hammering stays locked out instead of resetting its window.
+ *
+ * `subject` overrides the address when a signed-in route wants a per-account
+ * ceiling that survives a change of IP. Both keys are hashed, so no address or
+ * account id is stored in the counter table.
  */
 export async function underHourlyLimit(
   c: Context<AppEnv>,
   prefix: string,
   limit: number,
+  subject?: string,
 ): Promise<boolean> {
   const now = Date.now();
   const hour = Math.floor(now / (60 * 60 * 1000));
-  const key = `${prefix}:${await sha256Hex(clientAddress(c))}:${hour}`;
+  const key = `${prefix}:${await sha256Hex(subject ?? clientAddress(c))}:${hour}`;
   const expiresAt = (hour + 1) * 60 * 60 * 1000;
   const row = await c.env.DB.prepare(
     `INSERT INTO quota_counters (key, count, expires_at)

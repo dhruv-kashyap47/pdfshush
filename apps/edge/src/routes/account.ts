@@ -19,6 +19,7 @@ import { D1AccountStore, MAX_WORKFLOWS, type NewHistoryEntry } from '../db/accou
 import { LIMITS } from '@pdfshush/pdf-core/limits';
 import { validateWorkflow, type Workflow } from '@pdfshush/pdf-core/workflow';
 import { SESSION_COOKIE, fail, requireCsrf } from '../lib/http.js';
+import { underHourlyLimit } from '../lib/rate-limit.js';
 import { requireAccount } from '../lib/session.js';
 import { dodoConfig, cancelSubscription, listCustomerPayments } from '../billing/dodo.js';
 import { readAiUsage } from '../ai/budget.js';
@@ -86,9 +87,16 @@ accountRoutes.get('/api/account', async (c) => {
 
   // Dodo is the ledger. One subrequest gives the current page of payments;
   // a provider hiccup degrades the history card, not the whole dashboard.
+  // The read is capped per account so a script cannot turn page reloads into
+  // provider quota; after the cap the dashboard simply says the list is
+  // unavailable, which is true for that request.
+  const canListPayments =
+    config && customerId
+      ? await underHourlyLimit(c, 'account:payments', 60, `acct:${account.id}`)
+      : false;
   let payments: Awaited<ReturnType<typeof listCustomerPayments>> = [];
   let paymentsUnavailable = false;
-  if (config && customerId) {
+  if (config && customerId && canListPayments) {
     try {
       payments = await listCustomerPayments(config, customerId, 10);
     } catch (error) {
@@ -98,6 +106,8 @@ accountRoutes.get('/api/account', async (c) => {
         error instanceof Error ? error.message : String(error),
       );
     }
+  } else if (config && customerId) {
+    paymentsUnavailable = true;
   }
 
   return c.json({

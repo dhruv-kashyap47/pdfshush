@@ -1,5 +1,13 @@
 # Remaining work → sprint plan (2026-11-24, post-deploy reality)
 
+> **2026-11-27 update: the paid rails are live.** Seven live Dodo products,
+> `DODO_ENVIRONMENT=live`, live secrets, the membership dashboard, the hosted
+> portal and a real $3 pass purchase are on production. Refunds and disputes now
+> revoke the grant they paid for from a `billing_payments` ledger. The current
+> record is [`dodo-products.md`](./dodo-products.md) and
+> [`WHATS-NEXT.md`](./WHATS-NEXT.md) Sprint 4; the remaining items below are
+> verification, not code.
+>
 > **2026-11-26 update: the server tier is archived.** `apps/api`, BullMQ/Redis,
 > Mongo, Docker, the REST API and MCP now live in `archive/` (tag
 > `server-tier-v1`). The active product is one Cloudflare Worker + Static Assets
@@ -240,23 +248,40 @@ Worker tier. No ad network, no CMP, no CSP widening, no server tier. Full record
 | `pnpm build` + `seo:audit` | 84 prerendered routes / 71 sitemap; PASS |
 | `test:bundle` / `test:guardrails` / `test:deploy-config` | PASS |
 
-**Open operator steps (not code).**
+**Done 2026-11-27, verification remains.**
 
-1. Create the seven Dodo products in test mode; set `DODO_API_KEY` and
-   `DODO_WEBHOOK_SECRET`; put the product ids in `wrangler.jsonc`; point the
-   webhook at `/api/billing/webhook` (active/renewed/cancelled/expired/payment
-   succeeded) and apply migration `0004`. The step-by-step list is in
-   [`WHATS-NEXT.md`](./WHATS-NEXT.md) §Sprint 4.
-2. Deploy with `VITE_SERVER_API=on` — the committed `.env.production` is the
-   frontend-only shape, which has no API and therefore no sponsor card.
-3. Publish the 20 guides. Sponsorship is sellable around 10k sessions/month; the
-   rails are built to be ready, not to earn before the traffic exists.
-4. Optional: `/pricing`, generated from the same numbers, replacing the footer's
-   "Pricing (soon)".
+1. [x] Seven Dodo products in test mode, then seven in live mode. The ids are in
+   [`dodo-products.md`](./dodo-products.md); `DODO_API_KEY` and
+   `DODO_WEBHOOK_SECRET` are Worker secrets; `wrangler.jsonc` holds the live ids
+   and `DODO_ENVIRONMENT=live`; migrations `0004`, `0005` and `0006` are applied.
+2. [x] Deploy with `VITE_SERVER_API=on`; the account page sells the rails.
+3. [x] Publish the 20 guides (2026-11-26).
+4. [x] `/pricing`, generated from one content module and checked against the
+   charged constants by `apps/edge/test/prices.test.ts`.
+
+**Still operator work:**
+
+1. Add `refund.succeeded`, `refund.failed` and the dispute events to the Dodo
+   webhook's event list in the dashboard. The Worker handles them; an endpoint
+   that is not subscribed never receives them.
+2. Buy each remaining live rail once (Pro monthly, Pro yearly, credits,
+   donation, both sponsors) and confirm the entitlement, then refund after
+   settlement. Only the $3 pass has been bought for real so far.
+3. Verify the sponsor card live and that a Pro account renders none.
 
 **Exit gate:** a stranger can buy a slot without an email, the card appears only
 on the pages it names, and an unconfigured deployment still answers
 `503 billing_disabled` instead of showing a broken button.
+
+---
+
+## Sprints 15–23 — PRO TOOLS UPGRADE
+
+Planned in [`UPGRADE-PLAN.md`](./UPGRADE-PLAN.md). Release 1 ships five tools
+(contract review, study pack, explain/simplify, form data export/import, batch
+target-size compress); Release 2 adds the offline pack (attachments,
+booklet/imposition, sanitize + privacy report); Sprint 23 launches them with a
+real `/pricing` page. No server tier, no new migrations, no new dependencies.
 
 ---
 

@@ -1151,7 +1151,7 @@ async function main() {
     );
     check(
       'account page states the privacy boundary',
-      await page.getByText(/Every tool works without signing in/i).isVisible(),
+      await page.getByText(/Signing in keeps a paid plan attached/i).isVisible(),
     );
   } else {
     check(

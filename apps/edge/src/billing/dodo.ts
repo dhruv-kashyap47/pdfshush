@@ -155,6 +155,21 @@ function textOf(value: unknown): string | null {
 }
 
 /**
+ * Only an absolute `https:` link is ever put in an anchor. The URL comes from
+ * the provider, not a visitor, but a dashboard link is still an untrusted
+ * string at this boundary: `javascript:` would turn a receipt into script.
+ */
+export function safeHttpsUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 2_048) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The customer's payments, read from Dodo rather than a second local ledger.
  *
  * Dodo is the source of truth for amount, tax, status and refunds, and it
@@ -203,11 +218,119 @@ export async function listCustomerPayments(
       refundStatus: textOf(payment.refund_status),
       kind: metadata ? textOf(metadata.kind) : null,
       chargeType: textOf(payment.charge_type),
-      invoiceUrl: textOf(payment.invoice_url),
+      invoiceUrl: safeHttpsUrl(payment.invoice_url),
     });
   }
 
   return out;
+}
+
+/* ---------------------------------------------- refund and dispute lookups */
+
+export interface DodoPaymentRecord {
+  paymentId: string;
+  customerId: string | null;
+  metadata: Record<string, unknown>;
+  subscriptionId: string | null;
+  productId: string | null;
+  amount: number | null;
+  currency: string | null;
+  status: string | null;
+  refundStatus: string | null;
+  createdAt: string | null;
+}
+
+function firstProductId(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  for (const entry of value) {
+    const item = asRecord(entry);
+    const id = item ? textOf(item.product_id) : null;
+    if (id) return id;
+  }
+  return null;
+}
+
+function firstSubscriptionId(payment: Record<string, unknown>): string | null {
+  const direct = textOf(payment.subscription_id);
+  if (direct) return direct;
+  if (!Array.isArray(payment.subscription_ids)) return null;
+  for (const value of payment.subscription_ids) {
+    const id = textOf(value);
+    if (id) return id;
+  }
+  return null;
+}
+
+/**
+ * Read one payment from Dodo. A refund or dispute event names only a payment
+ * id, so this is how the Worker recovers the metadata and subscription that
+ * decide which entitlement to take back. The caller lets a failure become a
+ * 500, which asks Dodo to retry the webhook.
+ */
+export async function retrievePayment(
+  config: DodoConfig,
+  paymentId: string,
+): Promise<DodoPaymentRecord> {
+  const response = await fetch(`${config.baseUrl}/payments/${encodeURIComponent(paymentId)}`, {
+    headers: { authorization: `Bearer ${config.apiKey}` },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Dodo payment lookup failed: ${response.status}`);
+  }
+
+  const payment = asRecord(await response.json());
+  if (!payment) throw new Error('Dodo payment lookup returned no object');
+  const id = textOf(payment.payment_id) ?? paymentId;
+  const customer = asRecord(payment.customer);
+
+  return {
+    paymentId: id,
+    customerId: customer ? textOf(customer.customer_id) : null,
+    metadata: asRecord(payment.metadata) ?? {},
+    subscriptionId: firstSubscriptionId(payment),
+    productId: firstProductId(payment.product_cart),
+    amount: typeof payment.total_amount === 'number' ? payment.total_amount : null,
+    currency: textOf(payment.currency),
+    status: textOf(payment.status),
+    refundStatus: textOf(payment.refund_status),
+    createdAt: textOf(payment.created_at),
+  };
+}
+
+export interface DodoDisputeRecord {
+  disputeId: string;
+  paymentId: string;
+  customerId: string | null;
+}
+
+/**
+ * Dispute webhooks carry no customer field, only a dispute id. One read maps it
+ * to the payment whose entitlement has to be held while the dispute is open.
+ */
+export async function retrieveDispute(
+  config: DodoConfig,
+  disputeId: string,
+): Promise<DodoDisputeRecord> {
+  const response = await fetch(`${config.baseUrl}/disputes/${encodeURIComponent(disputeId)}`, {
+    headers: { authorization: `Bearer ${config.apiKey}` },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Dodo dispute lookup failed: ${response.status}`);
+  }
+
+  const dispute = asRecord(await response.json());
+  if (!dispute) throw new Error('Dodo dispute lookup returned no object');
+  const paymentId = textOf(dispute.payment_id);
+  if (!paymentId) throw new Error('Dodo dispute lookup returned no payment_id');
+  const customer = asRecord(dispute.customer);
+
+  return {
+    disputeId: textOf(dispute.dispute_id) ?? disputeId,
+    paymentId,
+    customerId: customer ? textOf(customer.customer_id) : null,
+  };
 }
 
 /**

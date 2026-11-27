@@ -99,3 +99,49 @@ export async function readJsonObject<E extends Env>(
     ? (parsed as Record<string, unknown>)
     : {};
 }
+
+/**
+ * Read a request body as UTF-8 with a hard byte ceiling.
+ *
+ * `content-length` is checked first, but a chunked request has none, so the
+ * stream itself is bounded. A body over the limit is cancelled and reported as
+ * `undefined`; the caller answers 413 without allocating the whole payload.
+ * This is for the webhook, which must hash the exact bytes but never needs a
+ * body anywhere near the Worker's memory limit.
+ */
+export async function readTextLimited(
+  request: Request,
+  maxBytes: number,
+): Promise<string | undefined> {
+  const declared = Number(request.headers.get('content-length') ?? '');
+  if (Number.isFinite(declared) && declared > maxBytes) return undefined;
+  if (!request.body) return '';
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return undefined;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}

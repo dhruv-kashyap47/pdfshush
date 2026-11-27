@@ -1,6 +1,6 @@
 # What we built, what's next, and how to run the AI
 
-**Last updated:** 2026-11-26
+**Last updated:** 2026-11-27
 **Read this first if:** you are picking the project back up after a break.
 
 ---
@@ -8,29 +8,40 @@
 ## Where we are, in one paragraph
 
 The website is live at **https://pdfshush.com** and every PDF tool runs in the
-visitor's browser. The product is now **Cloudflare-only**: one Worker on the free
-tier handles sign-in, cloud sync and the AI trial, and it costs $0 at your
-traffic. The Express/BullMQ/Redis/Mongo server tier has been archived in
-`archive/` for a later paid tier. The Worker and D1 are deployed, **accounts and
-the managed AI trial are live**, and Dodo is the only rail still switched off
-until its key and products are set.
-The 20 guides are published (2026-11-26) and the sitemap carries 92 URLs.
-AdSense is gone by decision; sponsorship and the one-time rails are built and
-switch on when Dodo is configured. Nothing is broken; most things are just
-waiting on a decision or an account.
+visitor's browser. The product is **Cloudflare-only**: one Worker on the free
+tier handles sign-in, cloud sync, the AI trial and payments, and it costs $0 at
+your traffic. The Express/BullMQ/Redis/Mongo server tier has been archived in
+`archive/` for a later paid tier. The Worker and D1 are deployed, **accounts,
+the managed AI trial and the paid rails are live**: seven live Dodo products,
+`/pricing`, the membership dashboard and the hosted billing portal. Refunds and
+disputes now revoke the entitlement they paid for instead of leaving access
+behind. The 20 guides are published and the sitemap carries 92 URLs. AdSense is
+gone by decision; sponsorship and the one-time rails are switchable now that
+Dodo is configured. Nothing is broken; the remaining work is verification,
+monitoring and growth.
 
-**Latest (2026-11-26, later):** the Dodo billing rails, the consent-gated
-measurement tag and the 20 published guides shipped as Worker
+**Latest (2026-11-27, later):** a payment-safety pass closed the last revenue
+hole. `refund.succeeded` and the dispute lifecycle are handled from a signed
+webhook plus a `billing_payments` ledger, so a full refund takes back exactly
+what one payment granted, a partial refund keeps access, and a refund that
+arrives before its payment cannot be followed by a grant. The webhook body is
+bounded, checkout creation is rate-limited per account and address, the paid
+product is compared with the checkout metadata, and receipt links are restricted
+to `https:`. Shipped as Worker `e7df7e58-4927-4f26-8e0c-b9ca2724858d` after
+migration `0006`; production smoke and reach are green with 93 sitemap URLs.
+See `PLAN.md` §48.
+
+**Latest (2026-11-27):** the Dodo rails went **live**. The seven live products
+replaced the test ids in `wrangler.jsonc`, `DODO_ENVIRONMENT=live`, the live API
+key and webhook secret are Worker secrets, and one real $3 pass was purchased and
+granted. The membership dashboard, AI usage meter and hosted portal shipped in
+the same release. See `docs/dodo-products.md`.
+
+**Latest (2026-11-26):** the Dodo billing rails, the consent-gated measurement
+tag and the 20 published guides shipped as Worker
 `2bcd75e8-9dc3-4fff-9dc8-f35819af587a`, after migration `0004` was applied to
 the remote D1. Production `test:e2e` and `test:e2e:reach` are green with 92
-sitemap URLs. Billing stays at `503` until the Dodo products and secrets exist;
-that is the intended shape. See `PLAN.md` §46-47.
-
-**Latest (2026-11-26):** a full repository audit and the failing cross-browser
-gate are closed, and production was redeployed as Worker
-`b6bde10b-1e27-44f4-8e6a-13d4aa1fa9ad`. Accounts and managed AI answer live;
-`/api/health` is green. See `PLAN.md` §45 for the fixes, the licence findings
-and the four owner decisions that remain.
+sitemap URLs. See `PLAN.md` §46-47.
 
 ---
 
@@ -39,15 +50,16 @@ and the four owner decisions that remain.
 | Thing | What it means | State |
 |---|---|---|
 | Server tier | Express API + BullMQ + Redis + Mongo + MCP, kept for a later paid tier | **Archived** in `archive/`, tag `server-tier-v1` |
-| Free backend | A Cloudflare Worker serving the site and `/api` from one address | **Deployed** (`b6bde10b-1e27-44f4-8e6a-13d4aa1fa9ad`) |
+| Free backend | A Cloudflare Worker serving the site and `/api` from one address | **Deployed** |
 | Accounts | Google sign-in, stored in Cloudflare D1 (not MongoDB) | **Live** (OIDC on D1) |
 | Cloud sync | Preferences, history, workflows saved per account | **Live** for signed-in accounts |
 | AI proxy | Your OpenRouter key stays on the server; visitors never see it | **On** (managed trial; BYOK always) |
-| Plans | Free = 3 AI messages/day. Pro = 500/month, cloud sync, no sponsor cards | Built, no payments |
+| Plans | Free = 3 AI messages/day. Pro = 500/month, cloud sync, no sponsor cards | **Live** ($6/mo, $48/yr) |
 | Guides | `/guides` plus 20 articles (~39,000 words) | **Live** (2026-11-26) |
 | Measurement | One Google Tag Manager container; opt-in in the EEA/UK, off switch in the footer | **Live** with consent gate |
-| Sponsorship | Two first-party slots ($39 + $19/mo, founding). No ad network, no CSP change | Built, **off** until Dodo is configured |
-| One-time rails | 30-day pass, AI credit pack, donation | Built, **off** until Dodo is configured |
+| Sponsorship | Two first-party slots ($39 + $19/mo, founding). No ad network, no CSP change | **Live**, self-serve checkout |
+| One-time rails | 30-day pass, AI credit pack, donation | **Live** |
+| Refunds / disputes | Full refund or a lost dispute revokes the paid grant; partial refunds keep it | **Handled** (2026-11-27) |
 | Capability switch | The site hides features a deployment cannot run | Built |
 | Audit / CI | Repository audit, licence ledger, CI recovery and browser gates | **Done 2026-11-26** (1 586 unit tests; 29 E2E suites) |
 
@@ -271,7 +283,7 @@ inventory.
 **Done when:** CI is green, production is redeployed, and the only remaining
 items are decisions rather than code. ✅ (tracked in `PLAN.md` §45)
 
-### Sprint 4 — Payments (Dodo) — code complete 2026-11-26
+### Sprint 4 — Payments (Dodo) — live 2026-11-27
 
 **Why:** this is the actual revenue. Every paid rail shares one Dodo account and
 one webhook: Pro, the two sponsor slots, the 30-day pass, credit packs and
@@ -293,17 +305,30 @@ The subscription lifecycle is now explicit:
 | `subscription.cancelled` | nothing changes; access runs to the paid-through date |
 | `subscription.expired` | `plan = 'free'` immediately |
 | `payment.succeeded` (kind `pro`) | fallback activation if it lands before `subscription.active` |
+| `refund.succeeded` | a full refund ends the grant that payment bought; a partial refund keeps it |
+| `dispute.opened` / `won` / `cancelled` | access is held while the case is open and restored if the merchant wins or the customer withdraws |
 
 `plan_expires_at` is the single source of truth, so a pass, a manual grant and a
 subscription all write the same column and the hourly cron is the only sweep.
 
-**Verified locally (no Dodo account needed):**
+**Refund and dispute safety (2026-11-27).** `billing_payments` records what each
+payment granted (`credits`, `previous_expires_at`, `granted_until`). A full
+refund reverses exactly that grant: credits are removed up to the amount the pack
+added, a pass restores the term before it, a subscription payment restores the
+previous paid month, and a sponsor payment hides the card and frees the slot. A
+refund that arrives before its payment marks the ledger first, so the later
+payment cannot grant. The webhook is also bounded to 256 KiB, checkout creation
+is capped at ten an hour per account and thirty per address, and the paid product
+is compared with the checkout metadata.
 
-- 35 new tests in `apps/edge/test/` run the real migrations through
-  `node:sqlite` and call `app.fetch()` — no mock of the schema.
+**Verified locally:**
+
+- The edge suite runs the real migrations through `node:sqlite` and calls
+  `app.fetch()` — no mock of the schema. 75 tests as of 2026-11-27.
 - Signed webhooks prove activation, renewal, cancellation-still-Pro, expiry,
   credit grants (once, and capped at 50 000), the 30-day pass, a donation
-  granting nothing, and a Pro pass not shortening a longer subscription.
+  granting nothing, full and partial refunds, disputes, replay, forged
+  signatures, product mismatch, an oversized body and the checkout limiter.
 - A replayed webhook id is acknowledged as `duplicate` and grants nothing twice.
 - A forged signature is `400`; a subscription owned by another account fails
   closed with `500` and releases its claim so the retry can succeed.
@@ -313,30 +338,37 @@ subscription all write the same column and the hourly cron is the only sweep.
   and stale signatures are refused, and a fixture API key produces a translated
   `502` with Dodo's own `401` in the log.
 
-**The dashboard and deploy work that remains:**
+**Go-live record (2026-11-27):**
 
-- [ ] Create the seven products in Dodo **test mode**: Pro monthly $6, Pro yearly
-      $48, sponsor Featured $39/mo, sponsor Standard $19/mo, pass $3, credits
-      $5/1 000, donation pay-what-you-want
-- [ ] `npx wrangler secret put DODO_API_KEY` and `DODO_WEBHOOK_SECRET`
-- [ ] Put the seven product ids in `wrangler.jsonc` (`DODO_PRODUCT_PRO_MONTHLY`,
-      `_PRO_YEARLY`, `_SPONSOR_FEATURED`, `_SPONSOR_STANDARD`, `_CREDITS`,
-      `_PASS_30D`, `_DONATE`)
-- [ ] `npx wrangler d1 migrations apply pdfshush --remote` (adds
-      `accounts.dodo_subscription_id`)
-- [ ] Point the webhook at `/api/billing/webhook` and subscribe to
+- [x] Create the seven products in Dodo, test and live mode; ids are in
+      `docs/dodo-products.md`
+- [x] `npx wrangler secret put DODO_API_KEY` and `DODO_WEBHOOK_SECRET`
+- [x] Put the seven live product ids in `wrangler.jsonc` and set
+      `DODO_ENVIRONMENT=live`
+- [x] `npx wrangler d1 migrations apply pdfshush --remote` (migrations `0004`
+      and `0005`)
+- [x] Point the webhook at `/api/billing/webhook` and subscribe to
       `subscription.active`, `subscription.renewed`, `subscription.cancelled`,
       `subscription.expired`, `payment.succeeded`
-- [ ] Test with Dodo's test mode end to end: sponsor card goes live, credit pack
-      raises the AI cap, pass flips the plan, Pro monthly then yearly, donation
-      succeeds, and cancel keeps the month
-- [x] Verify a replayed webhook grants nothing twice (automated)
+- [x] One real purchase: the $3 pass granted Pro (`pay_0Nsr107WnveRWS1WiWlI4`)
+- [ ] **Add `refund.succeeded`, `refund.failed` and `dispute.opened`,
+      `dispute.challenged`, `dispute.won`, `dispute.cancelled`,
+      `dispute.accepted`, `dispute.lost`, `dispute.expired` to the webhook's
+      event list in the Dodo dashboard.** The code handles them; an endpoint
+      that is not subscribed never receives them. Webhooks cannot be changed
+      over OAuth, so this is a dashboard-only step.
+- [ ] Buy one of each remaining live rail (Pro monthly, Pro yearly, credits,
+      donation, both sponsors) and confirm the entitlement, then refund after
+      settlement
+- [ ] Decide whether a full subscription refund should also cancel the Dodo
+      subscription. The Worker revokes access but does not cancel; cancel it in
+      the dashboard when the refund ends the relationship.
 
 **Done when:** paying flips the entitlement within seconds, cancelling eventually
-flips it back, and an unconfigured deployment still answers `503` instead of
-showing a broken button.
+flips it back, a refund takes the grant back, and an unconfigured deployment
+still answers `503` instead of showing a broken button.
 
-### Sprint 5 — Sponsorship — code built 2026-11-26
+### Sprint 5 — Sponsorship — live 2026-11-27
 
 **Why:** the replacement for AdSense, and the only revenue rail that scales with
 traffic. Do it after payments, not before.
@@ -347,10 +379,11 @@ in D1, the sponsor card on home/guides/article-end, the Pro gate and the
 
 - [ ] Read `docs/SPONSORSHIP.md`
 - [ ] Confirm both slots read "Open" on `/sponsor`
-- [ ] Buy one slot yourself in test mode and confirm the card appears on the home
-      page within a minute
+- [ ] Buy one slot live and confirm the card appears on the home page within a
+      minute
 - [ ] Confirm a Pro account renders no card at all
-- [ ] Confirm the CSP is unchanged (`default-src 'self'`, no Google origins)
+- [x] Confirm the CSP is unchanged (`default-src 'self'`, no Google origins) —
+      asserted by `apps/web/src/lib/csp.test.ts`
 - [ ] Publish the page in Search Console; link it from the footer (already done)
 
 **Done when:** a stranger can pay for a slot without an email, and the card is
@@ -377,7 +410,8 @@ live on the right page and nowhere else.
 - [ ] Uptime check on `/api/health` with an alert
 - [ ] D1 backup/export weekly (accounts are the only irreplaceable data)
 - [ ] Worker error alerting (`wrangler tail` is not monitoring)
-- [ ] Add a test for the guide route's hook split and the AI meter rollover
+- [x] Add a test for the AI meter rollover (`apps/edge/test/usage.test.ts`)
+- [ ] Add a test for the guide route's hook split
 - [ ] Document the "turn AI off" switch in the README
 
 **Done when:** a failure pages you before a customer emails.

@@ -70,7 +70,7 @@ check('robots.txt keeps /account out', robots.body.includes('Disallow: /account'
 
 /* The public information pages are part of the launch surface. A crawler must
    get a real document, not the SPA shell, and the sitemap must list each one. */
-for (const route of ['/privacy', '/terms', '/about', '/contact', '/status']) {
+for (const route of ['/privacy', '/terms', '/about', '/contact', '/status', '/pricing']) {
   const page = await text(route);
   const title = first(page.body, /<title>([^<]+)<\/title>/);
   const canonical = first(page.body, /<link rel="canonical" href="([^"]+)"/);

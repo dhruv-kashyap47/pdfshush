@@ -31,9 +31,8 @@ before launch; it affects future purchases only.
 - **Local** (`pnpm dev:edge`) reads `<repo>/.dev.vars`, which overrides the
   `wrangler.jsonc` vars. That file holds the **test** ids and
   `DODO_ENVIRONMENT=test`, plus `WEB_ORIGIN=http://localhost:5173`.
-- **Deployed** reads `wrangler.jsonc` only. It currently holds the **test** ids
-  and `DODO_ENVIRONMENT=test`, so production answers `503 billing_disabled`
-  until live secrets exist. That is deliberate.
+- **Deployed** reads `wrangler.jsonc` only. It holds the **live** ids and
+  `DODO_ENVIRONMENT=live`; the live key and webhook secret are Worker secrets.
 
 ## Live verification (2026-11-27)
 
@@ -44,6 +43,9 @@ Production was switched to this set on 2026-11-27.
   uses test mode.
 - Dashboard release `18c5d055` adds the customer dashboard, the stored customer
   id and the hosted billing portal. Migration `0005` was applied first.
+- Payment-safety release `e7df7e58-4927-4f26-8e0c-b9ca2724858d` (2026-11-27)
+  adds the refund/dispute handlers and the payment ledger. Migration `0006` was
+  applied first.
 - `DODO_API_KEY` and `DODO_WEBHOOK_SECRET` set as Worker secrets.
   `GET /api/sponsors` reports `billing.enabled: true`, and an unsigned POST to
   `/api/billing/webhook` answers `400 invalid_signature`.
@@ -57,12 +59,41 @@ Production was switched to this set on 2026-11-27.
 1. A refund requested minutes after the payment failed with
    `409 Insufficient funds in wallet`; `balances.retrieveLedger` was empty
    because the sale had not settled. Refunds need a settled balance, so retry
-   from the dashboard or the API after settlement. The paid access stays granted
-   until the refund actually succeeds.
-2. The Worker handles `payment.succeeded` and the subscription lifecycle but not
-   `refund.succeeded`, so a successful refund does not revoke access. Until that
-   handler exists, revoke a refunded term by hand in D1 (`plan`, `plan_expires_at`)
-   or accept the access as a goodwill grant.
+   from the dashboard or the API after settlement.
+2. Refunds and disputes are handled in code since 2026-11-27 (see below). The
+   webhook endpoint still has to be **subscribed** to those events in the Dodo
+   dashboard; the code cannot receive an event the endpoint does not subscribe
+   to.
+
+## Refunds and disputes (2026-11-27)
+
+Migration `0006_payment_ledger.sql` adds `billing_payments`: one row per payment,
+recording what it granted (`credits`, `previous_expires_at`, `granted_until`).
+That is what makes revocation exact.
+
+| Event | Effect |
+|---|---|
+| `refund.succeeded`, `is_partial: false` | Reverses the payment's grant: credits removed up to the added amount, a pass restores the previous term, a subscription payment restores the previous paid month, a sponsor card is hidden and the slot freed |
+| `refund.succeeded`, `is_partial: true` | Access is kept unless Dodo's own `refund_status` is `full` (a payment refunded in parts) |
+| `refund.failed` | Access is kept; the failure is logged |
+| `dispute.opened`, `dispute.challenged` | Access is held while the case is open |
+| `dispute.won`, `dispute.cancelled` | Access is restored as far as the paid term still runs |
+| `dispute.accepted`, `dispute.lost`, `dispute.expired` | Access stays revoked |
+
+A refund that arrives before its `payment.succeeded` marks the ledger first, so
+the later payment cannot grant. A payment delivered under a second webhook id
+grants once. A refunded renewal with no checkout metadata is matched by its
+subscription id (or its product id), so it does not leave access behind.
+
+**Required dashboard step:** add `refund.succeeded`, `refund.failed`,
+`dispute.opened`, `dispute.challenged`, `dispute.won`, `dispute.cancelled`,
+`dispute.accepted`, `dispute.lost` and `dispute.expired` to the webhook's event
+list. Webhooks are not exposed on the OAuth consent page, so this is
+dashboard-only.
+
+The Worker does **not** cancel a subscription when a refund is issued. If the
+refund ends the relationship, cancel the subscription in the Dodo dashboard at
+the same time; otherwise the next renewal is a new payment and grants again.
 
 ## Customer dashboard (2026-11-27)
 
@@ -110,17 +141,26 @@ resources, and no paid-only APIs.
 
 ## Go-live checklist
 
-1. In `wrangler.jsonc`, replace the seven `DODO_PRODUCT_*` values with the live
-   ids above and set `"DODO_ENVIRONMENT": "live"`.
-2. Live-mode dashboard → **Developer → API Keys** → create a `dodo_live_` key.
-3. `npx wrangler secret put DODO_API_KEY`
-4. Live-mode dashboard → **Developer → Webhooks** → add
+All seven steps were done on 2026-11-27; the list is kept for a re-deploy or a
+mode change.
+
+1. [x] In `wrangler.jsonc`, replace the seven `DODO_PRODUCT_*` values with the
+   live ids above and set `"DODO_ENVIRONMENT": "live"`.
+2. [x] Live-mode dashboard → **Developer → API Keys** → create a `dodo_live_`
+   key.
+3. [x] `npx wrangler secret put DODO_API_KEY`
+4. [ ] Live-mode dashboard → **Developer → Webhooks** → add
    `https://pdfshush.com/api/billing/webhook` with `payment.succeeded`,
-   `subscription.active`, `subscription.renewed`, `subscription.cancelled` and
-   `subscription.expired`. Copy the signing secret.
-   Webhooks are not offered on the OAuth consent page, so this step is dashboard
-   only — the CLI listener and the MCP both answer `403 webhooks:read`.
-5. `npx wrangler secret put DODO_WEBHOOK_SECRET`
-6. `pnpm deploy`
-7. Buy the cheapest rail for real, confirm the entitlement, then refund it.
-8. Leave the test ids in `.dev.vars`; local development keeps using them.
+   `subscription.active`, `subscription.renewed`, `subscription.cancelled`,
+   `subscription.expired`, **and the refund and dispute events listed above**.
+   Copy the signing secret. Webhooks are not offered on the OAuth consent page,
+   so this step is dashboard only — the CLI listener and the MCP both answer
+   `403 webhooks:read`. The endpoint exists and the subscription/success events
+   work; confirm the refund/dispute types are ticked.
+5. [x] `npx wrangler secret put DODO_WEBHOOK_SECRET`
+6. [x] `pnpm deploy`
+7. [x] Buy the cheapest rail for real, confirm the entitlement, then refund it.
+   The $3 pass granted; the refund attempt needs a settled balance (see above).
+8. [x] Leave the test ids in `.dev.vars`; local development keeps using them.
+9. [ ] Apply migration `0006_payment_ledger.sql` before deploying the refund
+   worker (the step is in the release order, not the product setup).

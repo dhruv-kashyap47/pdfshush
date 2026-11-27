@@ -52,7 +52,7 @@ extras (AI, e-sign, public API + own MCP server, workflow automation).
 | **rea-uplift Sprint 5** | Fidelity: partial-run deletion, leftover-cover policy, `Tz` fit, raster-word fallback, rotated glyphs, sampled ink colour, native style + rotation, snap guides, insert pages | ✅ **done 2026-11-21** — C-05, C-07..C-11, T-06 engine half, T-07, E-07, E-09; pdf-core 657+1 expected fail, web 309, corpus 2/2, `text-ux` 56/56, main 150.4 kB / 0 engines; **Gate C met** |
 | **Cloudflare-only cut** | No servers. One Worker + Static Assets + D1; archive the Express/BullMQ/Redis/Mongo tier; browser-only PDF work; AI = BYOK everywhere + managed OpenRouter trial | 🟢 **Shipped and deployed 2026-11-26** — server tier moved to `archive/`, tagged `server-tier-v1`; active workspace is 5 projects; typecheck + 1 582 unit tests at the cut (1 586 after the audit) + build + bundle + guardrails + SEO green. Worker deployed to `pdfshush.com`, surfaces gated, accounts and managed AI live; repository audit, CI recovery and licence ledger closed (see §45) |
 | **Audit, CI recovery and licensing** | Full-repository audit: bug fixes, the cross-browser 502, the profile photo, dependency/licence inventory and browser gates | ✅ **done 2026-11-26** - 14 commits, 1 586 unit tests + 1 expected fail, all 29 `test:e2e:*` suites green, production redeployed; open owner decisions in §45 |
-| **Dodo payments sprint** | Recurring Pro (`$6/mo` · `$48/yr`), 30-day pass, credit packs, donations and the two sponsor slots; one webhook, Standard Webhooks verification, `billing_events` idempotency | 🟢 **code + tests complete 2026-11-26** — the Pro rail was missing and is now built (`/api/billing/pro`, two subscription products, full `subscription.*` lifecycle, account-page buttons); 35 new edge tests run the real migrations over `node:sqlite`; typecheck, `pnpm test` (**1 668 + 1 expected fail**), build, bundle, guardrails and deploy-config green. Operator steps remain: seven test-mode products, secrets, product ids, webhook endpoint, migration `0004` — see `docs/WHATS-NEXT.md` §Sprint 4 and §46 |
+| **Dodo payments sprint** | Recurring Pro (`$6/mo` · `$48/yr`), 30-day pass, credit packs, donations and the two sponsor slots; one webhook, Standard Webhooks verification, `billing_events` idempotency | 🟢 **live 2026-11-27** — seven live products, `/pricing`, membership dashboard and hosted portal deployed; one real `$3` pass granted; refund and dispute revocation added from a `billing_payments` ledger (§48) |
 
 **Redaction sub-phases** (detail in §20):
 
@@ -8819,8 +8819,89 @@ matters). Worker `2bcd75e8-9dc3-4fff-9dc8-f35819af587a` now serves
 green: 92 sitemap URLs, 48 tools, no console errors. `/guides` and every article
 answer 200 with FAQPage and BreadcrumbList markup, the prerendered HTML contains
 no `gtm.js` (the consent gate runs before the tag), and `/api/health` reports
-`database:ok`. The billing rails remain disabled until the Dodo products and
-secrets exist, which is the intended `503` shape.
+`database:ok`. At the time of that release the billing rails were still awaiting
+live products and secrets; they went live on 2026-11-27 (see §48).
 
+---
 
+## 48. Payment safety: refunds, disputes and the live rails (2026-11-27)
+
+**Starting state.** The paid rails went live on 2026-11-27 (seven live Dodo
+products, one real `$3` pass). A review of the payment surface found four
+problems the earlier sprint had not closed:
+
+1. A successful refund did not revoke access. `payment.succeeded` and the
+   subscription lifecycle were handled; `refund.succeeded` was not, so access
+   stayed until the term ended and had to be revoked by hand in D1.
+2. `/pricing` and the rebuilt `/account` dashboard had no test that the
+   advertised price equals the charged price, and `/pricing` was absent from
+   the reach gate.
+3. The webhook read an unbounded body before verifying the signature, and
+   checkout creation had no limiter.
+4. The docs still described billing as switched off, contradicting
+   `wrangler.jsonc` and production.
+
+**Security review.** The webhook signature, timestamp window, message-id claim
+and cross-account subscription index were sound. The pass found and closed
+these:
+
+| Finding | Fix |
+|---|---|
+| A refund left the grant in place | `billing_payments` ledger plus exact revocation (`ledger.ts`, `refunds.ts`) |
+| A refund before its payment could be followed by a grant | the ledger is written by the refund; the later payment sees `refunded_at` and grants nothing |
+| A delayed `subscription.active` could re-grant a refunded term | `refundedThrough()` refuses an event whose term is at or before the refunded term |
+| A refunded sponsor could be reactivated by a delayed renewal | same guard, keyed by subscription id |
+| A partial refund revoked everything | partial keeps access unless the provider's `refund_status` is `full` |
+| A renewal with no checkout metadata could not be refunded | kind is recovered from the product id; the account from the subscription id |
+| An unsigned caller could stream a large body | 256 KiB cap, headers checked first (`readTextLimited`) |
+| Checkout creation was unbounded | 10/hour/account and 30/hour/address |
+| Payment history could burn provider quota | 60 account loads/hour, then the card says unavailable |
+| A signed event could name a different product | paid product is compared with the checkout metadata; a mismatch is a 500 retry, never a grant |
+| A receipt link was trusted as a URL | only absolute `https:` links reach an anchor |
+
+**Built.**
+
+| Piece | Where |
+|---|---|
+| `billing_payments`: payment id, account, customer, kind, product, subscription, sponsor, credits, previous term, granted term, refund/revoke timestamps | `migrations/0006_payment_ledger.sql` |
+| Recording, exact revocation and dispute restore | `src/billing/ledger.ts` |
+| `refund.succeeded`/`refund.failed` and the dispute lifecycle | `src/billing/refunds.ts` |
+| Payment lookup and dispute lookup | `src/billing/dodo.ts` |
+| Bounded body reader | `src/lib/http.ts` |
+| Product check, refund dispatch, body cap, checkout/portal limits | `src/routes/billing.ts` |
+| Payment-list limit and invoice sanitising | `src/routes/account.ts`, `src/billing/dodo.ts` |
+| Price parity test | `apps/edge/test/prices.test.ts` |
+| Pricing content test | `apps/web/src/content/pricing.test.ts` |
+| `/pricing` in the reach gate | `tests/e2e/reach.mjs` |
+
+**Tests.** 29 new edge tests (75 total): full refund of credits, pass,
+subscription and sponsor; partial refund; failed refund; refund-before-payment;
+duplicate payment under two message ids; refunded renewal; delayed activation
+after refund; dispute open/won/lost; product mismatch; oversized body; receipt
+URL sanitising; and the checkout limiter. The pricing parity test compares the
+edge constants with `PRICING`; the content test checks every charged number
+appears in the crawlable body and that no unsold claim does.
+
+**Gates.** `pnpm typecheck` green; `pnpm test` **1 707 passed + 1 expected fail**
+(pdf-core 709, web 396, edge 75, ai-provider 375, ai-agent 152); `pnpm build`
+105 prerendered routes / 93 sitemap; `seo:audit` PASS; `test:bundle` main
+**165.7 kB / 0 engines**; `test:guardrails` plus self-test, `test:provenance`
+and `test:deploy-config` green.
+
+**Deploy.** Migration `0006` was applied to the remote D1 before the Worker
+deploy (the new table was verified empty), then Worker
+`e7df7e58-4927-4f26-8e0c-b9ca2724858d` was deployed on 2026-11-27. Production
+checks: `/api/health` reports `database:ok`, `/api/sponsors` reports
+`billing.enabled: true` with both slots open, `/pricing` answers 200 with the
+advertised `$6`, the sitemap carries 93 URLs, an unsigned webhook is `400`, a
+300 KiB webhook body is `413`, `/api/account` without a session is `401`, and
+`test:e2e` plus `test:e2e:reach` are green against `https://pdfshush.com`.
+The account smoke assertion was updated to the dashboard's current copy, which
+was the one stale check the audit had not caught.
+
+**Operator step that remains.** The Dodo webhook endpoint must be subscribed to
+`refund.succeeded`, `refund.failed` and the nine dispute events in the
+dashboard. The Worker handles them; an endpoint that is not subscribed never
+receives them. Webhooks are not exposed on the OAuth consent page, so this
+cannot be done from the CLI or the MCP.
 
